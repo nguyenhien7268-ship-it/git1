@@ -47,6 +47,9 @@ class DashboardWindow:
         # --- Style ---
         self.tree.tag_configure('section_header', font=('TkDefaultFont', 10, 'bold'), background='#E0E0E0')
         self.tree.tag_configure('clickable', foreground='blue') # (MỚI) Tag cho các dòng có thể nhấn
+        # (SỬA) Thêm tag cho cảnh báo Lô Gan
+        self.tree.tag_configure('gan_warning', foreground='#E65C00', font=('TkDefaultFont', 9, 'italic'))
+
         
         # (MỚI) Gán sự kiện Double-Click
         self.tree.bind("<Double-1>", self.on_double_click)
@@ -56,13 +59,38 @@ class DashboardWindow:
         for item in self.tree.get_children():
             self.tree.delete(item)
 
-    def populate_data(self, next_ky, stats, n_days, consensus, high_win, pending_k2n, gan_stats):
+    def populate_data(self, next_ky, stats, n_days, consensus, high_win, pending_k2n, gan_stats, top_scores): # (SỬA) Thêm top_scores
         """
         (CẬP NHẬT) Bơm dữ liệu thô (đã phân tích) vào Treeview.
-        Thêm gan_stats.
+        Thêm gan_stats và top_scores.
         """
         self.clear_data() # Xóa dữ liệu cũ trước
         self.window.title(f"Bảng Tổng Hợp Quyết Định - Dự đoán cho {next_ky}")
+        
+        # --- (SỬA) MỤC 0: BẢNG ĐIỂM QUYẾT ĐỊNH ---
+        iid_0 = "top_scores"
+        self.tree.insert("", "end", iid=iid_0, text=f"🏆 0. BẢNG ĐIỂM QUYẾT ĐỊNH (TOP 10)", tags=('section_header',))
+        if top_scores:
+            for item in top_scores[:10]: # Lấy Top 10
+                pair = item['pair']
+                score = item['score']
+                reasons = item['reasons']
+                is_gan = item['is_gan']
+                gan_days = item['gan_days']
+                
+                details = f"Điểm: {score} | {reasons}"
+                tags_to_apply = ()
+                
+                if is_gan:
+                    details += f" | 🚧 CẢNH BÁO: LÔ GAN {gan_days} KỲ"
+                    tags_to_apply = ('gan_warning',) # Thêm tag
+                
+                self.tree.insert(iid_0, "end", text=f"  - Cặp {pair}", 
+                                 values=(details, "top_score"),
+                                 tags=tags_to_apply) # Áp dụng tag
+        else:
+            self.tree.insert(iid_0, "end", text="  (Không có cặp nào đạt điểm)")
+        self.tree.item(iid_0, open=True) # Mặc định mở
         
         # --- Mục 1: Loto Về Nhiều ---
         iid_1 = "stats_n_day"

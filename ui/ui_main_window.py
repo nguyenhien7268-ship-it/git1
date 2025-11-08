@@ -29,7 +29,7 @@ except ImportError:
 class DataAnalysisApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Xổ Số Data Analysis (v3.3 - Interactive Dashboard)")
+        self.root.title("Xổ Số Data Analysis (v4.0 - Scoring Dashboard)") # (SỬA) Đổi tên
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(0, weight=1)
         self.root.geometry("800x600")
@@ -511,7 +511,7 @@ class DataAnalysisApp:
         """(MỚI) Bước 1: Gọi hàm chạy đa luồng."""
         title = "Bảng Tổng Hợp Quyết Định"
         self.update_output(f"\n--- Bắt đầu: {title} ---")
-        self.update_output("Đang chạy 5 hệ thống phân tích... (Bao gồm 2 backtest K2N ngầm)") # (SỬA) 5 hệ thống
+        self.update_output("Đang chạy 6 hệ thống phân tích... (Bao gồm 2 backtest K2N ngầm)") # (SỬA) 6 hệ thống
         self._run_task_in_thread(self._task_run_decision_dashboard, title)
 
     def _task_run_decision_dashboard(self, title):
@@ -528,19 +528,19 @@ class DataAnalysisApp:
         next_ky = f"Kỳ {int(last_row[0]) + 1}" if last_row[0].isdigit() else f"Kỳ {last_row[0]} (Next)"
 
         # --- 1. Thống kê N ngày ---
-        self.update_output("... (1/5) Đang thống kê Loto Về Nhiều...")
+        self.update_output("... (1/6) Đang thống kê Loto Về Nhiều...")
         stats_n_day = get_loto_stats_last_n_days(all_data_ai, n=n_days_stats)
         
         # --- 2. Thống kê "Vote" ---
-        self.update_output("... (2/5) Đang thống kê Cặp Số Dự Đoán...")
+        self.update_output("... (2/6) Đang thống kê Cặp Số Dự Đoán...")
         consensus = get_prediction_consensus(last_row)
         
         # --- 3. Thống kê "Cầu Tỷ Lệ Cao" ---
-        self.update_output("... (3/5) Đang lọc Cầu Tỷ Lệ Cao (>=47%)...")
+        self.update_output("... (3/6) Đang lọc Cầu Tỷ Lệ Cao (>=47%)...")
         high_win = get_high_win_rate_predictions(last_row, threshold=47.0)
 
         # --- 4. Chạy Backtest K2N ngầm ---
-        self.update_output("... (4/5) Đang chạy Backtest K2N ngầm (để lấy chuỗi)...")
+        self.update_output("... (4/6) Đang chạy Backtest K2N ngầm (để lấy chuỗi)...")
         ky_bat_dau_kiem_tra = 2
         ky_ket_thuc_kiem_tra = len(all_data_ai) + (ky_bat_dau_kiem_tra - 1)
         
@@ -570,15 +570,30 @@ class DataAnalysisApp:
                     pending_k2n_data.append({'name': bridge_name, 'stl': pair, 'rate': str(rates[j]), 'streak': str(streaks[j])})
 
         # --- 5. (MỚI) Thống kê Lô Gan ---
-        self.update_output(f"... (5/5) Đang tìm Lô Gan (trên {n_days_gan} kỳ)...")
+        self.update_output(f"... (5/6) Đang tìm Lô Gan (trên {n_days_gan} kỳ)...")
         gan_stats = get_loto_gan_stats(all_data_ai, n_days=n_days_gan)
+        
+        # --- (SỬA) 6. HỆ THỐNG CHẤM ĐIỂM ---
+        self.update_output("... (6/6) Đang chấm điểm và tổng hợp quyết định...")
+        top_scores = get_top_scored_pairs(
+            stats_n_day, # (SỬA) Đổi tên biến
+            consensus, 
+            high_win, 
+            pending_k2n_data, 
+            gan_stats
+        )
         
         self.update_output("Phân tích hoàn tất. Đang hiển thị Bảng Tổng Hợp...")
         
         # --- (SỬA LỖI) Phải gọi hiển thị UI từ luồng chính ---
-        self.root.after(0, self._show_dashboard_window, next_ky, stats_n_day, n_days_stats, consensus, high_win, pending_k2n_data, gan_stats)
+        # (SỬA) Thêm top_scores vào cuối
+        self.root.after(0, self._show_dashboard_window, 
+            next_ky, stats_n_day, n_days_stats, 
+            consensus, high_win, pending_k2n_data, 
+            gan_stats, top_scores
+        )
 
-    def _show_dashboard_window(self, next_ky, stats_n_day, n_days_stats, consensus, high_win, pending_k2n_data, gan_stats): # (SỬA LỖI) Thêm gan_stats
+    def _show_dashboard_window(self, next_ky, stats_n_day, n_days_stats, consensus, high_win, pending_k2n_data, gan_stats, top_scores): # (SỬA) Thêm top_scores
         """(SỬA LỖI) Chuyển sang gọi Class DashboardWindow (Giai đoạn 4)"""
         try:
             # (MỚI) Kiểm tra xem cửa sổ đã mở chưa
@@ -591,7 +606,9 @@ class DataAnalysisApp:
             
             # (MỚI) Bơm dữ liệu vào cửa sổ
             self.dashboard_window.populate_data(
-                next_ky, stats_n_day, n_days_stats, consensus, high_win, pending_k2n_data, gan_stats # (SỬA LỖI) Thêm gan_stats
+                next_ky, stats_n_day, n_days_stats, 
+                consensus, high_win, pending_k2n_data, 
+                gan_stats, top_scores # (SỬA) Thêm top_scores
             )
         except Exception as e:
             self.update_output(f"LỖI khi hiển thị Bảng Tổng Hợp: {e}")
