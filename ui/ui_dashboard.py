@@ -9,7 +9,7 @@ class DashboardWindow:
         self.app = app_instance
         self.window = tk.Toplevel(self.app.root)
         self.window.title("Bảng Tổng Hợp Quyết Định")
-        self.window.geometry("1100x750")
+        self.window.geometry("1200x700") 
         
         # Tạo các font chữ
         self.default_font = ("TkDefaultFont", 10)
@@ -17,85 +17,30 @@ class DashboardWindow:
         self.header_font = ("TkDefaultFont", 12, "bold")
         self.pair_font = ("TkDefaultFont", 11, "bold")
         
-        # --- Cấu trúc GUI ---
+        # --- (SỬA GĐ 5) Cấu trúc GUI 3 Cột ---
         main_frame = ttk.Frame(self.window, padding="10")
         main_frame.pack(fill=tk.BOTH, expand=True)
         main_frame.rowconfigure(1, weight=1) # Hàng 1 (danh sách) sẽ co giãn
-        main_frame.columnconfigure(0, weight=3) # Cột 0 (trái)
-        main_frame.columnconfigure(1, weight=2) # Cột 1 (phải)
-
-        # Tiêu đề
-        self.title_label = ttk.Label(main_frame, text="Bảng Tổng Hợp: [CHƯA CẬP NHẬT]", font=self.header_font)
-        self.title_label.grid(row=0, column=0, columnspan=2, pady=5, sticky="w")
-
-        # --- Khung bên trái (3 Cột) ---
-        left_frame = ttk.Frame(main_frame)
-        left_frame.grid(row=1, column=0, sticky="nsew", padx=(0, 5))
-        left_frame.rowconfigure(0, weight=1)
-        left_frame.columnconfigure(0, weight=1)
-        left_frame.columnconfigure(1, weight=1)
-        left_frame.columnconfigure(2, weight=1)
-
-        # Cột 1: Loto Về Nhiều
-        frame_hot = ttk.Labelframe(left_frame, text="Loto Về Nhiều (7 Ngày)")
-        frame_hot.grid(row=0, column=0, sticky="nsew", padx=(0, 2))
-        self.tree_hot = self._create_treeview(
-            frame_hot, 
-            columns=("Loto", "Nháy", "Số Kỳ"),
-            widths=(60, 50, 50)
-        )
-        self.tree_hot.tag_configure('top3', background='#FFFFE0') # Vàng nhạt
-
-        # Cột 2: Cặp Số "Vote" Cao
-        frame_consensus = ttk.Labelframe(left_frame, text="Cặp Số Được Vote Nhiều Nhất")
-        frame_consensus.grid(row=0, column=1, sticky="nsew", padx=(2, 2))
-        self.tree_consensus = self._create_treeview(
-            frame_consensus, 
-            columns=("Cặp Số", "Số Vote", "Nguồn Cầu"),
-            widths=(80, 60, 150)
-        )
-        self.tree_consensus.tag_configure('top3', background='#FFFFE0') # Vàng nhạt
-
-        # Cột 3: Lô Gan
-        frame_gan = ttk.Labelframe(left_frame, text="Lô Gan (Trên 15 Ngày)")
-        frame_gan.grid(row=0, column=2, sticky="nsew", padx=(2, 0))
-        self.tree_gan = self._create_treeview(
-            frame_gan, 
-            columns=("Loto", "Số Ngày Gan"),
-            widths=(60, 80)
-        )
-        self.tree_gan.tag_configure('gan', foreground='red')
-
-        # --- Khung bên phải (2 Cột) ---
-        right_frame = ttk.Frame(main_frame)
-        right_frame.grid(row=1, column=1, sticky="nsew", padx=(5, 0))
-        right_frame.rowconfigure(0, weight=1) # Hàng trên (Cầu)
-        right_frame.rowconfigure(1, weight=1) # Hàng dưới (Chấm điểm)
-        right_frame.columnconfigure(0, weight=1)
-
-        # Hàng 1 (Phải): Cầu Tỷ Lệ Cao & K2N
-        frame_bridges = ttk.Labelframe(right_frame, text="Dự Đoán Từ Các Cầu Tốt Nhất")
-        frame_bridges.grid(row=0, column=0, sticky="nsew", pady=(0, 5))
-        self.tree_high_win = self._create_treeview(
-            frame_bridges, 
-            columns=("Tên Cầu (Double-click để xem)", "STL", "Tỷ Lệ/Chuỗi"),
-            widths=(200, 70, 80)
-        )
-        self.tree_high_win.tag_configure('header', font=self.default_font_bold, background='#F0F0F0')
-        self.tree_high_win.tag_configure('italic', font=(self.default_font[0], self.default_font[1], 'italic'))
-        self.tree_high_win.tag_configure('high_win', background='#FFFFE0') # Vàng nhạt
-        self.tree_high_win.tag_configure('k2n', background='#E0FFF0') # Xanh lá nhạt
         
-        # (MỚI) Thêm tag cho Cầu Bạc Nhớ
-        self.tree_high_win.tag_configure('separator', font=self.default_font_bold, background='#E0E0E0')
-        self.tree_high_win.tag_configure('memory_bridge', background='#E0F0FF') # Xanh nhạt
+        main_frame.columnconfigure(0, weight=2) # Cột 0 (Kết quả)
+        main_frame.columnconfigure(1, weight=1) # Cột 1 (Bối cảnh)
+        main_frame.columnconfigure(2, weight=1) # Cột 2 (Dữ liệu gốc)
+
+        # --- Hàng 0: Tiêu đề và Nút Refresh ---
+        title_frame = ttk.Frame(main_frame)
+        title_frame.grid(row=0, column=0, columnspan=3, sticky="ew", pady=5)
         
-        # Bind double-click
-        self.tree_high_win.bind("<Double-1>", self.on_bridge_double_click)
+        self.title_label = ttk.Label(title_frame, text="Bảng Tổng Hợp: [CHƯA CẬP NHẬT]", font=self.header_font)
+        self.title_label.pack(side=tk.LEFT, anchor="w")
         
-        # Hàng 2 (Phải): Bảng Chấm Điểm
-        frame_scores = ttk.Labelframe(right_frame, text="Bảng Chấm Điểm Tổng Lực")
-        frame_scores.grid(row=1, column=0, sticky="nsew", pady=(5, 0))
+        self.refresh_button = ttk.Button(title_frame, 
+                                         text="Làm Mới Dữ Liệu", 
+                                         command=self.app.run_decision_dashboard)
+        self.refresh_button.pack(side=tk.RIGHT, anchor="e")
+
+        # --- Cột 0: Bảng Chấm Điểm (Kết quả) ---
+        frame_scores = ttk.Labelframe(main_frame, text="Bảng Chấm Điểm Tổng Lực (Kết Quả)")
+        frame_scores.grid(row=1, column=0, sticky="nsew", padx=(0, 5))
         self.tree_scores = self._create_treeview(
             frame_scores, 
             columns=("Hạng", "Cặp Số", "Điểm", "Lý Do Chấm Điểm"),
@@ -104,7 +49,69 @@ class DashboardWindow:
         self.tree_scores.tag_configure('top1', background='#FFFFE0', font=self.default_font_bold)
         self.tree_scores.tag_configure('top3', background='#FFFFE0')
         self.tree_scores.tag_configure('gan', foreground='red')
-        self.tree_scores.tag_configure('gan_hot', background='#FFECEC', foreground='red') # Gan mà hot
+        self.tree_scores.tag_configure('gan_hot', background='#FFECEC', foreground='red')
+        
+        # --- Cột 1: Bối cảnh (Hot/Gan) ---
+        context_frame = ttk.Frame(main_frame)
+        context_frame.grid(row=1, column=1, sticky="nsew", padx=(5, 5))
+        context_frame.rowconfigure(0, weight=1)
+        context_frame.rowconfigure(1, weight=1)
+        context_frame.columnconfigure(0, weight=1)
+
+        # Cột 1a: Loto Về Nhiều
+        frame_hot = ttk.Labelframe(context_frame, text="Loto Về Nhiều (7 Ngày)")
+        frame_hot.grid(row=0, column=0, sticky="nsew", pady=(0, 5))
+        self.tree_hot = self._create_treeview(
+            frame_hot, 
+            columns=("Loto", "Nháy", "Số Kỳ"),
+            widths=(60, 50, 50)
+        )
+        self.tree_hot.tag_configure('top3', background='#FFFFE0') # Vàng nhạt
+
+        # Cột 1b: Lô Gan
+        frame_gan = ttk.Labelframe(context_frame, text="Lô Gan (Trên 15 Ngày)")
+        frame_gan.grid(row=1, column=0, sticky="nsew", pady=(5, 0))
+        self.tree_gan = self._create_treeview(
+            frame_gan, 
+            columns=("Loto", "Số Ngày Gan"),
+            widths=(60, 80)
+        )
+        self.tree_gan.tag_configure('gan', foreground='red')
+
+        # --- Cột 2: Dữ liệu gốc (Vote/Cầu) ---
+        data_frame = ttk.Frame(main_frame)
+        data_frame.grid(row=1, column=2, sticky="nsew", padx=(5, 0))
+        data_frame.rowconfigure(0, weight=1)
+        data_frame.rowconfigure(1, weight=1)
+        data_frame.columnconfigure(0, weight=1)
+
+        # Cột 2a: Cặp Số "Vote" Cao
+        frame_consensus = ttk.Labelframe(data_frame, text="Cặp Số Được Vote Nhiều Nhất")
+        frame_consensus.grid(row=0, column=0, sticky="nsew", pady=(0, 5))
+        self.tree_consensus = self._create_treeview(
+            frame_consensus, 
+            columns=("Cặp Số", "Số Vote", "Nguồn Cầu"),
+            widths=(80, 60, 150)
+        )
+        self.tree_consensus.tag_configure('top3', background='#FFFFE0') # Vàng nhạt
+
+        # Cột 2b: Cầu Tỷ Lệ Cao & K2N
+        frame_bridges = ttk.Labelframe(data_frame, text="Dự Đoán Từ Các Cầu Tốt Nhất")
+        frame_bridges.grid(row=1, column=0, sticky="nsew", pady=(5, 0))
+        self.tree_high_win = self._create_treeview(
+            frame_bridges, 
+            columns=("Tên Cầu (Double-click để xem)", "STL", "Tỷ Lệ/Chuỗi"),
+            widths=(200, 70, 100) # (SỬA LỖI) Tăng độ rộng cột 3
+        )
+        self.tree_high_win.tag_configure('header', font=self.default_font_bold, background='#F0F0F0')
+        self.tree_high_win.tag_configure('italic', font=(self.default_font[0], self.default_font[1], 'italic'))
+        self.tree_high_win.tag_configure('high_win', background='#FFFFE0') # Vàng nhạt
+        self.tree_high_win.tag_configure('k2n', background='#E0FFF0') # Xanh lá nhạt
+        self.tree_high_win.tag_configure('separator', font=self.default_font_bold, background='#E0E0E0')
+        self.tree_high_win.tag_configure('memory_bridge', background='#E0F0FF') # Xanh nhạt
+        
+        self.tree_high_win.bind("<Double-1>", self.on_bridge_double_click)
+        
         
     def _create_treeview(self, parent, columns, widths):
         """Hàm nội bộ tạo Treeview chuẩn."""
@@ -136,10 +143,9 @@ class DashboardWindow:
             for item in tree.get_children():
                 tree.delete(item)
 
-    # (SỬA LỖI) Thêm "top_memory_bridges" vào cuối cùng
     def populate_data(self, next_ky, stats_n_day, n_days_stats, consensus, high_win, pending_k2n_data, gan_stats, top_scores, top_memory_bridges):
         """
-        (NÂNG CẤP) Bơm dữ liệu từ 7 nguồn vào các bảng.
+        (SỬA LỖI GĐ 4) Bơm dữ liệu vào các bảng (đã sửa logic K2N).
         """
         self.clear_data()
         self.title_label.config(text=f"Bảng Tổng Hợp Quyết Định (Dự đoán cho {next_ky})")
@@ -208,11 +214,19 @@ class DashboardWindow:
             if not pending_k2n_data:
                 self.tree_high_win.insert("", tk.END, values=("(Không có cầu nào chờ K2N)", "", ""), tags=('italic',))
             
-            # (SỬA LỖI GĐ 1) Sửa vòng lặp từ 'for item in...' thành 'for bridge_name, data in...'
+            # (SỬA LỖI) Cập nhật logic để hiển thị chuỗi thắng VÀ chuỗi thua max
             for bridge_name, data in pending_k2n_data.items():
+                # Lấy dữ liệu an toàn
+                stl = data.get('stl', 'Lỗi')
+                streak_str = data.get('streak', '0 khung')
+                max_lose = data.get('max_lose', 0)
+                
+                # Tạo chuỗi hiển thị mới
+                streak_info = f"{streak_str} (Thua max: {max_lose})"
+                
                 self.tree_high_win.insert(
                     "", tk.END, 
-                    values=(bridge_name, data['stl'], data['streak']), 
+                    values=(bridge_name, stl, streak_info), 
                     tags=('k2n',)
                 )
 

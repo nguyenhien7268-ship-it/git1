@@ -18,7 +18,6 @@ try:
         load_data_ai_from_db,
         update_bridge_win_rate_batch,
         upsert_managed_bridge,
-        # (MỚI GĐ 1) Thêm hàm DB
         update_bridge_k2n_cache_batch
     )
 except ImportError as e:
@@ -56,7 +55,6 @@ try:
         BACKTEST_MANAGED_BRIDGES_K2N, 
         run_and_update_all_bridge_rates,
         
-        # (MỚI GĐ 1) Thêm hàm nghiệp vụ K2N cache
         run_and_update_all_bridge_K2N_cache,
         
         find_and_auto_manage_bridges,
@@ -64,14 +62,18 @@ try:
         
         # Logic Bạc Nhớ
         BACKTEST_MEMORY_BRIDGES,
-        get_top_memory_bridge_predictions, # (MỚI) Hỗ trợ BTH
-
+        get_top_memory_bridge_predictions,
+        TIM_CAU_BAC_NHO_TOT_NHAT, 
+        
         # Logic Analytics
         get_loto_stats_last_n_days,
         get_prediction_consensus,
         get_high_win_rate_predictions,
         get_loto_gan_stats,
-        get_top_scored_pairs
+        get_top_scored_pairs,
+        
+        # (MỚI GĐ 10) Thêm hàm mô phỏng
+        get_historical_dashboard_data
     )
 except ImportError as e:
     print(f"LỖI NGHIÊM TRỌNG: Không thể import logic.backtester: {e}")

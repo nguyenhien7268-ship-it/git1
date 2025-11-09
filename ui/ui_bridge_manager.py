@@ -273,6 +273,7 @@ class BridgeManagerWindow:
         
         self.status_label.config(text=f"Trạng thái: {values[6]}") # (SỬA GĐ 4) Index 6 (Status)
         
+    # (SỬA LỖI) GỌI ĐÚNG TÊN HÀM
     def run_update_all_k2n_cache(self):
         """Gọi hàm chạy K2N cache đa luồng từ app chính."""
-        self.app.run_update_all_bridge_K2N_cache()
+        self.app.run_update_all_bridge_K2N_cache_from_main()

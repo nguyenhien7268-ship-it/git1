@@ -1,0 +1,99 @@
+hãy chia update theo từng  giải đoạn nhỏ để tiến hành nâng cấp theo trong file
+
+mỗi giai đoạn tiếp tục chia nhỏ ra để tránh phức tạp và làm nặng xử lý
+
+khi cần update file háy gửi lại nguyên code của file tránh sai xót   
+  
+Giai đoạn 1: Tối ưu Tốc độ (Caching Backtest)
+Đây là cải tiến quan trọng nhất và nên làm ngay.
+
+Vấn đề hiện tại: Mỗi lần bạn nhấn nút "Bảng Tổng Hợp", hệ thống của bạn phải chạy lại 3 backtest RẤT NẶNG một cách "ngầm":
+
+Backtest 15 Cầu Cổ Điển K2N (để lấy chuỗi chờ).
+
+Backtest Cầu V17 Đã Lưu K2N (để lấy chuỗi chờ).
+
+Backtest 756 Cầu Bạc Nhớ N1 (để lấy Top 5 cầu). Việc này lặp đi lặp lại hàng ngàn phép tính trên toàn bộ 1000+ ngày dữ liệu, khiến Bảng Tổng Hợp mất vài giây đến cả phút để tải.
+
+Giải pháp (Caching): Chúng ta sẽ tính toán các kết quả này một lần duy nhất và lưu chúng vào CSDL (bảng ManagedBridges). Bảng Tổng Hợp sau đó chỉ cần đọc kết quả đã tính sẵn thay vì chạy lại backtest.
+
+Cách thực hiện:
+
+Cập nhật CSDL (logic/db_manager.py): Thêm 2 cột mới vào bảng ManagedBridges:
+
+current_streak (INTEGER): Lưu chuỗi thắng/thua K2N hiện tại.
+
+next_prediction_stl (TEXT): Lưu dự đoán cho ngày tiếp theo (ví dụ: "01,10").
+
+Nâng cấp Logic (logic/backtester.py): Sửa đổi hàm run_and_update_all_bridge_rates (mà bạn dùng để cập nhật tỷ lệ) để nó cũng tính toán và cập nhật 2 cột mới này (current_streak, next_prediction_stl) cho tất cả cầu đã lưu.
+
+Tối ưu Bảng Tổng Hợp: Sửa hàm _task_run_decision_dashboard (ui_main_window.py). Giờ đây, thay vì chạy 3 backtest ngầm, nó chỉ cần:
+
+get_loto_stats... (Giữ nguyên)
+
+get_prediction_consensus... (Giữ nguyên)
+
+get_loto_gan... (Giữ nguyên)
+
+(MỚI) get_bridges_from_cache(): Một hàm logic mới chỉ cần truy vấn bảng ManagedBridges để lấy ra:
+
+Cầu có win_rate_text > 47% (dành cho "Cầu Tỷ Lệ Cao").
+
+Cầu có current_streak < 0 (dành cho "Cầu K2N Đang Chờ").
+
+(Giai đoạn này tạm bỏ qua Cầu Bạc Nhớ để đơn giản hóa).
+
+Tối ưu Chấm Điểm: Sửa hàm get_top_scored_pairs để nó nhận dữ liệu từ cache mới này.
+
+Kết quả: Thời gian tải "Bảng Tổng Hợp" sẽ giảm từ vài phút xuống chưa đến 1 giây. Bạn chỉ cần chạy hàm "Cập nhật Tỷ lệ Cầu Hàng Loạt" mỗi khi có dữ liệu mới.
+
+Giai đoạn 2: Tối ưu Logic (Trọng số Thời gian)
+Vấn đề hiện tại: Hệ thống đang tính tỷ lệ thắng một cách "cào bằng". Một cầu thắng 100 ngày liên tục và "gãy" 30 ngày trước, vẫn có thể có tỷ lệ thắng 70% và được xem là "tốt", dù nó đã hết chu kỳ.
+
+Giải pháp (Time Weighting): Chúng ta sẽ áp dụng "trọng số thời gian" khi tính toán tỷ lệ thắng. Các cầu thắng gần đây sẽ được cộng nhiều điểm hơn các cầu thắng từ lâu.
+
+Cách thực hiện:
+
+Sửa đổi các hàm backtest lõi (ví dụ TIM_CAU_TOT_NHAT_V16 và các hàm backtest khác trong logic/backtester.py).
+
+Bên trong vòng lặp backtest, thay vì hits += 1 khi thắng, chúng ta sẽ dùng một công thức phức tạp hơn:
+
+Python
+
+# Ví dụ về logic trọng số
+days_ago = totalTestDays - current_day_index
+
+if days_ago <= 30:
+    weighted_hits += 1.5 # Thắng trong 30 ngày gần nhất
+elif days_ago <= 90:
+    weighted_hits += 1.0 # Thắng trong 31-90 ngày
+else:
+    weighted_hits += 0.5 # Thắng từ lâu
+
+# Tỷ lệ thắng mới = weighted_hits / (totalTestDays * 1.5) (hoặc một công thức chuẩn hóa khác)
+Kết quả: Các cầu V17 và Bạc Nhớ được "Dò" ra sẽ là các cầu đang có phong độ tốt nhất trong thời gian gần đây, giúp tăng "hiệu quả" (effectiveness) của dự đoán.
+
+Giai đoạn 3: Tối ưu Chấm điểm (Quản lý Rủi ro)
+Vấn đề hiện tại: Bảng Chấm Điểm (get_top_scored_pairs) đang dùng thang điểm cố định (ví dụ: score += 2 cho Cầu Tỷ Lệ Cao). Một cầu 50% và một cầu 80% đều nhận 2 điểm là không hợp lý. Hơn nữa, nó chưa xem xét đến rủi ro.
+
+Giải pháp (Dynamic Scoring & Risk Management):
+
+Chấm điểm Động: Thay vì cộng điểm cố định, chúng ta sẽ cộng điểm dựa trên mức độ tốt của cầu.
+
+Ví dụ cũ: score += 2
+
+Ví dụ mới: score += (win_rate - 47.0) / 10.0 (Cầu 57% được 1 điểm, cầu 77% được 3 điểm).
+
+Quản lý Rủi ro: Một cầu K2N có tỷ lệ 80% nhưng có "Chuỗi thua K2N dài nhất" là 10 (tức là có lúc bạn mất vốn 10 khung liên tiếp) sẽ tệ hơn một cầu 70% nhưng "Chuỗi thua K2N dài nhất" chỉ là 3.
+
+Cách thực hiện:
+
+Nâng cấp tất cả các hàm backtest K2N (BACKTEST_..._K2N) để chúng không chỉ trả về current_streak (chuỗi hiện tại) mà còn trả về max_losing_streak (chuỗi thua dài nhất).
+
+Nâng cấp Bảng Tổng Hợp (Giai đoạn 1) để lưu max_losing_streak vào CSDL.
+
+Nâng cấp hàm get_top_scored_pairs để trừ điểm (penalize) các cầu có rủi ro cao.
+
+Ví dụ: score -= (max_losing_streak * 2) (Trừ 2 điểm cho mỗi khung thua tối đa).
+
+Kết quả: "Điểm Tổng Lực" cuối cùng sẽ phản ánh một cách cân bằng giữa Hiệu suất (Performance) và Rủi ro (Risk), giúp bạn chọn được các cặp số an toàn và hiệu quả nhất.

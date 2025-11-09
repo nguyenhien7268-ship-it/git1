@@ -1,6 +1,21 @@
 import sqlite3
 from collections import Counter # (MỚI) Thêm import Counter cho các hàm analytics
 
+# (MỚI GĐ 8) Import file Cài đặt
+try:
+    from .config_manager import SETTINGS
+except ImportError:
+    try:
+        from config_manager import SETTINGS
+    except ImportError:
+        print("LỖI: backtester.py không thể import config_manager. Sử dụng giá trị mặc định.")
+        SETTINGS = type('obj', (object,), {
+            'STATS_DAYS': 7, 'GAN_DAYS': 15, 'HIGH_WIN_THRESHOLD': 47.0,
+            'AUTO_ADD_MIN_RATE': 50.0, 'AUTO_PRUNE_MIN_RATE': 40.0,
+            'K2N_RISK_START_THRESHOLD': 4, 'K2N_RISK_PENALTY_PER_FRAME': 0.5
+        })
+
+
 # Import các hàm DB
 try:
     from .db_manager import (
@@ -948,57 +963,66 @@ def _parse_k2n_results(results_data):
         
     return cache_data_list, pending_k2n_dict
 
-def run_and_update_all_bridge_K2N_cache(all_data_ai, db_name=DB_NAME):
+def run_and_update_all_bridge_K2N_cache(all_data_ai, db_name=DB_NAME, data_slice=None, write_to_db=True):
     """
-    (CẬP NHẬT GĐ 4) Chạy backtest K2N (đã tối ưu) cho 15 Cầu + Cầu Đã Lưu
-    và cập nhật Tỷ lệ, Chuỗi Thắng, Dự đoán, VÀ Chuỗi Thua Max vào CSDL.
+    (CẬP NHẬT GĐ 10) Chạy backtest K2N (đã tối ưu).
+    - data_slice: (MỚI) Cho phép chạy trên một phần dữ liệu (dùng cho Tối ưu hóa)
+    - write_to_db: (MỚI) Cho phép không ghi vào CSDL (dùng cho Tối ưu hóa)
     """
     try:
-        if not all_data_ai:
+        # (MỚI GĐ 10) Quyết định dùng data_slice hay all_data_ai
+        data_to_use = data_slice if data_slice else all_data_ai
+        
+        if not data_to_use:
             return {}, "Không có dữ liệu A:I để chạy backtest K2N cache."
             
         ky_bat_dau = 2
-        ky_ket_thuc = len(all_data_ai) + (ky_bat_dau - 1)
+        ky_ket_thuc = len(data_to_use) + (ky_bat_dau - 1)
         
         full_cache_data_list = []
         full_pending_k2n_dict = {}
         
         # --- 1. Chạy 15 Cầu Cổ Điển K2N (Tối ưu) ---
-        print("... (Cache K2N) Đang chạy 15 Cầu Cổ Điển K2N (tối ưu)...")
-        results_15_cau = BACKTEST_15_CAU_K2N_V30_AI_V8(all_data_ai, ky_bat_dau, ky_ket_thuc, history=False)
+        if write_to_db: # Chỉ log khi chạy thực
+            print("... (Cache K2N) Đang chạy 15 Cầu Cổ Điển K2N (tối ưu)...")
+        results_15_cau = BACKTEST_15_CAU_K2N_V30_AI_V8(data_to_use, ky_bat_dau, ky_ket_thuc, history=False)
         
-        # (SỬA GĐ 4) Hàm parse giờ trả về 5 mục, bao gồm max_lose_streak
         cache_list_15, pending_dict_15 = _parse_k2n_results(results_15_cau)
         full_cache_data_list.extend(cache_list_15)
         full_pending_k2n_dict.update(pending_dict_15)
-        print(f"... (Cache K2N) Đã phân tích {len(cache_list_15)} cầu CĐ.")
+        if write_to_db:
+            print(f"... (Cache K2N) Đã phân tích {len(cache_list_15)} cầu CĐ.")
 
         # --- 2. Chạy Cầu Đã Lưu K2N (Tối ưu) ---
-        print("... (Cache K2N) Đang chạy Cầu Đã Lưu K2N (tối ưu)...")
-        results_managed = BACKTEST_MANAGED_BRIDGES_K2N(all_data_ai, ky_bat_dau, ky_ket_thuc, db_name, history=False)
+        if write_to_db:
+            print("... (Cache K2N) Đang chạy Cầu Đã Lưu K2N (tối ưu)...")
+        results_managed = BACKTEST_MANAGED_BRIDGES_K2N(data_to_use, ky_bat_dau, ky_ket_thuc, db_name, history=False)
         
         if results_managed and "LỖI" not in str(results_managed[0][0]):
-            # (SỬA GĐ 4) Hàm parse giờ trả về 5 mục, bao gồm max_lose_streak
             cache_list_managed, pending_dict_managed = _parse_k2n_results(results_managed)
             full_cache_data_list.extend(cache_list_managed)
             full_pending_k2n_dict.update(pending_dict_managed)
-            print(f"... (Cache K2N) Đã phân tích {len(cache_list_managed)} cầu đã lưu.")
+            if write_to_db:
+                print(f"... (Cache K2N) Đã phân tích {len(cache_list_managed)} cầu đã lưu.")
         else:
-            print("... (Cache K2N) Bỏ qua Cầu Đã Lưu (không có cầu nào hoặc bị lỗi).")
+            if write_to_db:
+                print("... (Cache K2N) Bỏ qua Cầu Đã Lưu (không có cầu nào hoặc bị lỗi).")
 
-        # --- 3. Cập nhật CSDL ---
+        # --- 3. Cập nhật CSDL (Nếu được phép) ---
         if not full_cache_data_list:
             return {}, "Không có dữ liệu cache K2N nào để cập nhật."
-            
-        print(f"... (Cache K2N) Đang cập nhật {len(full_cache_data_list)} bản ghi cache vào CSDL...")
-        # (SỬA GĐ 4) Hàm DB này (từ GĐ 4 / Bước 1) đã sẵn sàng nhận 5 mục
-        success, message = update_bridge_k2n_cache_batch(full_cache_data_list, db_name)
         
-        if success:
-            # Trả về dict_pending để Bảng Tổng Hợp sử dụng
-            return full_pending_k2n_dict, message 
+        if write_to_db:
+            print(f"... (Cache K2N) Đang cập nhật {len(full_cache_data_list)} bản ghi cache vào CSDL...")
+            success, message = update_bridge_k2n_cache_batch(full_cache_data_list, db_name)
+            
+            if success:
+                return full_pending_k2n_dict, message 
+            else:
+                return {}, message
         else:
-            return {}, message
+            # (MỚI GĐ 10) Chỉ trả về kết quả, không ghi DB
+            return full_pending_k2n_dict, f"Mô phỏng Cache K2N hoàn tất ({len(full_cache_data_list)} cầu)."
 
     except Exception as e:
         import traceback
@@ -1010,10 +1034,6 @@ def run_and_update_all_bridge_K2N_cache(all_data_ai, db_name=DB_NAME):
 # (MỚI) CÁC HÀM TỰ ĐỘNG HÓA DÒ CẦU (Đã sửa lỗi index)
 # ===================================================================================
 
-# ĐỊNH NGHĨA NGƯỠNG TỰ ĐỘNG
-AUTO_ADD_MIN_RATE = 46.0  # Tự động thêm nếu tỷ lệ > 46%
-AUTO_PRUNE_MIN_RATE = 42.0 # Tự động tắt nếu cầu đã lưu có tỷ lệ < 43%
-
 def find_and_auto_manage_bridges(all_data_ai, db_name):
     """
     (NÂNG CẤP GĐ 2) Chạy dò cầu V17 + Bạc Nhớ và tự động cập nhật CSDL.
@@ -1023,6 +1043,9 @@ def find_and_auto_manage_bridges(all_data_ai, db_name):
         from .db_manager import upsert_managed_bridge, get_all_managed_bridges
     except ImportError:
         from db_manager import upsert_managed_bridge, get_all_managed_bridges
+        
+    # (MỚI GĐ 8) Đọc ngưỡng từ SETTINGS
+    AUTO_ADD_MIN_RATE = SETTINGS.AUTO_ADD_MIN_RATE
 
     added_count = 0
     updated_count = 0
@@ -1116,6 +1139,9 @@ def prune_bad_bridges(all_data_ai, db_name):
     except ImportError:
         from db_manager import get_all_managed_bridges, update_managed_bridge
         
+    # (MỚI GĐ 8) Đọc ngưỡng từ SETTINGS
+    AUTO_PRUNE_MIN_RATE = SETTINGS.AUTO_PRUNE_MIN_RATE
+        
     disabled_count = 0
     try:
         # (SỬA GĐ 2) Dùng Cache K2N thay vì chạy lại N1
@@ -1163,11 +1189,16 @@ def prune_bad_bridges(all_data_ai, db_name):
 # (MỚI) CÁC HÀM CHO BẢNG TỔNG HỢP QUYẾT ĐỊNH
 # ===================================================================================
 
-def get_loto_stats_last_n_days(all_data_ai, n=7):
+def get_loto_stats_last_n_days(all_data_ai, n=None):
     """
-    (MỚI) Lấy thống kê tần suất loto trong N ngày gần nhất.
+    (CẬP NHẬT GĐ 8) Lấy thống kê tần suất loto.
+    Đọc 'n' từ SETTINGS nếu không được cung cấp.
     """
     try:
+        # (MỚI GĐ 8) Đọc từ SETTINGS
+        if n is None:
+            n = SETTINGS.STATS_DAYS
+            
         if not all_data_ai or len(all_data_ai) == 0:
             return []
             
@@ -1267,11 +1298,16 @@ def get_prediction_consensus(last_row, db_name=DB_NAME):
         print(f"Lỗi get_prediction_consensus (mới): {e}")
         return []
 
-def get_high_win_rate_predictions(last_row, threshold=80.0, db_name=DB_NAME):
+def get_high_win_rate_predictions(last_row, threshold=None, db_name=DB_NAME):
     """
-    (MỚI - SỬA GĐ 1) Lấy dự đoán từ Cầu Đã Lưu CÓ TỶ LỆ CAO (dựa trên cache K2N).
+    (CẬP NHẬT GĐ 8) Lấy dự đoán từ Cầu Đã Lưu CÓ TỶ LỆ CAO (dựa trên cache K2N).
+    Đọc 'threshold' từ SETTINGS nếu không được cung cấp.
     """
     try:
+        # (MỚI GĐ 8) Đọc từ SETTINGS
+        if threshold is None:
+            threshold = SETTINGS.HIGH_WIN_THRESHOLD
+            
         if not last_row or len(last_row) < 10:
             return []
             
@@ -1280,8 +1316,6 @@ def get_high_win_rate_predictions(last_row, threshold=80.0, db_name=DB_NAME):
         if not managed_bridges:
             return []
             
-        # (SỬA GĐ 1) Không cần "last_positions" nữa vì chúng ta đọc cache
-        
         for bridge in managed_bridges:
             try:
                 # 1. Kiểm tra tỷ lệ (từ cache K2N)
@@ -1400,6 +1434,11 @@ def get_top_scored_pairs(stats, consensus, high_win, pending_k2n, gan_stats, top
         # { '03-30': {'score': 0.0, 'reasons': [], 'is_gan': False, 'gan_days': 0} }
         scores = {}
         
+        # (MỚI GĐ 8) Lấy ngưỡng từ SETTINGS
+        HIGH_WIN_THRESHOLD = SETTINGS.HIGH_WIN_THRESHOLD
+        K2N_RISK_START_THRESHOLD = SETTINGS.K2N_RISK_START_THRESHOLD
+        K2N_RISK_PENALTY_PER_FRAME = SETTINGS.K2N_RISK_PENALTY_PER_FRAME
+        
         # --- (MỚI GĐ 3) Hàm phụ ---
         def _parse_rate(rate_str):
             """Trích xuất tỷ lệ float từ '50.5%'"""
@@ -1439,15 +1478,15 @@ def get_top_scored_pairs(stats, consensus, high_win, pending_k2n, gan_stats, top
         # Nguồn 3: Cầu Tỷ Lệ Cao (>=47%) (Cầu V17 đã lưu)
         for bridge in high_win:
             win_rate = _parse_rate(bridge['rate'])
-            # (SỬA GĐ 3) Áp dụng chấm điểm động
-            if win_rate >= 47.0:
+            # (SỬA GĐ 8) Áp dụng chấm điểm động
+            if win_rate >= HIGH_WIN_THRESHOLD:
                 pair_key = _standardize_pair(bridge['stl'])
                 if not pair_key: continue
                 if pair_key not in scores:
                     scores[pair_key] = {'score': 0.0, 'reasons': [], 'is_gan': False, 'gan_days': 0}
                 
                 # Logic chấm điểm động
-                score_bonus = (win_rate - 47.0) / 10.0
+                score_bonus = (win_rate - HIGH_WIN_THRESHOLD) / 10.0
                 scores[pair_key]['score'] += score_bonus
                 scores[pair_key]['reasons'].append(f"Cầu V17 {win_rate:.1f}%")
 
@@ -1465,10 +1504,10 @@ def get_top_scored_pairs(stats, consensus, high_win, pending_k2n, gan_stats, top
             # Điểm thưởng cho chuỗi thắng
             score_bonus = 1.0 + (current_streak * 0.5) 
             
-            # (MỚI GĐ 4) Điểm phạt cho rủi ro (chuỗi thua max)
+            # (SỬA GĐ 8) Điểm phạt cho rủi ro (chuỗi thua max)
             risk_penalty = 0.0
-            if max_lose_streak > 4: # Bắt đầu phạt từ 5
-                risk_penalty = (max_lose_streak - 4) * 0.5 # 5 thua = -0.5đ, 6 thua = -1.0đ
+            if max_lose_streak > K2N_RISK_START_THRESHOLD: 
+                risk_penalty = (max_lose_streak - K2N_RISK_START_THRESHOLD) * K2N_RISK_PENALTY_PER_FRAME
             
             final_score_bonus = score_bonus - risk_penalty
             if final_score_bonus < 0: # Không để điểm thưởng bị âm
@@ -1481,15 +1520,15 @@ def get_top_scored_pairs(stats, consensus, high_win, pending_k2n, gan_stats, top
         # Nguồn 5: Cầu Bạc Nhớ
         for bridge in top_memory_bridges:
             win_rate = _parse_rate(bridge['rate'])
-            # (SỬA GĐ 3) Áp dụng chấm điểm động
-            if win_rate >= 47.0:
+            # (SỬA GĐ 8) Áp dụng chấm điểm động
+            if win_rate >= HIGH_WIN_THRESHOLD:
                 pair_key = _standardize_pair(bridge['stl'])
                 if not pair_key: continue
                 if pair_key not in scores:
                     scores[pair_key] = {'score': 0.0, 'reasons': [], 'is_gan': False, 'gan_days': 0}
                 
                 # Logic chấm điểm động (giống Cầu V17)
-                score_bonus = (win_rate - 47.0) / 10.0
+                score_bonus = (win_rate - HIGH_WIN_THRESHOLD) / 10.0
                 scores[pair_key]['score'] += score_bonus
                 scores[pair_key]['reasons'].append(f"Cầu BN {win_rate:.1f}%")
 
@@ -1536,12 +1575,17 @@ def get_top_scored_pairs(stats, consensus, high_win, pending_k2n, gan_stats, top
         return []
 
 # (MỚI) HÀM LÔ GAN (Lấy từ analytics.py)
-def get_loto_gan_stats(all_data_ai, n_days=15):
+def get_loto_gan_stats(all_data_ai, n_days=None):
     """
-    (MỚI) Tìm các loto (00-99) đã không xuất hiện trong n_days gần nhất.
+    (CẬP NHẬT GĐ 8) Tìm các loto (00-99) đã không xuất hiện trong n_days gần nhất.
+    Đọc 'n_days' từ SETTINGS nếu không được cung cấp.
     """
     gan_stats = []
     try:
+        # (MỚI GĐ 8) Đọc từ SETTINGS
+        if n_days is None:
+            n_days = SETTINGS.GAN_DAYS
+            
         if not all_data_ai or len(all_data_ai) < n_days:
             print(f"Cảnh báo Lô Gan: Không đủ dữ liệu (cần {n_days} kỳ).")
             return []
@@ -1896,3 +1940,155 @@ def get_top_memory_bridge_predictions(all_data_ai, last_row, top_n=5):
         
     print(f"... (BTH) Backtest Bạc Nhớ hoàn tất. Trả về {len(predictions_for_dashboard)} dự đoán.")
     return predictions_for_dashboard
+
+# ===================================================================================
+# (MỚI GĐ 10) HÀM MÔ PHỎNG BẢNG TỔNG HỢP LỊCH SỬ
+# ===================================================================================
+
+def get_consensus_simulation(data_slice, last_row):
+    """
+    (MỚI GĐ 10) Bản sao của get_prediction_consensus
+    Chạy N1 backtest trong bộ nhớ thay vì đọc cache CSDL.
+    """
+    prediction_sources = {} 
+    
+    def get_pair_key(stl_list):
+        if not stl_list or len(stl_list) != 2: return None
+        sorted_pair = sorted(stl_list) 
+        return f"{sorted_pair[0]}-{sorted_pair[1]}" 
+
+    # 1. Lấy từ 15 Cầu Cổ Điển
+    for i, bridge_func in enumerate(ALL_15_BRIDGE_FUNCTIONS_V5):
+        try:
+            stl = bridge_func(last_row)
+            pair_key = get_pair_key(stl)
+            if not pair_key: continue
+            source_name = f"C{i+1}"
+            if pair_key not in prediction_sources:
+                prediction_sources[pair_key] = []
+            prediction_sources[pair_key].append(source_name)
+        except Exception:
+            pass # Bỏ qua lỗi trong mô phỏng
+
+    # 2. Lấy từ Cầu Đã Lưu (chạy N1)
+    bridges_to_test = get_all_managed_bridges(DB_NAME, only_enabled=True)
+    if bridges_to_test:
+        last_positions = getAllPositions_V17_Shadow(last_row)
+        for bridge in bridges_to_test:
+            try:
+                idx1, idx2 = bridge["pos1_idx"], bridge["pos2_idx"]
+                if idx1 == -1: continue # Bỏ qua cầu BN
+                a, b = last_positions[idx1], last_positions[idx2]
+                if a is None or b is None: continue
+                
+                stl = taoSTL_V30_Bong(a, b)
+                pair_key = get_pair_key(stl)
+                if not pair_key: continue
+                    
+                source_name = bridge["name"]
+                if pair_key not in prediction_sources:
+                    prediction_sources[pair_key] = []
+                if source_name not in prediction_sources[pair_key]:
+                    prediction_sources[pair_key].append(source_name)
+            except Exception:
+                pass # Bỏ qua
+    
+    consensus_list = []
+    for pair_key, sources in prediction_sources.items():
+        count = len(sources)
+        sources_str = ", ".join(sources)
+        consensus_list.append((pair_key, count, sources_str))
+        
+    consensus_list.sort(key=lambda item: item[1], reverse=True)
+    return consensus_list
+
+def get_high_win_simulation(data_slice, last_row, threshold):
+    """
+    (MỚI GĐ 10) Bản sao của get_high_win_rate_predictions
+    Chạy K2N backtest trong bộ nhớ thay vì đọc cache CSDL.
+    """
+    high_win_bridges = []
+    
+    # 1. Chạy K2N Cache Mô phỏng
+    cache_list, _ = _parse_k2n_results(
+        BACKTEST_MANAGED_BRIDGES_K2N(data_slice, 2, len(data_slice) + 1, DB_NAME, history=False)
+    )
+    
+    if not cache_list:
+        return []
+        
+    # 2. Lọc kết quả
+    for (win_rate_text, _, next_prediction_stl, _, bridge_name) in cache_list:
+        try:
+            win_rate = float(str(win_rate_text).replace('%', ''))
+            
+            if win_rate >= threshold:
+                if not next_prediction_stl or \
+                   'N2' in next_prediction_stl or \
+                   'LỖI' in next_prediction_stl or \
+                   ',' not in next_prediction_stl:
+                    continue
+                    
+                stl = next_prediction_stl.split(',')
+                high_win_bridges.append({
+                    'name': bridge_name,
+                    'stl': stl,
+                    'rate': f"{win_rate:.2f}%"
+                })
+        except (ValueError, TypeError):
+            continue
+            
+    return high_win_bridges
+
+def get_historical_dashboard_data(all_data_ai, day_index, temp_settings):
+    """
+    (MỚI GĐ 10) Hàm "chủ" để mô phỏng Bảng Tổng Hợp tại một ngày trong quá khứ.
+    """
+    
+    # 1. Cắt lát dữ liệu
+    data_slice = all_data_ai[:day_index + 1]
+    if len(data_slice) < 2:
+        return None 
+    
+    last_row = data_slice[-1]
+    
+    # 2. Lấy các giá trị cài đặt tạm thời
+    n_days_stats = int(temp_settings.get("STATS_DAYS", 7))
+    n_days_gan = int(temp_settings.get("GAN_DAYS", 15))
+    high_win_thresh = float(temp_settings.get("HIGH_WIN_THRESHOLD", 47.0))
+    
+    # 3. Chạy 7 hệ thống (phiên bản mô phỏng)
+    
+    # (1) Loto Hot
+    stats_n_day = get_loto_stats_last_n_days(data_slice, n=n_days_stats)
+    
+    # (2) Cache K2N (để lấy pending)
+    pending_k2n_data, _ = run_and_update_all_bridge_K2N_cache(
+        all_data_ai=None, 
+        data_slice=data_slice, 
+        write_to_db=False # Quan trọng: Không ghi CSDL
+    )
+    
+    # (3) Consensus (Vote)
+    consensus = get_consensus_simulation(data_slice, last_row)
+    
+    # (4) Cầu Tỷ Lệ Cao
+    high_win = get_high_win_simulation(data_slice, last_row, threshold=high_win_thresh)
+
+    # (5) Cầu Bạc Nhớ
+    top_memory_bridges = get_top_memory_bridge_predictions(data_slice, last_row, top_n=5)
+    
+    # (6) Lô Gan
+    gan_stats = get_loto_gan_stats(data_slice, n_days=n_days_gan)
+    
+    # (7) Chấm điểm
+    top_scores = get_top_scored_pairs(
+        stats_n_day,
+        consensus, 
+        high_win, 
+        pending_k2n_data, 
+        gan_stats,
+        top_memory_bridges 
+    )
+    
+    return top_scores
