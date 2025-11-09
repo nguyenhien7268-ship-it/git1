@@ -17,7 +17,9 @@ try:
         delete_managed_bridge,
         load_data_ai_from_db,
         update_bridge_win_rate_batch,
-        upsert_managed_bridge 
+        upsert_managed_bridge,
+        # (MỚI GĐ 1) Thêm hàm DB
+        update_bridge_k2n_cache_batch
     )
 except ImportError as e:
     print(f"LỖI NGHIÊM TRỌNG: Không thể import logic.db_manager: {e}")
@@ -53,6 +55,10 @@ try:
         BACKTEST_MANAGED_BRIDGES_N1,
         BACKTEST_MANAGED_BRIDGES_K2N, 
         run_and_update_all_bridge_rates,
+        
+        # (MỚI GĐ 1) Thêm hàm nghiệp vụ K2N cache
+        run_and_update_all_bridge_K2N_cache,
+        
         find_and_auto_manage_bridges,
         prune_bad_bridges,
         

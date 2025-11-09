@@ -3,15 +3,29 @@ from collections import Counter # (MỚI) Thêm import Counter cho các hàm ana
 
 # Import các hàm DB
 try:
-    from .db_manager import DB_NAME, get_all_managed_bridges, update_bridge_win_rate_batch
+    from .db_manager import (
+        DB_NAME, 
+        get_all_managed_bridges, 
+        update_bridge_win_rate_batch,
+        # (MỚI GĐ 1) Thêm hàm cập nhật K2N cache
+        update_bridge_k2n_cache_batch
+    )
 except ImportError:
     try:
-        from db_manager import DB_NAME, get_all_managed_bridges, update_bridge_win_rate_batch
+        from db_manager import (
+            DB_NAME, 
+            get_all_managed_bridges, 
+            update_bridge_win_rate_batch,
+            # (MỚI GĐ 1) Thêm hàm cập nhật K2N cache
+            update_bridge_k2n_cache_batch
+        )
     except ImportError:
         print("Lỗi: Không thể import db_manager trong backtester.py")
         DB_NAME = 'xo_so_prizes_all_logic.db'
         def get_all_managed_bridges(d, o): return []
         def update_bridge_win_rate_batch(r, d): return False, "Lỗi Import"
+        # (MỚI GĐ 1) Giả lập
+        def update_bridge_k2n_cache_batch(r, d): return False, "Lỗi Import"
 
 # Import các hàm cầu cổ điển
 try:
@@ -180,8 +194,10 @@ def _validate_backtest_params(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem
     offset = startRow
     return allData, finalEndRow, startCheckRow, offset, None
 
-def BACKTEST_15_CAU_K2N_V30_AI_V8(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra):
-    """ (CẬP NHẬT) Sắp xếp giảm dần + Dự đoán ở trên + Thêm đếm Chuỗi (Streak) """
+def BACKTEST_15_CAU_K2N_V30_AI_V8(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra, history=True):
+    """
+    (CẬP NHẬT GĐ 4) Thêm tính toán 'Chuỗi thua K2N dài nhất'.
+    """
     allData, finalEndRow, startCheckRow, offset, error = _validate_backtest_params(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra)
     if error: return error
     headers = ["Kỳ (Cột A)", "Cầu 1 (Đề+5)", "Cầu 2 (G6+G7)", "Cầu 3 (GĐB+G1)", 
@@ -191,76 +207,101 @@ def BACKTEST_15_CAU_K2N_V30_AI_V8(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_
                "Cầu 13 (G7.3+8)", "Cầu 14 (G1+2)", "Cầu 15 (Đề+7)", "Tổng Trúng"]
     results = [headers]
     
-    # (MỚI) Biến theo dõi K2N
+    # Biến theo dõi K2N
     in_frame = [False] * 15
     prediction_in_frame = [None] * 15
-    current_streak_k2n = [0] * 15 # (MỚI) Đếm chuỗi K2N
+    current_streak_k2n = [0] * 15 # Đếm chuỗi K2N
+    
+    # (MỚI GĐ 4) Biến theo dõi chuỗi thua
+    current_lose_streak_k2n = [0] * 15
+    max_lose_streak_k2n = [0] * 15
     
     cau_functions = ALL_15_BRIDGE_FUNCTIONS_V5
     
     data_rows = []
+    totalTestDays = 0
+    win_counts = [0] * 15
     
     for k in range(startCheckRow, finalEndRow + 1):
         prevRow_idx, actualRow_idx = k - 1 - offset, k - offset
         if actualRow_idx >= len(allData) or prevRow_idx < 0: continue
         prevRow, actualRow = allData[prevRow_idx], allData[actualRow_idx]
         if not actualRow or not actualRow[0] or str(actualRow[0]).strip() == "": break
+        
         if not prevRow or len(actualRow) < 10 or not actualRow[2] or not actualRow[9]:
-            data_rows.append([actualRow[0] or k, "Lỗi dữ liệu hàng"] + [""] * 15)
+            if history:
+                data_rows.append([actualRow[0] or k, "Lỗi dữ liệu hàng"] + [""] * 15)
             continue
+            
         actualSoKy, actualLotoSet = actualRow[0] or k, set(getAllLoto_V30(actualRow))
+        totalTestDays += 1
+        
         daily_results_row, totalHits = [actualSoKy], 0
+        
         try:
             for j in range(15):
+                cell_output = "" 
                 if in_frame[j]:
                     # --- Đang ở Ngày 2 (N2) ---
                     pred = prediction_in_frame[j]
                     check_result = checkHitSet_V30_K2N(pred, actualLotoSet)
                     if "✅" in check_result:
-                        cell_output, totalHits = f"{','.join(pred)} ✅ (Ăn N2)", totalHits + 1
-                        current_streak_k2n[j] += 1 # (MỚI) Thắng -> Tăng chuỗi
+                        if history: cell_output = f"{','.join(pred)} ✅ (Ăn N2)"
+                        win_counts[j] += 1
+                        current_streak_k2n[j] += 1 
+                        current_lose_streak_k2n[j] = 0 # (MỚI GĐ 4) Reset chuỗi thua
                     else:
-                        cell_output = f"{','.join(pred)} ❌ (Trượt K2N)"
-                        current_streak_k2n[j] = 0 # (MỚI) Gãy -> Reset chuỗi
+                        if history: cell_output = f"{','.join(pred)} ❌ (Trượt K2N)"
+                        current_streak_k2n[j] = 0 
+                        # (MỚI GĐ 4) Cập nhật chuỗi thua
+                        current_lose_streak_k2n[j] += 1
+                        if current_lose_streak_k2n[j] > max_lose_streak_k2n[j]:
+                            max_lose_streak_k2n[j] = current_lose_streak_k2n[j]
+                            
                     in_frame[j], prediction_in_frame[j] = False, None
                 else:
                     # --- Đang ở Ngày 1 (N1) ---
                     pred = cau_functions[j](prevRow)
                     check_result = checkHitSet_V30_K2N(pred, actualLotoSet)
                     if "✅" in check_result:
-                        cell_output, totalHits = f"{','.join(pred)} ✅ (Ăn N1)", totalHits + 1
-                        current_streak_k2n[j] += 1 # (MỚI) Thắng -> Tăng chuỗi
+                        if history: cell_output = f"{','.join(pred)} ✅ (Ăn N1)"
+                        win_counts[j] += 1
+                        current_streak_k2n[j] += 1
+                        current_lose_streak_k2n[j] = 0 # (MỚI GĐ 4) Reset chuỗi thua
                     else:
-                        cell_output = f"{','.join(pred)} (Trượt N1...)"
-                        # (MỚI) Chuỗi chưa bị reset, chờ N2
+                        if history: cell_output = f"{','.join(pred)} (Trượt N1...)"
+                        # (MỚI GĐ 4) Chuỗi thua chưa bắt đầu, chờ N2
                         in_frame[j], prediction_in_frame[j] = True, pred
-                daily_results_row.append(cell_output)
-            daily_results_row.append(totalHits)
-            data_rows.append(daily_results_row)
+                
+                if history:
+                    daily_results_row.append(cell_output)
+                    if "✅" in check_result:
+                        totalHits += 1
+                        
+            if history:
+                daily_results_row.append(totalHits)
+                data_rows.append(daily_results_row)
+                
         except Exception as e:
-            data_rows.append([actualSoKy, f"Lỗi: {e}"] + [""] * 15)
+            if history:
+                data_rows.append([actualSoKy, f"Lỗi: {e}"] + [""] * 15)
     
-    # (CẬP NHẬT) Sắp xếp giảm dần
-    data_rows.reverse()
+    if history:
+        data_rows.reverse()
     
-    totalTestDays = len(data_rows)
     if totalTestDays > 0:
-        win_counts = [0] * 15
-        for row in data_rows:
-            for j in range(15):
-                if "✅" in str(row[j+1]): win_counts[j] += 1
-        
         rate_row, total_wins = ["Tỷ Lệ %"], 0
         for count in win_counts:
             rate = (count / totalTestDays) * 100
             rate_row.append(f"{rate:.2f}%")
             total_wins += count
         rate_row.append(f"TB: {(total_wins / totalTestDays):.2f}")
-        results.insert(1, rate_row) # Chèn Tỷ Lệ vào dưới Header
+        results.insert(1, rate_row)
         
-        # (MỚI) Thêm hàng chuỗi K2N
-        streak_row = ["Chuỗi K2N (khung)"]
-        streak_row.extend([f"{s} khung" for s in current_streak_k2n])
+        # (SỬA GĐ 4) Đổi tên hàng và thêm Max Lose
+        streak_row = ["Chuỗi Thắng / Thua Max"]
+        for i in range(15):
+            streak_row.append(f"{current_streak_k2n[i]} thắng / {max_lose_streak_k2n[i]} thua")
         streak_row.append("---")
         results.insert(2, streak_row) # Chèn Chuỗi
 
@@ -284,13 +325,15 @@ def BACKTEST_15_CAU_K2N_V30_AI_V8(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_
                 finalRow.append("LỖI PREDICT")
     finalRow.append(f"{openFrames} khung mở" if openFrames > 0 else "0")
     
-    results.insert(3, finalRow) # (MỚI) Chèn hàng dự đoán ở vị trí 3
-    results.extend(data_rows) # Thêm dữ liệu đã đảo ngược
+    results.insert(3, finalRow) 
+    
+    if history:
+        results.extend(data_rows)
     
     return results
 
 def BACKTEST_15_CAU_N1_V31_AI_V8(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra):
-    """ (CẬP NHẬT) Backtest 15 Cầu Lô N1 (Sắp xếp giảm dần) """
+    """ (Giữ nguyên) Backtest 15 Cầu Lô N1 (Sắp xếp giảm dần) """
     allData, finalEndRow, startCheckRow, offset, error = _validate_backtest_params(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra)
     if error: return error
     headers = ["Kỳ (Cột A)", "Cầu 1 (Đề+5)", "Cầu 2 (G6+G7)", "Cầu 3 (GĐB+G1)", 
@@ -301,7 +344,7 @@ def BACKTEST_15_CAU_N1_V31_AI_V8(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_k
     results = [headers]
     cau_functions = ALL_15_BRIDGE_FUNCTIONS_V5
     
-    data_rows = [] # (MỚI)
+    data_rows = [] 
     
     for k in range(startCheckRow, finalEndRow + 1):
         prevRow_idx, actualRow_idx = k - 1 - offset, k - offset
@@ -325,7 +368,7 @@ def BACKTEST_15_CAU_N1_V31_AI_V8(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_k
         except Exception as e:
             data_rows.append([actualSoKy, f"Lỗi: {e}"] + [""] * 15)
             
-    data_rows.reverse() # Sắp xếp giảm dần
+    data_rows.reverse() 
     
     totalTestDays = len(data_rows)
     if totalTestDays > 0:
@@ -357,14 +400,14 @@ def BACKTEST_15_CAU_N1_V31_AI_V8(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_k
             finalRow.append("LỖI PREDICT")
     finalRow.append("---")
     
-    results.insert(2, finalRow) # Chèn hàng dự đoán
-    results.extend(data_rows) # Thêm dữ liệu
+    results.insert(2, finalRow) 
+    results.extend(data_rows) 
     
     return results
 
 def TIM_CAU_TOT_NHAT_V16(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra, db_name=DB_NAME):
-    """(CẬP NHẬT) Lọc ra các cầu đã lưu. Đã nâng cấp lên V17 (23.005 cầu)."""
-    print("Bắt đầu Dò Cầu Tốt Nhất V17 (Shadow)...") # (SỬA) V17
+    """(Giữ nguyên) Lọc ra các cầu đã lưu. Đã nâng cấp lên V17 (23.005 cầu)."""
+    print("Bắt đầu Dò Cầu Tốt Nhất V17 (Shadow)...") 
     
     saved_bridge_names = set()
     try:
@@ -390,7 +433,6 @@ def TIM_CAU_TOT_NHAT_V16(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra,
         if not prevRow or not actualRow or not actualRow[0] or str(actualRow[0]).strip() == "" or len(actualRow) < 10 or not actualRow[9]:
             continue
         processedData.append({
-          # (SỬA) Dùng hàm V17 mới
           "prevPositions": getAllPositions_V17_Shadow(prevRow),
           "actualLotoSet": set(getAllLoto_V30(actualRow))
         })
@@ -399,10 +441,8 @@ def TIM_CAU_TOT_NHAT_V16(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra,
     if totalTestDays == 0: 
         return [["LỖI:", "Không có dữ liệu hợp lệ để backtest."]]
 
-    # (SỬA) Cập nhật log lên 23005 cầu
     print(f"Tiền xử lý hoàn tất. {totalTestDays} ngày test. Bắt đầu dò 23005 cầu (V17)...")
     
-    # (SỬA) Dùng hàm V17 mới
     allPositions = getAllPositions_V17_Shadow(allData[0])
     numPositions = len(allPositions) # Sẽ là 214
     results = []
@@ -418,13 +458,11 @@ def TIM_CAU_TOT_NHAT_V16(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra,
                 if stl[0] in dayData["actualLotoSet"] or stl[1] in dayData["actualLotoSet"]:
                     hits += 1
             
-            # (SỬA) Dùng hàm V17 mới
             pos1_name, pos2_name = getPositionName_V17_Shadow(pos1_idx), getPositionName_V17_Shadow(pos2_idx)
             
             results.append({"name": f"{pos1_name} + {pos2_name}", "hits": hits})
             combinationCount += 1
             
-            # (SỬA) Cập nhật log lên 23005
             if combinationCount % 500 == 0:
                 print(f"Đã dò {combinationCount} / 23005 cầu...")
     
@@ -447,18 +485,16 @@ def TIM_CAU_TOT_NHAT_V16(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra,
             f"{rate:.2f}%"
         ])
     output.append(["---", "---", "---", "---"])
-    # (SỬA) Cập nhật log
     output.append([f"HOÀN THÀNH: Đã chạy tất cả {combinationCount} cầu (V17).", "", "", ""])
     print("Hoàn thành Dò Cầu V17.")
     return output
 
 def BACKTEST_CUSTOM_CAU_V16(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra, custom_bridge_name, mode):
-    """ (CẬP NHẬT) Sắp xếp giảm dần. Đã nâng cấp lên V17 (Shadow). """
+    """ (Giữ nguyên) Sắp xếp giảm dần. Đã nâng cấp lên V17 (Shadow). """
     try:
         parts = custom_bridge_name.split('+')
         name1, name2 = parts[0].strip(), parts[1].strip()
         
-        # (SỬA) Hàm này giờ đã V17-aware, sẽ trả về 0-213
         idx1, idx2 = get_index_from_name_V16(name1), get_index_from_name_V16(name2)
         
         if idx1 is None or idx2 is None:
@@ -471,7 +507,7 @@ def BACKTEST_CUSTOM_CAU_V16(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_t
         in_frame, prediction_in_frame = False, None
         totalTestDays, win_count = 0, 0
         
-        data_rows = [] # (MỚI)
+        data_rows = [] 
 
         for k in range(startCheckRow, finalEndRow + 1):
             prevRow_idx, actualRow_idx = k - 1 - offset, k - offset
@@ -484,7 +520,6 @@ def BACKTEST_CUSTOM_CAU_V16(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_t
             
             actualSoKy, actualLotoSet = actualRow[0] or k, set(getAllLoto_V30(actualRow))
             
-            # (SỬA) Dùng hàm V17 mới để lấy 214 vị trí
             prevPositions = getAllPositions_V17_Shadow(prevRow_data)
             
             a, b = prevPositions[idx1], prevPositions[idx2]
@@ -515,8 +550,8 @@ def BACKTEST_CUSTOM_CAU_V16(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_t
                         cell_output, in_frame, prediction_in_frame = f"{','.join(pred)} (Trượt N1...)", True, pred
             data_rows.append([actualSoKy, cell_output])
         
-        data_rows.reverse() # Sắp xếp giảm dần
-        results.extend(data_rows) # Thêm dữ liệu
+        data_rows.reverse() 
+        results.extend(data_rows) 
 
         if totalTestDays > 0:
             rate = (win_count / totalTestDays) * 100
@@ -526,16 +561,16 @@ def BACKTEST_CUSTOM_CAU_V16(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_t
             finalRowK = f"Kỳ {int(allData[finalEndRow - offset][0]) + 1}" if allData[finalEndRow - offset][0].isdigit() else f"Kỳ {finalEndRow + 1}"
             final_cell = "---"
             if in_frame: final_cell = f"{','.join(prediction_in_frame)} (Đang chờ N2)"
-            results.insert(2, [finalRowK, final_cell]) # Chèn hàng dự đoán
+            results.insert(2, [finalRowK, final_cell]) 
         
         return results
     except Exception as e:
         print(f"Lỗi BACKTEST_CUSTOM_CAU_V16: {e}")
         return [["LỖI:", str(e)]]
 
-# (MỚI) HÀM BACKTEST CHO CÁC CẦU ĐÃ LƯU
+# (HÀM NÀY GIỮ NGUYÊN)
 def BACKTEST_MANAGED_BRIDGES_N1(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra, db_name=DB_NAME):
-    """(CẬP NHẬT) Chạy backtest N1 cho Cầu Đã Lưu (Sắp xếp giảm dần). Nâng cấp V17."""
+    """(Giữ nguyên) Chạy backtest N1 cho Cầu Đã Lưu (Sắp xếp giảm dần). Nâng cấp V17."""
     try:
         conn = sqlite3.connect(db_name)
         conn.row_factory = sqlite3.Row
@@ -556,7 +591,7 @@ def BACKTEST_MANAGED_BRIDGES_N1(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_ki
         headers.append(f"{bridge['name']}")
     results = [headers]
     
-    data_rows = [] # (MỚI)
+    data_rows = [] 
     
     for k in range(startCheckRow, finalEndRow + 1):
         prevRow_idx, actualRow_idx = k - 1 - offset, k - offset
@@ -569,7 +604,6 @@ def BACKTEST_MANAGED_BRIDGES_N1(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_ki
         
         actualSoKy, actualLotoSet = actualRow[0] or k, set(getAllLoto_V30(actualRow))
         
-        # (SỬA) Dùng hàm V17 mới
         prevPositions = getAllPositions_V17_Shadow(prevRow)
         daily_results_row = [actualSoKy]
         
@@ -587,7 +621,7 @@ def BACKTEST_MANAGED_BRIDGES_N1(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_ki
                 daily_results_row.append(f"Lỗi: {e}")
         data_rows.append(daily_results_row)
             
-    data_rows.reverse() # Sắp xếp giảm dần
+    data_rows.reverse() 
     
     totalTestDays = len(data_rows)
     num_bridges = len(bridges_to_test)
@@ -607,7 +641,6 @@ def BACKTEST_MANAGED_BRIDGES_N1(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_ki
         finalRowK = f"Kỳ {int(last_data_row[0]) + 1}" if last_data_row[0].isdigit() else f"Kỳ {finalEndRow + 1}"
         finalRow = [finalRowK]
         
-        # (SỬA) Dùng hàm V17 mới
         last_positions = getAllPositions_V17_Shadow(last_data_row)
         
         for bridge in bridges_to_test:
@@ -619,8 +652,8 @@ def BACKTEST_MANAGED_BRIDGES_N1(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_ki
             pred = taoSTL_V30_Bong(a, b)
             finalRow.append(f"{','.join(pred)} (Dự đoán N1)")
         
-        results.insert(2, finalRow) # Chèn hàng dự đoán
-        results.extend(data_rows) # Thêm dữ liệu
+        results.insert(2, finalRow) 
+        results.extend(data_rows) 
         
     except Exception as e:
         print(f"Lỗi dự đoán Cầu Đã Lưu: {e}")
@@ -629,8 +662,10 @@ def BACKTEST_MANAGED_BRIDGES_N1(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_ki
     return results
 
 # (MỚI) HÀM K2N CHO CẦU ĐÃ LƯU (VỚI STREAK)
-def BACKTEST_MANAGED_BRIDGES_K2N(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra, db_name=DB_NAME):
-    """(MỚI) Chạy backtest K2N cho Cầu Đã Lưu + đếm chuỗi (streak). Nâng cấp V17."""
+def BACKTEST_MANAGED_BRIDGES_K2N(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra, db_name=DB_NAME, history=True):
+    """
+    (CẬP NHẬT GĐ 4) Thêm tính toán 'Chuỗi thua K2N dài nhất'.
+    """
     try:
         conn = sqlite3.connect(db_name)
         conn.row_factory = sqlite3.Row
@@ -651,83 +686,103 @@ def BACKTEST_MANAGED_BRIDGES_K2N(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_k
     for bridge in bridges_to_test:
         headers.append(f"{bridge['name']}")
         
-    results = [headers] # (SỬA LỖI) KHỞI TẠO BIẾN RESULTS NGAY ĐÂY
+    results = [headers] 
     
-    # (MỚI) Biến theo dõi K2N
+    # Biến theo dõi K2N
     in_frame = [False] * num_bridges
     prediction_in_frame = [None] * num_bridges
-    current_streak_k2n = [0] * num_bridges # Đếm chuỗi K2N
+    current_streak_k2n = [0] * num_bridges 
     
-    data_rows = [] 
+    # (MỚI GĐ 4) Biến theo dõi chuỗi thua
+    current_lose_streak_k2n = [0] * num_bridges
+    max_lose_streak_k2n = [0] * num_bridges
+    
+    data_rows = []
+    totalTestDays = 0
+    win_counts = [0] * num_bridges
     
     for k in range(startCheckRow, finalEndRow + 1):
         prevRow_idx, actualRow_idx = k - 1 - offset, k - offset
         if actualRow_idx >= len(allData) or prevRow_idx < 0: continue
         prevRow, actualRow = allData[prevRow_idx], allData[actualRow_idx]
         if not actualRow or not actualRow[0] or str(actualRow[0]).strip() == "": break
+        
         if not prevRow or len(actualRow) < 10 or not actualRow[2] or not actualRow[9]:
-            data_rows.append([actualRow[0] or k, "Lỗi dữ liệu hàng"])
+            if history:
+                data_rows.append([actualRow[0] or k, "Lỗi dữ liệu hàng"])
             continue
         
         actualSoKy, actualLotoSet = actualRow[0] or k, set(getAllLoto_V30(actualRow))
-        
-        # (SỬA) Dùng hàm V17 mới
         prevPositions = getAllPositions_V17_Shadow(prevRow)
+        totalTestDays += 1
+        
         daily_results_row = [actualSoKy]
         
         for j, bridge in enumerate(bridges_to_test):
             try:
+                cell_output = "" 
                 if in_frame[j]:
                     # --- Đang ở Ngày 2 (N2) ---
                     pred = prediction_in_frame[j]
                     check_result = checkHitSet_V30_K2N(pred, actualLotoSet)
                     if "✅" in check_result:
-                        cell_output = f"{','.join(pred)} ✅ (Ăn N2)"
+                        if history: cell_output = f"{','.join(pred)} ✅ (Ăn N2)"
+                        win_counts[j] += 1
                         current_streak_k2n[j] += 1
+                        current_lose_streak_k2n[j] = 0 # (MỚI GĐ 4) Reset
                     else:
-                        cell_output = f"{','.join(pred)} ❌ (Trượt K2N)"
+                        if history: cell_output = f"{','.join(pred)} ❌ (Trượt K2N)"
                         current_streak_k2n[j] = 0
+                        # (MỚI GĐ 4) Cập nhật chuỗi thua
+                        current_lose_streak_k2n[j] += 1
+                        if current_lose_streak_k2n[j] > max_lose_streak_k2n[j]:
+                            max_lose_streak_k2n[j] = current_lose_streak_k2n[j]
+                            
                     in_frame[j], prediction_in_frame[j] = False, None
                 else:
                     # --- Đang ở Ngày 1 (N1) ---
                     idx1, idx2 = bridge["pos1_idx"], bridge["pos2_idx"]
                     a, b = prevPositions[idx1], prevPositions[idx2]
                     if a is None or b is None:
-                        daily_results_row.append("Lỗi Vị Trí")
+                        if history: daily_results_row.append("Lỗi Vị Trí")
                         continue
                     
                     pred = taoSTL_V30_Bong(a, b)
                     check_result = checkHitSet_V30_K2N(pred, actualLotoSet)
                     
                     if "✅" in check_result:
-                        cell_output = f"{','.join(pred)} ✅ (Ăn N1)"
+                        if history: cell_output = f"{','.join(pred)} ✅ (Ăn N1)"
+                        win_counts[j] += 1
                         current_streak_k2n[j] += 1
+                        current_lose_streak_k2n[j] = 0 # (MỚI GĐ 4) Reset
                     else:
-                        cell_output = f"{','.join(pred)} (Trượt N1...)"
+                        if history: cell_output = f"{','.join(pred)} (Trượt N1...)"
                         in_frame[j], prediction_in_frame[j] = True, pred
                 
-                daily_results_row.append(cell_output)
+                if history:
+                    daily_results_row.append(cell_output)
+                    
             except Exception as e:
-                daily_results_row.append(f"Lỗi: {e}")
-        data_rows.append(daily_results_row)
+                if history:
+                    daily_results_row.append(f"Lỗi: {e}")
+                    
+        if history:
+            data_rows.append(daily_results_row)
             
-    data_rows.reverse() # Sắp xếp giảm dần
+    if history:
+        data_rows.reverse()
     
-    totalTestDays = len(data_rows)
     if totalTestDays > 0:
-        win_counts = [0] * num_bridges
-        for row in data_rows:
-            for j in range(num_bridges):
-                if "✅" in str(row[j+1]): win_counts[j] += 1
         rate_row = ["Tỷ Lệ %"]
         for count in win_counts:
             rate = (count / totalTestDays) * 100
             rate_row.append(f"{rate:.2f}%")
         results.insert(1, rate_row)
         
-        # (MỚI) Thêm hàng chuỗi K2N
-        streak_row = ["Chuỗi K2N (khung)"]
-        streak_row.extend([f"{s} khung" for s in current_streak_k2n])
+        # (SỬA GĐ 4) Đổi tên hàng và thêm Max Lose
+        streak_row = ["Chuỗi Thắng / Thua Max"]
+        for i in range(num_bridges):
+            streak_row.append(f"{current_streak_k2n[i]} thắng / {max_lose_streak_k2n[i]} thua")
         results.insert(2, streak_row) # Chèn Chuỗi
             
     try:
@@ -735,7 +790,6 @@ def BACKTEST_MANAGED_BRIDGES_K2N(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_k
         finalRowK = f"Kỳ {int(last_data_row[0]) + 1}" if last_data_row[0].isdigit() else f"Kỳ {finalEndRow + 1}"
         finalRow = [finalRowK]
         
-        # (SỬA) Dùng hàm V17 mới
         last_positions = getAllPositions_V17_Shadow(last_data_row)
         
         for j, bridge in enumerate(bridges_to_test):
@@ -750,8 +804,10 @@ def BACKTEST_MANAGED_BRIDGES_K2N(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_k
                 pred = taoSTL_V30_Bong(a, b)
                 finalRow.append(f"{','.join(pred)} (Khung mới N1)")
         
-        results.insert(3, finalRow) # (MỚI) Chèn hàng dự đoán ở vị trí 3
-        results.extend(data_rows) # Thêm dữ liệu
+        results.insert(3, finalRow) 
+        
+        if history:
+            results.extend(data_rows)
         
     except Exception as e:
         print(f"Lỗi dự đoán Cầu Đã Lưu K2N: {e}")
@@ -821,16 +877,295 @@ def run_and_update_all_bridge_rates(all_data_ai, db_name=DB_NAME):
         return 0, f"Lỗi nghiêm trọng trong run_and_update_all_bridge_rates: {e}"
 
 # ===================================================================================
+# (MỚI GĐ 1) HÀM NGHIỆP VỤ CẬP NHẬT K2N CACHE
+# ===================================================================================
+
+def _parse_k2n_results(results_data):
+    """
+    (CẬP NHẬT GĐ 4) Hàm nội bộ: Phân tích kết quả 4 hàng từ backtest K2N.
+    Trả về: 
+    - list các tuple: [(win_rate, streak, prediction, max_lose_streak, bridge_name), ...]
+    - dict (chỉ cho Bảng Tổng Hợp): { 'Cầu 1': {'stl': '01,10', 'streak': '3 khung', 'max_lose': 5} }
+    """
+    cache_data_list = []
+    pending_k2n_dict = {}
+    
+    if not results_data or len(results_data) < 4:
+        print("Lỗi _parse_k2n_results: Dữ liệu backtest K2N không hợp lệ.")
+        return cache_data_list, pending_k2n_dict
+        
+    try:
+        headers = results_data[0] # Hàng 0: Tên cầu
+        rates = results_data[1]   # Hàng 1: Tỷ Lệ %
+        streaks = results_data[2] # Hàng 2: Chuỗi Thắng / Thua Max
+        pending = results_data[3] # Hàng 3: Dự đoán
+        
+        num_bridges = len(headers) - 1 # Trừ cột "Kỳ"
+        
+        for j in range(1, num_bridges + 1):
+            bridge_name = str(headers[j]).split(' (')[0] # Lấy tên gốc
+            
+            # 1. Lấy Tỷ lệ
+            win_rate_text = str(rates[j])
+            
+            # 2. (SỬA GĐ 4) Lấy Chuỗi Thắng và Chuỗi Thua Max
+            streak_text_full = str(streaks[j]) # "3 thắng / 5 thua"
+            current_streak = 0
+            max_lose_streak = 0
+            try:
+                parts = streak_text_full.split(' / ')
+                current_streak = int(parts[0].split(' ')[0])
+                max_lose_streak = int(parts[1].split(' ')[0])
+            except Exception:
+                pass # Giữ giá trị 0
+                
+            # 3. Lấy Dự đoán
+            pending_text = str(pending[j])
+            next_prediction_stl = "LỖI"
+            
+            if "(Đang chờ N2)" in pending_text:
+                next_prediction_stl = pending_text.split(' (')[0]
+                # (SỬA GĐ 4) Thêm max_lose vào dict cho Bảng Tổng Hợp
+                pending_k2n_dict[bridge_name] = {
+                    'stl': next_prediction_stl,
+                    'streak': f"{current_streak} khung",
+                    'max_lose': max_lose_streak
+                }
+            elif "(Khung mới N1)" in pending_text:
+                next_prediction_stl = pending_text.split(' (')[0]
+            
+            # 4. (SỬA GĐ 4) Thêm max_lose_streak vào danh sách cache
+            cache_data_list.append((
+                win_rate_text,
+                current_streak,
+                next_prediction_stl,
+                max_lose_streak, # Thêm cột mới
+                bridge_name
+            ))
+            
+    except Exception as e:
+        print(f"Lỗi _parse_k2n_results: {e}")
+        
+    return cache_data_list, pending_k2n_dict
+
+def run_and_update_all_bridge_K2N_cache(all_data_ai, db_name=DB_NAME):
+    """
+    (CẬP NHẬT GĐ 4) Chạy backtest K2N (đã tối ưu) cho 15 Cầu + Cầu Đã Lưu
+    và cập nhật Tỷ lệ, Chuỗi Thắng, Dự đoán, VÀ Chuỗi Thua Max vào CSDL.
+    """
+    try:
+        if not all_data_ai:
+            return {}, "Không có dữ liệu A:I để chạy backtest K2N cache."
+            
+        ky_bat_dau = 2
+        ky_ket_thuc = len(all_data_ai) + (ky_bat_dau - 1)
+        
+        full_cache_data_list = []
+        full_pending_k2n_dict = {}
+        
+        # --- 1. Chạy 15 Cầu Cổ Điển K2N (Tối ưu) ---
+        print("... (Cache K2N) Đang chạy 15 Cầu Cổ Điển K2N (tối ưu)...")
+        results_15_cau = BACKTEST_15_CAU_K2N_V30_AI_V8(all_data_ai, ky_bat_dau, ky_ket_thuc, history=False)
+        
+        # (SỬA GĐ 4) Hàm parse giờ trả về 5 mục, bao gồm max_lose_streak
+        cache_list_15, pending_dict_15 = _parse_k2n_results(results_15_cau)
+        full_cache_data_list.extend(cache_list_15)
+        full_pending_k2n_dict.update(pending_dict_15)
+        print(f"... (Cache K2N) Đã phân tích {len(cache_list_15)} cầu CĐ.")
+
+        # --- 2. Chạy Cầu Đã Lưu K2N (Tối ưu) ---
+        print("... (Cache K2N) Đang chạy Cầu Đã Lưu K2N (tối ưu)...")
+        results_managed = BACKTEST_MANAGED_BRIDGES_K2N(all_data_ai, ky_bat_dau, ky_ket_thuc, db_name, history=False)
+        
+        if results_managed and "LỖI" not in str(results_managed[0][0]):
+            # (SỬA GĐ 4) Hàm parse giờ trả về 5 mục, bao gồm max_lose_streak
+            cache_list_managed, pending_dict_managed = _parse_k2n_results(results_managed)
+            full_cache_data_list.extend(cache_list_managed)
+            full_pending_k2n_dict.update(pending_dict_managed)
+            print(f"... (Cache K2N) Đã phân tích {len(cache_list_managed)} cầu đã lưu.")
+        else:
+            print("... (Cache K2N) Bỏ qua Cầu Đã Lưu (không có cầu nào hoặc bị lỗi).")
+
+        # --- 3. Cập nhật CSDL ---
+        if not full_cache_data_list:
+            return {}, "Không có dữ liệu cache K2N nào để cập nhật."
+            
+        print(f"... (Cache K2N) Đang cập nhật {len(full_cache_data_list)} bản ghi cache vào CSDL...")
+        # (SỬA GĐ 4) Hàm DB này (từ GĐ 4 / Bước 1) đã sẵn sàng nhận 5 mục
+        success, message = update_bridge_k2n_cache_batch(full_cache_data_list, db_name)
+        
+        if success:
+            # Trả về dict_pending để Bảng Tổng Hợp sử dụng
+            return full_pending_k2n_dict, message 
+        else:
+            return {}, message
+
+    except Exception as e:
+        import traceback
+        print(traceback.format_exc())
+        return {}, f"Lỗi nghiêm trọng trong run_and_update_all_bridge_K2N_cache: {e}"
+
+
+# ===================================================================================
+# (MỚI) CÁC HÀM TỰ ĐỘNG HÓA DÒ CẦU (Đã sửa lỗi index)
+# ===================================================================================
+
+# ĐỊNH NGHĨA NGƯỠNG TỰ ĐỘNG
+AUTO_ADD_MIN_RATE = 46.0  # Tự động thêm nếu tỷ lệ > 46%
+AUTO_PRUNE_MIN_RATE = 42.0 # Tự động tắt nếu cầu đã lưu có tỷ lệ < 43%
+
+def find_and_auto_manage_bridges(all_data_ai, db_name):
+    """
+    (NÂNG CẤP GĐ 2) Chạy dò cầu V17 + Bạc Nhớ và tự động cập nhật CSDL.
+    """
+    # Import nội bộ
+    try:
+        from .db_manager import upsert_managed_bridge, get_all_managed_bridges
+    except ImportError:
+        from db_manager import upsert_managed_bridge, get_all_managed_bridges
+
+    added_count = 0
+    updated_count = 0
+    
+    try:
+        ky_bat_dau_kiem_tra = 2
+        ky_ket_thuc_kiem_tra = len(all_data_ai) + (ky_bat_dau_kiem_tra - 1)
+        
+        # --- (MỚI GĐ 2) Bước 1: Chạy cả hai hệ thống dò cầu ---
+        
+        # 1a. Dò cầu V17 (23k cầu)
+        results_v17 = TIM_CAU_TOT_NHAT_V16(all_data_ai, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra, db_name)
+        
+        # 1b. Dò cầu Bạc Nhớ (756 cầu)
+        results_memory = TIM_CAU_BAC_NHO_TOT_NHAT(all_data_ai, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra)
+
+        # 1c. Gộp kết quả (Bỏ qua hàng tiêu đề [0] của mỗi hàm)
+        combined_results_data = []
+        if results_v17 and len(results_v17) > 1:
+            # Bỏ qua hàng '---' và 'HOÀN THÀNH' ở cuối
+            combined_results_data.extend([row for row in results_v17[1:] if "---" not in str(row[0])])
+        else:
+            print("Cảnh báo: Dò cầu V17 không trả về dữ liệu.")
+            
+        if results_memory and len(results_memory) > 1:
+            combined_results_data.extend([row for row in results_memory[1:] if "---" not in str(row[0])])
+        else:
+             print("Cảnh báo: Dò cầu Bạc Nhớ không trả về dữ liệu.")
+
+        if not combined_results_data:
+            return "Lỗi: Cả hai hệ thống dò cầu (V17 & Bạc Nhớ) đều không trả về dữ liệu."
+            
+        # Lấy danh sách cầu đã có để so sánh
+        existing_bridges = {b['name'] for b in get_all_managed_bridges(db_name)}
+        
+        # --- (MỚI GĐ 2) Bước 2: Duyệt kết quả TỔNG HỢP và "Upsert" ---
+        print(f"... (Dò Cầu Tự Động) Đã gộp {len(combined_results_data)} cầu. Bắt đầu lọc và lưu...")
+        
+        for row in combined_results_data: 
+            try:
+                if len(row) < 4:
+                    continue
+
+                bridge_name = str(row[1])
+                win_rate_str = str(row[3]).replace('%', '')
+
+                try:
+                    win_rate = float(win_rate_str)
+                except ValueError:
+                    continue 
+
+                # Áp dụng bộ lọc Tỷ lệ
+                if win_rate >= AUTO_ADD_MIN_RATE:
+                    
+                    # (SỬA GĐ 2) Thêm loại cầu vào mô tả
+                    desc_prefix = "Tự động (V17)"
+                    if "Tổng(" in bridge_name or "Hiệu(" in bridge_name:
+                        desc_prefix = "Tự động (BN)"
+                        
+                    desc = f"{desc_prefix} (Tỷ lệ: {win_rate_str}%)"
+                    
+                    # Gọi hàm Upsert (chỉ lưu tỷ lệ N1)
+                    success, msg = upsert_managed_bridge(bridge_name, desc, f"{win_rate_str}%", db_name)
+                    
+                    if success:
+                        if bridge_name in existing_bridges:
+                            updated_count += 1
+                        else:
+                            added_count += 1
+                            
+            except Exception as e_row:
+                import traceback
+                print(f"Lỗi xử lý hàng: {row}, Lỗi: {e_row}")
+                print(traceback.format_exc())
+                
+        return f"Hoàn tất Dò Cầu Tổng Hợp: Thêm {added_count} cầu mới và cập nhật {updated_count} cầu (V17 + BN)."
+
+    except Exception as e:
+        import traceback
+        print(traceback.format_exc())
+        return f"LỖI find_and_auto_manage_bridges: {e}"
+
+def prune_bad_bridges(all_data_ai, db_name):
+    """
+    (NÂNG CẤP GĐ 2) Chạy backtest Cầu Đã Lưu và tự động TẮT các cầu kém hiệu quả
+    (Sử dụng cache K2N thay vì chạy lại N1)
+    """
+    # Import nội bộ
+    try:
+        from .db_manager import get_all_managed_bridges, update_managed_bridge
+    except ImportError:
+        from db_manager import get_all_managed_bridges, update_managed_bridge
+        
+    disabled_count = 0
+    try:
+        # (SỬA GĐ 2) Dùng Cache K2N thay vì chạy lại N1
+        # Lấy danh sách cầu đã lưu (bao gồm cả ID và mô tả)
+        managed_bridges_map = {b['name']: b for b in get_all_managed_bridges(db_name, only_enabled=True)}
+
+        if not managed_bridges_map:
+             return "Lỗi: Không có cầu nào được Bật để lọc."
+
+        print(f"... (Lọc Cầu Yếu) Đang kiểm tra {len(managed_bridges_map)} cầu đã bật...")
+        
+        # Bước 2: Duyệt các cầu đã cache và lọc
+        for bridge_name, bridge_data in managed_bridges_map.items():
+            try:
+                # (SỬA GĐ 2) Đọc tỷ lệ từ cache K2N
+                win_rate_str = str(bridge_data.get('win_rate_text', '0%')).replace('%', '')
+                
+                # Bỏ qua nếu không có tỷ lệ (chưa chạy cache)
+                if not win_rate_str or win_rate_str == "N/A":
+                    continue
+                    
+                win_rate = float(win_rate_str)
+                
+                # Nếu cầu còn được bật (enabled) VÀ tỷ lệ thấp
+                if win_rate < AUTO_PRUNE_MIN_RATE:
+                    
+                    bridge_id = bridge_data['id']
+                    old_desc = bridge_data['description']
+                    
+                    # Gọi hàm update, set is_enabled = 0
+                    update_managed_bridge(bridge_id, old_desc, 0, db_name)
+                    disabled_count += 1
+                    
+            except Exception as e_row:
+                print(f"Lỗi xử lý lọc cầu: {bridge_name}, Lỗi: {e_row}")
+
+        return f"Hoàn tất: Đã tự động vô hiệu hóa {disabled_count} cầu kém hiệu quả (dựa trên cache K2N)."
+        
+    except Exception as e:
+        import traceback
+        print(traceback.format_exc())
+        return f"LỖI prune_bad_bridges: {e}"
+
+# ===================================================================================
 # (MỚI) CÁC HÀM CHO BẢNG TỔNG HỢP QUYẾT ĐỊNH
-# (Đã di chuyển từ analytics.py sang đây vì analytics.py không tồn tại)
 # ===================================================================================
 
 def get_loto_stats_last_n_days(all_data_ai, n=7):
     """
     (MỚI) Lấy thống kê tần suất loto trong N ngày gần nhất.
-    Trả về: list[('loto', count_nhay, count_ky)], 
-             ví dụ: [('33', 4, 3), ('01', 3, 3)]
-             (Loto 33 về 4 nháy, xuất hiện trong 3/7 kỳ)
     """
     try:
         if not all_data_ai or len(all_data_ai) == 0:
@@ -841,30 +1176,22 @@ def get_loto_stats_last_n_days(all_data_ai, n=7):
         
         last_n_rows = all_data_ai[-n:]
         
-        all_lotos_hits = [] # Để đếm tổng số nháy
-        day_appearance_counter = Counter() # Để đếm tổng số kỳ (ngày)
+        all_lotos_hits = [] 
+        day_appearance_counter = Counter() 
         
         for row in last_n_rows:
             lotos_in_this_row = getAllLoto_V30(row)
-            
-            # 1. Đếm tổng số nháy (giống như cũ)
             all_lotos_hits.extend(lotos_in_this_row)
-            
-            # 2. Đếm số kỳ xuất hiện (mới)
             unique_lotos_in_this_row = set(lotos_in_this_row)
-            day_appearance_counter.update(unique_lotos_in_this_row) # update 1 lần cho mỗi loto/kỳ
+            day_appearance_counter.update(unique_lotos_in_this_row) 
         
-        # Đếm tổng số nháy
         loto_hit_counts = Counter(all_lotos_hits)
-        
-        # Sắp xếp theo tổng số nháy (ưu tiên)
         sorted_lotos_by_hits = sorted(loto_hit_counts.items(), key=lambda item: item[1], reverse=True)
         
-        # Kết hợp dữ liệu
         final_stats = []
         for loto, hit_count in sorted_lotos_by_hits:
-            day_count = day_appearance_counter.get(loto, 0) # Lấy số kỳ đã xuất hiện
-            final_stats.append((loto, hit_count, day_count)) # (loto, tổng_nháy, tổng_kỳ)
+            day_count = day_appearance_counter.get(loto, 0) 
+            final_stats.append((loto, hit_count, day_count)) 
             
         return final_stats
         
@@ -874,61 +1201,57 @@ def get_loto_stats_last_n_days(all_data_ai, n=7):
 
 def get_prediction_consensus(last_row, db_name=DB_NAME):
     """
-    (MỚI) Lấy dự đoán từ "15 Cầu" và "Cầu Đã Lưu" để đếm vote THEO CẶP.
-    Trả về: list[('cap_so', count, 'sources')]
-    ví dụ: [('03-30', 2, 'C1, G5.6[3]')]
+    (MỚI - SỬA LỖI GĐ 1) Lấy dự đoán từ "15 Cầu" (cache) và "Cầu Đã Lưu" (cache)
+    để đếm vote THEO CẶP.
     """
     try:
         if not last_row or len(last_row) < 10:
             return []
             
-        prediction_sources = {} # { 'pair_key': ['C1', 'GDB[0]...'] }
+        prediction_sources = {} 
         
         def get_pair_key(stl_list):
-            """Chuẩn hóa 1 cặp STL. Ví dụ ['30', '03'] -> '03-30'"""
             if not stl_list or len(stl_list) != 2:
                 return None
-            # Sắp xếp để chuẩn hóa, ví dụ ['30', '03'] -> ['03', '30']
             sorted_pair = sorted(stl_list) 
-            return f"{sorted_pair[0]}-{sorted_pair[1]}" # Key: "03-30"
+            return f"{sorted_pair[0]}-{sorted_pair[1]}" 
 
-        # 1. Lấy từ 15 Cầu Cổ Điển
-        for i, bridge_func in enumerate(ALL_15_BRIDGE_FUNCTIONS_V5):
+        # (SỬA GĐ 1) Lấy từ 15 Cầu Cổ Điển + Cầu Đã Lưu (đã cache)
+        managed_bridges = get_all_managed_bridges(db_name, only_enabled=True)
+        
+        if not managed_bridges:
+            print("Cảnh báo Consensus: Không tìm thấy cầu nào trong CSDL.")
+            return []
+            
+        for bridge in managed_bridges:
             try:
-                stl = bridge_func(last_row)
+                # (SỬA GĐ 1) Đọc dự đoán N1 đã cache
+                prediction_stl_str = bridge.get('next_prediction_stl')
+                
+                # Chỉ xử lý các cầu N1 (bỏ qua cầu chờ N2 hoặc lỗi)
+                if not prediction_stl_str or \
+                    'N2' in prediction_stl_str or \
+                    'LỖI' in prediction_stl_str or \
+                    ',' not in prediction_stl_str:
+                    continue
+                    
+                stl = prediction_stl_str.split(',')
                 pair_key = get_pair_key(stl)
                 if not pair_key: continue
                     
-                source_name = f"C{i+1}"
+                # Lấy tên (C1, C2... hoặc tên cầu V17)
+                source_name = bridge["name"]
+                
+                # (SỬA LỖI GĐ 1) Sửa 'bridge_name' thành 'source_name'
+                if source_name.startswith("Cầu "):
+                     source_name = f"C{source_name.split(' ')[1]}"
+                     
                 if pair_key not in prediction_sources:
                     prediction_sources[pair_key] = []
-                prediction_sources[pair_key].append(source_name)
+                if source_name not in prediction_sources[pair_key]:
+                    prediction_sources[pair_key].append(source_name)
             except Exception as e:
-                print(f"Lỗi dự đoán 15 Cầu (consensus): {e}")
-
-        # 2. Lấy từ Cầu Đã Lưu
-        managed_bridges = get_all_managed_bridges(db_name, only_enabled=True)
-        if managed_bridges:
-            # (SỬA) Dùng hàm V17 mới
-            last_positions = getAllPositions_V17_Shadow(last_row)
-            for bridge in managed_bridges:
-                try:
-                    idx1, idx2 = bridge["pos1_idx"], bridge["pos2_idx"]
-                    a, b = last_positions[idx1], last_positions[idx2]
-                    if a is None or b is None: continue
-                    
-                    stl = taoSTL_V30_Bong(a, b)
-                    pair_key = get_pair_key(stl)
-                    if not pair_key: continue
-                        
-                    source_name = bridge["name"]
-                    if pair_key not in prediction_sources:
-                        prediction_sources[pair_key] = []
-                    # Chỉ thêm 1 lần cho 1 cầu (tránh trùng lặp)
-                    if source_name not in prediction_sources[pair_key]:
-                        prediction_sources[pair_key].append(source_name)
-                except Exception as e:
-                    print(f"Lỗi dự đoán Cầu Đã Lưu (consensus): {e}")
+                print(f"Lỗi dự đoán Cầu (consensus cache) {bridge.get('name')}: {e}")
         
         # 3. Tổng hợp và Sắp xếp
         consensus_list = []
@@ -946,8 +1269,7 @@ def get_prediction_consensus(last_row, db_name=DB_NAME):
 
 def get_high_win_rate_predictions(last_row, threshold=80.0, db_name=DB_NAME):
     """
-    (MỚI) Lấy dự đoán từ các cầu CÓ TỶ LỆ CAO (dựa trên Cầu Đã Lưu).
-    Trả về: list[ {'name': str, 'stl': list, 'rate': str} ]
+    (MỚI - SỬA GĐ 1) Lấy dự đoán từ Cầu Đã Lưu CÓ TỶ LỆ CAO (dựa trên cache K2N).
     """
     try:
         if not last_row or len(last_row) < 10:
@@ -958,12 +1280,11 @@ def get_high_win_rate_predictions(last_row, threshold=80.0, db_name=DB_NAME):
         if not managed_bridges:
             return []
             
-        # (SỬA) Dùng hàm V17 mới
-        last_positions = getAllPositions_V17_Shadow(last_row)
+        # (SỬA GĐ 1) Không cần "last_positions" nữa vì chúng ta đọc cache
         
         for bridge in managed_bridges:
             try:
-                # 1. Kiểm tra tỷ lệ
+                # 1. Kiểm tra tỷ lệ (từ cache K2N)
                 rate_str = str(bridge.get('win_rate_text', '0%')).replace('%', '')
                 if not rate_str or rate_str == "N/A":
                     continue
@@ -972,11 +1293,17 @@ def get_high_win_rate_predictions(last_row, threshold=80.0, db_name=DB_NAME):
                 
                 # 2. Nếu đạt ngưỡng
                 if win_rate >= threshold:
-                    idx1, idx2 = bridge["pos1_idx"], bridge["pos2_idx"]
-                    a, b = last_positions[idx1], last_positions[idx2]
-                    if a is None or b is None: continue
+                    # (SỬA GĐ 1) Lấy dự đoán từ cache
+                    prediction_stl_str = bridge.get('next_prediction_stl')
                     
-                    stl = taoSTL_V30_Bong(a, b)
+                    if not prediction_stl_str or \
+                       'N2' in prediction_stl_str or \
+                       'LỖI' in prediction_stl_str or \
+                       ',' not in prediction_stl_str:
+                        continue
+                        
+                    stl = prediction_stl_str.split(',')
+                    
                     high_win_bridges.append({
                         'name': bridge['name'],
                         'stl': stl,
@@ -1055,145 +1382,6 @@ def get_pending_k2n_bridges(last_row, prev_row, db_name=DB_NAME):
         print(f"Lỗi get_pending_k2n_bridges: {e}")
         return []
 
-# ===================================================================================
-# (MỚI) CÁC HÀM TỰ ĐỘNG HÓA DÒ CẦU (Đã sửa lỗi index)
-# ===================================================================================
-
-# ĐỊNH NGHĨA NGƯỠNG TỰ ĐỘNG
-AUTO_ADD_MIN_RATE = 50.0  # Tự động thêm nếu tỷ lệ > 50%
-AUTO_PRUNE_MIN_RATE = 40.0 # Tự động tắt nếu cầu đã lưu có tỷ lệ < 40%
-
-def find_and_auto_manage_bridges(all_data_ai, db_name):
-    """
-    (MỚI - ĐÃ SỬA LỖI) Chạy dò cầu V17 và tự động cập nhật CSDL ManagedBridges.
-    """
-    # Import nội bộ
-    try:
-        from .db_manager import upsert_managed_bridge, get_all_managed_bridges
-    except ImportError:
-        from db_manager import upsert_managed_bridge, get_all_managed_bridges
-
-    added_count = 0
-    updated_count = 0
-    
-    try:
-        # Bước 1: Chạy dò cầu V17
-        ky_bat_dau_kiem_tra = 2
-        ky_ket_thuc_kiem_tra = len(all_data_ai) + (ky_bat_dau_kiem_tra - 1)
-        
-        # Gọi hàm dò cầu lõi (giờ là V17)
-        results_data = TIM_CAU_TOT_NHAT_V16(all_data_ai, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra, db_name)
-        
-        if not results_data or len(results_data) <= 1:
-            return "Lỗi: Hàm TIM_CAU_TOT_NHAT_V16 (V17) không trả về dữ liệu."
-            
-        # Lấy danh sách cầu đã có để so sánh
-        existing_bridges = {b['name'] for b in get_all_managed_bridges(db_name)}
-        
-        # Bước 2: Duyệt kết quả và tự động "Upsert"
-        # Bỏ qua hàng tiêu đề (results_data[0])
-        for row in results_data[1:]: 
-            try:
-                # (SỬA LỖI) Kiểm tra hàng hợp lệ (cần ít nhất 4 cột)
-                if len(row) < 4:
-                    print(f"Bỏ qua hàng không hợp lệ: {row}")
-                    continue
-
-                bridge_name = str(row[1])
-                win_rate_str = str(row[3]).replace('%', '')
-
-                # (SỬA LỖI) Xử lý các hàng ('---', '---', ...)
-                try:
-                    win_rate = float(win_rate_str)
-                except ValueError:
-                    print(f"Bỏ qua hàng có tỷ lệ không hợp lệ: {row}")
-                    continue # Bỏ qua hàng này
-
-                # (SỬA LỖI) Áp dụng bộ lọc CHỈ THEO TỶ LỆ
-                if win_rate >= AUTO_ADD_MIN_RATE:
-                    
-                    # (SỬA LỖI) Cập nhật mô tả (không có chuỗi thua)
-                    desc = f"Tự động (Tỷ lệ: {win_rate_str}%)"
-                    
-                    # Gọi hàm Upsert
-                    success, msg = upsert_managed_bridge(bridge_name, desc, f"{win_rate_str}%", db_name)
-                    
-                    if success:
-                        if bridge_name in existing_bridges:
-                            updated_count += 1
-                        else:
-                            added_count += 1
-                            
-            except Exception as e_row:
-                # In lỗi chi tiết hơn
-                import traceback
-                print(f"Lỗi xử lý hàng: {row}, Lỗi: {e_row}")
-                print(traceback.format_exc())
-                
-        return f"Hoàn tất: Tự động thêm {added_count} cầu mới và cập nhật {updated_count} cầu."
-
-    except Exception as e:
-        import traceback
-        print(traceback.format_exc())
-        return f"LỖI find_and_auto_manage_bridges: {e}"
-
-def prune_bad_bridges(all_data_ai, db_name):
-    """
-    (MỚI - Giữ nguyên) Chạy backtest Cầu Đã Lưu và tự động TẮT các cầu kém hiệu quả.
-    """
-    # Import nội bộ
-    try:
-        from .db_manager import get_all_managed_bridges, update_managed_bridge
-    except ImportError:
-        from db_manager import get_all_managed_bridges, update_managed_bridge
-        
-    disabled_count = 0
-    try:
-        # Bước 1: Chạy backtest N1 Cầu Đã Lưu để lấy số liệu MỚI NHẤT
-        ky_bat_dau_kiem_tra = 2
-        ky_ket_thuc_kiem_tra = len(all_data_ai) + (ky_bat_dau_kiem_tra - 1)
-        
-        # Gọi hàm (giờ đã là V17)
-        results_data = BACKTEST_MANAGED_BRIDGES_N1(all_data_ai, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra, db_name)
-        
-        if not results_data or len(results_data) <= 1 or "LỖI" in str(results_data[0][0]):
-            return "Lỗi: Không thể chạy backtest Cầu Đã Lưu để lọc."
-
-        # Lấy danh sách cầu đã lưu (bao gồm cả ID và mô tả)
-        managed_bridges_map = {b['name']: b for b in get_all_managed_bridges(db_name, only_enabled=True)}
-
-        # Bước 2: Duyệt kết quả backtest và lọc
-        headers = results_data[0]
-        rates = results_data[1]
-        
-        # Bắt đầu từ 1 (bỏ qua cột "Hàng")
-        for i in range(1, len(headers)):
-            try:
-                bridge_name = str(headers[i])
-                win_rate_str = str(rates[i]).replace('%', '')
-                win_rate = float(win_rate_str)
-                
-                # Nếu cầu còn được bật (enabled) VÀ tỷ lệ thấp
-                if bridge_name in managed_bridges_map and win_rate < AUTO_PRUNE_MIN_RATE:
-                    
-                    bridge_to_disable = managed_bridges_map[bridge_name]
-                    bridge_id = bridge_to_disable['id']
-                    old_desc = bridge_to_disable['description']
-                    
-                    # Gọi hàm update, set is_enabled = 0
-                    update_managed_bridge(bridge_id, old_desc, 0, db_name)
-                    disabled_count += 1
-                    
-            except Exception as e_row:
-                print(f"Lỗi xử lý lọc cầu: {headers[i]}, Lỗi: {e_row}")
-
-        return f"Hoàn tất: Đã tự động vô hiệu hóa {disabled_count} cầu kém hiệu quả."
-        
-    except Exception as e:
-        import traceback
-        print(traceback.format_exc())
-        return f"LỖI prune_bad_bridges: {e}"
-
 # (MỚI) HÀM TÍNH ĐIỂM (Lấy từ analytics.py)
 def _standardize_pair(stl_list):
     """Hàm nội bộ: Chuẩn hóa 1 cặp STL. Ví dụ ['30', '03'] -> '03-30'"""
@@ -1202,13 +1390,30 @@ def _standardize_pair(stl_list):
     sorted_pair = sorted(stl_list) 
     return f"{sorted_pair[0]}-{sorted_pair[1]}" # Key: "03-30"
 
-def get_top_scored_pairs(stats, consensus, high_win, pending_k2n, gan_stats):
+# (NÂNG CẤP GĐ 4) Cập nhật hàm chấm điểm (Quản lý Rủi ro)
+def get_top_scored_pairs(stats, consensus, high_win, pending_k2n, gan_stats, top_memory_bridges):
     """
-    (MỚI) Tính toán, chấm điểm và xếp hạng các cặp số dựa trên 5 nguồn dữ liệu.
+    (NÂNG CẤP GĐ 4) Tính toán, chấm điểm và xếp hạng các cặp số.
+    Sử dụng Chấm điểm Động VÀ Quản lý Rủi ro (Chuỗi Thua Max).
     """
     try:
-        # { '03-30': {'score': 0, 'reasons': [], 'is_gan': False, 'gan_days': 0} }
+        # { '03-30': {'score': 0.0, 'reasons': [], 'is_gan': False, 'gan_days': 0} }
         scores = {}
+        
+        # --- (MỚI GĐ 3) Hàm phụ ---
+        def _parse_rate(rate_str):
+            """Trích xuất tỷ lệ float từ '50.5%'"""
+            try:
+                return float(str(rate_str).replace('%', ''))
+            except (ValueError, TypeError):
+                return 0.0
+        
+        def _parse_streak(streak_str):
+            """Trích xuất số chuỗi từ '3 khung'"""
+            try:
+                return int(str(streak_str).split(' ')[0])
+            except (ValueError, TypeError):
+                return 0
         
         # --- 1. Tạo danh sách Loto Về Nhiều (Top 5) để tra cứu ---
         top_hot_lotos = {loto for loto, nhay, ky in stats[:5]}
@@ -1216,46 +1421,90 @@ def get_top_scored_pairs(stats, consensus, high_win, pending_k2n, gan_stats):
         # --- 2. Tạo danh sách Loto Gan để tra cứu ---
         gan_map = {loto: days for loto, days in gan_stats}
 
-        # --- 3. Chấm điểm từ 3 nguồn chính (Consensus, High Win, K2N) ---
+        # --- 3. Chấm điểm từ 4 nguồn chính ---
         
-        # Nguồn 2: Consensus (Dự đoán nhiều)
-        for pair_key, count, sources in consensus[:3]: # Top 3
+        # Nguồn 2: Consensus (Dự đoán nhiều) - (Giữ nguyên điểm cố định)
+        for i, (pair_key, count, sources) in enumerate(consensus[:3]): # Top 3
             if pair_key not in scores:
-                scores[pair_key] = {'score': 0, 'reasons': [], 'is_gan': False, 'gan_days': 0}
-            scores[pair_key]['score'] += 3
-            scores[pair_key]['reasons'].append(f"Top {len(scores)} Dự Đoán")
+                scores[pair_key] = {'score': 0.0, 'reasons': [], 'is_gan': False, 'gan_days': 0}
             
-        # Nguồn 3: Cầu Tỷ Lệ Cao (>=47%)
+            # (SỬA GĐ 3) Chấm điểm vote (3, 2, 1)
+            score_bonus = 3.0
+            if i == 1: score_bonus = 2.0
+            if i == 2: score_bonus = 1.0
+            
+            scores[pair_key]['score'] += score_bonus
+            scores[pair_key]['reasons'].append(f"Top {i+1} Vote ({count})")
+            
+        # Nguồn 3: Cầu Tỷ Lệ Cao (>=47%) (Cầu V17 đã lưu)
         for bridge in high_win:
-            pair_key = _standardize_pair(bridge['stl'])
-            if not pair_key: continue
-            if pair_key not in scores:
-                scores[pair_key] = {'score': 0, 'reasons': [], 'is_gan': False, 'gan_days': 0}
-            scores[pair_key]['score'] += 2
-            scores[pair_key]['reasons'].append(f"Cầu {bridge['rate']}")
+            win_rate = _parse_rate(bridge['rate'])
+            # (SỬA GĐ 3) Áp dụng chấm điểm động
+            if win_rate >= 47.0:
+                pair_key = _standardize_pair(bridge['stl'])
+                if not pair_key: continue
+                if pair_key not in scores:
+                    scores[pair_key] = {'score': 0.0, 'reasons': [], 'is_gan': False, 'gan_days': 0}
+                
+                # Logic chấm điểm động
+                score_bonus = (win_rate - 47.0) / 10.0
+                scores[pair_key]['score'] += score_bonus
+                scores[pair_key]['reasons'].append(f"Cầu V17 {win_rate:.1f}%")
 
         # Nguồn 4: Cầu K2N Đang Chờ
-        for item in pending_k2n:
-            # (SỬA) STL trong pending_k2n_data là chuỗi '01,10'
-            pair_key = _standardize_pair(item['stl'].split(','))
+        for bridge_name, data in pending_k2n.items():
+            pair_key = _standardize_pair(data['stl'].split(','))
             if not pair_key: continue
             if pair_key not in scores:
-                scores[pair_key] = {'score': 0, 'reasons': [], 'is_gan': False, 'gan_days': 0}
-            scores[pair_key]['score'] += 2
-            scores[pair_key]['reasons'].append(f"Chờ K2N (Chuỗi {item['streak']})")
+                scores[pair_key] = {'score': 0.0, 'reasons': [], 'is_gan': False, 'gan_days': 0}
+            
+            # (SỬA GĐ 4) Chấm điểm động VÀ Quản lý Rủi ro
+            current_streak = _parse_streak(data['streak'])
+            max_lose_streak = data.get('max_lose', 0) # Lấy từ cache
+            
+            # Điểm thưởng cho chuỗi thắng
+            score_bonus = 1.0 + (current_streak * 0.5) 
+            
+            # (MỚI GĐ 4) Điểm phạt cho rủi ro (chuỗi thua max)
+            risk_penalty = 0.0
+            if max_lose_streak > 4: # Bắt đầu phạt từ 5
+                risk_penalty = (max_lose_streak - 4) * 0.5 # 5 thua = -0.5đ, 6 thua = -1.0đ
+            
+            final_score_bonus = score_bonus - risk_penalty
+            if final_score_bonus < 0: # Không để điểm thưởng bị âm
+                final_score_bonus = 0 
+            
+            scores[pair_key]['score'] += final_score_bonus
+            # (SỬA GĐ 4) Cập nhật lý do
+            scores[pair_key]['reasons'].append(f"Chờ K2N ({current_streak} thắng / {max_lose_streak} thua max)")
+
+        # Nguồn 5: Cầu Bạc Nhớ
+        for bridge in top_memory_bridges:
+            win_rate = _parse_rate(bridge['rate'])
+            # (SỬA GĐ 3) Áp dụng chấm điểm động
+            if win_rate >= 47.0:
+                pair_key = _standardize_pair(bridge['stl'])
+                if not pair_key: continue
+                if pair_key not in scores:
+                    scores[pair_key] = {'score': 0.0, 'reasons': [], 'is_gan': False, 'gan_days': 0}
+                
+                # Logic chấm điểm động (giống Cầu V17)
+                score_bonus = (win_rate - 47.0) / 10.0
+                scores[pair_key]['score'] += score_bonus
+                scores[pair_key]['reasons'].append(f"Cầu BN {win_rate:.1f}%")
+
 
         # --- 4. Chấm điểm cộng (Loto Về Nhiều) và Gắn cờ (Lô Gan) ---
         
-        # Duyệt qua tất cả các cặp đã có điểm
         for pair_key in list(scores.keys()):
             loto1, loto2 = pair_key.split('-')
             
-            # Điểm cộng (Nguồn 1: Loto Về Nhiều)
+            # Điểm cộng (Nguồn 1: Loto Về Nhiều) - (Giữ nguyên 1 điểm)
             if loto1 in top_hot_lotos or loto2 in top_hot_lotos:
-                scores[pair_key]['score'] += 1
+                scores[pair_key]['score'] += 1.0
                 scores[pair_key]['reasons'].append("Loto Hot")
                 
-            # Gắn cờ Gan (Nguồn 5: Lô Gan)
+            # Gắn cờ Gan (Nguồn 6: Lô Gan)
             gan_days_1 = gan_map.get(loto1, 0)
             gan_days_2 = gan_map.get(loto2, 0)
             max_gan = max(gan_days_1, gan_days_2)
@@ -1269,13 +1518,13 @@ def get_top_scored_pairs(stats, consensus, high_win, pending_k2n, gan_stats):
         for pair_key, data in scores.items():
             final_list.append({
                 'pair': pair_key,
-                'score': data['score'],
+                # (SỬA GĐ 3) Làm tròn điểm
+                'score': round(data['score'], 2),
                 'reasons': ", ".join(data['reasons']),
                 'is_gan': data['is_gan'],
                 'gan_days': data['gan_days']
             })
             
-        # Sắp xếp theo Điểm (cao -> thấp)
         final_list.sort(key=lambda x: x['score'], reverse=True)
         
         return final_list
@@ -1290,8 +1539,6 @@ def get_top_scored_pairs(stats, consensus, high_win, pending_k2n, gan_stats):
 def get_loto_gan_stats(all_data_ai, n_days=15):
     """
     (MỚI) Tìm các loto (00-99) đã không xuất hiện trong n_days gần nhất.
-    Trả về: list[('loto', so_ngay_gan)]
-    Ví dụ: [('22', 18), ('01', 15)]
     """
     gan_stats = []
     try:
@@ -1299,48 +1546,42 @@ def get_loto_gan_stats(all_data_ai, n_days=15):
             print(f"Cảnh báo Lô Gan: Không đủ dữ liệu (cần {n_days} kỳ).")
             return []
             
-        # 1. Tạo danh sách 100 loto
         all_100_lotos = {str(i).zfill(2) for i in range(100)}
         
-        # 2. Tìm loto xuất hiện trong N ngày gần nhất
         recent_lotos = set()
         recent_rows = all_data_ai[-n_days:]
         for row in recent_rows:
-            lotos_in_row = getAllLoto_V30(row)
-            recent_lotos.update(lotos_in_row)
+            lotos_in_this_row = getAllLoto_V30(row)
+            recent_lotos.update(lotos_in_this_row)
             
-        # 3. Lấy danh sách loto gan (loto không có trong danh sách gần đây)
         gan_lotos = all_100_lotos - recent_lotos
         
         if not gan_lotos:
-            return [] # Không có loto nào gan > n_days
+            return [] 
 
-        # 4. Tính toán số ngày gan chính xác cho từng loto
-        full_history = all_data_ai[:] # Copy
-        full_history.reverse() # Đảo ngược, [0] là ngày gần nhất
+        full_history = all_data_ai[:] 
+        full_history.reverse() 
         
         for loto in gan_lotos:
             days_gan = 0
             found = False
             for i, row in enumerate(full_history):
-                if i < n_days: # Bỏ qua N ngày gần nhất (vì ta biết nó không về)
+                if i < n_days: 
                     days_gan += 1
                     continue
                 
                 loto_set_this_day = set(getAllLoto_V30(row))
                 if loto in loto_set_this_day:
                     found = True
-                    break # Tìm thấy rồi, dừng đếm
+                    break 
                 else:
-                    days_gan += 1 # Cộng thêm ngày gan
+                    days_gan += 1 
             
             if found:
                 gan_stats.append((loto, days_gan))
             else:
-                # Gan cực đại (chưa về trong toàn bộ lịch sử)
                 gan_stats.append((loto, len(full_history)))
 
-        # 5. Sắp xếp: Gan lâu nhất lên đầu
         gan_stats.sort(key=lambda x: x[1], reverse=True)
         return gan_stats
 
@@ -1370,29 +1611,24 @@ except ImportError:
 def BACKTEST_MEMORY_BRIDGES(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra):
     """
     (MỚI) Chạy backtest cho 756 Cầu Bạc Nhớ (27x27 Cầu Tổng + 27x27 Cầu Hiệu).
-    Sử dụng logic kiểm tra N1 (không K2N).
     """
     print("Bắt đầu Backtest 756 Cầu Bạc Nhớ...")
     
     allData, finalEndRow, startCheckRow, offset, error = _validate_backtest_params(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra)
     if error: return error
 
-    # 1. Lấy tên 27 vị trí lô (Lô GĐB, Lô G1, ...)
     loto_names = get_27_loto_names()
     num_positions = len(loto_names) # = 27
     
-    # 2. Tạo danh sách 756 thuật toán (headers)
-    algorithms = [] # Danh sách (index1, index2, 'loại', 'tên')
+    algorithms = [] 
     headers = ["Kỳ (Cột A)"]
     
     for i in range(num_positions):
         for j in range(i, num_positions):
-            # 2a. Thuật toán TỔNG
             name_sum = f"Tổng({loto_names[i]} + {loto_names[j]})"
             headers.append(name_sum)
             algorithms.append((i, j, 'sum', name_sum))
             
-            # 2b. Thuật toán HIỆU
             name_diff = f"Hiệu(|{loto_names[i]} - {loto_names[j]}|)"
             headers.append(name_diff)
             algorithms.append((i, j, 'diff', name_diff))
@@ -1402,7 +1638,6 @@ def BACKTEST_MEMORY_BRIDGES(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_t
     
     print(f"Đã tạo {num_algorithms} thuật toán Bạc Nhớ. Bắt đầu tiền xử lý...")
 
-    # 3. Tiền xử lý dữ liệu (lấy 27 lô mỗi ngày)
     processedData = []
     for k in range(startCheckRow, finalEndRow + 1):
         prevRow_idx, actualRow_idx = k - 1 - offset, k - offset
@@ -1425,7 +1660,6 @@ def BACKTEST_MEMORY_BRIDGES(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_t
     win_counts = [0] * num_algorithms
     totalTestDays = 0
 
-    # 4. Chạy Backtest (chỉ N1)
     for dayData in processedData:
         if dayData["error"]:
             data_rows.append([dayData["soKy"], "Lỗi dữ liệu hàng"])
@@ -1441,13 +1675,8 @@ def BACKTEST_MEMORY_BRIDGES(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_t
             alg = algorithms[j]
             idx1, idx2, alg_type = alg[0], alg[1], alg[2]
             
-            # Lấy 2 con lô từ 27 vị trí của ngày hôm trước
             loto1, loto2 = prevLotos[idx1], prevLotos[idx2]
-            
-            # Tính ra cặp STL dự đoán
             pred_stl = calculate_bridge_stl(loto1, loto2, alg_type)
-            
-            # Kiểm tra hit (dùng hàm K2N nhưng chỉ xem kết quả N1)
             check_result = checkHitSet_V30_K2N(pred_stl, actualLotoSet)
             
             cell_output = f"{','.join(pred_stl)} {check_result}"
@@ -1458,8 +1687,7 @@ def BACKTEST_MEMORY_BRIDGES(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_t
             
         data_rows.append(daily_results_row)
 
-    # 5. Sắp xếp và tính toán kết quả
-    data_rows.reverse() # Sắp xếp giảm dần
+    data_rows.reverse() 
     
     if totalTestDays > 0:
         rate_row = ["Tỷ Lệ %"]
@@ -1481,8 +1709,8 @@ def BACKTEST_MEMORY_BRIDGES(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_t
             pred_stl = calculate_bridge_stl(loto1, loto2, alg_type)
             finalRow.append(f"{','.join(pred_stl)} (Dự đoán N1)")
         
-        results.insert(2, finalRow) # Chèn hàng dự đoán
-        results.extend(data_rows) # Thêm dữ liệu
+        results.insert(2, finalRow) 
+        results.extend(data_rows) 
         
     except Exception as e:
         print(f"Lỗi dự đoán Cầu Bạc Nhớ: {e}")
@@ -1490,6 +1718,91 @@ def BACKTEST_MEMORY_BRIDGES(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_t
 
     print("Hoàn tất Backtest Cầu Bạc Nhớ.")
     return results
+
+
+# (MỚI GĐ 2) HÀM DÒ CẦU BẠC NHỚ
+def TIM_CAU_BAC_NHO_TOT_NHAT(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra):
+    """
+    (MỚI GĐ 2) Dò 756 Cầu Bạc Nhớ và trả về kết quả (không lọc)
+    để đưa vào hàm Tự động Dò Cầu.
+    """
+    print("... (Dò Cầu Tự Động) Bắt đầu Dò 756 Cầu Bạc Nhớ...")
+    
+    allData, finalEndRow, startCheckRow, offset, error = _validate_backtest_params(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra)
+    if error: return error
+
+    loto_names = get_27_loto_names()
+    num_positions = len(loto_names) # = 27
+    
+    algorithms = [] # (index1, index2, 'loại', 'tên')
+    for i in range(num_positions):
+        for j in range(i, num_positions):
+            # TỔNG
+            name_sum = f"Tổng({loto_names[i]} + {loto_names[j]})"
+            algorithms.append((i, j, 'sum', name_sum))
+            # HIỆU
+            name_diff = f"Hiệu(|{loto_names[i]} - {loto_names[j]}|)"
+            algorithms.append((i, j, 'diff', name_diff))
+
+    num_algorithms = len(algorithms) # = 756
+    
+    processedData = []
+    for k in range(startCheckRow, finalEndRow + 1):
+        prevRow_idx, actualRow_idx = k - 1 - offset, k - offset
+        if actualRow_idx >= len(allData) or prevRow_idx < 0: continue
+        prevRow, actualRow = allData[prevRow_idx], allData[actualRow_idx]
+        if not prevRow or not actualRow or not actualRow[0] or str(actualRow[0]).strip() == "" or len(actualRow) < 10 or not actualRow[9]:
+            continue
+        processedData.append({
+            "prevLotos": get_27_loto_positions(prevRow),
+            "actualLotoSet": set(getAllLoto_V30(actualRow))
+        })
+    
+    totalTestDays = len(processedData)
+    if totalTestDays == 0: 
+        print("Lỗi TIM_CAU_BAC_NHO: Không có dữ liệu test")
+        return [["LỖI:", "Không có dữ liệu hợp lệ để backtest."]]
+        
+    win_counts = [0] * num_algorithms
+
+    for dayData in processedData:
+        actualLotoSet = dayData["actualLotoSet"]
+        prevLotos = dayData["prevLotos"]
+        for j in range(num_algorithms):
+            alg = algorithms[j]
+            idx1, idx2, alg_type = alg[0], alg[1], alg[2]
+            loto1, loto2 = prevLotos[idx1], prevLotos[idx2]
+            pred_stl = calculate_bridge_stl(loto1, loto2, alg_type)
+            if pred_stl[0] in actualLotoSet or pred_stl[1] in actualLotoSet:
+                win_counts[j] += 1
+
+    # Định dạng lại kết quả giống hệt TIM_CAU_TOT_NHAT_V16
+    output = [["Hạng", "Tên Cầu", "Trúng/Tổng", "Tỷ lệ"]]
+    results_list = []
+    for j in range(num_algorithms):
+        alg_name = algorithms[j][3]
+        hits = win_counts[j]
+        rate = (hits / totalTestDays) * 100 if totalTestDays > 0 else 0
+        results_list.append({
+            'name': alg_name,
+            'hits': hits,
+            'rate': rate,
+            'hit_str': f"{hits}/{totalTestDays}",
+            'rate_str': f"{rate:.2f}%"
+        })
+    
+    results_list.sort(key=lambda x: x["hits"], reverse=True)
+    
+    for index, res in enumerate(results_list):
+        output.append([
+            index + 1,
+            res["name"],
+            res["hit_str"],
+            res["rate_str"]
+        ])
+        
+    print(f"... (Dò Cầu Tự Động) Hoàn tất Dò Cầu Bạc Nhớ ({len(output)-1} cầu).")
+    return output
 
 
 # ===================================================================================
@@ -1503,8 +1816,6 @@ def get_top_memory_bridge_predictions(all_data_ai, last_row, top_n=5):
     """
     print("... (BTH) Bắt đầu chạy backtest 756 cầu Bạc Nhớ ngầm...")
     
-    # 1. Lấy dữ liệu (giống hệt hàm BACKTEST_MEMORY_BRIDGES)
-    # Chúng ta dùng toàn bộ dữ liệu (trừ ngày cuối) để tính tỷ lệ
     allData, finalEndRow, startCheckRow, offset, error = _validate_backtest_params(all_data_ai, 2, len(all_data_ai) + 1)
     if error: 
         print(f"Lỗi get_top_memory_bridge_predictions (validate): {error}")
@@ -1521,7 +1832,6 @@ def get_top_memory_bridge_predictions(all_data_ai, last_row, top_n=5):
 
     num_algorithms = len(algorithms) # = 756
     
-    # 2. Tiền xử lý dữ liệu
     processedData = []
     for k in range(startCheckRow, finalEndRow + 1):
         prevRow_idx, actualRow_idx = k - 1 - offset, k - offset
@@ -1541,7 +1851,6 @@ def get_top_memory_bridge_predictions(all_data_ai, last_row, top_n=5):
         
     win_counts = [0] * num_algorithms
 
-    # 3. Chạy Backtest N1 (siêu nhanh, chỉ đếm)
     for dayData in processedData:
         actualLotoSet = dayData["actualLotoSet"]
         prevLotos = dayData["prevLotos"]
@@ -1555,17 +1864,15 @@ def get_top_memory_bridge_predictions(all_data_ai, last_row, top_n=5):
             if pred_stl[0] in actualLotoSet or pred_stl[1] in actualLotoSet:
                 win_counts[j] += 1
 
-    # 4. Lấy Top N cầu tốt nhất
     bridge_stats = [] # list of (rate, index)
     for j in range(num_algorithms):
         rate = (win_counts[j] / totalTestDays) * 100
         bridge_stats.append( (rate, j) )
         
-    bridge_stats.sort(key=lambda x: x[0], reverse=True) # Sắp xếp theo tỷ lệ
+    bridge_stats.sort(key=lambda x: x[0], reverse=True) 
     
     top_n_bridges = bridge_stats[:top_n]
     
-    # 5. Lấy dự đoán cho ngày mai từ Top N cầu này
     predictions_for_dashboard = []
     last_lotos = get_27_loto_positions(last_row)
     
@@ -1576,7 +1883,6 @@ def get_top_memory_bridge_predictions(all_data_ai, last_row, top_n=5):
         loto1, loto2 = last_lotos[idx1], last_lotos[idx2]
         pred_stl = calculate_bridge_stl(loto1, loto2, alg_type)
         
-        # Lấy tên cầu
         if alg_type == 'sum':
             name = f"Tổng({loto_names[idx1]}+{loto_names[idx2]})"
         else:
@@ -1590,96 +1896,3 @@ def get_top_memory_bridge_predictions(all_data_ai, last_row, top_n=5):
         
     print(f"... (BTH) Backtest Bạc Nhớ hoàn tất. Trả về {len(predictions_for_dashboard)} dự đoán.")
     return predictions_for_dashboard
-
-# (SỬA) NÂNG CẤP HÀM CHẤM ĐIỂM
-# Xóa hàm get_top_scored_pairs cũ và thay bằng hàm này
-def get_top_scored_pairs(stats, consensus, high_win, pending_k2n, gan_stats, top_memory_bridges):
-    """
-    (MỚI - NÂNG CẤP) Tính toán, chấm điểm và xếp hạng các cặp số.
-    ĐÃ THÊM NGUỒN DỮ LIỆU THỨ 6: top_memory_bridges
-    """
-    try:
-        # { '03-30': {'score': 0, 'reasons': [], 'is_gan': False, 'gan_days': 0} }
-        scores = {}
-        
-        # --- 1. Tạo danh sách Loto Về Nhiều (Top 5) để tra cứu ---
-        top_hot_lotos = {loto for loto, nhay, ky in stats[:5]}
-        
-        # --- 2. Tạo danh sách Loto Gan để tra cứu ---
-        gan_map = {loto: days for loto, days in gan_stats}
-
-        # --- 3. Chấm điểm từ 4 nguồn chính ---
-        
-        # Nguồn 2: Consensus (Dự đoán nhiều)
-        for pair_key, count, sources in consensus[:3]: # Top 3
-            if pair_key not in scores:
-                scores[pair_key] = {'score': 0, 'reasons': [], 'is_gan': False, 'gan_days': 0}
-            scores[pair_key]['score'] += 3
-            scores[pair_key]['reasons'].append(f"Top {len(scores)} Dự Đoán")
-            
-        # Nguồn 3: Cầu Tỷ Lệ Cao (>=47%) (Cầu V17 đã lưu)
-        for bridge in high_win:
-            pair_key = _standardize_pair(bridge['stl'])
-            if not pair_key: continue
-            if pair_key not in scores:
-                scores[pair_key] = {'score': 0, 'reasons': [], 'is_gan': False, 'gan_days': 0}
-            scores[pair_key]['score'] += 2
-            scores[pair_key]['reasons'].append(f"Cầu V17 {bridge['rate']}") # Sửa tên
-
-        # Nguồn 4: Cầu K2N Đang Chờ
-        for item in pending_k2n:
-            pair_key = _standardize_pair(item['stl'].split(','))
-            if not pair_key: continue
-            if pair_key not in scores:
-                scores[pair_key] = {'score': 0, 'reasons': [], 'is_gan': False, 'gan_days': 0}
-            scores[pair_key]['score'] += 2
-            scores[pair_key]['reasons'].append(f"Chờ K2N (Chuỗi {item['streak']})")
-
-        # (MỚI) Nguồn 5: Cầu Bạc Nhớ
-        for bridge in top_memory_bridges:
-            pair_key = _standardize_pair(bridge['stl'])
-            if not pair_key: continue
-            if pair_key not in scores:
-                scores[pair_key] = {'score': 0, 'reasons': [], 'is_gan': False, 'gan_days': 0}
-            scores[pair_key]['score'] += 2 # Thưởng 2 điểm
-            scores[pair_key]['reasons'].append(f"Cầu BN {bridge['rate']}") # Ghi chú Bạc Nhớ
-
-        # --- 4. Chấm điểm cộng (Loto Về Nhiều) và Gắn cờ (Lô Gan) ---
-        
-        for pair_key in list(scores.keys()):
-            loto1, loto2 = pair_key.split('-')
-            
-            # Điểm cộng (Nguồn 1: Loto Về Nhiều)
-            if loto1 in top_hot_lotos or loto2 in top_hot_lotos:
-                scores[pair_key]['score'] += 1
-                scores[pair_key]['reasons'].append("Loto Hot")
-                
-            # Gắn cờ Gan (Nguồn 6: Lô Gan)
-            gan_days_1 = gan_map.get(loto1, 0)
-            gan_days_2 = gan_map.get(loto2, 0)
-            max_gan = max(gan_days_1, gan_days_2)
-            
-            if max_gan > 0:
-                scores[pair_key]['is_gan'] = True
-                scores[pair_key]['gan_days'] = max_gan
-
-        # --- 5. Định dạng lại và Sắp xếp ---
-        final_list = []
-        for pair_key, data in scores.items():
-            final_list.append({
-                'pair': pair_key,
-                'score': data['score'],
-                'reasons': ", ".join(data['reasons']),
-                'is_gan': data['is_gan'],
-                'gan_days': data['gan_days']
-            })
-            
-        final_list.sort(key=lambda x: x['score'], reverse=True)
-        
-        return final_list
-
-    except Exception as e:
-        import traceback
-        print(f"LỖI get_top_scored_pairs: {e}")
-        print(traceback.format_exc())
-        return []

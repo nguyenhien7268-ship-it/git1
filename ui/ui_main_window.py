@@ -26,8 +26,8 @@ except ImportError:
     from ui_dashboard import DashboardWindow
 
 # (MỚI) ĐỊNH NGHĨA NGƯỠNG TỰ ĐỘNG (để hiển thị log)
-AUTO_ADD_MIN_RATE = 50.0
-AUTO_PRUNE_MIN_RATE = 40.0
+AUTO_ADD_MIN_RATE = 46.0
+AUTO_PRUNE_MIN_RATE = 42.0
 
 class DataAnalysisApp:
     def __init__(self, root):
@@ -387,7 +387,8 @@ class DataAnalysisApp:
         ky_ket_thuc_kiem_tra = len(toan_bo_A_I) + (ky_bat_dau_kiem_tra - 1)
         self.update_output(f"Đang chạy backtest trên {len(toan_bo_A_I)} hàng dữ liệu...")
 
-        func_to_call = BACKTEST_15_CAU_N1_V31_AI_V8 if mode == 'N1' else BACKTEST_15_CAU_K2N_V30_AI_V8
+        # (SỬA LỖI GĐ 1) Truyền 'history=True' cho K2N
+        func_to_call = BACKTEST_15_CAU_N1_V31_AI_V8 if mode == 'N1' else (lambda a, b, c: BACKTEST_15_CAU_K2N_V30_AI_V8(a, b, c, history=True))
         results_data = func_to_call(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra)
         
         self.update_output(f"Backtest hoàn tất. Đang mở cửa sổ kết quả...")
@@ -490,7 +491,8 @@ class DataAnalysisApp:
         ky_bat_dau_kiem_tra = 2
         ky_ket_thuc_kiem_tra = len(toan_bo_A_I) + (ky_bat_dau_kiem_tra - 1)
 
-        results_data = BACKTEST_MANAGED_BRIDGES_K2N(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra)
+        # (SỬA LỖI GĐ 1) Truyền 'history=True' cho K2N
+        results_data = BACKTEST_MANAGED_BRIDGES_K2N(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra, history=True)
         
         self.update_output(f"Backtest Cầu Đã Lưu K2N hoàn tất. Đang mở cửa sổ kết quả...")
         self.root.after(0, self.show_backtest_results, title, results_data)
@@ -503,7 +505,7 @@ class DataAnalysisApp:
         self._run_task_in_thread(self._task_run_decision_dashboard, title)
 
     def _task_run_decision_dashboard(self, title):
-        """(MỚI - NÂNG CẤP) Bước 2: Logic Bảng Tổng Hợp chạy trong luồng riêng."""
+        """(SỬA LỖI GĐ 1) Logic Bảng Tổng Hợp chạy trong luồng riêng."""
         all_data_ai = self.load_data_ai_from_db()
         
         if not all_data_ai or len(all_data_ai) < 2:
@@ -519,44 +521,22 @@ class DataAnalysisApp:
         self.update_output("... (1/7) Đang thống kê Loto Về Nhiều...")
         stats_n_day = get_loto_stats_last_n_days(all_data_ai, n=n_days_stats)
         
-        # --- 2. Thống kê "Vote" (Cầu 15 + Cầu V17) ---
-        self.update_output("... (2/7) Đang thống kê Cặp Số Dự Đoán (Cổ điển + V17)...")
+        # --- 2. (SỬA LỖI GĐ 1) Chạy hàm K2N Cache TRƯỚC ---
+        self.update_output("... (2/7) Đang chạy hàm Cập nhật K2N Cache (tối ưu)...")
+        # Hàm này chạy backtest K2N (tối ưu) cho Cả 15 Cầu VÀ Cầu Đã Lưu,
+        # sau đó cập nhật CSDL và trả về dict các cầu đang chờ N2.
+        pending_k2n_data, cache_message = run_and_update_all_bridge_K2N_cache(all_data_ai, self.db_name)
+        self.update_output(f"... (Cache K2N) {cache_message}")
+        
+        # --- 3. (SỬA LỖI GĐ 1) Thống kê "Vote" (ĐỌC TỪ CACHE) ---
+        self.update_output("... (3/7) Đang thống kê Cặp Số Dự Đoán (đọc cache)...")
         consensus = get_prediction_consensus(last_row)
         
-        # --- 3. Thống kê "Cầu Tỷ Lệ Cao" (Cầu V17) ---
-        self.update_output("... (3/7) Đang lọc Cầu V17 Tỷ Lệ Cao (>=47%)...")
+        # --- 4. (SỬA LỖI GĐ 1) Thống kê "Cầu Tỷ Lệ Cao" (ĐỌC TỪ CACHE) ---
+        self.update_output("... (4/7) Đang lọc Cầu V17 Tỷ Lệ Cao (>=47%, đọc cache)...")
         high_win = get_high_win_rate_predictions(last_row, threshold=47.0)
 
-        # --- 4. Chạy Backtest K2N ngầm (Cổ điển + V17) ---
-        self.update_output("... (4/7) Đang chạy Backtest K2N ngầm (Cổ điển + V17)...")
-        ky_bat_dau_kiem_tra = 2
-        ky_ket_thuc_kiem_tra = len(all_data_ai) + (ky_bat_dau_kiem_tra - 1)
-        
-        results_15_cau_k2n = BACKTEST_15_CAU_K2N_V30_AI_V8(all_data_ai, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra)
-        results_managed_k2n = BACKTEST_MANAGED_BRIDGES_K2N(all_data_ai, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra)
-        
-        pending_k2n_data = []
-        
-        if results_15_cau_k2n and len(results_15_cau_k2n) > 3:
-            headers, rates, streaks, pending = results_15_cau_k2n[0], results_15_cau_k2n[1], results_15_cau_k2n[2], results_15_cau_k2n[3]
-            for j in range(1, 16):
-                bridge_name = headers[j].split(' (')[0]
-                pending_text = str(pending[j])
-                if "(Đang chờ N2)" in pending_text:
-                    pair = pending_text.split(' (')[0]
-                    pending_k2n_data.append({'name': bridge_name, 'stl': pair, 'rate': str(rates[j]), 'streak': str(streaks[j])})
-
-        if results_managed_k2n and len(results_managed_k2n) > 3 and "LỖI" not in str(results_managed_k2n[0][0]):
-            headers, rates, streaks, pending = results_managed_k2n[0], results_managed_k2n[1], results_managed_k2n[2], results_managed_k2n[3]
-            num_managed_bridges = len(headers) - 1
-            for j in range(1, num_managed_bridges + 1):
-                bridge_name = str(headers[j])
-                pending_text = str(pending[j])
-                if "(Đang chờ N2)" in pending_text:
-                    pair = pending_text.split(' (')[0]
-                    pending_k2n_data.append({'name': bridge_name, 'stl': pair, 'rate': str(rates[j]), 'streak': str(streaks[j])})
-
-        # --- 5. (MỚI) Chạy Backtest Bạc Nhớ ngầm ---
+        # --- 5. Chạy Backtest Bạc Nhớ ngầm ---
         self.update_output("... (5/7) Đang chạy Backtest 756 Cầu Bạc Nhớ ngầm...")
         top_memory_bridges = get_top_memory_bridge_predictions(all_data_ai, last_row, top_n=5)
         
@@ -570,14 +550,13 @@ class DataAnalysisApp:
             stats_n_day,
             consensus, 
             high_win, 
-            pending_k2n_data, 
+            pending_k2n_data, # (SỬA GĐ 1) Biến này giờ đã là dict
             gan_stats,
-            top_memory_bridges # (MỚI) Thêm nguồn Bạc Nhớ
+            top_memory_bridges 
         )
         
         self.update_output("Phân tích hoàn tất. Đang hiển thị Bảng Tổng Hợp...")
         
-        # (SỬA) Thêm top_memory_bridges vào hàm gọi
         self.root.after(0, self._show_dashboard_window, 
             next_ky, stats_n_day, n_days_stats, 
             consensus, high_win, pending_k2n_data, 
@@ -593,7 +572,6 @@ class DataAnalysisApp:
             else:
                 self.dashboard_window = DashboardWindow(self) 
             
-            # (SỬA) Bơm thêm dữ liệu Bạc Nhớ
             self.dashboard_window.populate_data(
                 next_ky, stats_n_day, n_days_stats, 
                 consensus, high_win, pending_k2n_data, 
@@ -604,26 +582,29 @@ class DataAnalysisApp:
             self.update_output(traceback.format_exc())
 
     # ===================================================================================
-    # HÀM CẬP NHẬT TỶ LỆ CẦU
+    # (SỬA GĐ 1) HÀM CẬP NHẬT TỶ LỆ CẦU (ĐÃ BỊ THAY THẾ)
     # ===================================================================================
     
-    def run_update_all_bridge_rates(self):
-        """(MỚI) Bước 1: Gọi hàm chạy đa luồng từ Cửa sổ Quản lý Cầu."""
-        title = "Cập nhật Tỷ lệ Cầu Hàng Loạt"
+    # (MỚI GĐ 1 / BƯỚC 6c) HÀM CẬP NHẬT K2N CACHE
+    def run_update_all_bridge_K2N_cache(self):
+        """(MỚI GĐ 1) Bước 1: Gọi hàm chạy đa luồng từ Cửa sổ Quản lý Cầu."""
+        title = "Cập nhật Cache K2N Hàng Loạt"
         self.update_output(f"\n--- Bắt đầu: {title} ---")
-        self.update_output("Đang chạy Backtest N1 cho tất cả Cầu Đã Lưu...")
-        self._run_task_in_thread(self._task_run_update_all_bridge_rates, title)
+        self.update_output("Đang chạy Backtest K2N (tối ưu) cho 15 Cầu CĐ + Cầu Đã Lưu...")
+        self._run_task_in_thread(self._task_run_update_all_bridge_K2N_cache, title)
 
-    def _task_run_update_all_bridge_rates(self, title):
-        """(MỚI) Bước 2: Logic Cập nhật Tỷ lệ chạy trong luồng riêng."""
+    def _task_run_update_all_bridge_K2N_cache(self, title):
+        """(MỚI GĐ 1) Bước 2: Logic Cập nhật K2N Cache chạy trong luồng riêng."""
         all_data_ai = self.load_data_ai_from_db()
         if not all_data_ai:
             return # Lỗi đã được in
 
-        count, message = run_and_update_all_bridge_rates(all_data_ai, self.db_name)
+        # Hàm này sẽ chạy backtest, cập nhật CSDL VÀ trả về dict K2N
+        _, message = run_and_update_all_bridge_K2N_cache(all_data_ai, self.db_name)
         
         self.update_output(message) # In kết quả
         
+        # Tự động làm mới cửa sổ Quản lý Cầu (nếu đang mở)
         if self.bridge_manager_window and self.bridge_manager_window.winfo_exists():
             self.update_output("Đang tự động làm mới cửa sổ Quản lý Cầu...")
             try:

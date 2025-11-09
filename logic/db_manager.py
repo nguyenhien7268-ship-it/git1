@@ -25,7 +25,8 @@ except ImportError:
 
 def setup_database(db_name=DB_NAME):
     """
-    (CẬP NHẬT) Thêm cột win_rate_text vào ManagedBridges.
+    (CẬP NHẬT GIAI ĐOẠN 4)
+    Thêm cột max_lose_streak_k2n cho Quản lý Rủi ro K2N.
     """
     conn = sqlite3.connect(db_name)
     cursor = conn.cursor()
@@ -54,6 +55,7 @@ def setup_database(db_name=DB_NAME):
     )
     ''')
     
+    # (SỬA ĐỔI GIAI ĐOẠN 4)
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS ManagedBridges (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -64,10 +66,32 @@ def setup_database(db_name=DB_NAME):
         pos1_idx INTEGER,
         pos2_idx INTEGER,
         is_enabled INTEGER DEFAULT 1,
-        win_rate_text TEXT 
+        win_rate_text TEXT,
+        
+        -- Cột cache Giai đoạn 1
+        current_streak INTEGER DEFAULT 0,
+        next_prediction_stl TEXT,
+        
+        -- (MỚI GĐ 4) Thêm cột cho Quản lý Rủi ro
+        max_lose_streak_k2n INTEGER DEFAULT 0
     )
     ''')
     
+    # (MỚI) Kiểm tra và thêm cột nếu bảng đã tồn tại (cho nâng cấp)
+    try:
+        cursor.execute('ALTER TABLE ManagedBridges ADD COLUMN current_streak INTEGER DEFAULT 0')
+    except sqlite3.OperationalError:
+        pass # Cột đã tồn tại
+    try:
+        cursor.execute('ALTER TABLE ManagedBridges ADD COLUMN next_prediction_stl TEXT')
+    except sqlite3.OperationalError:
+        pass # Cột đã tồn tại
+    # (MỚI GĐ 4)
+    try:
+        cursor.execute('ALTER TABLE ManagedBridges ADD COLUMN max_lose_streak_k2n INTEGER DEFAULT 0')
+    except sqlite3.OperationalError:
+        pass # Cột đã tồn tại
+        
     conn.commit()
     return conn, cursor
 
@@ -358,13 +382,23 @@ def upsert_managed_bridge(bridge_name, description, win_rate_text, db_name=DB_NA
     try:
         # Tách tên cầu và lấy chỉ số
         parts = bridge_name.split('+')
-        if len(parts) != 2: return False, "Tên cầu không hợp lệ."
-        pos1_name = parts[0].strip()
-        pos2_name = parts[1].strip()
-        pos1_idx = get_index_from_name_V16(pos1_name)
-        pos2_idx = get_index_from_name_V16(pos2_name)
+        # (SỬA GĐ 2) Cho phép lưu cầu Bạc Nhớ (không chứa '+')
+        if len(parts) == 2:
+            pos1_name = parts[0].strip()
+            pos2_name = parts[1].strip()
+            pos1_idx = get_index_from_name_V16(pos1_name)
+            pos2_idx = get_index_from_name_V16(pos2_name)
+        elif "Tổng(" in bridge_name or "Hiệu(" in bridge_name:
+             # Đây là cầu Bạc Nhớ, không cần chỉ số V17
+             pos1_name = "BAC_NHO"
+             pos2_name = "BAC_NHO"
+             pos1_idx = -1 # Đánh dấu là cầu BN
+             pos2_idx = -1
+        else:
+             return False, "Tên cầu không hợp lệ."
         
-        if pos1_idx is None or pos2_idx is None:
+        # (SỬA GĐ 2) Cầu Bạc Nhớ không thể dịch chỉ số, nhưng vẫn hợp lệ
+        if (pos1_idx is None or pos2_idx is None) and (pos1_idx != -1):
             return False, f"Không thể dịch tên vị trí: '{pos1_name}' hoặc '{pos2_name}'."
 
         conn = sqlite3.connect(db_name)
@@ -387,3 +421,45 @@ def upsert_managed_bridge(bridge_name, description, win_rate_text, db_name=DB_NA
     except Exception as e:
         if conn: conn.close()
         return False, f"Lỗi upsert_managed_bridge: {e}"
+
+
+# ===================================================================================
+# (MỚI) GIAI ĐOẠN 1 / BƯỚC 3a: HÀM CẬP NHẬT CACHE K2N
+# ===================================================================================
+
+def update_bridge_k2n_cache_batch(cache_data_list, db_name=DB_NAME):
+    """
+    (CẬP NHẬT GĐ 4) Cập nhật hàng loạt dữ liệu cache K2N (Thêm max_lose_streak).
+    cache_data_list: list các tuple: 
+    [(win_rate, streak, prediction, max_lose_streak, bridge_name), ...]
+    """
+    updated_count = 0
+    conn = None
+    try:
+        conn = sqlite3.connect(db_name)
+        cursor = conn.cursor()
+        
+        # (SỬA GĐ 4) Thêm cột max_lose_streak_k2n
+        sql_update = """
+        UPDATE ManagedBridges 
+        SET win_rate_text = ?, 
+            current_streak = ?, 
+            next_prediction_stl = ?,
+            max_lose_streak_k2n = ?
+        WHERE name = ?
+        """
+        
+        # Thực thi hàng loạt
+        cursor.executemany(sql_update, cache_data_list)
+        conn.commit()
+        
+        updated_count = cursor.rowcount
+        return True, f"Đã cập nhật K2N cache cho {updated_count} cầu."
+        
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        return False, f"Lỗi update_bridge_k2n_cache_batch: {e}"
+    finally:
+        if conn:
+            conn.close()

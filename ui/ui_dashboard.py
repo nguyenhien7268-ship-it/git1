@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
 import re # Cần import re để định nghĩa font
+import traceback # (MỚI) Thêm traceback để in lỗi chi tiết
 
 class DashboardWindow:
     
@@ -207,10 +208,11 @@ class DashboardWindow:
             if not pending_k2n_data:
                 self.tree_high_win.insert("", tk.END, values=("(Không có cầu nào chờ K2N)", "", ""), tags=('italic',))
             
-            for item in pending_k2n_data:
+            # (SỬA LỖI GĐ 1) Sửa vòng lặp từ 'for item in...' thành 'for bridge_name, data in...'
+            for bridge_name, data in pending_k2n_data.items():
                 self.tree_high_win.insert(
                     "", tk.END, 
-                    values=(item['name'], item['stl'], f"Chuỗi {item['streak']}"), 
+                    values=(bridge_name, data['stl'], data['streak']), 
                     tags=('k2n',)
                 )
 

@@ -34,8 +34,8 @@ class BridgeManagerWindow:
         
         self.window = tk.Toplevel(self.root)
         self.app.bridge_manager_window = self.window # Gán lại vào app chính
-        self.window.title("Quản lý Cầu Đã Lưu")
-        self.window.geometry("900x500")
+        self.window.title("Quản lý Cầu Đã Lưu (Cache K2N)")
+        self.window.geometry("1000x500") # (MỚI GĐ 4) Tăng chiều rộng
 
         manager_frame = ttk.Frame(self.window, padding="10")
         manager_frame.pack(expand=True, fill=tk.BOTH)
@@ -52,7 +52,8 @@ class BridgeManagerWindow:
         tree_scroll_y = ttk.Scrollbar(tree_frame, orient=tk.VERTICAL)
         tree_scroll_y.pack(side=tk.RIGHT, fill=tk.Y)
         
-        cols = ('id', 'name', 'desc', 'rate', 'status')
+        # (SỬA GĐ 4) Thêm cột 'max_lose'
+        cols = ('id', 'name', 'rate', 'streak', 'max_lose', 'next_pred', 'status')
         self.tree = ttk.Treeview(tree_frame, 
                                  columns=cols, 
                                  show="headings", 
@@ -62,11 +63,19 @@ class BridgeManagerWindow:
         self.tree.heading('id', text='ID')
         self.tree.column('id', width=40, anchor=tk.W)
         self.tree.heading('name', text='Tên Cầu')
-        self.tree.column('name', width=150, anchor=tk.W)
-        self.tree.heading('desc', text='Mô tả')
-        self.tree.column('desc', width=200, anchor=tk.W)
-        self.tree.heading('rate', text='Tỷ lệ (N1)')
+        self.tree.column('name', width=200, anchor=tk.W)
+        
+        self.tree.heading('rate', text='Tỷ lệ (K2N)')
         self.tree.column('rate', width=80, anchor=tk.W)
+        self.tree.heading('streak', text='Chuỗi Thắng')
+        self.tree.column('streak', width=80, anchor=tk.W)
+        
+        # (MỚI GĐ 4) Thêm cột Chuỗi Thua Max
+        self.tree.heading('max_lose', text='Thua Max (K2N)')
+        self.tree.column('max_lose', width=90, anchor=tk.W)
+        
+        self.tree.heading('next_pred', text='Dự đoán')
+        self.tree.column('next_pred', width=100, anchor=tk.W)
         self.tree.heading('status', text='Trạng thái')
         self.tree.column('status', width=80, anchor=tk.W)
         
@@ -74,6 +83,8 @@ class BridgeManagerWindow:
         
         self.tree.tag_configure('disabled', foreground='gray')
         self.tree.tag_configure('enabled', foreground='black')
+        self.tree.tag_configure('pending_n2', background='#FFFFE0') 
+        self.tree.tag_configure('high_risk', foreground='red') # (MỚI GĐ 4)
         
         # Gán treeview vào app chính để hàm _save_bridge... có thể gọi
         self.app.bridge_manager_tree = self.tree
@@ -116,9 +127,8 @@ class BridgeManagerWindow:
                                    command=self.delete_selected_bridge)
         delete_button.grid(row=1, column=1, sticky="ew", padx=2, pady=5)
         
-        # (MỚI) Nút Cập nhật Tỷ lệ
-        update_rates_button = ttk.Button(edit_frame, text="Cập nhật Tỷ lệ Toàn bộ Cầu (N1)", 
-                                         command=self.run_update_all_rates)
+        update_rates_button = ttk.Button(edit_frame, text="Cập nhật Cache K2N Toàn bộ Cầu", 
+                                         command=self.run_update_all_k2n_cache)
         update_rates_button.grid(row=4, column=0, columnspan=2, sticky="ew", padx=5, pady=(15, 5))
 
 
@@ -127,7 +137,7 @@ class BridgeManagerWindow:
         self.refresh_bridge_list()
         
     def refresh_bridge_list(self):
-        """Tải lại dữ liệu cho Treeview Quản lý Cầu."""
+        """(SỬA GĐ 4) Tải lại dữ liệu cho Treeview Quản lý Cầu (cache K2N + Max Lose)."""
         if not self.tree: return
         for item in self.tree.get_children():
             self.tree.delete(item)
@@ -137,13 +147,28 @@ class BridgeManagerWindow:
             status_text = "Đang Bật" if bridge['is_enabled'] == 1 else "Đã Tắt"
             tag = 'enabled' if bridge['is_enabled'] == 1 else 'disabled'
             
+            # (SỬA GĐ 4) Lấy dữ liệu cache
+            rate = bridge.get('win_rate_text') or "N/A"
+            streak = bridge.get('current_streak') or 0
+            max_lose = bridge.get('max_lose_streak_k2n') or 0 # (MỚI GĐ 4)
+            prediction = bridge.get('next_prediction_stl') or "N/A"
+            
+            tags = [tag]
+            if "N2" in str(prediction):
+                tags.append('pending_n2')
+            if max_lose >= 5: # (MỚI GĐ 4) Cảnh báo rủi ro
+                tags.append('high_risk')
+            
             self.tree.insert("", tk.END, values=(
                 bridge['id'],
                 bridge['name'],
-                bridge['description'],
-                bridge['win_rate_text'] or "N/A", 
+                rate,
+                f"{streak} thắng", # (SỬA GĐ 4) Rõ nghĩa hơn
+                f"{max_lose} thua", # (MỚI GĐ 4)
+                prediction,
                 status_text
-            ), tags=(tag,))
+            ), tags=tuple(tags))
+            
         self.app.update_output(f"Đã làm mới danh sách Quản lý Cầu (tìm thấy {len(self.all_bridges_cache)} cầu).")
         
     def get_selected_bridge_info(self):
@@ -228,22 +253,26 @@ class BridgeManagerWindow:
             messagebox.showerror("Lỗi", message, parent=self.window)
 
     def on_bridge_select(self, event):
-        """Khi chọn cầu trong Treeview."""
+        """(SỬA GĐ 4) Khi chọn cầu trong Treeview."""
         selected_item = self.tree.focus()
         if not selected_item: return
         item = self.tree.item(selected_item)
         values = item['values']
         
+        bridge_id, bridge_data = self.get_selected_bridge_info()
+        if not bridge_data:
+            return
+
         self.name_entry.config(state=tk.NORMAL)
         self.name_entry.delete(0, tk.END)
         self.name_entry.insert(0, values[1]) # Tên Cầu
         self.name_entry.config(state=tk.DISABLED)
         
         self.desc_entry.delete(0, tk.END)
-        self.desc_entry.insert(0, values[2]) # Mô tả
+        self.desc_entry.insert(0, bridge_data.get('description', '')) 
         
-        self.status_label.config(text=f"Trạng thái: {values[4]}") # Index 4 (Status)
+        self.status_label.config(text=f"Trạng thái: {values[6]}") # (SỬA GĐ 4) Index 6 (Status)
         
-    def run_update_all_rates(self):
-        """(MỚI) Gọi hàm đa luồng từ app chính."""
-        self.app.run_update_all_bridge_rates()
+    def run_update_all_k2n_cache(self):
+        """Gọi hàm chạy K2N cache đa luồng từ app chính."""
+        self.app.run_update_all_bridge_K2N_cache()

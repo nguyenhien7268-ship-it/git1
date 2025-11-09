@@ -1,0 +1,59 @@
+(async () => {
+    console.log("Bắt đầu quy trình trích xuất và xuất dữ liệu ra file...");
+
+    // --- Bước 5: Trích xuất số "Kỳ" và ngày của từng kỳ (sau khi áp dụng bộ lọc) ---
+    console.log("\n--- Thông tin các Kỳ và Ngày (sau khi áp dụng bộ lọc) ---");
+    const contentArea = document.body; 
+    const kỳRegex = /Kỳ\s+(\d+)\s+([\d-]+)\s+([\d:]+)/g;
+    const allKỳInfo = [];
+    const pageTextContent = contentArea.textContent;
+    let match;
+    while ((match = kỳRegex.exec(pageTextContent)) !== null) {
+        allKỳInfo.push({
+            kỳNumber: match[1],
+            kỳDate: `${match[2]} ${match[3]}`
+        });
+    }
+    console.log("Tất cả các Kỳ được tìm thấy:", allKỳInfo);
+
+    // --- Bước 6: Trích xuất nội dung của TẤT CẢ các bảng trên trang ---
+    console.log("\n--- Nội dung của TẤT CẢ các bảng trên trang ---");
+    const allTablesData = [];
+    const tables = Array.from(document.querySelectorAll('table'));
+
+    tables.forEach((table, index) => {
+        const rows = Array.from(table.rows);
+        const tableContent = rows.map(row => {
+            const cells = Array.from(row.cells);
+            return cells.map(cell => cell.textContent.trim());
+        });
+
+        allTablesData.push({
+            tableIndex: index,
+            id: table.id,
+            className: table.className,
+            content: tableContent
+        });
+    });
+    console.log("Dữ liệu của tất cả các bảng:", allTablesData);
+
+    // --- Bước 7: Kết hợp và xuất dữ liệu ra file JSON ---
+    const extractedData = {
+        kyInfo: allKỳInfo,
+        tablesData: allTablesData
+    };
+
+    const jsonString = JSON.stringify(extractedData, null, 2); // Chuyển đổi đối tượng JS sang chuỗi JSON có định dạng đẹp
+    const blob = new Blob([jsonString], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'extracted_data.json'; // Tên file sẽ được tải về
+    document.body.appendChild(a); // Cần thêm thẻ a vào body để nó có thể nhấp
+    a.click(); // Giả lập nhấp chuột để tải file
+    document.body.removeChild(a); // Xóa thẻ a sau khi tải
+    URL.revokeObjectURL(url); // Giải phóng URL Object
+
+    console.log("\nQuy trình hoàn tất. Dữ liệu đã được xuất ra file extracted_data.json.");
+})();
