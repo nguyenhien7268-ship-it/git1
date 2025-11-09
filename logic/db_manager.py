@@ -336,3 +336,54 @@ def load_data_ai_from_db(db_name=DB_NAME):
         
     except Exception as e:
         return None, f"Lỗi khi tải dữ liệu A:I: {e}"
+
+# ===================================================================================
+# (MỚI) HÀM TỰ ĐỘNG HÓA DÒ CẦU (UPSERT)
+# (Đây là code gây lỗi IndentationError của bạn, đã sửa)
+# ===================================================================================
+
+def upsert_managed_bridge(bridge_name, description, win_rate_text, db_name=DB_NAME):
+    """
+    (MỚI) Tự động Thêm (nếu chưa có) hoặc Cập nhật (nếu đã có).
+    Sử dụng tên cầu (name) làm khóa chính.
+    """
+    # Import nội bộ để đảm bảo an toàn
+    import sqlite3
+    try:
+        from .bridges_v16 import get_index_from_name_V16
+    except ImportError:
+        from bridges_v16 import get_index_from_name_V16
+
+    conn = None
+    try:
+        # Tách tên cầu và lấy chỉ số
+        parts = bridge_name.split('+')
+        if len(parts) != 2: return False, "Tên cầu không hợp lệ."
+        pos1_name = parts[0].strip()
+        pos2_name = parts[1].strip()
+        pos1_idx = get_index_from_name_V16(pos1_name)
+        pos2_idx = get_index_from_name_V16(pos2_name)
+        
+        if pos1_idx is None or pos2_idx is None:
+            return False, f"Không thể dịch tên vị trí: '{pos1_name}' hoặc '{pos2_name}'."
+
+        conn = sqlite3.connect(db_name)
+        cursor = conn.cursor()
+        
+        # Câu lệnh INSERT... ON CONFLICT DO UPDATE (yêu cầu CSDL SQLite 3.24+)
+        cursor.execute('''
+        INSERT INTO ManagedBridges (name, description, pos1_name, pos2_name, pos1_idx, pos2_idx, is_enabled, win_rate_text)
+        VALUES (?, ?, ?, ?, ?, ?, 1, ?)
+        ON CONFLICT(name) DO UPDATE SET
+            description = excluded.description,
+            win_rate_text = excluded.win_rate_text,
+            is_enabled = 1 
+        ''', (bridge_name, description, pos1_name, pos2_name, pos1_idx, pos2_idx, win_rate_text))
+        
+        conn.commit()
+        conn.close()
+        return True, f"Đã cập nhật/thêm cầu '{bridge_name}'."
+        
+    except Exception as e:
+        if conn: conn.close()
+        return False, f"Lỗi upsert_managed_bridge: {e}"

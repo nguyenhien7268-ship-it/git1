@@ -1,186 +1,263 @@
-# File: ui/ui_dashboard.py
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, messagebox
+import re # Cần import re để định nghĩa font
 
 class DashboardWindow:
-    """
-    (MỚI) Quản lý cửa sổ Bảng Tổng Hợp Quyết Định (Tương tác).
-    Thay thế cho cửa sổ tk.Text tĩnh.
-    """
     
-    def __init__(self, app):
-        self.app = app # Tham chiếu đến app chính (ui_main_window)
-        self.root = app.root
+    def __init__(self, app_instance):
+        self.app = app_instance
+        self.window = tk.Toplevel(self.app.root)
+        self.window.title("Bảng Tổng Hợp Quyết Định")
+        self.window.geometry("1100x750")
         
-        self.window = tk.Toplevel(self.root)
-        self.window.title("Bảng Tổng Hợp Quyết Định (Tương tác)")
-        self.window.geometry("800x600")
+        # Tạo các font chữ
+        self.default_font = ("TkDefaultFont", 10)
+        self.default_font_bold = ("TkDefaultFont", 10, "bold")
+        self.header_font = ("TkDefaultFont", 12, "bold")
+        self.pair_font = ("TkDefaultFont", 11, "bold")
+        
+        # --- Cấu trúc GUI ---
+        main_frame = ttk.Frame(self.window, padding="10")
+        main_frame.pack(fill=tk.BOTH, expand=True)
+        main_frame.rowconfigure(1, weight=1) # Hàng 1 (danh sách) sẽ co giãn
+        main_frame.columnconfigure(0, weight=3) # Cột 0 (trái)
+        main_frame.columnconfigure(1, weight=2) # Cột 1 (phải)
 
-        frame = ttk.Frame(self.window, padding="5")
-        frame.pack(expand=True, fill=tk.BOTH)
-        frame.columnconfigure(0, weight=1)
-        frame.rowconfigure(0, weight=1)
+        # Tiêu đề
+        self.title_label = ttk.Label(main_frame, text="Bảng Tổng Hợp: [CHƯA CẬP NHẬT]", font=self.header_font)
+        self.title_label.grid(row=0, column=0, columnspan=2, pady=5, sticky="w")
 
-        # --- Tạo Treeview ---
-        cols = ('#0', 'col_detail', 'col_source') # 3 cột: Tên, Chi tiết, Nguồn (ẩn)
-        self.tree = ttk.Treeview(frame, columns=('col_detail', 'col_source'), show="tree headings")
-        
-        # Cột #0 (Cột chính, dạng cây)
-        self.tree.heading('#0', text='Hạng mục')
-        self.tree.column('#0', width=300, minwidth=200, stretch=tk.YES)
-        
-        # Cột 1 (Chi tiết)
-        self.tree.heading('col_detail', text='Chi tiết')
-        self.tree.column('col_detail', width=400, minwidth=250, stretch=tk.YES)
-        
-        # Cột 2 (Nguồn - Dùng để lưu dữ liệu ẩn cho double-click)
-        self.tree.heading('col_source', text='Nguồn (Ẩn)')
-        self.tree.column('col_source', width=0, minwidth=0, stretch=tk.NO) # Ẩn cột này
-        
-        self.tree.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
-        
-        # --- Scrollbar ---
-        yscroll = ttk.Scrollbar(frame, orient=tk.VERTICAL, command=self.tree.yview)
-        yscroll.grid(row=0, column=1, sticky=(tk.N, tk.S))
-        self.tree.configure(yscrollcommand=yscroll.set)
+        # --- Khung bên trái (3 Cột) ---
+        left_frame = ttk.Frame(main_frame)
+        left_frame.grid(row=1, column=0, sticky="nsew", padx=(0, 5))
+        left_frame.rowconfigure(0, weight=1)
+        left_frame.columnconfigure(0, weight=1)
+        left_frame.columnconfigure(1, weight=1)
+        left_frame.columnconfigure(2, weight=1)
 
-        # --- Style ---
-        self.tree.tag_configure('section_header', font=('TkDefaultFont', 10, 'bold'), background='#E0E0E0')
-        self.tree.tag_configure('clickable', foreground='blue') # (MỚI) Tag cho các dòng có thể nhấn
-        # (SỬA) Thêm tag cho cảnh báo Lô Gan
-        self.tree.tag_configure('gan_warning', foreground='#E65C00', font=('TkDefaultFont', 9, 'italic'))
+        # Cột 1: Loto Về Nhiều
+        frame_hot = ttk.Labelframe(left_frame, text="Loto Về Nhiều (7 Ngày)")
+        frame_hot.grid(row=0, column=0, sticky="nsew", padx=(0, 2))
+        self.tree_hot = self._create_treeview(
+            frame_hot, 
+            columns=("Loto", "Nháy", "Số Kỳ"),
+            widths=(60, 50, 50)
+        )
+        self.tree_hot.tag_configure('top3', background='#FFFFE0') # Vàng nhạt
 
+        # Cột 2: Cặp Số "Vote" Cao
+        frame_consensus = ttk.Labelframe(left_frame, text="Cặp Số Được Vote Nhiều Nhất")
+        frame_consensus.grid(row=0, column=1, sticky="nsew", padx=(2, 2))
+        self.tree_consensus = self._create_treeview(
+            frame_consensus, 
+            columns=("Cặp Số", "Số Vote", "Nguồn Cầu"),
+            widths=(80, 60, 150)
+        )
+        self.tree_consensus.tag_configure('top3', background='#FFFFE0') # Vàng nhạt
+
+        # Cột 3: Lô Gan
+        frame_gan = ttk.Labelframe(left_frame, text="Lô Gan (Trên 15 Ngày)")
+        frame_gan.grid(row=0, column=2, sticky="nsew", padx=(2, 0))
+        self.tree_gan = self._create_treeview(
+            frame_gan, 
+            columns=("Loto", "Số Ngày Gan"),
+            widths=(60, 80)
+        )
+        self.tree_gan.tag_configure('gan', foreground='red')
+
+        # --- Khung bên phải (2 Cột) ---
+        right_frame = ttk.Frame(main_frame)
+        right_frame.grid(row=1, column=1, sticky="nsew", padx=(5, 0))
+        right_frame.rowconfigure(0, weight=1) # Hàng trên (Cầu)
+        right_frame.rowconfigure(1, weight=1) # Hàng dưới (Chấm điểm)
+        right_frame.columnconfigure(0, weight=1)
+
+        # Hàng 1 (Phải): Cầu Tỷ Lệ Cao & K2N
+        frame_bridges = ttk.Labelframe(right_frame, text="Dự Đoán Từ Các Cầu Tốt Nhất")
+        frame_bridges.grid(row=0, column=0, sticky="nsew", pady=(0, 5))
+        self.tree_high_win = self._create_treeview(
+            frame_bridges, 
+            columns=("Tên Cầu (Double-click để xem)", "STL", "Tỷ Lệ/Chuỗi"),
+            widths=(200, 70, 80)
+        )
+        self.tree_high_win.tag_configure('header', font=self.default_font_bold, background='#F0F0F0')
+        self.tree_high_win.tag_configure('italic', font=(self.default_font[0], self.default_font[1], 'italic'))
+        self.tree_high_win.tag_configure('high_win', background='#FFFFE0') # Vàng nhạt
+        self.tree_high_win.tag_configure('k2n', background='#E0FFF0') # Xanh lá nhạt
         
-        # (MỚI) Gán sự kiện Double-Click
-        self.tree.bind("<Double-1>", self.on_double_click)
+        # (MỚI) Thêm tag cho Cầu Bạc Nhớ
+        self.tree_high_win.tag_configure('separator', font=self.default_font_bold, background='#E0E0E0')
+        self.tree_high_win.tag_configure('memory_bridge', background='#E0F0FF') # Xanh nhạt
+        
+        # Bind double-click
+        self.tree_high_win.bind("<Double-1>", self.on_bridge_double_click)
+        
+        # Hàng 2 (Phải): Bảng Chấm Điểm
+        frame_scores = ttk.Labelframe(right_frame, text="Bảng Chấm Điểm Tổng Lực")
+        frame_scores.grid(row=1, column=0, sticky="nsew", pady=(5, 0))
+        self.tree_scores = self._create_treeview(
+            frame_scores, 
+            columns=("Hạng", "Cặp Số", "Điểm", "Lý Do Chấm Điểm"),
+            widths=(40, 70, 50, 250)
+        )
+        self.tree_scores.tag_configure('top1', background='#FFFFE0', font=self.default_font_bold)
+        self.tree_scores.tag_configure('top3', background='#FFFFE0')
+        self.tree_scores.tag_configure('gan', foreground='red')
+        self.tree_scores.tag_configure('gan_hot', background='#FFECEC', foreground='red') # Gan mà hot
+        
+    def _create_treeview(self, parent, columns, widths):
+        """Hàm nội bộ tạo Treeview chuẩn."""
+        parent.rowconfigure(0, weight=1)
+        parent.columnconfigure(0, weight=1)
+        
+        tree_frame = ttk.Frame(parent)
+        tree_frame.grid(row=0, column=0, sticky="nsew")
+        tree_frame.rowconfigure(0, weight=1)
+        tree_frame.columnconfigure(0, weight=1)
+
+        tree = ttk.Treeview(tree_frame, columns=columns, show="headings", height=5)
+        tree.grid(row=0, column=0, sticky="nsew")
+        
+        for col, width in zip(columns, widths):
+            tree.heading(col, text=col)
+            tree.column(col, width=width, anchor=tk.W)
+            
+        scrollbar = ttk.Scrollbar(tree_frame, orient=tk.VERTICAL, command=tree.yview)
+        tree.configure(yscrollcommand=scrollbar.set)
+        scrollbar.grid(row=0, column=1, sticky="ns")
+        
+        return tree
 
     def clear_data(self):
-        """(MỚI) Xóa toàn bộ dữ liệu cũ trong Treeview."""
-        for item in self.tree.get_children():
-            self.tree.delete(item)
+        """Xóa toàn bộ dữ liệu cũ trên Treeviews."""
+        all_trees = [self.tree_hot, self.tree_consensus, self.tree_gan, self.tree_high_win, self.tree_scores]
+        for tree in all_trees:
+            for item in tree.get_children():
+                tree.delete(item)
 
-    def populate_data(self, next_ky, stats, n_days, consensus, high_win, pending_k2n, gan_stats, top_scores): # (SỬA) Thêm top_scores
+    # (SỬA LỖI) Thêm "top_memory_bridges" vào cuối cùng
+    def populate_data(self, next_ky, stats_n_day, n_days_stats, consensus, high_win, pending_k2n_data, gan_stats, top_scores, top_memory_bridges):
         """
-        (CẬP NHẬT) Bơm dữ liệu thô (đã phân tích) vào Treeview.
-        Thêm gan_stats và top_scores.
+        (NÂNG CẤP) Bơm dữ liệu từ 7 nguồn vào các bảng.
         """
-        self.clear_data() # Xóa dữ liệu cũ trước
-        self.window.title(f"Bảng Tổng Hợp Quyết Định - Dự đoán cho {next_ky}")
+        self.clear_data()
+        self.title_label.config(text=f"Bảng Tổng Hợp Quyết Định (Dự đoán cho {next_ky})")
         
-        # --- (SỬA) MỤC 0: BẢNG ĐIỂM QUYẾT ĐỊNH ---
-        iid_0 = "top_scores"
-        self.tree.insert("", "end", iid=iid_0, text=f"🏆 0. BẢNG ĐIỂM QUYẾT ĐỊNH (TOP 10)", tags=('section_header',))
-        if top_scores:
-            for item in top_scores[:10]: # Lấy Top 10
-                pair = item['pair']
-                score = item['score']
-                reasons = item['reasons']
-                is_gan = item['is_gan']
-                gan_days = item['gan_days']
-                
-                details = f"Điểm: {score} | {reasons}"
-                tags_to_apply = ()
-                
-                if is_gan:
-                    details += f" | 🚧 CẢNH BÁO: LÔ GAN {gan_days} KỲ"
-                    tags_to_apply = ('gan_warning',) # Thêm tag
-                
-                self.tree.insert(iid_0, "end", text=f"  - Cặp {pair}", 
-                                 values=(details, "top_score"),
-                                 tags=tags_to_apply) # Áp dụng tag
-        else:
-            self.tree.insert(iid_0, "end", text="  (Không có cặp nào đạt điểm)")
-        self.tree.item(iid_0, open=True) # Mặc định mở
-        
-        # --- Mục 1: Loto Về Nhiều ---
-        iid_1 = "stats_n_day"
-        self.tree.insert("", "end", iid=iid_1, text=f"1. LOTO VỀ NHIỀU ({n_days} KỲ GẦN NHẤT)", tags=('section_header',))
-        if stats:
-            for loto, count_nhay, count_ky in stats[:10]:
-                self.tree.insert(iid_1, "end", text=f"  - Loto {loto}", 
-                                 values=(f"{count_nhay} lần (xuất hiện {count_ky}/{n_days} kỳ)", "stats"))
-        else:
-            self.tree.insert(iid_1, "end", text="  (Không có dữ liệu)")
-        self.tree.item(iid_1, open=True) # Mặc định mở
-
-        # --- Mục 2: Cặp Số Dự Đoán ---
-        iid_2 = "consensus"
-        self.tree.insert("", "end", iid=iid_2, text="2. CẶP SỐ ĐƯỢC DỰ ĐOÁN NHIỀU NHẤT", tags=('section_header',))
-        if consensus:
-            for pair, count, sources in consensus[:10]:
-                self.tree.insert(iid_2, "end", text=f"  - Cặp {pair}", 
-                                 values=(f"{count} phiếu (từ: {sources})", "consensus"))
-        else:
-            self.tree.insert(iid_2, "end", text="  (Không có dự đoán nào)")
-        self.tree.item(iid_2, open=True)
-
-        # --- Mục 3: Cầu Tỷ Lệ Cao ---
-        iid_3 = "high_win"
-        self.tree.insert("", "end", iid=iid_3, text="3. DÀN LÔ TỪ CẦU TỶ LỆ CAO (>=47%)", tags=('section_header',))
-        if high_win:
-            for bridge in high_win:
-                bridge_name = bridge['name']
-                self.tree.insert(iid_3, "end", text=f"  - Cặp {','.join(bridge['stl'])}", 
-                                 values=(f"(Cầu '{bridge_name}' - {bridge['rate']})", bridge_name), # Lưu bridge_name vào cột ẩn
-                                 tags=('clickable',)) # Đánh dấu là có thể nhấn
-        else:
-            self.tree.insert(iid_3, "end", text="  (Không tìm thấy cầu nào >=47% đang Bật)")
-        self.tree.item(iid_3, open=True)
-
-        # --- Mục 4: Cầu K2N Đang Chờ ---
-        iid_4 = "pending_k2n"
-        self.tree.insert("", "end", iid=iid_4, text="4. CÁC CẦU K2N ĐANG CHỜ NGÀY 2", tags=('section_header',))
-        if pending_k2n:
-            for item in pending_k2n:
-                bridge_name = item['name']
-                self.tree.insert(iid_4, "end", text=f"  - Cặp {item['stl']}", 
-                                 values=(f"(Cầu '{bridge_name}' - Tỷ lệ: {item['rate']}, Chuỗi: {item['streak']})", bridge_name), # Lưu bridge_name vào cột ẩn
-                                 tags=('clickable',)) # Đánh dấu là có thể nhấn
-        else:
-            self.tree.insert(iid_4, "end", text="  (Không có cầu K2N nào đang chờ N2)")
-        self.tree.item(iid_4, open=True)
-        
-        # --- (MỚI) Mục 5: Thống Kê Lô Gan ---
-        iid_5 = "gan_stats"
-        n_days_gan = 15 # (Nên đồng bộ với main_window, nhưng tạm thời để 15)
-        self.tree.insert("", "end", iid=iid_5, text=f"5. THỐNG KÊ LÔ GAN (Lớn hơn {n_days_gan} kỳ)", tags=('section_header',))
-        if gan_stats:
-            for loto, days in gan_stats:
-                self.tree.insert(iid_5, "end", text=f"  - Loto {loto}", 
-                                 values=(f"Gan {days} kỳ", "gan"))
-        else:
-            self.tree.insert(iid_5, "end", text=f"  (Không có loto nào gan trên {n_days_gan} kỳ)")
-        self.tree.item(iid_5, open=False) # Mặc định đóng
-        
-        # --- Hướng dẫn ---
-        iid_guide = "guide"
-        self.tree.insert("", "end", iid=iid_guide, text="Ghi chú: Nhấn đúp (Double-Click) vào các dòng màu xanh để xem chi tiết backtest.", 
-                         tags=('section_header',))
-
-    def on_double_click(self, event):
-        """
-        (MỚI) Xử lý sự kiện nhấn đúp chuột.
-        """
         try:
-            selected_iid = self.tree.focus() # Lấy ID của dòng đang chọn
-            if not selected_iid:
-                return
-
-            item = self.tree.item(selected_iid)
-            tags = item.get('tags', [])
+            # --- 1. Loto Về Nhiều ---
+            self.tree_hot.heading("Loto", text=f"Loto ({n_days_stats} Ngày)")
+            if not stats_n_day:
+                self.tree_hot.insert("", tk.END, values=("(Không có dữ liệu)", "", ""))
             
-            # Chỉ xử lý nếu dòng đó có tag 'clickable'
-            if 'clickable' in tags:
-                values = item.get('values', [])
-                if not values or len(values) < 2:
-                    return
-                    
-                bridge_name = values[1] # Lấy bridge_name từ cột ẩn (col_source)
+            for i, (loto, nhay, ky) in enumerate(stats_n_day[:15]): # Hiển thị Top 15
+                tags = ()
+                if i < 3:
+                    tags = ('top3',)
+                self.tree_hot.insert("", tk.END, values=(loto, nhay, ky), tags=tags)
+
+            # --- 2. Cặp Số Vote Cao ---
+            if not consensus:
+                self.tree_consensus.insert("", tk.END, values=("(Không có dữ liệu)", "", ""))
                 
-                if bridge_name:
-                    self.app.update_output(f"--- Bảng Tổng Hợp: Yêu cầu xem chi tiết {bridge_name} ---")
-                    # Gọi hàm trigger trên app chính
-                    self.app.trigger_bridge_backtest(bridge_name)
-                    
+            for i, (pair, count, sources) in enumerate(consensus[:15]): # Hiển thị Top 15
+                tags = ()
+                if i < 3:
+                    tags = ('top3',)
+                self.tree_consensus.insert("", tk.END, values=(pair, count, sources), tags=tags)
+
+            # --- 3. Lô Gan ---
+            self.tree_gan.heading("Loto", text=f"Lô Gan (>{n_days_stats} Ngày)")
+            if not gan_stats:
+                self.tree_gan.insert("", tk.END, values=("(Không có lô gan)", ""), tags=('italic',))
+            
+            for loto, days in gan_stats:
+                self.tree_gan.insert("", tk.END, values=(loto, f"{days} ngày"), tags=('gan',))
+
+            # --- 4. Cầu Tỷ Lệ Cao (V17 Đã lưu) ---
+            self.tree_high_win.insert("", tk.END, values=("--- CẦU TỶ LỆ CAO (V17 ĐÃ LƯU) ---", "---", "---"), tags=('header',))
+            if not high_win:
+                self.tree_high_win.insert("", tk.END, values=("(Không có cầu V17 nào > 47%)", "", ""), tags=('italic',))
+            
+            for bridge in high_win:
+                stl_str = f"{bridge['stl'][0]},{bridge['stl'][1]}"
+                self.tree_high_win.insert(
+                    "", tk.END, 
+                    values=(bridge['name'], stl_str, bridge['rate']), 
+                    tags=('high_win',) 
+                )
+            
+            # --- (MỚI) 4B. Cầu Bạc Nhớ (Top 5) ---
+            if top_memory_bridges:
+                self.tree_high_win.insert(
+                    "", tk.END, 
+                    values=("--- CẦU BẠC NHỚ (TOP 5) ---", "---", "---"), 
+                    tags=('separator',) # Dùng tag để tô đậm
+                )
+                
+                for bridge in top_memory_bridges:
+                    stl_str = f"{bridge['stl'][0]},{bridge['stl'][1]}"
+                    self.tree_high_win.insert(
+                        "", tk.END, 
+                        values=(bridge['name'], stl_str, bridge['rate']), 
+                        tags=('memory_bridge',) # Thêm 1 tag riêng
+                    )
+
+            # --- 5. Cầu K2N Đang Chờ ---
+            self.tree_high_win.insert("", tk.END, values=("--- CẦU ĐANG CHỜ K2N ---", "---", "---"), tags=('header',))
+            if not pending_k2n_data:
+                self.tree_high_win.insert("", tk.END, values=("(Không có cầu nào chờ K2N)", "", ""), tags=('italic',))
+            
+            for item in pending_k2n_data:
+                self.tree_high_win.insert(
+                    "", tk.END, 
+                    values=(item['name'], item['stl'], f"Chuỗi {item['streak']}"), 
+                    tags=('k2n',)
+                )
+
+            # --- 6. Bảng Chấm Điểm ---
+            if not top_scores:
+                self.tree_scores.insert("", tk.END, values=("", "(Không có cặp nào đạt điểm)", "", ""), tags=('italic',))
+
+            for i, item in enumerate(top_scores[:15]): # Hiển thị Top 15
+                tags = ()
+                if i == 0:
+                    tags = ('top1',)
+                elif i < 3:
+                    tags = ('top3',)
+                
+                if item['is_gan']:
+                    if 'Loto Hot' in item['reasons']:
+                         tags = ('gan_hot',) # Vừa gan vừa hot
+                    else:
+                         tags = ('gan',) # Chỉ gan
+                
+                self.tree_scores.insert(
+                    "", tk.END, 
+                    values=(f"#{i+1}", item['pair'], item['score'], item['reasons']), 
+                    tags=tags
+                )
+                
         except Exception as e:
-            self.app.update_output(f"Lỗi on_double_click: {e}")
+            messagebox.showerror("Lỗi Populate Data", f"Lỗi khi hiển thị dữ liệu Bảng Tổng Hợp:\n{e}", parent=self.window)
+            print(traceback.format_exc())
+
+    def on_bridge_double_click(self, event):
+        """Xử lý sự kiện double-click trên cây cầu."""
+        try:
+            item_id = self.tree_high_win.focus()
+            if not item_id: return
+            
+            item_values = self.tree_high_win.item(item_id, 'values')
+            if not item_values: return
+            
+            bridge_name = item_values[0]
+            
+            # Bỏ qua các dòng tiêu đề hoặc dòng trống
+            if bridge_name.startswith("---") or bridge_name.startswith("("):
+                return
+                
+            # Gửi tên cầu về app chính để xử lý
+            self.app.trigger_bridge_backtest(bridge_name)
+            
+        except Exception as e:
+            messagebox.showerror("Lỗi Double-Click", f"Lỗi xử lý click: {e}", parent=self.window)

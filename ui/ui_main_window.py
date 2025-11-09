@@ -25,11 +25,14 @@ except ImportError:
     from ui_results_viewer import ResultsViewerWindow
     from ui_dashboard import DashboardWindow
 
+# (MỚI) ĐỊNH NGHĨA NGƯỠNG TỰ ĐỘNG (để hiển thị log)
+AUTO_ADD_MIN_RATE = 50.0
+AUTO_PRUNE_MIN_RATE = 40.0
 
 class DataAnalysisApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Xổ Số Data Analysis (v4.0 - Scoring Dashboard)") # (SỬA) Đổi tên
+        self.root.title("Xổ Số Data Analysis (v4.2 - Bạc Nhớ)") # (SỬA) Đổi tên
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(0, weight=1)
         self.root.geometry("800x600")
@@ -77,7 +80,7 @@ class DataAnalysisApp:
         v25_frame.grid(row=1, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), padx=10, pady=5)
 
         # Hàng 1
-        self.manage_bridges_button = ttk.Button(v25_frame, text="Quản lý Cầu...", command=self.show_bridge_manager_window)
+        self.manage_bridges_button = ttk.Button(v25_frame, text="Quản lý Cầu (V17)...", command=self.show_bridge_manager_window)
         self.manage_bridges_button.grid(row=0, column=0, sticky="ew", padx=5, pady=5)
         
         self.backtest_n1_15_button = ttk.Button(v25_frame, text="Backtest 15 Cầu (N1)", command=lambda: self.run_backtest('N1'))
@@ -87,8 +90,8 @@ class DataAnalysisApp:
         self.backtest_k2n_15_button.grid(row=0, column=2, sticky="ew", padx=5, pady=5)
 
         # Hàng 2
-        self.tim_cau_button = ttk.Button(v25_frame, text="Dò Cầu Tốt Nhất (V16)", command=self.run_tim_cau_v16)
-        self.tim_cau_button.grid(row=1, column=0, sticky="ew", padx=5, pady=5)
+        self.auto_find_bridges_button = ttk.Button(v25_frame, text="Tự động Dò & Thêm Cầu V17", command=self.run_auto_find_bridges)
+        self.auto_find_bridges_button.grid(row=1, column=0, sticky="ew", padx=5, pady=5)
         
         self.backtest_managed_button = ttk.Button(v25_frame, text="Backtest Cầu Đã Lưu (N1)", command=self.run_backtest_managed_n1)
         self.backtest_managed_button.grid(row=1, column=1, sticky="ew", padx=5, pady=5)
@@ -101,16 +104,23 @@ class DataAnalysisApp:
         self.lookup_button.grid(row=0, column=3, sticky="nsew", padx=5, pady=5)
         
         self.dashboard_button = ttk.Button(v25_frame, text="Bảng Tổng Hợp", command=self.run_decision_dashboard)
-        self.dashboard_button.grid(row=1, column=3, sticky="nsew", padx=5, pady=5)
+        self.dashboard_button.grid(row=2, column=3, sticky="nsew", padx=5, pady=5)
         
         self.tonghop_rate_button = ttk.Button(v25_frame, text="Tổng Hợp Top 3 (15 Cầu)", command=lambda: self.run_tonghop('rate'))
-        self.tonghop_rate_button.grid(row=2, column=3, sticky="ew", padx=5, pady=5)
+        self.tonghop_rate_button.grid(row=3, column=3, sticky="ew", padx=5, pady=5) # Chuyển xuống row 3
 
-        # Hàng 3 (Cột 0-2)
+        self.auto_prune_bridges_button = ttk.Button(v25_frame, text="Tự động Lọc/Tắt Cầu Yếu", command=self.run_auto_prune_bridges)
+        self.auto_prune_bridges_button.grid(row=1, column=3, sticky="ew", padx=5, pady=5)
+
+        # (MỚI) Hàng 4 (Cầu Bạc Nhớ)
+        self.backtest_memory_button = ttk.Button(v25_frame, text="Backtest 756 Cầu Bạc Nhớ (N1)", command=self.run_backtest_memory)
+        self.backtest_memory_button.grid(row=2, column=0, columnspan=2, sticky="ew", padx=5, pady=5) # (MỚI)
+
+        # Hàng 3 (Cột 0-2) -> Di chuyển xuống Hàng 5
         custom_frame = ttk.Frame(v25_frame, padding="5")
-        custom_frame.grid(row=2, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=5)
+        custom_frame.grid(row=4, column=0, columnspan=4, sticky=(tk.W, tk.E), pady=5) # (SỬA) row=4, colspan=4
         
-        ttk.Label(custom_frame, text="Tên Cầu Tùy Chỉnh:").grid(row=0, column=0, sticky=tk.W, padx=5)
+        ttk.Label(custom_frame, text="Tên Cầu Tùy Chỉnh (V17):").grid(row=0, column=0, sticky=tk.W, padx=5)
         
         self.custom_bridge_entry = ttk.Entry(custom_frame, width=40)
         self.custom_bridge_entry.grid(row=0, column=1, sticky=(tk.W, tk.E), padx=5)
@@ -124,7 +134,8 @@ class DataAnalysisApp:
         custom_frame.columnconfigure(1, weight=1)
         
         self.v25_buttons = [
-            self.tim_cau_button,
+            self.auto_find_bridges_button, 
+            self.auto_prune_bridges_button, 
             self.backtest_n1_15_button,
             self.backtest_k2n_15_button,
             self.test_custom_n1_button, 
@@ -135,6 +146,7 @@ class DataAnalysisApp:
             self.backtest_managed_button,
             self.backtest_managed_k2n_button, 
             self.dashboard_button,
+            self.backtest_memory_button # (MỚI) Thêm nút
         ]
         self.all_buttons.extend(self.v25_buttons)
         
@@ -182,8 +194,6 @@ class DataAnalysisApp:
         Điều này ngăn chặn UI bị "Đơ" (Freeze).
         """
         self.set_buttons_state(tk.DISABLED)
-        # (SỬA) Đã XÓA dòng tự động chuyển tab
-        # self.notebook.select(self.tab2_frame)
 
         def _thread_wrapper():
             """Hàm này sẽ chạy trong luồng mới."""
@@ -383,34 +393,12 @@ class DataAnalysisApp:
         self.update_output(f"Backtest hoàn tất. Đang mở cửa sổ kết quả...")
         # (MỚI) Phải gọi hiển thị UI từ luồng chính
         self.root.after(0, self.show_backtest_results, title, results_data)
-
-    def run_tim_cau_v16(self):
-        """(MỚI) Bước 1: Gọi hàm chạy đa luồng."""
-        title = "Dò Cầu Tốt Nhất (V16) - (Không bao gồm cầu đã lưu)"
-        self.update_output(f"\n--- Bắt đầu: {title} ---")
-        self.update_output("CẢNH BÁO: Tác vụ này RẤT NẶNG (5778 cầu). Vui lòng chờ...")
-        self._run_task_in_thread(self._task_run_tim_cau_v16, title)
-
-    def _task_run_tim_cau_v16(self, title):
-        """(MỚI) Bước 2: Logic Dò Cầu chạy trong luồng riêng."""
-        toan_bo_A_I = self.load_data_ai_from_db()
-        if not toan_bo_A_I:
-            return
-
-        ky_bat_dau_kiem_tra = 2
-        ky_ket_thuc_kiem_tra = len(toan_bo_A_I) + (ky_bat_dau_kiem_tra - 1)
-        self.update_output(f"Đang dò trên {len(toan_bo_A_I)} hàng dữ liệu...")
-        
-        results_data = TIM_CAU_TOT_NHAT_V16(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra)
-        
-        self.update_output(f"Dò cầu hoàn tất. Đang mở cửa sổ kết quả...")
-        self.root.after(0, self.show_backtest_results, title, results_data, True) # True = show_save_button
-
+    
     def run_custom_backtest(self, mode):
         """(MỚI) Bước 1: Gọi hàm chạy đa luồng."""
         custom_bridge_name = self.custom_bridge_entry.get()
         if not custom_bridge_name or "+" not in custom_bridge_name:
-            self.update_output("LỖI: Vui lòng nhập tên cầu hợp lệ (ví dụ: GDB[1] + G3.1[4]).")
+            self.update_output("LỖI: Vui lòng nhập tên cầu hợp lệ (ví dụ: GDB[1] + Bong(G3.1[4])).")
             return
         title = f"Test Cầu {mode}: {custom_bridge_name}"
         self.update_output(f"\n--- Bắt đầu: {title} ---")
@@ -511,36 +499,36 @@ class DataAnalysisApp:
         """(MỚI) Bước 1: Gọi hàm chạy đa luồng."""
         title = "Bảng Tổng Hợp Quyết Định"
         self.update_output(f"\n--- Bắt đầu: {title} ---")
-        self.update_output("Đang chạy 6 hệ thống phân tích... (Bao gồm 2 backtest K2N ngầm)") # (SỬA) 6 hệ thống
+        self.update_output("Đang chạy 7 hệ thống phân tích... (Bao gồm 3 backtest ngầm)") # (SỬA) 7 hệ thống
         self._run_task_in_thread(self._task_run_decision_dashboard, title)
 
     def _task_run_decision_dashboard(self, title):
-        """(MỚI) Bước 2: Logic Bảng Tổng Hợp chạy trong luồng riêng."""
+        """(MỚI - NÂNG CẤP) Bước 2: Logic Bảng Tổng Hợp chạy trong luồng riêng."""
         all_data_ai = self.load_data_ai_from_db()
         
         if not all_data_ai or len(all_data_ai) < 2:
-            self.update_output("LỖI: Cần ít nhất 2 kỳ dữ liệu để chạy Bảng Tổng Hợp (cho K2N).")
+            self.update_output("LỖI: Cần ít nhất 2 kỳ dữ liệu để chạy Bảng Tổng Hợp.")
             return
         
         last_row = all_data_ai[-1]
         n_days_stats = 7
-        n_days_gan = 15 # (MỚI) Số ngày tối thiểu để tính là Gan
+        n_days_gan = 15 
         next_ky = f"Kỳ {int(last_row[0]) + 1}" if last_row[0].isdigit() else f"Kỳ {last_row[0]} (Next)"
 
         # --- 1. Thống kê N ngày ---
-        self.update_output("... (1/6) Đang thống kê Loto Về Nhiều...")
+        self.update_output("... (1/7) Đang thống kê Loto Về Nhiều...")
         stats_n_day = get_loto_stats_last_n_days(all_data_ai, n=n_days_stats)
         
-        # --- 2. Thống kê "Vote" ---
-        self.update_output("... (2/6) Đang thống kê Cặp Số Dự Đoán...")
+        # --- 2. Thống kê "Vote" (Cầu 15 + Cầu V17) ---
+        self.update_output("... (2/7) Đang thống kê Cặp Số Dự Đoán (Cổ điển + V17)...")
         consensus = get_prediction_consensus(last_row)
         
-        # --- 3. Thống kê "Cầu Tỷ Lệ Cao" ---
-        self.update_output("... (3/6) Đang lọc Cầu Tỷ Lệ Cao (>=47%)...")
+        # --- 3. Thống kê "Cầu Tỷ Lệ Cao" (Cầu V17) ---
+        self.update_output("... (3/7) Đang lọc Cầu V17 Tỷ Lệ Cao (>=47%)...")
         high_win = get_high_win_rate_predictions(last_row, threshold=47.0)
 
-        # --- 4. Chạy Backtest K2N ngầm ---
-        self.update_output("... (4/6) Đang chạy Backtest K2N ngầm (để lấy chuỗi)...")
+        # --- 4. Chạy Backtest K2N ngầm (Cổ điển + V17) ---
+        self.update_output("... (4/7) Đang chạy Backtest K2N ngầm (Cổ điển + V17)...")
         ky_bat_dau_kiem_tra = 2
         ky_ket_thuc_kiem_tra = len(all_data_ai) + (ky_bat_dau_kiem_tra - 1)
         
@@ -549,7 +537,6 @@ class DataAnalysisApp:
         
         pending_k2n_data = []
         
-        # (Giữ nguyên logic trích xuất K2N)
         if results_15_cau_k2n and len(results_15_cau_k2n) > 3:
             headers, rates, streaks, pending = results_15_cau_k2n[0], results_15_cau_k2n[1], results_15_cau_k2n[2], results_15_cau_k2n[3]
             for j in range(1, 16):
@@ -569,53 +556,55 @@ class DataAnalysisApp:
                     pair = pending_text.split(' (')[0]
                     pending_k2n_data.append({'name': bridge_name, 'stl': pair, 'rate': str(rates[j]), 'streak': str(streaks[j])})
 
-        # --- 5. (MỚI) Thống kê Lô Gan ---
-        self.update_output(f"... (5/6) Đang tìm Lô Gan (trên {n_days_gan} kỳ)...")
+        # --- 5. (MỚI) Chạy Backtest Bạc Nhớ ngầm ---
+        self.update_output("... (5/7) Đang chạy Backtest 756 Cầu Bạc Nhớ ngầm...")
+        top_memory_bridges = get_top_memory_bridge_predictions(all_data_ai, last_row, top_n=5)
+        
+        # --- 6. Thống kê Lô Gan ---
+        self.update_output(f"... (6/7) Đang tìm Lô Gan (trên {n_days_gan} kỳ)...")
         gan_stats = get_loto_gan_stats(all_data_ai, n_days=n_days_gan)
         
-        # --- (SỬA) 6. HỆ THỐNG CHẤM ĐIỂM ---
-        self.update_output("... (6/6) Đang chấm điểm và tổng hợp quyết định...")
+        # --- 7. HỆ THỐNG CHẤM ĐIỂM ---
+        self.update_output("... (7/7) Đang chấm điểm và tổng hợp quyết định...")
         top_scores = get_top_scored_pairs(
-            stats_n_day, # (SỬA) Đổi tên biến
+            stats_n_day,
             consensus, 
             high_win, 
             pending_k2n_data, 
-            gan_stats
+            gan_stats,
+            top_memory_bridges # (MỚI) Thêm nguồn Bạc Nhớ
         )
         
         self.update_output("Phân tích hoàn tất. Đang hiển thị Bảng Tổng Hợp...")
         
-        # --- (SỬA LỖI) Phải gọi hiển thị UI từ luồng chính ---
-        # (SỬA) Thêm top_scores vào cuối
+        # (SỬA) Thêm top_memory_bridges vào hàm gọi
         self.root.after(0, self._show_dashboard_window, 
             next_ky, stats_n_day, n_days_stats, 
             consensus, high_win, pending_k2n_data, 
-            gan_stats, top_scores
+            gan_stats, top_scores, top_memory_bridges
         )
 
-    def _show_dashboard_window(self, next_ky, stats_n_day, n_days_stats, consensus, high_win, pending_k2n_data, gan_stats, top_scores): # (SỬA) Thêm top_scores
-        """(SỬA LỖI) Chuyển sang gọi Class DashboardWindow (Giai đoạn 4)"""
+    def _show_dashboard_window(self, next_ky, stats_n_day, n_days_stats, consensus, high_win, pending_k2n_data, gan_stats, top_scores, top_memory_bridges):
+        """(SỬA) Chuyển sang gọi Class DashboardWindow và thêm top_memory_bridges"""
         try:
-            # (MỚI) Kiểm tra xem cửa sổ đã mở chưa
             if self.dashboard_window and self.dashboard_window.window.winfo_exists():
                 self.dashboard_window.window.lift()
-                # (MỚI) Xóa dữ liệu cũ trước khi bơm
                 self.dashboard_window.clear_data()
             else:
-                self.dashboard_window = DashboardWindow(self) # Tạo cửa sổ mới
+                self.dashboard_window = DashboardWindow(self) 
             
-            # (MỚI) Bơm dữ liệu vào cửa sổ
+            # (SỬA) Bơm thêm dữ liệu Bạc Nhớ
             self.dashboard_window.populate_data(
                 next_ky, stats_n_day, n_days_stats, 
                 consensus, high_win, pending_k2n_data, 
-                gan_stats, top_scores # (SỬA) Thêm top_scores
+                gan_stats, top_scores, top_memory_bridges
             )
         except Exception as e:
             self.update_output(f"LỖI khi hiển thị Bảng Tổng Hợp: {e}")
             self.update_output(traceback.format_exc())
 
     # ===================================================================================
-    # (MỚI) HÀM CẬP NHẬT TỶ LỆ CẦU
+    # HÀM CẬP NHẬT TỶ LỆ CẦU
     # ===================================================================================
     
     def run_update_all_bridge_rates(self):
@@ -633,16 +622,89 @@ class DataAnalysisApp:
 
         count, message = run_and_update_all_bridge_rates(all_data_ai, self.db_name)
         
-        self.update_output(message) # In kết quả (ví dụ: "Đã cập nhật 5 cầu")
+        self.update_output(message) # In kết quả
         
-        # (MỚI) Tự động làm mới cửa sổ Quản lý Cầu nếu nó đang mở
         if self.bridge_manager_window and self.bridge_manager_window.winfo_exists():
             self.update_output("Đang tự động làm mới cửa sổ Quản lý Cầu...")
             try:
-                # Gọi hàm refresh từ instance của cửa sổ
                 self.root.after(0, self.bridge_manager_window_instance.refresh_bridge_list)
             except Exception as e_refresh:
                 self.update_output(f"Lỗi khi tự động làm mới QL Cầu: {e_refresh}")
+
+    # ===================================================================================
+    # CÁC HÀM TỰ ĐỘNG HÓA DÒ CẦU (Callbacks)
+    # ===================================================================================
+
+    def run_auto_find_bridges(self):
+        """(MỚI) Bước 1: Gọi hàm chạy đa luồng cho Tự động Dò Cầu."""
+        title = "Tự động Dò & Thêm Cầu V17"
+        self.update_output(f"\n--- Bắt đầu: {title} ---")
+        self.update_output("CẢNH BÁO: Tác vụ này RẤT NẶNG (23.005 cầu). Vui lòng chờ...")
+        self.update_output(f"Các cầu có Tỷ lệ > {AUTO_ADD_MIN_RATE}% sẽ được tự động thêm/cập nhật...")
+        self._run_task_in_thread(self._task_run_auto_find_bridges, title)
+
+    def _task_run_auto_find_bridges(self, title):
+        """(MỚI) Bước 2: Logic Tự động Dò Cầu chạy trong luồng riêng."""
+        toan_bo_A_I = self.load_data_ai_from_db()
+        if not toan_bo_A_I:
+            return
+
+        result_message = find_and_auto_manage_bridges(toan_bo_A_I, self.db_name)
+        
+        self.update_output(f">>> {title} HOÀN TẤT:")
+        self.update_output(result_message)
+        
+        if self.bridge_manager_window and self.bridge_manager_window.winfo_exists():
+            self.update_output("Đang tự động làm mới cửa sổ Quản lý Cầu...")
+            self.root.after(0, self.bridge_manager_window_instance.refresh_bridge_list)
+
+    def run_auto_prune_bridges(self):
+        """(MỚI) Bước 1: Gọi hàm chạy đa luồng cho Tự động Lọc Cầu."""
+        title = "Tự động Lọc/Tắt Cầu Yếu"
+        self.update_output(f"\n--- Bắt đầu: {title} ---")
+        self.update_output("Đang chạy backtest N1 cho các Cầu Đã Lưu...")
+        self.update_output(f"Các cầu có Tỷ lệ < {AUTO_PRUNE_MIN_RATE}% sẽ bị TẮT (vô hiệu hóa)...")
+        self._run_task_in_thread(self._task_run_auto_prune_bridges, title)
+
+    def _task_run_auto_prune_bridges(self, title):
+        """(MỚI) Bước 2: Logic Tự động Lọc Cầu chạy trong luồng riêng."""
+        toan_bo_A_I = self.load_data_ai_from_db()
+        if not toan_bo_A_I:
+            return
+
+        result_message = prune_bad_bridges(toan_bo_A_I, self.db_name)
+        
+        self.update_output(f">>> {title} HOÀN TẤT:")
+        self.update_output(result_message)
+        
+        if self.bridge_manager_window and self.bridge_manager_window.winfo_exists():
+            self.update_output("Đang tự động làm mới cửa sổ Quản lý Cầu...")
+            self.root.after(0, self.bridge_manager_window_instance.refresh_bridge_list)
+
+    # ===================================================================================
+    # (MỚI) HÀM CALLBACK CẦU BẠC NHỚ
+    # ===================================================================================
+    
+    def run_backtest_memory(self):
+        """(MỚI) Bước 1: Gọi hàm chạy đa luồng cho Cầu Bạc Nhớ."""
+        title = "Backtest 756 Cầu Bạc Nhớ (N1)"
+        self.update_output(f"\n--- Bắt đầu: {title} ---")
+        self.update_output("Đang chạy backtest 756 thuật toán (Tổng/Hiệu của 27 vị trí lô)...")
+        self._run_task_in_thread(self._task_run_backtest_memory, title)
+
+    def _task_run_backtest_memory(self, title):
+        """(MỚI) Bước 2: Logic Cầu Bạc Nhớ chạy trong luồng riêng."""
+        toan_bo_A_I = self.load_data_ai_from_db()
+        if not toan_bo_A_I:
+            return
+        
+        ky_bat_dau_kiem_tra = 2
+        ky_ket_thuc_kiem_tra = len(toan_bo_A_I) + (ky_bat_dau_kiem_tra - 1)
+        
+        results_data = BACKTEST_MEMORY_BRIDGES(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra)
+        
+        self.update_output(f"Backtest Cầu Bạc Nhớ hoàn tất. Đang mở cửa sổ kết quả...")
+        self.root.after(0, self.show_backtest_results, title, results_data)
 
     # ===================================================================================
     # CÁC HÀM GỌI CỬA SỔ CON (Đã Tách)
@@ -650,20 +712,22 @@ class DataAnalysisApp:
 
     def show_lookup_window(self):
         """Mở cửa sổ Tra cứu từ ui/ui_lookup.py"""
-        # Tạo một cửa sổ mới
         self.lookup_window = LookupWindow(self)
 
     def show_bridge_manager_window(self):
         """Mở cửa sổ Quản lý Cầu từ ui/ui_bridge_manager.py"""
-        # (Logic kiểm tra tồn tại đã được chuyển vào trong class)
         self.bridge_manager_window_instance = BridgeManagerWindow(self)
 
     def show_backtest_results(self, title, results_data, show_save_button=False):
         """Mở cửa sổ Hiển thị Kết quả từ ui/ui_results_viewer.py"""
+        # (SỬA) Bật nút lưu cho V17 (23k cầu)
+        if "V17" in title:
+            show_save_button = True
+        
         self.results_window = ResultsViewerWindow(self, title, results_data, show_save_button)
 
     # ===================================================================================
-    # (MỚI) HÀM TRIGGER TỪ BẢNG TỔNG HỢP (Giai đoạn 4)
+    # HÀM TRIGGER TỪ BẢNG TỔNG HỢP
     # ===================================================================================
     
     def trigger_bridge_backtest(self, bridge_name):
@@ -677,19 +741,20 @@ class DataAnalysisApp:
         if bridge_name.startswith("Cầu "):
             # Đây là 1 trong 15 Cầu Cổ Điển (ví dụ: "Cầu 5")
             self.update_output(f"--- Trigger: Mở Backtest K2N cho 15 Cầu Cổ Điển (focus vào {bridge_name})...")
-            # Tùy chọn: Chúng ta có thể làm nổi bật cầu này trong tương lai
             self.run_backtest('K2N')
             
-        elif "+" in bridge_name:
-            # Đây là Cầu V16 (ví dụ: "GDB[0] + G1[4]")
+        elif "+" in bridge_name or "Bong(" in bridge_name:
+            # Đây là Cầu V17 (ví dụ: "GDB[0] + G1[4]" hoặc "Bong(G1[0]) + G7.2[1]")
             self.update_output(f"--- Trigger: Chạy Backtest K2N tùy chỉnh cho {bridge_name}...")
-            # Tự động điền tên cầu vào ô
             self.custom_bridge_entry.delete(0, "end")
             self.custom_bridge_entry.insert(0, bridge_name)
-            # Chạy backtest
             self.run_custom_backtest('K2N')
-            # Tự động chuyển về Tab 1 để người dùng thấy tên cầu đã được điền
             self.notebook.select(self.tab1_frame)
+
+        elif "Tổng(" in bridge_name or "Hiệu(" in bridge_name:
+             # (MỚI) Đây là Cầu Bạc Nhớ
+            self.update_output(f"--- Trigger: Mở Backtest N1 cho 756 Cầu Bạc Nhớ (focus vào {bridge_name})...")
+            self.run_backtest_memory()
             
         else:
             self.update_output(f"Lỗi trigger: Không nhận dạng được loại cầu '{bridge_name}'")
@@ -715,6 +780,11 @@ class DataAnalysisApp:
             bridge_name = item_values[1] # Cột "Tên Cầu"
             win_rate = item_values[3]    # Cột "Tỷ lệ"
             
+            # (SỬA) Chỉ cho phép lưu cầu V17 (chứa + hoặc Bong)
+            if not ("+" in bridge_name or "Bong(" in bridge_name):
+                messagebox.showerror("Lỗi Lưu Cầu", "Chức năng này chỉ hỗ trợ lưu Cầu V17 (ví dụ: GDB[0] + Bong(G1[4])).\nKhông thể lưu Cầu 15 Cổ Điển hoặc Cầu Bạc Nhớ.", parent=tree.master)
+                return
+
             description = simpledialog.askstring("Lưu Cầu Mới", 
                                                  f"Nhập mô tả cho cầu:\n{bridge_name}",
                                                  initialvalue=bridge_name, 
@@ -722,15 +792,15 @@ class DataAnalysisApp:
             
             if description is None: return
 
-            success, message = add_managed_bridge(bridge_name, description, win_rate)
+            # (SỬA) Dùng hàm UPSERT thay vì ADD
+            # Hàm upsert đã có trong db_manager và service
+            success, message = upsert_managed_bridge(bridge_name, description, win_rate)
             
             if success:
-                self.update_output(f"LƯU CẦU: {message}")
+                self.update_output(f"LƯU/CẬP NHẬT CẦU: {message}")
                 messagebox.showinfo("Thành công", message, parent=tree.master)
-                # (MỚI) Kiểm tra và làm mới cây quản lý nếu nó tồn tại
-                if self.bridge_manager_window and self.bridge_manager_window.winfo_exists() and self.bridge_manager_tree:
+                if self.bridge_manager_window and self.bridge_manager_window.winfo_exists():
                     try:
-                        # Tìm instance của class
                         self.bridge_manager_window_instance.refresh_bridge_list()
                     except Exception as e_refresh:
                         self.update_output(f"Lỗi khi tự động làm mới QL Cầu: {e_refresh}")
