@@ -1,0 +1,8 @@
+# Bỏ qua các file cache của Python
+__pycache__/
+*.pyc
+
+# Bỏ qua các file build và đóng gói
+build/
+dist/
+*.spec
