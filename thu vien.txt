@@ -1,0 +1,5 @@
+pip install pandas matplotlib seaborn scikit-learn joblib
+
+ git config --global user.email "nguyenhien7268@gmail.com"
+
+  git config --global user.name "Jason"
