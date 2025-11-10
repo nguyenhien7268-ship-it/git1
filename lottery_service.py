@@ -1,6 +1,6 @@
 """
 ==================================================================================
-LOTTERY SERVICE API (BỘ ĐIỀU PHỐI)
+LOTTERY SERVICE API (BỘ ĐIỀU PHỐI) - (NÂNG CẤP V6.0 - AI)
 ==================================================================================
 """
 
@@ -77,5 +77,24 @@ try:
     )
 except ImportError as e:
     print(f"LỖI NGHIÊM TRỌNG: Không thể import logic.backtester: {e}")
+
+# ==========================================================================
+# (MỚI V6.0) 5. TỪ LOGIC.ML_MODEL (BỘ NÃO AI)
+# ==========================================================================
+try:
+    from logic.ml_model import (
+        train_ai_model,
+        get_ai_predictions
+    )
+    print(">>> (V6.0) Tải logic.ml_model (AI) thành công.")
+except ImportError as e:
+    print(f"LỖI NGHIÊM TRỌNG: Không thể import logic.ml_model (AI): {e}")
+    # Giả lập hàm nếu lỗi
+    def train_ai_model(all_data):
+        return False, "Lỗi: Không tìm thấy logic.ml_model.py"
+    def get_ai_predictions(all_data):
+        return None, "Lỗi: Không tìm thấy logic.ml_model.py"
+# ==========================================================================
+
 
 print("Lottery Service API (lottery_service.py) đã tải thành công.")

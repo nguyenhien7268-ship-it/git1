@@ -48,7 +48,8 @@ except ImportError:
 class DataAnalysisApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Xổ Số Data Analysis (v5.4 - Tối ưu hóa)") # (SỬA GĐ 10)
+        # (SỬA V6.6) Cập nhật tiêu đề
+        self.root.title("Xổ Số Data Analysis (v6.6 - Tích hợp AI)") 
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(0, weight=1)
         self.root.geometry("800x600")
@@ -92,7 +93,7 @@ class DataAnalysisApp:
         predict_frame.columnconfigure(0, weight=1)
         predict_frame.columnconfigure(1, weight=1)
         
-        self.dashboard_button = ttk.Button(predict_frame, text="Mở Bảng Tổng Hợp (Chi tiết)", command=self.run_decision_dashboard)
+        self.dashboard_button = ttk.Button(predict_frame, text="Mở Bảng Tổng Hợp (V6.6 + AI)", command=self.run_decision_dashboard)
         self.dashboard_button.grid(row=0, column=0, sticky="ew", padx=5, pady=5)
         
         self.update_cache_button = ttk.Button(predict_frame, text="Cập nhật Cache K2N", command=self.run_update_all_bridge_K2N_cache_from_main)
@@ -126,7 +127,7 @@ class DataAnalysisApp:
         self.update_button.grid(row=4, column=0, columnspan=3, sticky="ew", padx=5, pady=5)
 
 
-        # --- (SỬA GĐ 9) NHÓM 3: QUẢN LÝ & DÒ CẦU ---
+        # --- (SỬA V6.0) NHÓM 3: QUẢN LÝ & DÒ CẦU (THÊM AI) ---
         manage_frame = ttk.Labelframe(self.tab1_frame, text="🛠️ Quản lý & Dò Cầu (Bảo trì)", padding="10")
         manage_frame.grid(row=2, column=0, sticky="ew", padx=10, pady=5)
         manage_frame.columnconfigure(0, weight=1)
@@ -143,12 +144,16 @@ class DataAnalysisApp:
         self.auto_prune_bridges_button = ttk.Button(manage_frame, text="Tự động Lọc/Tắt Cầu Yếu", command=self.run_auto_prune_bridges)
         self.auto_prune_bridges_button.grid(row=0, column=2, sticky="ew", padx=5, pady=5)
         
-        # (MỚI GĐ 9) Hàng 2
+        # (SỬA V6.0) Hàng 2 (Thêm nút AI)
         self.settings_button = ttk.Button(manage_frame, text="⚙️ Cài đặt Tham số...", command=self.show_settings_window)
         self.settings_button.grid(row=1, column=0, sticky="ew", padx=5, pady=5)
         
         self.tuner_button = ttk.Button(manage_frame, text="📈 Tinh chỉnh Tham số...", command=self.show_tuner_window)
-        self.tuner_button.grid(row=1, column=1, columnspan=2, sticky="ew", padx=5, pady=5)
+        self.tuner_button.grid(row=1, column=1, sticky="ew", padx=5, pady=5)
+        
+        # (MỚI V6.0) THÊM NÚT HUẤN LUYỆN AI
+        self.train_ai_button = ttk.Button(manage_frame, text="🧠 Huấn luyện AI...", command=self.run_train_ai)
+        self.train_ai_button.grid(row=1, column=2, sticky="ew", padx=5, pady=5)
 
 
         # --- (SỬA GĐ 7) NHÓM 4: BACKTEST & TRA CỨU ---
@@ -188,7 +193,8 @@ class DataAnalysisApp:
             self.parse_button, self.parse_append_button, self.update_button,
             self.dashboard_button, self.update_cache_button,
             self.manage_bridges_button, self.auto_find_bridges_button, self.auto_prune_bridges_button,
-            self.settings_button, self.tuner_button, # (MỚI GĐ 9) Thêm nút
+            self.settings_button, self.tuner_button, 
+            self.train_ai_button, # (MỚI V6.0) Thêm nút Huấn luyện AI
             self.lookup_button, self.backtest_n1_15_button, self.backtest_k2n_15_button,
             self.backtest_memory_button, self.backtest_managed_button, self.backtest_managed_k2n_button,
             # (MỚI GĐ 10) Thêm các nút của tab Tối ưu hóa
@@ -408,7 +414,8 @@ class DataAnalysisApp:
         ky_ket_thuc_kiem_tra = len(toan_bo_A_I) + (ky_bat_dau_kiem_tra - 1)
         self.update_output(f"Đang chạy backtest trên {len(toan_bo_A_I)} hàng dữ liệu...")
 
-        func_to_call = BACKTEST_15_CAU_N1_V31_AI_V8 if mode == 'N1' else (lambda a, b, c: BACKTEST_15_CAU_K2N_V30_AI_V8(a, b, c, history=True))
+        # (SỬA V6.4) Đổi hàm gọi sang hàm hợp nhất
+        func_to_call = BACKTEST_MANAGED_BRIDGES_N1 if mode == 'N1' else (lambda a, b, c: BACKTEST_MANAGED_BRIDGES_K2N(a, b, c, history=True))
         results_data = func_to_call(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra)
         
         self.update_output(f"Backtest hoàn tất. Đang mở cửa sổ kết quả...")
@@ -489,11 +496,12 @@ class DataAnalysisApp:
     def run_decision_dashboard(self):
         title = "Bảng Tổng Hợp Quyết Định"
         self.update_output(f"\n--- Bắt đầu: {title} ---")
-        self.update_output("Đang chạy 7 hệ thống phân tích... (Bao gồm 3 backtest ngầm)") 
+        # (SỬA V6.0) Cập nhật log
+        self.update_output("Đang chạy 8 hệ thống phân tích... (Bao gồm 3 backtest ngầm + 1 AI)") 
         self._run_task_in_thread(self._task_run_decision_dashboard, title)
 
     def _task_run_decision_dashboard(self, title):
-        """(CẬP NHẬT GĐ 8) Logic Bảng Tổng Hợp đọc từ SETTINGS."""
+        """(CẬP NHẬT V6.6) Tích hợp AI vào chấm điểm VÀ hiển thị riêng."""
         all_data_ai = self.load_data_ai_from_db()
         
         if not all_data_ai or len(all_data_ai) < 2:
@@ -502,8 +510,6 @@ class DataAnalysisApp:
         
         last_row = all_data_ai[-1]
         
-        # (MỚI GĐ 8) Lấy giá trị từ SETTINGS
-        # (Import lại bên trong luồng để chắc chắn có giá trị mới nhất)
         try:
             from logic.config_manager import SETTINGS
             SETTINGS.load_settings() # Đảm bảo tải lại giá trị mới nhất từ file
@@ -519,50 +525,61 @@ class DataAnalysisApp:
         next_ky = f"Kỳ {int(last_row[0]) + 1}" if last_row[0].isdigit() else f"Kỳ {last_row[0]} (Next)"
 
         # --- 1. Thống kê N ngày ---
-        self.update_output(f"... (1/7) Đang thống kê Loto Về Nhiều ({n_days_stats} ngày)...")
+        self.update_output(f"... (1/8) Đang thống kê Loto Về Nhiều ({n_days_stats} ngày)...")
         stats_n_day = get_loto_stats_last_n_days(all_data_ai, n=n_days_stats)
         
         # --- 2. Chạy hàm K2N Cache TRƯỚC ---
-        self.update_output("... (2/7) Đang chạy hàm Cập nhật K2N Cache (tối ưu)...")
+        self.update_output("... (2/8) Đang chạy hàm Cập nhật K2N Cache (tối ưu)...")
         pending_k2n_data, cache_message = run_and_update_all_bridge_K2N_cache(all_data_ai, self.db_name)
         self.update_output(f"... (Cache K2N) {cache_message}")
         
         # --- 3. Thống kê "Vote" (ĐỌC TỪ CACHE) ---
-        self.update_output("... (3/7) Đang thống kê Cặp Số Dự Đoán (đọc cache)...")
+        self.update_output("... (3/8) Đang thống kê Cặp Số Dự Đoán (đọc cache)...")
         consensus = get_prediction_consensus(last_row)
         
         # --- 4. Thống kê "Cầu Tỷ Lệ Cao" (ĐỌC TỪ CACHE) ---
-        self.update_output(f"... (4/7) Đang lọc Cầu Tỷ Lệ Cao (>= {high_win_thresh}%, đọc cache)...")
+        self.update_output(f"... (4/8) Đang lọc Cầu Tỷ Lệ Cao (>= {high_win_thresh}%, đọc cache)...")
         high_win = get_high_win_rate_predictions(last_row, threshold=high_win_thresh)
 
         # --- 5. Chạy Backtest Bạc Nhớ ngầm ---
-        self.update_output("... (5/7) Đang chạy Backtest 756 Cầu Bạc Nhớ ngầm...")
+        self.update_output("... (5/8) Đang chạy Backtest 756 Cầu Bạc Nhớ ngầm...")
         top_memory_bridges = get_top_memory_bridge_predictions(all_data_ai, last_row, top_n=5)
         
         # --- 6. Thống kê Lô Gan ---
-        self.update_output(f"... (6/7) Đang tìm Lô Gan (trên {n_days_gan} kỳ)...")
+        self.update_output(f"... (6/8) Đang tìm Lô Gan (trên {n_days_gan} kỳ)...")
         gan_stats = get_loto_gan_stats(all_data_ai, n_days=n_days_gan)
         
-        # --- 7. HỆ THỐNG CHẤM ĐIỂM ---
-        self.update_output("... (7/7) Đang chấm điểm và tổng hợp quyết định...")
+        # --- (MỚI V6.0) 7. CHẠY DỰ ĐOÁN AI ---
+        self.update_output("... (7/8) Đang chạy dự đoán AI (V6.0)...")
+        ai_predictions, ai_message = get_ai_predictions(all_data_ai)
+        self.update_output(f"... (AI) {ai_message}")
+
+        # --- (SỬA V6.2) 8. HỆ THỐNG CHẤM ĐIỂM (LOGIC V5 + V6) ---
+        self.update_output("... (8/8) Đang chấm điểm và tổng hợp quyết định (Logic V6.2)...")
+        
+        # (SỬA V6.2) Truyền `ai_predictions` vào đây
         top_scores = get_top_scored_pairs(
             stats_n_day,
             consensus, 
             high_win, 
             pending_k2n_data, 
             gan_stats,
-            top_memory_bridges 
+            top_memory_bridges,
+            ai_predictions # (MỚI V6.2) Tích hợp AI vào chấm điểm
         )
         
         self.update_output("Phân tích hoàn tất. Đang hiển thị Bảng Tổng Hợp...")
         
+        # (SỬA V6.6) TRẢ LẠI `ai_predictions` cho hàm hiển thị
         self.root.after(0, self._show_dashboard_window, 
             next_ky, stats_n_day, n_days_stats, 
             consensus, high_win, pending_k2n_data, 
-            gan_stats, top_scores, top_memory_bridges
+            gan_stats, top_scores, top_memory_bridges,
+            ai_predictions # (MỚI V6.6)
         )
 
-    def _show_dashboard_window(self, next_ky, stats_n_day, n_days_stats, consensus, high_win, pending_k2n_data, gan_stats, top_scores, top_memory_bridges):
+    # (SỬA V6.6) TRẢ LẠI `ai_predictions`
+    def _show_dashboard_window(self, next_ky, stats_n_day, n_days_stats, consensus, high_win, pending_k2n_data, gan_stats, top_scores, top_memory_bridges, ai_predictions):
         try:
             if self.dashboard_window and self.dashboard_window.window.winfo_exists():
                 self.dashboard_window.window.lift()
@@ -570,10 +587,12 @@ class DataAnalysisApp:
             else:
                 self.dashboard_window = DashboardWindow(self) 
             
+            # (SỬA V6.6) TRẢ LẠI `ai_predictions`
             self.dashboard_window.populate_data(
                 next_ky, stats_n_day, n_days_stats, 
                 consensus, high_win, pending_k2n_data, 
-                gan_stats, top_scores, top_memory_bridges
+                gan_stats, top_scores, top_memory_bridges,
+                ai_predictions # (MỚI V6.6)
             )
         except Exception as e:
             self.update_output(f"LỖI khi hiển thị Bảng Tổng Hợp: {e}")
@@ -670,6 +689,32 @@ class DataAnalysisApp:
         if self.bridge_manager_window and self.bridge_manager_window.winfo_exists():
             self.update_output("Đang tự động làm mới cửa sổ Quản lý Cầu...")
             self.root.after(0, self.bridge_manager_window_instance.refresh_bridge_list)
+
+    # ===================================================================================
+    # (MỚI V6.0) HÀM HUẤN LUYỆN AI
+    # ===================================================================================
+    
+    def run_train_ai(self):
+        """(MỚI V6.0) Bước 1: Gọi hàm chạy đa luồng cho Huấn luyện AI."""
+        title = "Huấn luyện Mô hình AI (V6.0)"
+        self.update_output(f"\n--- Bắt đầu: {title} ---")
+        self.update_output("CẢNH BÁO: Tác vụ này RẤT NẶNG và có thể mất vài phút.")
+        self.update_output("Đang tải toàn bộ CSDL và trích xuất đặc trưng...")
+        self._run_task_in_thread(self._task_train_ai, title)
+
+    def _task_train_ai(self, title):
+        """(MỚI V6.0) Bước 2: Logic Huấn luyện AI chạy trong luồng riêng."""
+        all_data_ai = self.load_data_ai_from_db()
+        if not all_data_ai:
+            self.update_output("LỖI: Không thể huấn luyện AI vì không có dữ liệu.")
+            return
+
+        # Gọi hàm train_ai_model từ lottery_service (đã import)
+        success, message = train_ai_model(all_data_ai)
+        
+        self.update_output(f">>> {title} HOÀN TẤT:")
+        self.update_output(message)
+
 
     # ===================================================================================
     # (MỚI) HÀM CALLBACK CẦU BẠC NHỚ
@@ -821,6 +866,10 @@ class DataAnalysisApp:
                 high_win = get_high_win_rate_predictions(last_row)
                 gan_stats = get_loto_gan_stats(all_data_ai)
                 top_memory = get_top_memory_bridge_predictions(all_data_ai, last_row)
+                
+                # (SỬA V6.2) Lấy cả dự đoán AI
+                ai_preds, _ = get_ai_predictions(all_data_ai)
+                
                 log_to_tuner("... (Dữ liệu nền hoàn tất. Bắt đầu lặp)...")
                 
                 # Lưu giá trị gốc
@@ -834,10 +883,11 @@ class DataAnalysisApp:
                     # Tạm thời thay đổi SETTINGS
                     setattr(SETTINGS, p_key, val)
                     
-                    # Chạy lại hàm chấm điểm với giá trị SETTINGS đã thay đổi
+                    # (SỬA V6.2) Chạy lại hàm chấm điểm V6.2
                     top_scores = get_top_scored_pairs(
                         stats_n_day, consensus, high_win, 
-                        pending_k2n, gan_stats, top_memory
+                        pending_k2n, gan_stats, top_memory,
+                        ai_preds # Thêm AI
                     )
                     
                     if not top_scores:
@@ -1005,6 +1055,7 @@ class DataAnalysisApp:
                     actual_loto_set = set(getAllLoto_V30(actual_row))
                     
                     # 5. Chạy mô phỏng Bảng Tổng Hợp cho ngày D
+                    # (SỬA V6.2) Tạm thời không thể mô phỏng AI trong hàm này
                     top_scores = get_historical_dashboard_data(
                         all_data_ai, 
                         day_index, 
@@ -1184,7 +1235,11 @@ class DataAnalysisApp:
             
             # (SỬA GĐ 5) Cho phép lưu cả V17 và Bạc Nhớ
             if not ("+" in bridge_name or "Bong(" in bridge_name or "Tổng(" in bridge_name or "Hiệu(" in bridge_name):
-                messagebox.showerror("Lỗi Lưu Cầu", "Chức năng này chỉ hỗ trợ lưu Cầu V17 hoặc Cầu Bạc Nhớ.\nKhông thể lưu Cầu 15 Cổ Điển.", parent=tree.master)
+                # (SỬA V6.4) Bỏ qua Cầu Cổ Điển
+                if bridge_name.startswith("Cầu "):
+                    messagebox.showerror("Lỗi Lưu Cầu", "Không thể lưu Cầu Cổ Điển (Chúng đã được lưu tự động).", parent=tree.master)
+                else:
+                    messagebox.showerror("Lỗi Lưu Cầu", "Chức năng này chỉ hỗ trợ lưu Cầu V17 hoặc Cầu Bạc Nhớ.", parent=tree.master)
                 return
 
             description = simpledialog.askstring("Lưu Cầu Mới", 

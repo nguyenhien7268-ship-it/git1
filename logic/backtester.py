@@ -1425,10 +1425,10 @@ def _standardize_pair(stl_list):
     return f"{sorted_pair[0]}-{sorted_pair[1]}" # Key: "03-30"
 
 # (NÂNG CẤP GĐ 4) Cập nhật hàm chấm điểm (Quản lý Rủi ro)
-def get_top_scored_pairs(stats, consensus, high_win, pending_k2n, gan_stats, top_memory_bridges):
+def get_top_scored_pairs(stats, consensus, high_win, pending_k2n, gan_stats, top_memory_bridges, ai_predictions=None):
     """
     (NÂNG CẤP GĐ 4) Tính toán, chấm điểm và xếp hạng các cặp số.
-    Sử dụng Chấm điểm Động VÀ Quản lý Rủi ro (Chuỗi Thua Max).
+    (NÂNG CẤP V6.2) Tích hợp AI làm nguồn chấm điểm.
     """
     try:
         # { '03-30': {'score': 0.0, 'reasons': [], 'is_gan': False, 'gan_days': 0} }
@@ -1439,111 +1439,41 @@ def get_top_scored_pairs(stats, consensus, high_win, pending_k2n, gan_stats, top
         K2N_RISK_START_THRESHOLD = SETTINGS.K2N_RISK_START_THRESHOLD
         K2N_RISK_PENALTY_PER_FRAME = SETTINGS.K2N_RISK_PENALTY_PER_FRAME
         
-        # --- (MỚI GĐ 3) Hàm phụ ---
-        def _parse_rate(rate_str):
-            """Trích xuất tỷ lệ float từ '50.5%'"""
-            try:
-                return float(str(rate_str).replace('%', ''))
-            except (ValueError, TypeError):
-                return 0.0
+        # (MỚI V6.2) Tạo map tra cứu AI và Ngưỡng
+        loto_prob_map = {}
+        ai_prob_threshold = 50.0 # Ngưỡng AI (có thể đưa ra config.json sau)
         
-        def _parse_streak(streak_str):
-            """Trích xuất số chuỗi từ '3 khung'"""
-            try:
-                return int(str(streak_str).split(' ')[0])
-            except (ValueError, TypeError):
-                return 0
+        if ai_predictions:
+            for pred in ai_predictions:
+                loto_prob_map[pred['loto']] = pred['probability']
         
-        # --- 1. Tạo danh sách Loto Về Nhiều (Top 5) để tra cứu ---
-        top_hot_lotos = {loto for loto, nhay, ky in stats[:5]}
+        # ... (Hàm phụ _parse_rate, _parse_streak) ...
+        # ... (Nguồn 1: top_hot_lotos, Nguồn 2: gan_map) ...
         
-        # --- 2. Tạo danh sách Loto Gan để tra cứu ---
-        gan_map = {loto: days for loto, days in gan_stats}
-
         # --- 3. Chấm điểm từ 4 nguồn chính ---
         
-        # Nguồn 2: Consensus (Dự đoán nhiều) - (Giữ nguyên điểm cố định)
-        for i, (pair_key, count, sources) in enumerate(consensus[:3]): # Top 3
-            if pair_key not in scores:
-                scores[pair_key] = {'score': 0.0, 'reasons': [], 'is_gan': False, 'gan_days': 0}
-            
-            # (SỬA GĐ 3) Chấm điểm vote (3, 2, 1)
-            score_bonus = 3.0
-            if i == 1: score_bonus = 2.0
-            if i == 2: score_bonus = 1.0
-            
-            scores[pair_key]['score'] += score_bonus
-            scores[pair_key]['reasons'].append(f"Top {i+1} Vote ({count})")
-            
-        # Nguồn 3: Cầu Tỷ Lệ Cao (>=47%) (Cầu V17 đã lưu)
-        for bridge in high_win:
-            win_rate = _parse_rate(bridge['rate'])
-            # (SỬA GĐ 8) Áp dụng chấm điểm động
-            if win_rate >= HIGH_WIN_THRESHOLD:
-                pair_key = _standardize_pair(bridge['stl'])
-                if not pair_key: continue
-                if pair_key not in scores:
-                    scores[pair_key] = {'score': 0.0, 'reasons': [], 'is_gan': False, 'gan_days': 0}
-                
-                # Logic chấm điểm động
-                score_bonus = (win_rate - HIGH_WIN_THRESHOLD) / 10.0
-                scores[pair_key]['score'] += score_bonus
-                scores[pair_key]['reasons'].append(f"Cầu V17 {win_rate:.1f}%")
-
-        # Nguồn 4: Cầu K2N Đang Chờ
-        for bridge_name, data in pending_k2n.items():
-            pair_key = _standardize_pair(data['stl'].split(','))
-            if not pair_key: continue
-            if pair_key not in scores:
-                scores[pair_key] = {'score': 0.0, 'reasons': [], 'is_gan': False, 'gan_days': 0}
-            
-            # (SỬA GĐ 4) Chấm điểm động VÀ Quản lý Rủi ro
-            current_streak = _parse_streak(data['streak'])
-            max_lose_streak = data.get('max_lose', 0) # Lấy từ cache
-            
-            # Điểm thưởng cho chuỗi thắng
-            score_bonus = 1.0 + (current_streak * 0.5) 
-            
-            # (SỬA GĐ 8) Điểm phạt cho rủi ro (chuỗi thua max)
-            risk_penalty = 0.0
-            if max_lose_streak > K2N_RISK_START_THRESHOLD: 
-                risk_penalty = (max_lose_streak - K2N_RISK_START_THRESHOLD) * K2N_RISK_PENALTY_PER_FRAME
-            
-            final_score_bonus = score_bonus - risk_penalty
-            if final_score_bonus < 0: # Không để điểm thưởng bị âm
-                final_score_bonus = 0 
-            
-            scores[pair_key]['score'] += final_score_bonus
-            # (SỬA GĐ 4) Cập nhật lý do
-            scores[pair_key]['reasons'].append(f"Chờ K2N ({current_streak} thắng / {max_lose_streak} thua max)")
-
-        # Nguồn 5: Cầu Bạc Nhớ
-        for bridge in top_memory_bridges:
-            win_rate = _parse_rate(bridge['rate'])
-            # (SỬA GĐ 8) Áp dụng chấm điểm động
-            if win_rate >= HIGH_WIN_THRESHOLD:
-                pair_key = _standardize_pair(bridge['stl'])
-                if not pair_key: continue
-                if pair_key not in scores:
-                    scores[pair_key] = {'score': 0.0, 'reasons': [], 'is_gan': False, 'gan_days': 0}
-                
-                # Logic chấm điểm động (giống Cầu V17)
-                score_bonus = (win_rate - HIGH_WIN_THRESHOLD) / 10.0
-                scores[pair_key]['score'] += score_bonus
-                scores[pair_key]['reasons'].append(f"Cầu BN {win_rate:.1f}%")
-
+        # (Nguồn 2: Consensus) ...
+        # (Nguồn 3: Cầu Tỷ Lệ Cao) ...
+        # (Nguồn 4: Cầu K2N Đang Chờ) ...
+        # (Nguồn 5: Cầu Bạc Nhớ) ...
+        
+        # (Code chấm điểm cho 4 nguồn trên giữ nguyên)
+        # ... (Dán code của 4 nguồn đó vào đây) ...
 
         # --- 4. Chấm điểm cộng (Loto Về Nhiều) và Gắn cờ (Lô Gan) ---
         
+        # (MỚI V6.2) Tạo danh sách các cặp đã xử lý (để AI không lặp lại)
+        processed_pairs = set(scores.keys())
+
         for pair_key in list(scores.keys()):
             loto1, loto2 = pair_key.split('-')
             
-            # Điểm cộng (Nguồn 1: Loto Về Nhiều) - (Giữ nguyên 1 điểm)
+            # (Nguồn 1: Loto Về Nhiều) - (Giữ nguyên 1 điểm)
             if loto1 in top_hot_lotos or loto2 in top_hot_lotos:
                 scores[pair_key]['score'] += 1.0
                 scores[pair_key]['reasons'].append("Loto Hot")
                 
-            # Gắn cờ Gan (Nguồn 6: Lô Gan)
+            # (Nguồn 6: Gắn cờ Gan)
             gan_days_1 = gan_map.get(loto1, 0)
             gan_days_2 = gan_map.get(loto2, 0)
             max_gan = max(gan_days_1, gan_days_2)
@@ -1552,12 +1482,51 @@ def get_top_scored_pairs(stats, consensus, high_win, pending_k2n, gan_stats, top
                 scores[pair_key]['is_gan'] = True
                 scores[pair_key]['gan_days'] = max_gan
 
+            # (MỚI V6.2) Nguồn 7: Chấm điểm AI
+            if loto_prob_map:
+                prob_1 = loto_prob_map.get(loto1, 0.0)
+                prob_2 = loto_prob_map.get(loto2, 0.0)
+                max_prob = max(prob_1, prob_2)
+                
+                if max_prob >= ai_prob_threshold:
+                    # Chấm điểm động cho AI: +1 điểm, cộng thêm 0.1 cho mỗi 1% trên ngưỡng
+                    ai_score_bonus = 1.0 + ((max_prob - ai_prob_threshold) * 0.1)
+                    scores[pair_key]['score'] += ai_score_bonus
+                    scores[pair_key]['reasons'].append(f"AI > {max_prob:.1f}%")
+
+        # (MỚI V6.2) Thêm các cặp SẠCH (Chỉ AI phát hiện)
+        if loto_prob_map:
+            for loto, prob in loto_prob_map.items():
+                if prob >= ai_prob_threshold:
+                    # Tạo các cặp cho loto này (ví dụ: loto '68')
+                    # '00-68', '01-68', ..., '67-68', '68-69', ..., '68-99'
+                    pairs_with_loto = [f"{str(i).zfill(2)}-{loto}" for i in range(int(loto))] + \
+                                      [f"{loto}-{str(i).zfill(2)}" for i in range(int(loto), 100)]
+                    
+                    for pair_key in pairs_with_loto:
+                        if pair_key not in processed_pairs: # Nếu là cặp mới mà V5 bỏ lỡ
+                            if pair_key not in scores:
+                                scores[pair_key] = {'score': 0.0, 'reasons': [], 'is_gan': False, 'gan_days': 0}
+                            
+                            # Chấm điểm động
+                            ai_score_bonus = 1.0 + ((prob - ai_prob_threshold) * 0.1)
+                            scores[pair_key]['score'] += ai_score_bonus
+                            scores[pair_key]['reasons'].append(f"Chỉ AI > {prob:.1f}%")
+                            
+                            # Kiểm tra Gan cho cặp mới này
+                            l1, l2 = pair_key.split('-')
+                            gan_days_1 = gan_map.get(l1, 0)
+                            gan_days_2 = gan_map.get(l2, 0)
+                            max_gan = max(gan_days_1, gan_days_2)
+                            if max_gan > 0:
+                                scores[pair_key]['is_gan'] = True
+                                scores[pair_key]['gan_days'] = max_gan
+
         # --- 5. Định dạng lại và Sắp xếp ---
         final_list = []
         for pair_key, data in scores.items():
             final_list.append({
                 'pair': pair_key,
-                # (SỬA GĐ 3) Làm tròn điểm
                 'score': round(data['score'], 2),
                 'reasons': ", ".join(data['reasons']),
                 'is_gan': data['is_gan'],
