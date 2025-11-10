@@ -11,7 +11,8 @@ except ImportError:
         'get_all_settings': lambda: {
             "STATS_DAYS": 7, "GAN_DAYS": 15, "HIGH_WIN_THRESHOLD": 47.0,
             "AUTO_ADD_MIN_RATE": 50.0, "AUTO_PRUNE_MIN_RATE": 40.0,
-            "K2N_RISK_START_THRESHOLD": 4, "K2N_RISK_PENALTY_PER_FRAME": 0.5
+            "K2N_RISK_START_THRESHOLD": 4, "K2N_RISK_PENALTY_PER_FRAME": 0.5,
+            "AI_PROB_THRESHOLD": 45.0 # (MỚI)
         },
         'update_setting': lambda k, v: (False, "Lỗi: Không tìm thấy config_manager")
     })
@@ -36,7 +37,7 @@ class SettingsWindow:
         self.window = tk.Toplevel(self.root)
         self.app.settings_window = self # Gán lại vào app chính
         self.window.title("Cài đặt Hệ thống")
-        self.window.geometry("550x350")
+        self.window.geometry("550x380") # (Cập nhật kích thước)
 
         main_frame = ttk.Frame(self.window, padding="10")
         main_frame.pack(expand=True, fill=tk.BOTH)
@@ -51,7 +52,8 @@ class SettingsWindow:
             ("Bảng Tổng Hợp", [
                 ("STATS_DAYS", "Số ngày Thống kê Loto Hot", "Số ngày (ví dụ: 7) dùng để tính loto về nhiều."),
                 ("GAN_DAYS", "Số ngày tính Lô Gan", "Loto không về trong số ngày này sẽ bị coi là Gan (ví dụ: 15)."),
-                ("HIGH_WIN_THRESHOLD", "Ngưỡng Cầu Tỷ Lệ Cao (%)", "Tỷ lệ K2N tối thiểu để một cầu được coi là 'Tỷ Lệ Cao' (ví dụ: 47.0).")
+                ("HIGH_WIN_THRESHOLD", "Ngưỡng Cầu Tỷ Lệ Cao (%)", "Tỷ lệ K2N tối thiểu để một cầu được coi là 'Tỷ Lệ Cao' (ví dụ: 47.0)."),
+                ("AI_PROB_THRESHOLD", "Ngưỡng Kích Hoạt AI (%)", "Xác suất tối thiểu để dự đoán AI được tính điểm thưởng (ví dụ: 45.0).") # (MỚI)
             ]),
             ("Tự động Dò Cầu", [
                 ("AUTO_ADD_MIN_RATE", "Ngưỡng Thêm Cầu Mới (%)", "Khi dò cầu (V17+BN), tự động thêm nếu tỷ lệ N1 > X (ví dụ: 50.0)."),

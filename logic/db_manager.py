@@ -245,8 +245,6 @@ def delete_managed_bridge(bridge_id, db_name=DB_NAME):
         conn.close()
         return False, f"Lỗi delete_managed_bridge: {e}"
 
-    # ... (Toàn bộ code cũ của file db_manager.py ở trên) ...
-
 def delete_managed_bridge(bridge_id, db_name=DB_NAME):
     """Xóa một cầu khỏi DB."""
     try:
@@ -259,43 +257,6 @@ def delete_managed_bridge(bridge_id, db_name=DB_NAME):
     except Exception as e:
         conn.close()
         return False, f"Lỗi delete_managed_bridge: {e}"
-
-# ===================================================================================
-# (MỚI) HÀM TẢI DỮ LIỆU BACKTEST (Được di chuyển từ UI về đây)
-# ===================================================================================
-
-def load_data_ai_from_db(db_name=DB_NAME):
-    """Tải toàn bộ dữ liệu A:I từ DB (10 cột)."""
-    import os # Cần import os ở đây
-    if not os.path.exists(db_name):
-         # Trả về một mã lỗi thay vì in ra
-         return None, f"Lỗi: Không tìm thấy database '{db_name}'. Vui lòng chạy 'Nạp File' trước."
-    
-    try:
-        conn = sqlite3.connect(db_name)
-        cursor = conn.cursor()
-        cursor.execute('''
-        SELECT MaSoKy, Col_A_Ky, Col_B_GDB, Col_C_G1, Col_D_G2, Col_E_G3, Col_F_G4, Col_G_G5, Col_H_G6, Col_I_G7
-        FROM DuLieu_AI
-        ORDER BY MaSoKy ASC 
-        ''')
-        rows_of_tuples = cursor.fetchall()
-        rows_of_lists = [list(row) for row in rows_of_tuples] 
-        conn.close()
-        
-        if not rows_of_lists:
-            return None, "Lỗi: Không có dữ liệu A:I trong DB."
-            
-        return rows_of_lists, f"Đã tải {len(rows_of_lists)} hàng A:I từ DB."
-        
-    except Exception as e:
-        return None, f"Lỗi khi tải dữ liệu A:I: {e}"
-
-# ... (Toàn bộ code cũ của file db_manager.py ở trên) ...
-
-def delete_managed_bridge(bridge_id, db_name=DB_NAME):
-    # ... (Giữ nguyên nội dung hàm này) ...
-    pass # (Đây chỉ là ví dụ, đừng xóa nội dung hàm)
 
 # ===================================================================================
 # (MỚI) HÀM CẬP NHẬT TỶ LỆ HÀNG LOẠT
@@ -362,13 +323,12 @@ def load_data_ai_from_db(db_name=DB_NAME):
         return None, f"Lỗi khi tải dữ liệu A:I: {e}"
 
 # ===================================================================================
-# (MỚI) HÀM TỰ ĐỘNG HÓA DÒ CẦU (UPSERT)
-# (Đây là code gây lỗi IndentationError của bạn, đã sửa)
+# (SỬA CHỮA LỖI REGEX BẠC NHỚ) HÀM TỰ ĐỘNG HÓA DÒ CẦU (UPSERT)
 # ===================================================================================
 
 def upsert_managed_bridge(bridge_name, description, win_rate_text, db_name=DB_NAME):
     """
-    (MỚI) Tự động Thêm (nếu chưa có) hoặc Cập nhật (nếu đã có).
+    (SỬA LỖI REGEX BN) Tự động Thêm (nếu chưa có) hoặc Cập nhật (nếu đã có).
     Sử dụng tên cầu (name) làm khóa chính.
     """
     # Import nội bộ để đảm bảo an toàn
@@ -381,19 +341,22 @@ def upsert_managed_bridge(bridge_name, description, win_rate_text, db_name=DB_NA
     conn = None
     try:
         # Tách tên cầu và lấy chỉ số
-        parts = bridge_name.split('+')
-        # (SỬA GĐ 2) Cho phép lưu cầu Bạc Nhớ (không chứa '+')
-        if len(parts) == 2:
-            pos1_name = parts[0].strip()
-            pos2_name = parts[1].strip()
-            pos1_idx = get_index_from_name_V16(pos1_name)
-            pos2_idx = get_index_from_name_V16(pos2_name)
-        elif "Tổng(" in bridge_name or "Hiệu(" in bridge_name:
-             # Đây là cầu Bạc Nhớ, không cần chỉ số V17
+        
+        # BƯỚC 1: KIỂM TRA CẦU BẠC NHỚ (ƯU TIÊN 1 - Tránh lỗi Regex V17)
+        if "Tổng(" in bridge_name or "Hiệu(" in bridge_name:
+             # Đây là cầu Bạc Nhớ
              pos1_name = "BAC_NHO"
              pos2_name = "BAC_NHO"
              pos1_idx = -1 # Đánh dấu là cầu BN
              pos2_idx = -1
+             
+        # BƯỚC 2: KIỂM TRA CẦU V17/V16 (Ưu tiên 2 - Tách bằng '+')
+        elif len(bridge_name.split('+')) == 2:
+            parts = bridge_name.split('+')
+            pos1_name = parts[0].strip()
+            pos2_name = parts[1].strip()
+            pos1_idx = get_index_from_name_V16(pos1_name)
+            pos2_idx = get_index_from_name_V16(pos2_name)
         else:
              return False, "Tên cầu không hợp lệ."
         

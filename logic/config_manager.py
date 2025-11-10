@@ -18,7 +18,8 @@ class AppSettings:
             "AUTO_ADD_MIN_RATE": 50.0,
             "AUTO_PRUNE_MIN_RATE": 40.0,
             "K2N_RISK_START_THRESHOLD": 4,
-            "K2N_RISK_PENALTY_PER_FRAME": 0.5
+            "K2N_RISK_PENALTY_PER_FRAME": 0.5,
+            "AI_PROB_THRESHOLD": 45.0 # (MỚI) Ngưỡng kích hoạt AI
         }
         
         # Tải cài đặt
@@ -64,7 +65,8 @@ class AppSettings:
                 "AUTO_ADD_MIN_RATE": self.AUTO_ADD_MIN_RATE,
                 "AUTO_PRUNE_MIN_RATE": self.AUTO_PRUNE_MIN_RATE,
                 "K2N_RISK_START_THRESHOLD": self.K2N_RISK_START_THRESHOLD,
-                "K2N_RISK_PENALTY_PER_FRAME": self.K2N_RISK_PENALTY_PER_FRAME
+                "K2N_RISK_PENALTY_PER_FRAME": self.K2N_RISK_PENALTY_PER_FRAME,
+                "AI_PROB_THRESHOLD": self.AI_PROB_THRESHOLD # (MỚI)
             }
             with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
                 json.dump(settings_to_save, f, indent=4)
@@ -87,6 +89,7 @@ class AppSettings:
         self.AUTO_PRUNE_MIN_RATE = float(self.settings.get("AUTO_PRUNE_MIN_RATE", 40.0))
         self.K2N_RISK_START_THRESHOLD = int(self.settings.get("K2N_RISK_START_THRESHOLD", 4))
         self.K2N_RISK_PENALTY_PER_FRAME = float(self.settings.get("K2N_RISK_PENALTY_PER_FRAME", 0.5))
+        self.AI_PROB_THRESHOLD = float(self.settings.get("AI_PROB_THRESHOLD", 45.0)) # (MỚI)
 
     def get_all_settings(self):
         """Trả về một dict của các cài đặt hiện tại (để UI sử dụng)."""
@@ -97,7 +100,8 @@ class AppSettings:
             "AUTO_ADD_MIN_RATE": self.AUTO_ADD_MIN_RATE,
             "AUTO_PRUNE_MIN_RATE": self.AUTO_PRUNE_MIN_RATE,
             "K2N_RISK_START_THRESHOLD": self.K2N_RISK_START_THRESHOLD,
-            "K2N_RISK_PENALTY_PER_FRAME": self.K2N_RISK_PENALTY_PER_FRAME
+            "K2N_RISK_PENALTY_PER_FRAME": self.K2N_RISK_PENALTY_PER_FRAME,
+            "AI_PROB_THRESHOLD": self.AI_PROB_THRESHOLD # (MỚI)
         }
         
     def update_setting(self, key, value):
@@ -135,5 +139,6 @@ except Exception as e:
         'AUTO_ADD_MIN_RATE': 50.0,
         'AUTO_PRUNE_MIN_RATE': 40.0,
         'K2N_RISK_START_THRESHOLD': 4,
-        'K2N_RISK_PENALTY_PER_FRAME': 0.5
+        'K2N_RISK_PENALTY_PER_FRAME': 0.5,
+        'AI_PROB_THRESHOLD': 45.0 # (MỚI)
     })

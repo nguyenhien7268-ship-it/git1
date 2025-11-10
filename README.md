@@ -1,68 +1,79 @@
-TỔNG QUAN HỆ THỐNG PHÂN TÍCH XỔ SỐ (V6.6 - Tối ưu hóa & AI)
+TỔNG QUAN HỆ THỐNG PHÂN TÍCH XỔ SỐ (V6.8 - AI, Shadow & Caching)
+
 Đây là tài liệu tổng quan kiến trúc hệ thống, được xây dựng theo mô hình "Tách biệt Trách nhiệm" (Separation of Concerns) để tiện bảo trì và nâng cấp.
 
 🚀 CÁCH CHẠY ỨNG DỤNG
+
 Để khởi chạy, hãy chạy file: main_app.py
 
 Lưu ý: Hệ thống yêu cầu các thư viện bên ngoài. Hãy đảm bảo bạn đã cài đặt chúng:
 
 Bash
 
+
+
 pip install scikit-learn joblib pandas
-✨ TÍNH NĂNG CHÍNH (SAU NÂNG CẤP V6.6)
-Hệ thống đã được nâng cấp toàn diện, tập trung vào AI và độ tin cậy của dữ liệu:
 
-Tích hợp AI (Học máy): Thêm mô hình RandomForest (loto_model.joblib) làm nguồn dự đoán mới, được huấn luyện từ 7 nguồn dữ liệu phân tích khác nhau.
+✨ TÍNH NĂNG CHÍNH (SAU NÂNG CẤP V6.8)
 
-Bảng Chấm Điểm V6.6: Bảng Chấm Điểm Tổng Lực giờ đây tích hợp và cộng điểm thưởng cho các cặp số được AI dự đoán có xác suất cao.
+Hệ thống đã được nâng cấp toàn diện, tập trung vào AI, mở rộng nguồn cầu và độ tin cậy của dữ liệu:
 
-Sửa Lỗi Dữ liệu Cốt Lõi: Khắc phục lỗi khiến 15 Cầu Cổ Điển không được cập nhật cache. 15 Cầu Cổ Điển giờ đây được tự động thêm vào CSDL và cập nhật cache K2N cùng các cầu khác.
+Tích hợp AI (Học máy - V2): Thêm mô hình RandomForest (loto_model.joblib) làm nguồn dự đoán mới. Mô hình được huấn luyện từ 7 nguồn dữ liệu phân tích và cung cấp Xác suất % cho 100 lô tô.
 
-Tối ưu hóa Giao diện: Giao diện Bảng Tổng Hợp được chia thành 2 Tab (Tổng Quan và Chi Tiết) để ưu tiên hiển thị các bảng quan trọng nhất.
+Mở rộng Nguồn Cầu (V17/Shadow): Nâng cấp logic cầu lên V17 với khả năng dò tìm trên 214 vị trí (107 vị trí gốc + 107 vị trí bóng dương), tổng cộng hơn 23,000 cặp cầu.
 
-Quản lý Tham số: Tất cả tham số vận hành được quản lý qua config.json và giao diện Cài đặt.
+Tích hợp Cầu Bạc Nhớ: Thêm 756 công thức dựa trên Tổng/Hiệu của 27 vị trí lô tô, được tích hợp vào cả quá trình dò cầu tự động và chấm điểm.
 
-📂 CẤU TRÚC THƯ MỤC
-/DuAnXoSo ├── main_app.py <- (File chạy chính) ├── lottery_service.py <- (File "Bộ Điều Phối" - API trung gian) ├── config.json <- (File Cài đặt Tham số Hệ thống) ├── loto_model.joblib <- (File "bộ não" AI đã huấn luyện) ├── xo_so_prizes_all_logic.db <- (Cơ sở dữ liệu) ├── README.md <- (File tóm tắt này) | ├── /logic <- (Gói chứa TOÀN BỘ logic nghiệp vụ) │ ├── init.py │ ├── config_manager.py <- (Quản lý đọc/ghi file config.json) │ ├── ml_model.py <- (Logic Huấn luyện & Dự đoán AI - V2 Tối ưu hóa) │ ├── db_manager.py <- (Quản lý Database: Đã sửa lỗi Cầu Cổ Điển) │ ├── data_parser.py <- (Các hàm Parse JSON/Text) │ ├── bridges_classic.py <- (15 Cầu Cổ Điển & hàm hỗ trợ) │ ├── bridges_v16.py <- (Logic 214 vị trí V17 Gốc + Bóng) │ ├── bridges_memory.py <- (Logic 756 Cầu Bạc Nhớ - Tổng/Hiệu) │ └── backtester.py <- (NÂNG CẤP: Chứa all backtest, analytics, Chấm Điểm V6.6) │ └── /ui <- (Gói chứa TOÀN BỘ file giao diện) ├── init.py ├── ui_main_window.py <- (Cửa sổ chính, quản lý các Tab) ├── ui_dashboard.py <- (Cửa sổ Bảng Tổng Hợp - Đã sửa lỗi 2 Tab/8 Bảng) ├── ui_lookup.py <- (Cửa sổ Tra Cứu Kỳ Quay) ├── ui_bridge_manager.py<- (Cửa sổ Quản lý Cầu) ├── ui_results_viewer.py<- (Cửa sổ Hiển thị Kết quả Backtest) ├── ui_settings.py <- (Cửa sổ Cài đặt Tham số) ├── ui_tuner.py <- (Cửa sổ Trợ lý Tinh chỉnh) └── ui_optimizer.py <- (Giao diện Tab Tối ưu Hóa)
+Bảng Chấm Điểm Tổng Lực (V6.8): Bảng chấm điểm cốt lõi giờ đây tích hợp và cộng điểm thưởng động cho các cặp số có Xác suất AI vượt ngưỡng (AI_PROB_THRESHOLD).
 
-📜 MÔ TẢ LUỒNG HOẠT ĐỘNG (V6.6)
-Hệ thống tuân thủ nghiêm ngặt luồng dữ liệu 1 chiều, với các bước bổ sung:
+Cấu hình Linh hoạt (ConfigManager): Toàn bộ các ngưỡng quan trọng (tỷ lệ thắng, số ngày Gan, ngưỡng tự động thêm/lọc cầu, ngưỡng AI) đều được điều chỉnh dễ dàng qua file config.json và giao diện Cài đặt.
 
-Giao diện (/ui) -> Bộ Điều Phối (lottery_service.py) -> Logic (/logic)
+Quản lý Rủi ro K2N: Tích hợp tính toán Chuỗi Thua Max K2N và trừ điểm phạt lũy tiến (K2N_RISK_PENALTY_PER_FRAME) cho các cầu đang trong khung rủi ro.
 
-Dự đoán Chuyên sâu: Giao diện gọi run_decision_dashboard().
+Tối ưu hóa Hiệu suất: Cập nhật cơ chế Caching K2N hàng loạt cho cả Cầu Cổ Điển và Cầu Đã Lưu, giúp giảm thời gian backtest và cải thiện tốc độ truy vấn.
 
-Logic Chấm Điểm (backtester.py):
+📁 CẤU TRÚC THƯ MỤC CỐT LÕI
 
-Thực hiện 6 phân tích truyền thống (Lô Gan, Vote, K2N, Bạc Nhớ...).
+Thư mụcFileMô tả Chi tiếtrootmain_app.pyĐiểm khởi chạy ứng dụng (Tkinter).lottery_service.pyBộ điều phối (API) giữa UI và Logic.config.jsonChứa toàn bộ các tham số cấu hình vận hành của hệ thống.logic/config_manager.pyQuản lý tải/lưu config.json và cung cấp SETTINGS (Singleton).db_manager.pyQuản lý CSDL (SQLite), xử lý KyQuay, DuLieu_AI, và ManagedBridges (bao gồm cả cache K2N).data_parser.pyXử lý và chèn dữ liệu kết quả xổ số.bridges_v16.pyĐịnh nghĩa logic 214 vị trí và Bóng Dương (V17 Shadow).bridges_classic.pyĐịnh nghĩa 15 Cầu Cổ Điển và các hàm check hit cơ bản.bridges_memory.pyĐịnh nghĩa 756 Cầu Bạc Nhớ (Tổng/Hiệu).backtester.pyChứa các thuật toán Backtest, Tự động Dò Cầu/Lọc Cầu, và Logic Chấm Điểm Tổng Lực.ml_model.pyLogic huấn luyện và dự đoán của mô hình RandomForest.ui/ui_main_window.pyLớp cửa sổ chính (Root).ui_dashboard.pyHiển thị Bảng Chấm Điểm Tổng Lực.ui_settings.pyCửa sổ điều chỉnh tất cả tham số vận hành (config.json).ui_optimizer.pyGiao diện Tab Tối ưu Hóa (cho các chức năng Tinh chỉnh và Mô phỏng).(và các file UI khác)ui_bridge_manager.py, ui_tuner.py, ui_lookup.py, ui_results_viewer.py.📜 MÔ TẢ LUỒNG HOẠT ĐỘNG (V6.8)
 
-MỚI: Gọi get_ai_predictions (từ ml_model.py) để lấy Xác suất % cho 100 loto.
+Hệ thống tuân thủ nghiêm ngặt luồng dữ liệu 1 chiều:
 
-Hàm get_top_scored_pairs sử dụng 6 nguồn truyền thống VÀ Xác suất AI để tính điểm cuối cùng (Chấm Điểm Tổng Lực).
+$$\text{Giao diện (/ui)} \rightarrow \text{Bộ Điều Phối (lottery\_service.py)} \rightarrow \text{Logic (/logic)}$$
 
-Hiển thị: Giao diện hiển thị Bảng Chấm Điểm đã được tăng cường sức mạnh bởi AI.
+Luồng Dự đoán Chuyên sâu:
 
-🛠️ CÁCH BẢO TRÌ VÀ NÂNG CẤP (HƯỚNG DẪN)
-Để sửa logic Chấm Điểm (Bao gồm AI):
+Khởi tạo: Giao diện gọi hàm run_decision_dashboard() trong lottery_service.py.
 
-Mở: logic/backtester.py
+Tải Cấu hình: config_manager.py tải các ngưỡng (ví dụ: AI_PROB_THRESHOLD) từ config.json.
 
-Tìm hàm: get_top_scored_pairs (Logic cộng điểm AI được thêm vào hàm này).
+Tính toán Nguồn Dữ liệu (backtester.py):
 
-Để Huấn luyện lại Mô hình AI:
+Thực hiện 6 phân tích truyền thống (Lô Gan, Lô Hot, Vote Cầu từ Cache, K2N Pending, Bạc Nhớ Top N).
 
-Mở: logic/ml_model.py
+MỚI: Gọi get_ai_predictions (từ ml_model.py) để lấy Xác suất % cho 100 lô tô.
 
-Tìm hàm: train_ai_model (Sử dụng code V2 - Tối ưu hóa để đảm bảo tốc độ).
+Chấm Điểm Tổng Lực (get_top_scored_pairs):
 
-Để sửa logic Dò Cầu Bạc Nhớ/V17:
+Hàm này tổng hợp tất cả 7 nguồn dữ liệu.
 
-Mở: logic/backtester.py
+Cộng điểm cho các cặp có Vote cao, Tỷ lệ thắng cao, và Xác suất AI vượt ngưỡng.
 
-Tìm hàm: TIM_CAU_TOT_NHAT_V16 (V17) hoặc TIM_CAU_BAC_NHO_TOT_NHAT (Bạc Nhớ).
+Trừ điểm (Penalty) nếu cặp đó đang nằm trong khung K2N có rủi ro cao (Chuỗi Thua Max vượt ngưỡng).
 
-Để sửa lỗi dữ liệu Cầu Cổ Điển:
+Hiển thị: Giao diện hiển thị Bảng Chấm Điểm đã được tăng cường sức mạnh bởi AI và các công cụ quản lý rủi ro.
 
-Mở: logic/db_manager.py
+🛠️ CÁCH BẢO TRÌ VÀ NÂNG CẤP
 
-Xem hàm: setup_database (Nơi 15 cầu được tự động thêm vào).
+Hướng dẫn dành cho Developer:
+
+Tích hợp Tính năng mới: Luôn thêm logic vào lottery_service.py trước, sau đó triển khai logic trong /logic.
+
+Thêm Tham số Cấu hình mới:
+
+Cập nhật self.defaults, save_settings, _update_class_attributes, và get_all_settings trong logic/config_manager.py.
+
+Thêm trường nhập liệu tương ứng vào ui/ui_settings.py.
+
+Huấn luyện lại AI: Nếu mô hình cần cập nhật, chạy lại hàm train_ai_model() trong ml_model.py để tạo file loto_model.joblib mới.
+
+Cập nhật Cầu Vị Trí: Thay đổi logic định nghĩa vị trí trong bridges_v16.py hoặc thêm công thức mới vào bridges_classic.py.
