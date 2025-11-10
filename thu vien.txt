@@ -9,3 +9,6 @@ Bước	Lệnh	Mục đích
 1. ADD	git add .	Chọn lọc file: Báo cho Git biết bạn muốn đưa tất cả những file đã thay đổi hoặc mới tạo vào bản lưu tiếp theo.
 2. COMMIT	git commit -m "Mô tả thay đổi ở đây"	Lưu an toàn: "Đóng gói" các thay đổi đã chọn ở Bước 1 thành một phiên bản (commit) có lịch sử trên máy tính của bạn. Ghi chú mô tả ngắn gọn về những gì bạn đã làm.
 3. PUSH	git push origin main	Đẩy lên GitHub: Gửi bản lưu (commit) của bạn từ máy tính lên kho chứa từ xa (origin) trên nhánh (main).
+
+xem qua hệ thông, đảm bảo rằng bạn đã nắm được toàn bộ hệ thông chương trình và nhận được đủ các file như mô tả sau đó nhắn cho tôi
+https://github.com/nguyenhien7268-ship-it/git1
