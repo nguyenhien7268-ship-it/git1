@@ -1,0 +1,19 @@
+pip install pandas matplotlib seaborn scikit-learn joblib
+
+ git config --global user.email "nguyenhien7268@gmail.com"
+
+  git config --global user.name "Jason"
+
+
+Bước	Lệnh	Mục đích
+1. ADD		Chọn lọc file: Báo cho Git biết bạn muốn đưa tất cả những file đã thay đổi hoặc mới tạo vào bản lưu tiếp theo.
+	git add .
+2. COMMIT	Lưu an toàn: "Đóng gói" các thay đổi đã chọn ở Bước 1 thành một phiên bản (commit) có lịch sử trên máy tính của bạn. Ghi chú mô tả ngắn gọn về những gì bạn đã làm.
+	git commit -m "update thu vien"
+3. PUSH	Đẩy lên GitHub: Gửi bản lưu (commit) của bạn từ máy tính lên kho chứa từ xa (origin) trên nhánh (main).
+	git push origin main	
+
+xem qua hệ thống, kiểm tra và xác nhận rằng bạn đã nắm được toàn bộ hệ thống chương trình và nhận được đủ các file như mô tả sau đó tóm tắt toàn hệ thống
+https://github.com/nguyenhien7268-ship-it/git1
+
+thông nhất khi sửa file 1 là sửa nguyên file hoặc chỉ thêm vào phần cuối file để tránh sai xót

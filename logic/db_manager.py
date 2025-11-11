@@ -192,28 +192,6 @@ def add_managed_bridge(bridge_name, description, win_rate_text, db_name=DB_NAME)
         conn.close()
         return False, f"Lỗi add_managed_bridge: {e}"
 
-def get_all_managed_bridges(db_name=DB_NAME, only_enabled=False):
-    """
-    (CẬP NHẬT) Lấy tất cả các cầu đã lưu.
-    Thêm cờ 'only_enabled'
-    """
-    try:
-        conn = sqlite3.connect(db_name)
-        conn.row_factory = sqlite3.Row 
-        cursor = conn.cursor()
-        
-        query = 'SELECT * FROM ManagedBridges' # Lấy tất cả các cột
-        if only_enabled:
-            query += ' WHERE is_enabled = 1'
-        query += ' ORDER BY id DESC'
-            
-        cursor.execute(query)
-        rows = cursor.fetchall()
-        conn.close()
-        return [dict(row) for row in rows]
-    except Exception as e:
-        print(f"Lỗi get_all_managed_bridges: {e}")
-        return []
 
 def update_managed_bridge(bridge_id, description, is_enabled, db_name=DB_NAME):
     """Cập nhật mô tả và trạng thái Bật/Tắt của cầu."""
@@ -245,18 +223,6 @@ def delete_managed_bridge(bridge_id, db_name=DB_NAME):
         conn.close()
         return False, f"Lỗi delete_managed_bridge: {e}"
 
-def delete_managed_bridge(bridge_id, db_name=DB_NAME):
-    """Xóa một cầu khỏi DB."""
-    try:
-        conn = sqlite3.connect(db_name)
-        cursor = conn.cursor()
-        cursor.execute('DELETE FROM ManagedBridges WHERE id = ?', (bridge_id,))
-        conn.commit()
-        conn.close()
-        return True, "Đã xóa cầu thành công."
-    except Exception as e:
-        conn.close()
-        return False, f"Lỗi delete_managed_bridge: {e}"
 
 # ===================================================================================
 # (MỚI) HÀM CẬP NHẬT TỶ LỆ HÀNG LOẠT
@@ -277,7 +243,7 @@ def update_bridge_win_rate_batch(rate_data_list, db_name=DB_NAME):
         sql_update = "UPDATE ManagedBridges SET win_rate_text = ? WHERE name = ?"
         
         # Thực thi hàng loạt
-        cursor.executemany(sql_update, rate_data_list)
+        cursor.execututemany(sql_update, rate_data_list)
         conn.commit()
         
         updated_count = cursor.rowcount
@@ -295,32 +261,6 @@ def update_bridge_win_rate_batch(rate_data_list, db_name=DB_NAME):
 # (SỬA) HÀM TẢI DỮ LIỆU BACKTEST (Thêm import os)
 # ===================================================================================
 
-def load_data_ai_from_db(db_name=DB_NAME):
-    """Tải toàn bộ dữ liệu A:I từ DB (10 cột)."""
-    import os # (MỚI) Đảm bảo os được import
-    if not os.path.exists(db_name):
-         # Trả về một mã lỗi thay vì in ra
-         return None, f"Lỗi: Không tìm thấy database '{db_name}'. Vui lòng chạy 'Nạp File' trước."
-    
-    try:
-        conn = sqlite3.connect(db_name)
-        cursor = conn.cursor()
-        cursor.execute('''
-        SELECT MaSoKy, Col_A_Ky, Col_B_GDB, Col_C_G1, Col_D_G2, Col_E_G3, Col_F_G4, Col_G_G5, Col_H_G6, Col_I_G7
-        FROM DuLieu_AI
-        ORDER BY MaSoKy ASC 
-        ''')
-        rows_of_tuples = cursor.fetchall()
-        rows_of_lists = [list(row) for row in rows_of_tuples] 
-        conn.close()
-        
-        if not rows_of_lists:
-            return None, "Lỗi: Không có dữ liệu A:I trong DB."
-            
-        return rows_of_lists, f"Đã tải {len(rows_of_lists)} hàng A:I từ DB."
-        
-    except Exception as e:
-        return None, f"Lỗi khi tải dữ liệu A:I: {e}"
 
 # ===================================================================================
 # (SỬA CHỮA LỖI REGEX BẠC NHỚ) HÀM TỰ ĐỘNG HÓA DÒ CẦU (UPSERT)

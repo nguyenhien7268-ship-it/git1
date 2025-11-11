@@ -513,6 +513,7 @@ class DataAnalysisApp:
         try:
             from logic.config_manager import SETTINGS
             SETTINGS.load_settings() # Đảm bảo tải lại giá trị mới nhất từ file
+            # FIX: Sửa truy cập SETTINGS
             n_days_stats = SETTINGS.STATS_DAYS
             n_days_gan = SETTINGS.GAN_DAYS
             high_win_thresh = SETTINGS.HIGH_WIN_THRESHOLD
@@ -535,11 +536,13 @@ class DataAnalysisApp:
         
         # --- 3. Thống kê "Vote" (ĐỌC TỪ CACHE) ---
         self.update_output("... (3/8) Đang thống kê Cặp Số Dự Đoán (đọc cache)...")
-        consensus = get_prediction_consensus(last_row)
+        # FIX V7.1: Sửa cách gọi hàm để phù hợp với signature mới (đã bỏ last_row)
+        consensus = get_prediction_consensus()
         
         # --- 4. Thống kê "Cầu Tỷ Lệ Cao" (ĐỌC TỪ CACHE) ---
         self.update_output(f"... (4/8) Đang lọc Cầu Tỷ Lệ Cao (>= {high_win_thresh}%, đọc cache)...")
-        high_win = get_high_win_rate_predictions(last_row, threshold=high_win_thresh)
+        # FIX V7.1: Sửa cách gọi hàm để phù hợp với signature mới (đã bỏ last_row)
+        high_win = get_high_win_rate_predictions(threshold=high_win_thresh)
 
         # --- 5. Chạy Backtest Bạc Nhớ ngầm ---
         self.update_output("... (5/8) Đang chạy Backtest 756 Cầu Bạc Nhớ ngầm...")
@@ -551,7 +554,8 @@ class DataAnalysisApp:
         
         # --- (MỚI V6.0) 7. CHẠY DỰ ĐOÁN AI ---
         self.update_output("... (7/8) Đang chạy dự đoán AI (V6.0)...")
-        ai_predictions, ai_message = get_ai_predictions(all_data_ai)
+        # FIX V7.1: Sửa lỗi gọi hàm, gọi hàm wrapper run_ai_prediction_for_dashboard()
+        ai_predictions, ai_message = run_ai_prediction_for_dashboard()
         self.update_output(f"... (AI) {ai_message}")
 
         # --- (SỬA V6.2) 8. HỆ THỐNG CHẤM ĐIỂM (LOGIC V5 + V6) ---
@@ -695,25 +699,29 @@ class DataAnalysisApp:
     # ===================================================================================
     
     def run_train_ai(self):
-        """(MỚI V6.0) Bước 1: Gọi hàm chạy đa luồng cho Huấn luyện AI."""
+        """
+        (MỚI V6.0) Bước 1: Gọi hàm chạy đa luồng cho Huấn luyện AI.
+        FIX: Bỏ _task_train_ai và gọi trực tiếp threaded wrapper.
+        """
         title = "Huấn luyện Mô hình AI (V6.0)"
         self.update_output(f"\n--- Bắt đầu: {title} ---")
         self.update_output("CẢNH BÁO: Tác vụ này RẤT NẶNG và có thể mất vài phút.")
         self.update_output("Đang tải toàn bộ CSDL và trích xuất đặc trưng...")
-        self._run_task_in_thread(self._task_train_ai, title)
-
-    def _task_train_ai(self, title):
-        """(MỚI V6.0) Bước 2: Logic Huấn luyện AI chạy trong luồng riêng."""
-        all_data_ai = self.load_data_ai_from_db()
-        if not all_data_ai:
-            self.update_output("LỖI: Không thể huấn luyện AI vì không có dữ liệu.")
-            return
-
-        # Gọi hàm train_ai_model từ lottery_service (đã import)
-        success, message = train_ai_model(all_data_ai)
         
-        self.update_output(f">>> {title} HOÀN TẤT:")
-        self.update_output(message)
+        # Hàm callback được gọi từ luồng phụ sau khi hoàn tất
+        def train_callback(success, message):
+            self.update_output(f">>> {title} HOÀN TẤT:")
+            self.update_output(message)
+            self.root.after(0, self.set_buttons_state, tk.NORMAL)
+
+        # Tắt nút và gọi hàm threaded wrapper từ lottery_service.py
+        self.set_buttons_state(tk.DISABLED)
+        # run_ai_training_threaded đã tự tạo luồng, không cần _run_task_in_thread
+        success, message = run_ai_training_threaded(callback=train_callback)
+        
+        if not success:
+            self.update_output(f"LỖI KHỞI CHẠY LUỒNG: {message}")
+            self.set_buttons_state(tk.NORMAL)
 
 
     # ===================================================================================
@@ -793,7 +801,8 @@ class DataAnalysisApp:
                 log_to_tuner("... (Cache K2N hoàn tất. Bắt đầu lặp)...")
                 
                 for i in float_range(v_from, v_to, v_step):
-                    high_win_bridges = get_high_win_rate_predictions(last_row, threshold=i)
+                    # FIX: Bỏ last_row để tương thích với signature mới
+                    high_win_bridges = get_high_win_rate_predictions(threshold=i)
                     log_to_tuner(f"Kiểm thử {p_key} >= {i:.1f}%: Tìm thấy {len(high_win_bridges)} cầu đạt chuẩn.")
                 log_to_tuner(f"--- Hoàn tất kiểm thử {p_key} ---")
 
@@ -859,16 +868,19 @@ class DataAnalysisApp:
             def test_k2n_risk_logic(p_key, v_from, v_to, v_step):
                 log_to_tuner(f"--- Bắt đầu kiểm thử: {p_key} ---")
                 log_to_tuner("... (Chạy Cache K2N một lần để lấy dữ liệu nền)...")
-                pending_k2n, _ = run_and_update_all_bridge_K2N_cache(all_data_ai, self.db_name)
+                # Fix: Cần đảm bảo hàm này trả về dict pending_k2n_data
+                pending_k2n, _ = run_and_update_all_bridge_K2N_cache(all_data_ai, self.db_name) 
                 # Tải các dữ liệu khác cho Bảng Chấm Điểm
                 stats_n_day = get_loto_stats_last_n_days(all_data_ai)
-                consensus = get_prediction_consensus(last_row)
-                high_win = get_high_win_rate_predictions(last_row)
+                # FIX: Bỏ last_row
+                consensus = get_prediction_consensus() 
+                # FIX: Bỏ last_row
+                high_win = get_high_win_rate_predictions() 
                 gan_stats = get_loto_gan_stats(all_data_ai)
                 top_memory = get_top_memory_bridge_predictions(all_data_ai, last_row)
                 
                 # (SỬA V6.2) Lấy cả dự đoán AI
-                ai_preds, _ = get_ai_predictions(all_data_ai)
+                ai_preds, _ = run_ai_prediction_for_dashboard()
                 
                 log_to_tuner("... (Dữ liệu nền hoàn tất. Bắt đầu lặp)...")
                 
@@ -1026,7 +1038,7 @@ class DataAnalysisApp:
             results_list = []
             
             # (MỚI GĐ 10) Lưu giá trị SETTINGS gốc
-            original_settings_backup = SETTINGS.get_all_settings()
+            original_settings_backup = original_settings.copy()
             
             for i, config in enumerate(combinations):
                 log_to_optimizer(f"--- Đang kiểm thử [{i+1}/{total_combos}]: {config} ---")

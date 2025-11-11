@@ -2,360 +2,273 @@ import joblib
 import pandas as pd
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
 import os
 from collections import defaultdict, Counter
 
-# Import các hàm nghiệp vụ (logic) hiện có
-try:
-    from .backtester import (
-        get_loto_stats_last_n_days, # Giữ lại
-        get_loto_gan_stats,       # Giữ lại
-        run_and_update_all_bridge_K2N_cache, # Dùng 1 lần
-        get_prediction_consensus,            # Dùng 1 lần
-        get_high_win_rate_predictions,       # Dùng 1 lần
-        get_top_memory_bridge_predictions    # Dùng 1 lần
-    )
-    from .bridges_classic import getAllLoto_V30, ALL_15_BRIDGE_FUNCTIONS_V5
-    from .bridges_v16 import getAllPositions_V17_Shadow, taoSTL_V30_Bong
-    from .bridges_memory import get_27_loto_positions, calculate_bridge_stl, get_27_loto_names
-    from .config_manager import SETTINGS
-    from .db_manager import get_all_managed_bridges, DB_NAME
-except ImportError:
-    print("LỖI: ml_model (V2) không thể import. Đang chạy fallback...")
-    from backtester import (
-        get_loto_stats_last_n_days, get_loto_gan_stats, 
-        run_and_update_all_bridge_K2N_cache, get_prediction_consensus,
-        get_high_win_rate_predictions, get_top_memory_bridge_predictions
-    )
-    from bridges_classic import getAllLoto_V30, ALL_15_BRIDGE_FUNCTIONS_V5
-    from bridges_v16 import getAllPositions_V17_Shadow, taoSTL_V30_Bong
-    from bridges_memory import get_27_loto_positions, calculate_bridge_stl, get_27_loto_names
-    from config_manager import SETTINGS
-    from db_manager import get_all_managed_bridges, DB_NAME
+# Logic features are now prepared externally by lottery_service.py
 
+try:
+    from .config_manager import SETTINGS
+except ImportError:
+    from config_manager import SETTINGS
 
 MODEL_FILE_PATH = "loto_model.joblib"
 ALL_LOTOS = [str(i).zfill(2) for i in range(100)]
-MIN_DATA_TO_TRAIN = 50 # Số ngày tối thiểu để bắt đầu tính toán
+MIN_DATA_TO_TRAIN = 50 
 
 def _standardize_pair(stl_list):
     """Helper: ['30', '01'] -> '01-30'"""
     if not stl_list or len(stl_list) != 2: return None
     return "-".join(sorted(stl_list))
 
-def _get_daily_bridge_predictions(all_data_ai):
+# --- HÀM NỘI BỘ HỖ TRỢ (ĐƯỢC GIỮ LẠI ĐỂ TÍNH LOTO/GAN) ---
+try:
+    # Cố gắng import bằng relative import (khi chạy trong package)
+    from .bridges_classic import getAllLoto_V30
+    from .dashboard_analytics import get_loto_stats_last_n_days, get_loto_gan_stats
+except ImportError:
+    # Fallback: cố gắng import bằng absolute path (khi chạy test hoặc lỗi package)
+    try:
+        from bridges_classic import getAllLoto_V30
+        from dashboard_analytics import get_loto_stats_last_n_days, get_loto_gan_stats
+    except ImportError:
+         print("LỖI KHÔNG THỂ IMPORT: bridges_classic hoặc dashboard_analytics.")
+         def getAllLoto_V30(r): return []
+         def get_loto_stats_last_n_days(a, b): return {}
+         def get_loto_gan_stats(a, b): return {}
+
+
+def prepare_training_data(all_data_ai, daily_bridge_predictions):
     """
-    (MỚI - TỐI ƯU) Lặp qua CSDL 1 LẦN DUY NHẤT
-    để lấy dự đoán N1 của TẤT CẢ các cầu cho TẤT CẢ các ngày.
-    """
-    print("... (AI Optimize) Bước 1: Tính toán dự đoán cầu cho toàn bộ lịch sử...")
-    
-    # { 'Kỳ 123': { '01-10': ['C1', 'V17_A'], '55-66': ['C2'] } }
-    daily_predictions = defaultdict(lambda: defaultdict(list))
-    
-    managed_bridges = get_all_managed_bridges(DB_NAME, only_enabled=True)
-    memory_bridges = [] # (idx1, idx2, type, name)
-    
-    loto_names = get_27_loto_names()
-    for i in range(27):
-        for j in range(i, 27):
-            memory_bridges.append((i, j, 'sum', f"Tổng({loto_names[i]}+{loto_names[j]})"))
-            memory_bridges.append((i, j, 'diff', f"Hiệu(|{loto_names[i]}-{loto_names[j]}|)"))
-
-    # Lặp qua toàn bộ CSDL
-    for k in range(1, len(all_data_ai)):
-        prev_row = all_data_ai[k-1]
-        current_row = all_data_ai[k]
-        current_ky = str(current_row[0])
-        
-        if k % 100 == 0:
-            print(f"... (AI Optimize) Bước 1: Đã xử lý {k}/{len(all_data_ai)} ngày (dự đoán cầu)")
-
-        # 1. 15 Cầu Cổ Điển
-        for i, bridge_func in enumerate(ALL_15_BRIDGE_FUNCTIONS_V5):
-            try:
-                stl = bridge_func(prev_row)
-                pair_key = _standardize_pair(stl)
-                if pair_key:
-                    daily_predictions[current_ky][pair_key].append(f'C{i+1}')
-            except Exception:
-                pass
-
-        # 2. Cầu Đã Lưu (V17)
-        prev_positions_v17 = getAllPositions_V17_Shadow(prev_row)
-        for bridge in managed_bridges:
-            try:
-                if bridge["pos1_idx"] == -1: continue # Bỏ qua cầu Bạc Nhớ (nếu lỡ lưu)
-                idx1, idx2 = bridge["pos1_idx"], bridge["pos2_idx"]
-                a, b = prev_positions_v17[idx1], prev_positions_v17[idx2]
-                if a is None or b is None: continue
-                stl = taoSTL_V30_Bong(a, b)
-                pair_key = _standardize_pair(stl)
-                if pair_key:
-                    daily_predictions[current_ky][pair_key].append(bridge['name'])
-            except Exception:
-                pass
-                
-        # 3. Cầu Bạc Nhớ (756 cầu)
-        prev_positions_mem = get_27_loto_positions(prev_row)
-        for idx1, idx2, alg_type, alg_name in memory_bridges:
-            try:
-                loto1, loto2 = prev_positions_mem[idx1], prev_positions_mem[idx2]
-                stl = calculate_bridge_stl(loto1, loto2, alg_type)
-                pair_key = _standardize_pair(stl)
-                if pair_key:
-                    daily_predictions[current_ky][pair_key].append(alg_name)
-            except Exception:
-                pass
-                
-    return daily_predictions
-
-def prepare_training_data(all_data_ai):
-    """
-    (V2 - TỐI ƯU HÓA) 
-    Tạo bộ dữ liệu huấn luyện bằng cách lặp 1 lần, không mô phỏng.
+    (V7.0 G2) Tạo bộ dữ liệu huấn luyện. Bổ sung 3 Q-Features.
     """
     if not all_data_ai or len(all_data_ai) < MIN_DATA_TO_TRAIN:
+        print(f"Cần tối thiểu {MIN_DATA_TO_TRAIN} kỳ để huấn luyện AI.")
         return None, None
+        
+    print("... (AI V7.0 G2) Bước 2: Bắt đầu trích xuất đặc trưng (features) và nhãn (labels)...")
 
-    # Tối ưu hóa: Lấy TẤT CẢ dự đoán cầu (V17, BN, CĐ) cho TẤT CẢ các ngày
-    # Đây là phần nặng nhất, nhưng chỉ chạy 1 lần.
-    daily_bridge_predictions = _get_daily_bridge_predictions(all_data_ai)
-    
-    print("... (AI Optimize) Bước 2: Bắt đầu trích xuất đặc trưng (features) và nhãn (labels)...")
+    X = [] # Features
+    y = [] # Labels (Lô tô có về hay không)
 
-    X_data = [] # List các dict đặc trưng
-    y_data = [] # List các nhãn (0 hoặc 1)
+    # Lặp qua tất cả các kỳ (trừ kỳ đầu tiên vì cần dữ liệu ngày hôm trước)
+    for i in range(1, len(all_data_ai)):
+        current_data = all_data_ai[i] 
+        previous_data = all_data_ai[i-1] 
 
-    all_loto_sets = {str(row[0]): set(getAllLoto_V30(row)) for row in all_data_ai}
-    
-    # Lặp từ ngày 50 đến ngày cuối cùng
-    for k in range(MIN_DATA_TO_TRAIN, len(all_data_ai)):
-        # Dữ liệu ngày D (để tạo đặc trưng)
-        current_row = all_data_ai[k]
-        current_ky = str(current_row[0])
-        
-        # Dữ liệu ngày D-1 (để lấy Loto về)
-        prev_ky = str(all_data_ai[k-1][0])
-        prev_loto_set = all_loto_sets.get(prev_ky, set())
-        
-        if k % 100 == 0:
-            print(f"... (AI Optimize) Bước 2: Đã xử lý {k}/{len(all_data_ai)} ngày (tạo X, y)")
+        current_ky = str(current_data[0])
 
-        # Lấy các đặc trưng tại ngày D
+        # 1. TÍNH NHÃN (LABELS) - Loto về trong kỳ hiện tại
+        current_loto_results = set(getAllLoto_V30(current_data))
         
-        # 1. Đặc trưng Tần suất (Loto Hot)
-        data_slice_stats = all_data_ai[:k] # Lấy lịch sử đến ngày D
-        stats_n_day = get_loto_stats_last_n_days(data_slice_stats, n=SETTINGS.STATS_DAYS)
-        hot_loto_map = {loto: count for loto, count, _ in stats_n_day}
+        # 2. TẠO TẬP ĐẶC TRƯNG (FEATURES)
         
-        # 2. Đặc trưng Lô Gan
-        gan_stats = get_loto_gan_stats(data_slice_stats, n_days=SETTINGS.GAN_DAYS)
-        gan_map = {loto: days for loto, days in gan_stats}
+        bridge_predictions = daily_bridge_predictions.get(current_ky, {})
         
-        # 3. Đặc trưng Cầu (Lấy từ dữ liệu đã tính toán ở Bước 1)
-        # { '01-10': ['C1', 'V17_A'], '55-66': ['C2'] }
-        bridge_preds_today = daily_bridge_predictions.get(current_ky, {})
+        # FIX: Sửa truy cập SETTINGS (dùng getattr an toàn hơn)
+        gan_max_days = getattr(SETTINGS, 'GAN_DAYS', 8)
+        stats_days = getattr(SETTINGS, 'STATS_DAYS', 7) 
         
-        # Xây dựng map tra cứu ngược (loto -> list[cặp])
-        loto_to_pairs = defaultdict(list)
-        for pair_key in bridge_preds_today.keys():
-            loto1, loto2 = pair_key.split('-')
-            loto_to_pairs[loto1].append(pair_key)
-            loto_to_pairs[loto2].append(pair_key)
+        # Tính Loto Hot/Gan từ lịch sử (dữ liệu từ 0 đến i-1)
+        loto_gan_stats_list = get_loto_gan_stats(all_data_ai[:i], gan_max_days)
+        loto_stats_last_7_list = get_loto_stats_last_n_days(all_data_ai[:i], stats_days)
         
-        # 4. Đặc trưng Nhãn (y) - Kết quả của ngày D
-        actual_loto_set = all_loto_sets.get(current_ky, set())
+        # FIX LOGIC: Chuyển List of Tuples thành Map để có thể dùng .get()
+        loto_gan_stats_map = {loto: days for loto, days in loto_gan_stats_list}
+        # loto_stats_last_7 trả về (loto, hit_count, day_count) -> chỉ cần hit_count
+        loto_stats_last_7_map = {loto: hit_count for loto, hit_count, day_count in loto_stats_last_7_list}
 
-        # Lặp qua 100 loto để tạo 100 mẫu dữ liệu
+
         for loto in ALL_LOTOS:
+            features = []
             
-            # --- TÍNH TOÁN ĐẶC TRƯNG (X) ---
-            f_hot_count = hot_loto_map.get(loto, 0)
-            f_gan_days = gan_map.get(loto, 0)
+            # --- FEATURE CƠ BẢI (F1 -> F6) ---
+            # F1: Tần suất Lô tô Hot (Về trong 7 ngày gần nhất)
+            features.append(loto_stats_last_7_map.get(loto, 0) / stats_days)
             
-            # Đặc trưng Cầu
-            f_classic_votes = 0
-            f_v17_votes = 0
-            f_memory_votes = 0
-            
-            pairs_for_this_loto = loto_to_pairs.get(loto, [])
-            if pairs_for_this_loto:
-                all_bridges_for_loto = []
-                for pair in pairs_for_this_loto:
-                    all_bridges_for_loto.extend(bridge_preds_today[pair])
-                
-                bridge_counts = Counter(all_bridges_for_loto)
-                for bridge_name, count in bridge_counts.items():
-                    if bridge_name.startswith('C'):
-                        f_classic_votes += count
-                    elif bridge_name.startswith('Tổng') or bridge_name.startswith('Hiệu'):
-                        f_memory_votes += count
-                    else:
-                        f_v17_votes += count
-            
-            # Đặc trưng Loto về hôm qua
-            f_hit_yesterday = 1 if loto in prev_loto_set else 0
-            
-            # Gộp đặc trưng
-            features = {
-                'f_hot_count': f_hot_count,
-                'f_gan_days': f_gan_days,
-                'f_classic_votes': f_classic_votes,
-                'f_v17_votes': f_v17_votes,
-                'f_memory_votes': f_memory_votes,
-                'f_hit_yesterday': f_hit_yesterday
-            }
-            X_data.append(features)
-            
-            # --- TÍNH TOÁN NHÃN (y) ---
-            label = 1 if loto in actual_loto_set else 0
-            y_data.append(label)
+            # F2: Tần suất Lô tô Gan (Số ngày Gan)
+            features.append(loto_gan_stats_map.get(loto, 0) / gan_max_days) 
 
-    if not X_data:
-        return None, None
+            # Lấy features về cầu cho loto này (ĐÃ ĐƯỢC CUNG CẤP TỪ BÊN NGOÀI)
+            loto_features = bridge_predictions.get(loto, {})
+            
+            # F3: Số vote Cầu Cổ Điển (Bridges V5)
+            features.append(loto_features.get('v5_count', 0))
+            
+            # F4: Số vote Cầu V17/Shadow
+            features.append(loto_features.get('v17_count', 0))
+            
+            # F5: Số vote Cầu Bạc Nhớ (Memory)
+            features.append(loto_features.get('memory_count', 0))
+            
+            # F6: Về ngày hôm trước 
+            loto_came_yesterday = 1 if loto in set(getAllLoto_V30(previous_data)) else 0
+            features.append(loto_came_yesterday)
 
-    # Chuyển đổi sang DataFrame
-    X_train = pd.DataFrame(X_data)
-    y_train = pd.Series(y_data)
-    
-    print(f"Tạo dữ liệu huấn luyện hoàn tất. Tổng số mẫu: {len(y_train)}.")
-    return X_train, y_train
+            # --- [MỚI V7.0 G2] Q-FEATURES (F7 -> F9) ---
+            # F7: Tỷ lệ thắng trung bình (Managed Bridges)
+            features.append(loto_features.get('q_avg_win_rate', 0.0) / 100.0) # Chuẩn hóa về 0-1
+            
+            # F8: Rủi ro K2N tối thiểu (Sử dụng 1/Risk để Risk cao -> Feature thấp)
+            min_k2n_risk = loto_features.get('q_min_k2n_risk', 999.0)
+            features.append(1.0 / (min_k2n_risk + 1.0)) # (Risk=0 -> Feature=1.0. Risk=999 -> Feature gần 0)
+            
+            # F9: Chuỗi Thắng/Thua hiện tại tối đa (Max Current Streak)
+            max_curr_streak = loto_features.get('q_max_curr_streak', -999.0)
+            features.append(max_curr_streak / 100.0) # Chuẩn hóa dựa trên một ngưỡng max giả định 100
+
+            X.append(features)
+            y.append(1 if loto in current_loto_results else 0)
+
+    print(f"... Đã tạo {len(X)} mẫu dữ liệu để huấn luyện (X.shape={len(X)}).")
+    return np.array(X), np.array(y)
 
 
-def train_ai_model(all_data_ai):
+def train_ai_model(all_data_ai, daily_bridge_predictions):
     """
-    (V2) Hàm được gọi từ Giao diện (UI) để bắt đầu huấn luyện.
+    (V7.0 G2) Hàm huấn luyện AI. Sử dụng tham số tuning từ config.
     """
-    try:
-        X, y = prepare_training_data(all_data_ai)
+    if all_data_ai is None:
+        return False, "Dữ liệu AI rỗng. Vui lòng kiểm tra lại DB."
         
-        if X is None or y is None or X.empty:
-            return False, "Không thể tạo dữ liệu huấn luyện (có thể do quá ít dữ liệu)."
+    try:
+        X, y = prepare_training_data(all_data_ai, daily_bridge_predictions)
+        
+        if X is None:
+            return False, "Không đủ dữ liệu hoặc lỗi khi chuẩn bị tập huấn luyện."
 
-        print("... (AI Optimize) Bước 3: Bắt đầu huấn luyện mô hình RandomForest...")
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+        
+        # Chuẩn hóa dữ liệu (Scaling)
+        scaler = StandardScaler()
+        X_train = scaler.fit_transform(X_train)
+        X_test = scaler.transform(X_test)
+        
+        # === [MỚI V7.0 G2] SỬ DỤNG THAM SỐ TỪ CONFIG ===
+        # FIX: Sửa truy cập SETTINGS
+        max_depth = getattr(SETTINGS, 'AI_MAX_DEPTH', 15)
+        n_estimators = getattr(SETTINGS, 'AI_N_ESTIMATORS', 100)
+        
+        print(f"... Bắt đầu huấn luyện mô hình RandomForest: Depth={max_depth}, Est={n_estimators}")
         
         model = RandomForestClassifier(
-            n_estimators=100,       # Giảm số lượng cây (100 là đủ)
-            max_depth=15,           
-            min_samples_leaf=10,    # Tăng min_samples_leaf để chống quá khớp
-            random_state=42,
-            n_jobs=-1               # Sử dụng tất cả các CPU
+            n_estimators=n_estimators, 
+            max_depth=max_depth, 
+            random_state=42, 
+            class_weight='balanced',
+            n_jobs=-1 # Sử dụng tất cả CPU
         )
+        model.fit(X_train, y_train)
         
-        model.fit(X, y)
-        
-        print("... (AI Optimize) Bước 4: Huấn luyện hoàn tất. Đang lưu mô hình...")
-        
+        # Lưu mô hình và Scaler
         joblib.dump(model, MODEL_FILE_PATH)
+        joblib.dump(scaler, 'ai_scaler.joblib')
         
-        return True, f"Huấn luyện thành công (Tối ưu hóa V2)! Đã lưu mô hình vào {MODEL_FILE_PATH}"
+        # Đánh giá cơ bản
+        accuracy = model.score(X_test, y_test)
+
+        return True, f"Huấn luyện thành công (V7.0 G2)! Độ chính xác cơ bản: {accuracy:.4f}. Đã lưu mô hình vào {MODEL_FILE_PATH}"
 
     except Exception as e:
         import traceback
         print(traceback.format_exc())
-        return False, f"Lỗi nghiêm trọng khi huấn luyện AI (V2): {e}"
+        return False, f"Lỗi nghiêm trọng khi huấn luyện AI (V7.0 G2): {e}"
 
 
-def get_ai_predictions(all_data_ai):
+def get_ai_predictions(all_data_ai, bridge_predictions_for_today):
     """
-    (V2) Hàm được gọi bởi Bảng Tổng Hợp để lấy dự đoán cho ngày mai.
+    (V7.0 G2) Hàm dự đoán. Sử dụng 3 Q-Features mới.
     """
     
-    if not os.path.exists(MODEL_FILE_PATH):
-        return None, "Lỗi: Không tìm thấy tệp mô hình `loto_model.joblib`. Vui lòng chạy 'Huấn luyện AI' trước."
+    if not os.path.exists(MODEL_FILE_PATH) or not os.path.exists('ai_scaler.joblib'):
+        return None, "Lỗi: Không tìm thấy tệp mô hình `loto_model.joblib` hoặc `ai_scaler.joblib`. Vui lòng chạy 'Huấn luyện AI' trước."
+    if not all_data_ai or len(all_data_ai) < 2:
+        return None, "Không đủ dữ liệu lịch sử để dự đoán."
         
     try:
         model = joblib.load(MODEL_FILE_PATH)
+        scaler = joblib.load('ai_scaler.joblib')
         
-        print("... (AI V2) Đang trích xuất đặc trưng cho dữ liệu mới nhất...")
-        
-        # --- Trích xuất đặc trưng cho DỮ LIỆU MỚI NHẤT (D) ---
-        
-        # 1. Lấy dữ liệu D và D-1
-        current_row = all_data_ai[-1]
-        prev_row = all_data_ai[-2]
-        prev_loto_set = set(getAllLoto_V30(prev_row))
-        current_ky = str(current_row[0]) # Kỳ D
+        print("... (AI V7.0 G2) Đang trích xuất đặc trưng dự đoán...")
 
-        # 2. Đặc trưng Tần suất (Loto Hot)
-        stats_n_day = get_loto_stats_last_n_days(all_data_ai, n=SETTINGS.STATS_DAYS)
-        hot_loto_map = {loto: count for loto, count, _ in stats_n_day}
+        X_new = []
+        last_data = all_data_ai[-1] # Dữ liệu kỳ gần nhất (D)
         
-        # 3. Đặc trưng Lô Gan
-        gan_stats = get_loto_gan_stats(all_data_ai, n_days=SETTINGS.GAN_DAYS)
-        gan_map = {loto: days for loto, days in gan_stats}
+        # FIX: Sửa truy cập SETTINGS (dùng getattr an toàn hơn)
+        gan_max_days = getattr(SETTINGS, 'GAN_DAYS', 8)
+        stats_days = getattr(SETTINGS, 'STATS_DAYS', 7) 
         
-        # 4. Đặc trưng Cầu (Chỉ tính cho ngày D)
-        # Chúng ta cần dự đoán cho ngày D+1, vì vậy chúng ta cần đặc trưng của ngày D
-        # Dự đoán cầu được tạo từ prev_row (D-1) cho current_row (D)
+        # Tính Loto Hot/Gan từ toàn bộ lịch sử
+        loto_gan_stats_list = get_loto_gan_stats(all_data_ai, gan_max_days)
+        loto_stats_last_7_list = get_loto_stats_last_n_days(all_data_ai, stats_days)
         
-        # Lấy dự đoán cầu cho ngày D
-        daily_preds = _get_daily_bridge_predictions([prev_row, current_row])
-        bridge_preds_today = daily_preds.get(current_ky, {}) # Lấy dự đoán cho ngày D
+        # FIX LOGIC: Chuyển List of Tuples thành Map để có thể dùng .get()
+        loto_gan_stats_map = {loto: days for loto, days in loto_gan_stats_list}
+        loto_stats_last_7_map = {loto: hit_count for loto, hit_count, day_count in loto_stats_last_7_list}
         
-        loto_to_pairs = defaultdict(list)
-        for pair_key in bridge_preds_today.keys():
-            loto1, loto2 = pair_key.split('-')
-            loto_to_pairs[loto1].append(pair_key)
-            loto_to_pairs[loto2].append(pair_key)
-            
-        # --- Tạo 100 mẫu (X_predict) ---
-        X_predict_data = []
+        # Loto về ngày hôm qua (D)
+        loto_came_yesterday_set = set(getAllLoto_V30(last_data))
+
         for loto in ALL_LOTOS:
-            f_hot_count = hot_loto_map.get(loto, 0)
-            f_gan_days = gan_map.get(loto, 0)
+            features = []
             
-            f_classic_votes = 0
-            f_v17_votes = 0
-            f_memory_votes = 0
+            # --- FEATURE CƠ BẢI (F1 -> F6) ---
+            # F1: Tần suất Lô tô Hot 
+            features.append(loto_stats_last_7_map.get(loto, 0) / stats_days)
             
-            pairs_for_this_loto = loto_to_pairs.get(loto, [])
-            if pairs_for_this_loto:
-                all_bridges_for_loto = []
-                for pair in pairs_for_this_loto:
-                    all_bridges_for_loto.extend(bridge_preds_today[pair])
-                
-                bridge_counts = Counter(all_bridges_for_loto)
-                for bridge_name, count in bridge_counts.items():
-                    if bridge_name.startswith('C'):
-                        f_classic_votes += count
-                    elif bridge_name.startswith('Tổng') or bridge_name.startswith('Hiệu'):
-                        f_memory_votes += count
-                    else:
-                        f_v17_votes += count
-            
-            f_hit_yesterday = 1 if loto in prev_loto_set else 0
-            
-            features = {
-                'f_hot_count': f_hot_count,
-                'f_gan_days': f_gan_days,
-                'f_classic_votes': f_classic_votes,
-                'f_v17_votes': f_v17_votes,
-                'f_memory_votes': f_memory_votes,
-                'f_hit_yesterday': f_hit_yesterday
-            }
-            X_predict_data.append(features)
+            # F2: Tần suất Lô tô Gan 
+            features.append(loto_gan_stats_map.get(loto, 0) / gan_max_days) 
 
-        X_predict = pd.DataFrame(X_predict_data)
+            # Lấy features về cầu cho loto này 
+            loto_features = bridge_predictions_for_today.get(loto, {})
+            
+            # F3: Số vote Cầu Cổ Điển 
+            features.append(loto_features.get('v5_count', 0))
+            
+            # F4: Số vote Cầu V17/Shadow
+            features.append(loto_features.get('v17_count', 0))
+            
+            # F5: Số vote Cầu Bạc Nhớ 
+            features.append(loto_features.get('memory_count', 0))
+            
+            # F6: Về ngày hôm trước 
+            loto_came_yesterday = 1 if loto in loto_came_yesterday_set else 0
+            features.append(loto_came_yesterday)
+
+            # --- [MỚI V7.0 G2] Q-FEATURES (F7 -> F9) ---
+            # F7: Tỷ lệ thắng trung bình (Managed Bridges)
+            features.append(loto_features.get('q_avg_win_rate', 0.0) / 100.0) 
+            
+            # F8: Rủi ro K2N tối thiểu (Sử dụng 1/Risk để Risk cao -> Feature thấp)
+            min_k2n_risk = loto_features.get('q_min_k2n_risk', 999.0)
+            features.append(1.0 / (min_k2n_risk + 1.0))
+            
+            # F9: Chuỗi Thắng/Thua hiện tại tối đa (Max Current Streak)
+            max_curr_streak = loto_features.get('q_max_curr_streak', -999.0)
+            features.append(max_curr_streak / 100.0)
+            
+            X_new.append(features)
+
+        X_new_scaled = scaler.transform(np.array(X_new))
         
-        # 5. Yêu cầu mô hình dự đoán XÁC SUẤT
-        probabilities = model.predict_proba(X_predict)[:, 1]
+        # Dự đoán xác suất (Probability)
+        probabilities = model.predict_proba(X_new_scaled)[:, 1] # Lấy xác suất của lớp 1 (Có về)
         
-        # 6. Gộp kết quả
         results = []
         for i, loto in enumerate(ALL_LOTOS):
             results.append({
                 'loto': loto,
-                'probability': probabilities[i] * 100 
+                'probability': probabilities[i] * 100 # Chuyển sang %
             })
-            
+
         results.sort(key=lambda x: x['probability'], reverse=True)
+        print("... (AI V7.0 G2) Dự đoán hoàn tất.")
         
-        print("... (AI V2) Dự đoán hoàn tất.")
-        return results, f"AI (Tối ưu V2) đã dự đoán (Top 1: {results[0]['loto']} - {results[0]['probability']:.1f}%)"
+        return results, f"AI (Q-Features V7.0 G2) đã dự đoán (Top 1: {results[0]['loto']} - {results[0]['probability']:.1f}%)"
 
     except Exception as e:
         import traceback
         print(traceback.format_exc())
-        return None, f"Lỗi khi dự đoán AI (V2): {e}"
+        return None, f"Lỗi khi dự đoán AI (V7.0 G2): {e}"

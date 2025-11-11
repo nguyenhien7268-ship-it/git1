@@ -6,11 +6,11 @@ CONFIG_FILE = 'config.json'
 
 class AppSettings:
     """
-    (MỚI GĐ 8) Lớp Singleton để giữ cài đặt toàn cục.
+    (SỬA LỖI V7.0 GĐ3) Lớp Singleton để giữ cài đặt toàn cục.
     Lưu trữ tất cả các tham số có thể định cấu hình của hệ thống.
     """
     def __init__(self):
-        # Giá trị mặc định
+        # Giá trị mặc định (ĐÃ THÊM AI_SCORE_WEIGHT)
         self.defaults = {
             "STATS_DAYS": 7,
             "GAN_DAYS": 15,
@@ -19,7 +19,8 @@ class AppSettings:
             "AUTO_PRUNE_MIN_RATE": 40.0,
             "K2N_RISK_START_THRESHOLD": 4,
             "K2N_RISK_PENALTY_PER_FRAME": 0.5,
-            "AI_PROB_THRESHOLD": 45.0 # (MỚI) Ngưỡng kích hoạt AI
+            "AI_PROB_THRESHOLD": 45.0, 
+            "AI_SCORE_WEIGHT": 0.2 # (V7.0 GĐ3) ĐÃ THÊM
         }
         
         # Tải cài đặt
@@ -27,7 +28,7 @@ class AppSettings:
 
     def load_settings(self):
         """(SỬA LỖI) Tải cài đặt từ file JSON, nếu không có thì tạo mới."""
-        file_existed = os.path.exists(CONFIG_FILE) # (SỬA LỖI)
+        file_existed = os.path.exists(CONFIG_FILE)
         try:
             if file_existed:
                 with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
@@ -41,23 +42,21 @@ class AppSettings:
             else:
                 print(f"Không tìm thấy {CONFIG_FILE}. Đang tạo file với cài đặt mặc định.")
                 self.settings = self.defaults.copy()
-                # (SỬA LỖI) Không save ở đây
                 
         except Exception as e:
             print(f"Lỗi nghiêm trọng khi tải {CONFIG_FILE}. Sử dụng cài đặt mặc định. Lỗi: {e}")
             self.settings = self.defaults.copy()
             
-        # (SỬA LỖI) Cập nhật thuộc tính NGAY LẬP TỨC
+        # Cập nhật thuộc tính NGAY LẬP TỨC
         self._update_class_attributes()
         
-        # (SỬA LỖI) Chỉ lưu file MỚI sau khi thuộc tính đã được tạo
+        # Chỉ lưu file MỚI sau khi thuộc tính đã được tạo
         if not file_existed:
             self.save_settings(log=False)
 
     def save_settings(self, log=True):
-        """Lưu cài đặt hiện tại vào file JSON."""
+        """Lưu cài đặt hiện tại vào file JSON. (ĐÃ THÊM AI_SCORE_WEIGHT)"""
         try:
-            # (SỬA LỖI) Đọc từ các thuộc tính đã được tạo
             settings_to_save = {
                 "STATS_DAYS": self.STATS_DAYS,
                 "GAN_DAYS": self.GAN_DAYS,
@@ -66,7 +65,8 @@ class AppSettings:
                 "AUTO_PRUNE_MIN_RATE": self.AUTO_PRUNE_MIN_RATE,
                 "K2N_RISK_START_THRESHOLD": self.K2N_RISK_START_THRESHOLD,
                 "K2N_RISK_PENALTY_PER_FRAME": self.K2N_RISK_PENALTY_PER_FRAME,
-                "AI_PROB_THRESHOLD": self.AI_PROB_THRESHOLD # (MỚI)
+                "AI_PROB_THRESHOLD": self.AI_PROB_THRESHOLD,
+                "AI_SCORE_WEIGHT": self.AI_SCORE_WEIGHT # (V7.0 GĐ3) ĐÃ THÊM
             }
             with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
                 json.dump(settings_to_save, f, indent=4)
@@ -81,7 +81,7 @@ class AppSettings:
             return False, f"Lỗi khi lưu file: {e}"
 
     def _update_class_attributes(self):
-        """Cập nhật các thuộc tính của lớp từ dict đã tải."""
+        """Cập nhật các thuộc tính của lớp từ dict đã tải. (ĐÃ THÊM AI_SCORE_WEIGHT)"""
         self.STATS_DAYS = int(self.settings.get("STATS_DAYS", 7))
         self.GAN_DAYS = int(self.settings.get("GAN_DAYS", 15))
         self.HIGH_WIN_THRESHOLD = float(self.settings.get("HIGH_WIN_THRESHOLD", 47.0))
@@ -89,10 +89,11 @@ class AppSettings:
         self.AUTO_PRUNE_MIN_RATE = float(self.settings.get("AUTO_PRUNE_MIN_RATE", 40.0))
         self.K2N_RISK_START_THRESHOLD = int(self.settings.get("K2N_RISK_START_THRESHOLD", 4))
         self.K2N_RISK_PENALTY_PER_FRAME = float(self.settings.get("K2N_RISK_PENALTY_PER_FRAME", 0.5))
-        self.AI_PROB_THRESHOLD = float(self.settings.get("AI_PROB_THRESHOLD", 45.0)) # (MỚI)
+        self.AI_PROB_THRESHOLD = float(self.settings.get("AI_PROB_THRESHOLD", 45.0))
+        self.AI_SCORE_WEIGHT = float(self.settings.get("AI_SCORE_WEIGHT", 0.2)) # (V7.0 GĐ3) ĐÃ THÊM
 
     def get_all_settings(self):
-        """Trả về một dict của các cài đặt hiện tại (để UI sử dụng)."""
+        """Trả về một dict của các cài đặt hiện tại (để UI sử dụng). (ĐÃ THÊM AI_SCORE_WEIGHT)"""
         return {
             "STATS_DAYS": self.STATS_DAYS,
             "GAN_DAYS": self.GAN_DAYS,
@@ -101,7 +102,8 @@ class AppSettings:
             "AUTO_PRUNE_MIN_RATE": self.AUTO_PRUNE_MIN_RATE,
             "K2N_RISK_START_THRESHOLD": self.K2N_RISK_START_THRESHOLD,
             "K2N_RISK_PENALTY_PER_FRAME": self.K2N_RISK_PENALTY_PER_FRAME,
-            "AI_PROB_THRESHOLD": self.AI_PROB_THRESHOLD # (MỚI)
+            "AI_PROB_THRESHOLD": self.AI_PROB_THRESHOLD,
+            "AI_SCORE_WEIGHT": self.AI_SCORE_WEIGHT # (V7.0 GĐ3) ĐÃ THÊM
         }
         
     def update_setting(self, key, value):
@@ -131,7 +133,7 @@ try:
     print("ConfigManager đã khởi tạo và tải cài đặt.")
 except Exception as e:
     print(f"LỖI NGHIÊM TRỌNG khi khởi tạo ConfigManager: {e}")
-    # Fallback nếu có lỗi nghiêm trọng
+    # Fallback nếu có lỗi nghiêm trọng (ĐÃ THÊM AI_SCORE_WEIGHT)
     SETTINGS = type('obj', (object,), {
         'STATS_DAYS': 7,
         'GAN_DAYS': 15,
@@ -140,5 +142,6 @@ except Exception as e:
         'AUTO_PRUNE_MIN_RATE': 40.0,
         'K2N_RISK_START_THRESHOLD': 4,
         'K2N_RISK_PENALTY_PER_FRAME': 0.5,
-        'AI_PROB_THRESHOLD': 45.0 # (MỚI)
+        'AI_PROB_THRESHOLD': 45.0, 
+        'AI_SCORE_WEIGHT': 0.2 # (V7.0 GĐ3) ĐÃ THÊM
     })
