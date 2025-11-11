@@ -381,13 +381,13 @@ def get_pending_k2n_bridges(last_row, prev_row):
         return []
 
 # ===================================================================================
-# III. HÀM CHẤM ĐIỂM CỐT LÕI (V7.0 G3 - CHUYỂN TỪ backtester.py)
+# III. HÀM CHẤM ĐIỂM CỐT LÕI (V7.1 - HOÀN THIỆN LOGIC TRỌNG SỐ)
 # ===================================================================================
 
 def get_top_scored_pairs(stats, consensus, high_win, pending_k2n, gan_stats, top_memory_bridges, ai_predictions=None):
     """
-    (V7.0 G3) Tính toán, chấm điểm và xếp hạng các cặp số.
-    Sử dụng Trọng số AI liên tục.
+    (V7.1) Tính toán, chấm điểm và xếp hạng các cặp số.
+    Hoàn thiện việc sử dụng Trọng số AI liên tục (loại bỏ kiểm tra ngưỡng cứng).
     """
     try:
         scores = {}
@@ -395,7 +395,7 @@ def get_top_scored_pairs(stats, consensus, high_win, pending_k2n, gan_stats, top
         # FIX: Sửa truy cập SETTINGS
         K2N_RISK_START_THRESHOLD = SETTINGS.K2N_RISK_START_THRESHOLD
         K2N_RISK_PENALTY_PER_FRAME = SETTINGS.K2N_RISK_PENALTY_PER_FRAME
-        ai_prob_threshold = SETTINGS.AI_PROB_THRESHOLD 
+        # ai_prob_threshold = SETTINGS.AI_PROB_THRESHOLD # Đã loại bỏ việc dùng ngưỡng này cho logic
         ai_score_weight = SETTINGS.AI_SCORE_WEIGHT
         
         loto_prob_map = {}
@@ -463,7 +463,7 @@ def get_top_scored_pairs(stats, consensus, high_win, pending_k2n, gan_stats, top
                 scores[pair_key]['is_gan'] = True
                 scores[pair_key]['gan_days'] = max_gan
 
-            # Nguồn 7: Chấm điểm AI (TRỌNG SỐ LIÊN TỤC)
+            # Nguồn 7: Chấm điểm AI (TRỌNG SỐ LIÊN TỤC) - Sửa V7.1: Luôn hiển thị xác suất
             if loto_prob_map:
                 prob_1 = loto_prob_map.get(loto1, 0.0)
                 prob_2 = loto_prob_map.get(loto2, 0.0)
@@ -472,10 +472,7 @@ def get_top_scored_pairs(stats, consensus, high_win, pending_k2n, gan_stats, top
                 ai_score_contribution = max_prob * ai_score_weight 
                 scores[pair_key]['score'] += ai_score_contribution
                 
-                if (max_prob * 100.0) >= ai_prob_threshold:
-                     scores[pair_key]['reasons'].append(f"AI: +{ai_score_contribution:.2f} ({max_prob*100.0:.1f}%)")
-                else:
-                     scores[pair_key]['reasons'].append(f"AI: +{ai_score_contribution:.2f}")
+                scores[pair_key]['reasons'].append(f"AI: +{ai_score_contribution:.2f} ({max_prob*100.0:.1f}%)")
 
 
         # --- 5. Thêm các cặp SẠCH (Chỉ AI phát hiện - STL) ---
@@ -499,10 +496,8 @@ def get_top_scored_pairs(stats, consensus, high_win, pending_k2n, gan_stats, top
                     
                     scores[stl_pair]['score'] += ai_score_contribution
                     
-                    if (max_prob * 100.0) >= ai_prob_threshold:
-                        scores[stl_pair]['reasons'].append(f"AI SẠCH: +{ai_score_contribution:.2f} ({max_prob*100.0:.1f}%)")
-                    else:
-                        scores[stl_pair]['reasons'].append(f"AI SẠCH: +{ai_score_contribution:.2f}")
+                    # Sửa V7.1: Luôn hiển thị xác suất
+                    scores[stl_pair]['reasons'].append(f"AI SẠCH: +{ai_score_contribution:.2f} ({max_prob*100.0:.1f}%)")
 
                     l1, l2 = stl_pair.split('-')
                     max_gan = max(gan_map.get(l1, 0), gan_map.get(l2, 0))
@@ -621,7 +616,7 @@ def get_high_win_simulation(data_slice, last_row, threshold):
                     
                 stl = next_prediction_stl.split(',')
                 high_win_bridges.append({
-                    'name': bridge['name'],
+                    'name': bridge_name, # FIX: Dùng bridge_name từ cache
                     'stl': stl,
                     'rate': f"{win_rate:.2f}%"
                 })
