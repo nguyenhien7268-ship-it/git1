@@ -47,13 +47,13 @@ except ImportError as e:
 
 # 3. Từ logic.bridges_classic
 try:
-    from logic.bridges_classic import (
+    from logic.bridges.bridges_classic import ( # ĐÃ SỬA
         getAllLoto_V30,
         calculate_loto_stats,
         ALL_15_BRIDGE_FUNCTIONS_V5 
     )
 except ImportError as e:
-    print(f"LỖI NGHIÊM TRỌNG: Không thể import logic.bridges_classic: {e}")
+    print(f"LỖI NGHIÊM TRỌNG: Không thể import logic.bridges.bridges_classic: {e}") # ĐÃ SỬA
 
 # 4. (FIX B & C) Từ logic.backtester: CHỈ GIỮ LẠI CÁC HÀM BACKTEST THUẦN
 try:
@@ -74,14 +74,14 @@ except ImportError as e:
 
 # 4.1. (MỚI - FIX B) TỪ LOGIC.BRIDGE_MANAGER_CORE (Quản lý Cầu)
 try:
-    from logic.bridge_manager_core import (
+    from logic.bridges.bridge_manager_core import ( # ĐÃ SỬA
         TIM_CAU_TOT_NHAT_V16, 
         TIM_CAU_BAC_NHO_TOT_NHAT,
         find_and_auto_manage_bridges,
         prune_bad_bridges
     )
 except ImportError as e:
-    print(f"LỖI NGHIÊM TRỌNG: Không thể import logic.bridge_manager_core: {e}")
+    print(f"LỖI NGHIÊM TRỌNG: Không thể import logic.bridges.bridge_manager_core: {e}") # ĐÃ SỬA
 
 # 4.2. (MỚI - FIX C) TỪ LOGIC.DASHBOARD_ANALYTICS (Analytics & Chấm điểm)
 try:
@@ -108,7 +108,7 @@ try:
     )
     print(">>> (V6.0) Tải logic.ml_model (AI) thành công.")
 except ImportError as e:
-    print(f"LỖI NGHIÊM TRỌNG: Không thể import logic.ml_model (AI): {e}")
+    print(f"LỖỖI NGHIÊM TRỌNG: Không thể import logic.ml_model (AI): {e}")
     # Giả lập hàm nếu lỗi 
     def train_ai_model(all_data, daily_bridge_predictions): 
         return False, f"Lỗi: Không tìm thấy logic.ml_model.py hoặc lỗi import nội bộ: {e}"
@@ -122,12 +122,11 @@ except ImportError as e:
 # ==========================================================================
 try:
     # Import các hàm cầu để tính features
-    from logic.bridges_v16 import getAllPositions_V17_Shadow, taoSTL_V30_Bong
-    from logic.bridges_memory import get_27_loto_positions, calculate_bridge_stl, get_27_loto_names
+    from logic.bridges.bridges_v16 import getAllPositions_V17_Shadow, taoSTL_V30_Bong # ĐÃ SỬA
+    from logic.bridges.bridges_memory import get_27_loto_positions, calculate_bridge_stl, get_27_loto_names # ĐÃ SỬA
     from logic.config_manager import SETTINGS # Vẫn cần SETTINGS
 except ImportError as e:
     print(f"LỖI NGHIÊM TRỌNG: Không thể import logic cầu/repo: {e}")
-    
 def _parse_win_rate_text(win_rate_text):
     """(V7.0 G2) Parses '55.10%' to 55.10 or 0.0 if invalid."""
     if not win_rate_text:

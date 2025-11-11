@@ -17,16 +17,16 @@ except ImportError:
 
 # Import Bridge/DB Logic và Helpers
 try:
-    from .bridges_classic import (
+    from .bridges.bridges_classic import ( # ĐÃ SỬA
         ALL_15_BRIDGE_FUNCTIONS_V5, 
         getAllLoto_V30, 
         checkHitSet_V30_K2N
     )
-    from .bridges_v16 import (
+    from .bridges.bridges_v16 import ( # ĐÃ SỬA
         getAllPositions_V17_Shadow, 
         taoSTL_V30_Bong
     )
-    from .bridges_memory import (
+    from .bridges.bridges_memory import ( # ĐÃ SỬA
         get_27_loto_names,
         get_27_loto_positions,
         calculate_bridge_stl
@@ -34,7 +34,7 @@ try:
     # Import functions từ backtester.py
     from .backtester import _parse_k2n_results, BACKTEST_MANAGED_BRIDGES_K2N, BACKTEST_15_CAU_K2N_V30_AI_V8
     from .db_manager import DB_NAME
-    from .data_repository import get_all_managed_bridges 
+    from .data_repository import get_all_managed_bridges
 
 except ImportError:
     print("Lỗi: Không thể import bridge/backtester helpers trong dashboard_analytics.py")

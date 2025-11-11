@@ -1,7 +1,8 @@
 import sqlite3
 import re
 
-DB_NAME = 'xo_so_prizes_all_logic.db' 
+# ĐÃ SỬA: Cập nhật đường dẫn DB mới sau khi di chuyển file sang thư mục 'data/'
+DB_NAME = 'data/xo_so_prizes_all_logic.db' 
 
 PRIZE_TO_COL_MAP = {
     "Đặc Biệt": "Col_B_GDB", "Nhất": "Col_C_G1", "Nhì": "Col_D_G2",
@@ -12,11 +13,11 @@ PRIZE_TO_COL_MAP = {
 # --- Import từ file .bridges_v16 (sẽ được tạo) ---
 # (Chúng ta cần file này để dịch tên cầu khi thêm cầu)
 try:
-    from .bridges_v16 import get_index_from_name_V16
+    from .bridges.bridges_v16 import get_index_from_name_V16 # ĐÃ FIX IMPORT RELATIVE
 except ImportError:
     # Fallback cho trường hợp chạy độc lập (nếu có)
     try:
-        from bridges_v16 import get_index_from_name_V16
+        from logic.bridges.bridges_v16 import get_index_from_name_V16 # ĐÃ FIX IMPORT FALLBACK
     except ImportError:
         print("Lỗi: Không thể import get_index_from_name_V16 trong db_manager.py")
         # Định nghĩa hàm giả để tránh lỗi
@@ -258,11 +259,6 @@ def update_bridge_win_rate_batch(rate_data_list, db_name=DB_NAME):
             conn.close()
 
 # ===================================================================================
-# (SỬA) HÀM TẢI DỮ LIỆU BACKTEST (Thêm import os)
-# ===================================================================================
-
-
-# ===================================================================================
 # (SỬA CHỮA LỖI REGEX BẠC NHỚ) HÀM TỰ ĐỘNG HÓA DÒ CẦU (UPSERT)
 # ===================================================================================
 
@@ -274,7 +270,7 @@ def upsert_managed_bridge(bridge_name, description, win_rate_text, db_name=DB_NA
     # Import nội bộ để đảm bảo an toàn
     import sqlite3
     try:
-        from .bridges_v16 import get_index_from_name_V16
+        from .bridges.bridges_v16 import get_index_from_name_V16
     except ImportError:
         from bridges_v16 import get_index_from_name_V16
 

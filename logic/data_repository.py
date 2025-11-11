@@ -1,7 +1,8 @@
 import sqlite3
 import os
 
-DB_NAME = 'xo_so_prizes_all_logic.db' 
+# ĐÃ SỬA: Cập nhật đường dẫn DB mới sau khi di chuyển file sang thư mục 'data/'
+DB_NAME = 'data/xo_so_prizes_all_logic.db' 
 
 def load_data_ai_from_db(db_name=DB_NAME):
     """Tải toàn bộ dữ liệu A:I từ DB (10 cột)."""

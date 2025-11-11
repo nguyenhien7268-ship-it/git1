@@ -14,7 +14,10 @@ try:
 except ImportError:
     from config_manager import SETTINGS
 
-MODEL_FILE_PATH = "loto_model.joblib"
+# ĐÃ SỬA: Cập nhật đường dẫn mới cho file mô hình và scaler
+MODEL_FILE_PATH = "logic/ml_model_files/loto_model.joblib"
+SCALER_FILE_PATH = "logic/ml_model_files/ai_scaler.joblib" 
+
 ALL_LOTOS = [str(i).zfill(2) for i in range(100)]
 MIN_DATA_TO_TRAIN = 50 
 
@@ -26,12 +29,12 @@ def _standardize_pair(stl_list):
 # --- HÀM NỘI BỘ HỖ TRỢ (ĐƯỢC GIỮ LẠI ĐỂ TÍNH LOTO/GAN) ---
 try:
     # Cố gắng import bằng relative import (khi chạy trong package)
-    from .bridges_classic import getAllLoto_V30
+    from .bridges.bridges_classic import getAllLoto_V30 # ĐÃ SỬA
     from .dashboard_analytics import get_loto_stats_last_n_days, get_loto_gan_stats
 except ImportError:
     # Fallback: cố gắng import bằng absolute path (khi chạy test hoặc lỗi package)
     try:
-        from bridges_classic import getAllLoto_V30
+        from logic.bridges.bridges_classic import getAllLoto_V30 # ĐÃ SỬA
         from dashboard_analytics import get_loto_stats_last_n_days, get_loto_gan_stats
     except ImportError:
          print("LỖI KHÔNG THỂ IMPORT: bridges_classic hoặc dashboard_analytics.")
@@ -84,7 +87,7 @@ def prepare_training_data(all_data_ai, daily_bridge_predictions):
         for loto in ALL_LOTOS:
             features = []
             
-            # --- FEATURE CƠ BẢI (F1 -> F6) ---
+            # --- FEATURE CƠ BÁI (F1 -> F6) ---
             # F1: Tần suất Lô tô Hot (Về trong 7 ngày gần nhất)
             features.append(loto_stats_last_7_map.get(loto, 0) / stats_days)
             
@@ -162,9 +165,9 @@ def train_ai_model(all_data_ai, daily_bridge_predictions):
         )
         model.fit(X_train, y_train)
         
-        # Lưu mô hình và Scaler
+        # Lưu mô hình và Scaler (ĐÃ CẬP NHẬT ĐƯỜNG DẪN)
         joblib.dump(model, MODEL_FILE_PATH)
-        joblib.dump(scaler, 'ai_scaler.joblib')
+        joblib.dump(scaler, SCALER_FILE_PATH)
         
         # Đánh giá cơ bản
         accuracy = model.score(X_test, y_test)
@@ -182,14 +185,17 @@ def get_ai_predictions(all_data_ai, bridge_predictions_for_today):
     (V7.0 G2) Hàm dự đoán. Sử dụng 3 Q-Features mới.
     """
     
-    if not os.path.exists(MODEL_FILE_PATH) or not os.path.exists('ai_scaler.joblib'):
+    # ĐÃ SỬA: Dùng hằng số mới
+    if not os.path.exists(MODEL_FILE_PATH) or not os.path.exists(SCALER_FILE_PATH):
         return None, "Lỗi: Không tìm thấy tệp mô hình `loto_model.joblib` hoặc `ai_scaler.joblib`. Vui lòng chạy 'Huấn luyện AI' trước."
+        
     if not all_data_ai or len(all_data_ai) < 2:
         return None, "Không đủ dữ liệu lịch sử để dự đoán."
         
     try:
+        # Tải bằng hằng số mới
         model = joblib.load(MODEL_FILE_PATH)
-        scaler = joblib.load('ai_scaler.joblib')
+        scaler = joblib.load(SCALER_FILE_PATH)
         
         print("... (AI V7.0 G2) Đang trích xuất đặc trưng dự đoán...")
 
