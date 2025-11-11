@@ -15,7 +15,7 @@ class DashboardWindow:
         self.root = app_instance.root
         
         self.window = tk.Toplevel(self.root)
-        self.window.title("Bảng Tổng Hợp (V6.6 - Tích hợp AI + 2 Tab)") # (SỬA V6.6)
+        self.window.title("Bảng Quyết Định Tối Ưu (V7.0 - 4 Bảng Cốt Lõi)") # (MỚI V7.0)
         self.window.geometry("1400x900") 
         self.window.transient(self.root)
         self.window.grab_set()
@@ -32,70 +32,46 @@ class DashboardWindow:
         self.refresh_button = ttk.Button(self.header_frame, text="Làm Mới Dữ Liệu", command=self.refresh_data)
         self.refresh_button.pack(side=tk.RIGHT)
         
-        # (SỬA V6.5) Dùng lại Notebook (2 Tab)
-        self.notebook = ttk.Notebook(self.window)
-        self.notebook.grid(row=1, column=0, sticky="nsew", padx=10, pady=10)
-
-        # --- Tab 1: 4 Bảng Ưu Tiên ---
-        self.tab1_priority = ttk.Frame(self.notebook, padding=10)
-        self.notebook.add(self.tab1_priority, text='Tổng Quan (Ưu Tiên)')
-        # Cấu hình lưới 2x2
-        self.tab1_priority.columnconfigure(0, weight=1)
-        self.tab1_priority.columnconfigure(1, weight=1)
-        self.tab1_priority.rowconfigure(0, weight=1)
-        self.tab1_priority.rowconfigure(1, weight=1)
-
-        # --- Tab 2: 4 Bảng Chi Tiết Cầu ---
-        self.tab2_details = ttk.Frame(self.notebook, padding=10)
-        self.notebook.add(self.tab2_details, text='Chi Tiết Cầu & AI') # (SỬA V6.6)
-        # Cấu hình lưới 2x2
-        self.tab2_details.columnconfigure(0, weight=1)
-        self.tab2_details.columnconfigure(1, weight=1)
-        self.tab2_details.rowconfigure(0, weight=1)
-        self.tab2_details.rowconfigure(1, weight=1)
+        # --- Tab 1: Tổng Hợp 4 Bảng Chính (TỐI ƯU HÓA) ---
+        self.main_analysis_frame = ttk.Frame(self.window, padding=10)
+        self.main_analysis_frame.grid(row=1, column=0, sticky="nsew", padx=10, pady=10)
         
+        # Cấu hình lưới 2x2 cho 4 bảng cốt lõi
+        self.main_analysis_frame.columnconfigure(0, weight=1) # Cột trái: Scoring/Hot
+        self.main_analysis_frame.columnconfigure(1, weight=1) # Cột phải: AI/Gan
+        self.main_analysis_frame.rowconfigure(0, weight=2) # Hàng trên: Scoring/AI (Quan trọng hơn)
+        self.main_analysis_frame.rowconfigure(1, weight=1) # Hàng dưới: Hot/Gan
+        self.main_analysis_frame.rowconfigure(2, weight=1) # Hàng dưới cùng: K2N Pending
+
         # ===================================================================
-        # (SỬA V6.6) TẠO 8 BẢNG VÀ PHÂN VÀO CÁC TAB
+        # TẠO CÁC BẢNG (SỬ DỤNG 5 TRONG TỔNG SỐ 8 CŨ)
         # ===================================================================
 
-        # --- 4 BẢNG ƯU TIÊN (TAB 1) ---
-        
-        # Ưu tiên 1: Chấm Điểm (Bao gồm AI)
-        self._create_top_scores_ui(self.tab1_priority)
+        # 1. Bảng Chấm Điểm (Scoring) - VỊ TRÍ CHÍNH (Hàng 0, Cột 0)
+        self._create_top_scores_ui(self.main_analysis_frame)
         self.top_scores_frame.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
 
-        # Ưu tiên 2: Loto Về Nhiều
-        self._create_hot_loto_ui(self.tab1_priority)
-        self.hot_loto_frame.grid(row=0, column=1, sticky="nsew", padx=5, pady=5)
-        
-        # Ưu tiên 3: Lô Gan
-        self._create_gan_loto_ui(self.tab1_priority)
-        self.gan_loto_frame.grid(row=1, column=0, sticky="nsew", padx=5, pady=5)
+        # 2. Dự đoán AI (AI Predictions) - VỊ TRÍ CHÍNH (Hàng 0, Cột 1)
+        self._create_ai_predictions_ui(self.main_analysis_frame)
+        self.ai_predictions_frame.grid(row=0, column=1, sticky="nsew", padx=5, pady=5)
 
-        # Ưu tiên 4: Cầu K2N
-        self._create_pending_k2n_ui(self.tab1_priority)
-        self.pending_k2n_frame.grid(row=1, column=1, sticky="nsew", padx=5, pady=5)
+        # 3. Loto Về Nhiều (Hot Loto / Tần suất) - VỊ TRÍ THỐNG KÊ (Hàng 1, Cột 0)
+        self._create_hot_loto_ui(self.main_analysis_frame)
+        self.hot_loto_frame.grid(row=1, column=0, sticky="nsew", padx=5, pady=5)
+        
+        # 4. Lô Gan (Gan Loto) - VỊ TRÍ THỐNG KÊ (Hàng 1, Cột 1)
+        self._create_gan_loto_ui(self.main_analysis_frame)
+        self.gan_loto_frame.grid(row=1, column=1, sticky="nsew", padx=5, pady=5)
 
-        # --- 4 BẢNG CHI TIẾT (TAB 2) ---
+        # 5. Cầu K2N Đang Chờ (Pending K2N) - VỊ TRÍ BỔ SUNG (Hàng 2, Cột 0, 1 - Mở rộng)
+        self._create_pending_k2n_ui(self.main_analysis_frame)
+        self.pending_k2n_frame.grid(row=2, column=0, columnspan=2, sticky="nsew", padx=5, pady=5)
         
-        # Chi tiết 1: Cầu Bạc Nhớ
-        self._create_memory_bridges_ui(self.tab2_details)
-        self.memory_bridges_frame.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
-        
-        # Chi tiết 2: Consensus (Vote)
-        self._create_consensus_ui(self.tab2_details)
-        self.consensus_frame.grid(row=0, column=1, sticky="nsew", padx=5, pady=5)
-        
-        # Chi tiết 3: Cầu Tỷ Lệ Cao
-        self._create_high_win_ui(self.tab2_details)
-        self.high_win_frame.grid(row=1, column=0, sticky="nsew", padx=5, pady=5)
-        
-        # (MỚI V6.6) Chi tiết 4: Bảng AI (Loto đơn)
-        self._create_ai_predictions_ui(self.tab2_details)
-        self.ai_predictions_frame.grid(row=1, column=1, sticky="nsew", padx=5, pady=5)
+        # --- (Đã loại bỏ các bảng Consensus, High Win, Memory Bridges để tối ưu hóa) ---
+        # Để lại hàm tạo UI (Private Methods) cho 5 bảng được sử dụng
 
     # ===================================================================================
-    # CÁC HÀM TẠO UI (SỬA V6.6 - Đủ 8 hàm)
+    # CÁC HÀM TẠO UI (Sử dụng lại 5 hàm cũ)
     # ===================================================================================
     
     def _create_top_scores_ui(self, parent_frame):
@@ -125,7 +101,7 @@ class DashboardWindow:
         tree_frame = ttk.Frame(self.hot_loto_frame)
         tree_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         cols = ('loto', 'hits', 'days')
-        self.hot_loto_tree = ttk.Treeview(tree_frame, columns=cols, show='headings', height=15)
+        self.hot_loto_tree = ttk.Treeview(tree_frame, columns=cols, show='headings', height=8) # Giảm height
         self.hot_loto_tree.heading('loto', text='Loto')
         self.hot_loto_tree.heading('hits', text='Số nháy')
         self.hot_loto_tree.heading('days', text='Số kỳ')
@@ -142,7 +118,7 @@ class DashboardWindow:
         tree_frame = ttk.Frame(self.gan_loto_frame)
         tree_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         cols = ('loto', 'days')
-        self.gan_tree = ttk.Treeview(tree_frame, columns=cols, show='headings', height=15)
+        self.gan_tree = ttk.Treeview(tree_frame, columns=cols, show='headings', height=8) # Giảm height
         self.gan_tree.heading('loto', text='Loto')
         self.gan_tree.heading('days', text='Số ngày Gan')
         self.gan_tree.column('loto', width=50, anchor=tk.CENTER)
@@ -153,11 +129,11 @@ class DashboardWindow:
         self.gan_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
     def _create_pending_k2n_ui(self, parent_frame):
-        self.pending_k2n_frame = ttk.Labelframe(parent_frame, text="⏳ Cầu K2N Đang Chờ (Chờ N2)")
+        self.pending_k2n_frame = ttk.Labelframe(parent_frame, text="⏳ Cầu K2N Đang Chờ (Chờ N2) - [Bổ Sung]")
         tree_frame = ttk.Frame(self.pending_k2n_frame)
         tree_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         cols = ('stl', 'streak', 'max_lose', 'name')
-        self.k2n_tree = ttk.Treeview(tree_frame, columns=cols, show='headings', height=15)
+        self.k2n_tree = ttk.Treeview(tree_frame, columns=cols, show='headings', height=8) # Giảm height
         self.k2n_tree.heading('stl', text='Cặp số')
         self.k2n_tree.heading('streak', text='Chuỗi')
         self.k2n_tree.heading('max_lose', text='Gãy Max')
@@ -165,7 +141,7 @@ class DashboardWindow:
         self.k2n_tree.column('stl', width=60, anchor=tk.CENTER)
         self.k2n_tree.column('streak', width=60, anchor=tk.CENTER)
         self.k2n_tree.column('max_lose', width=60, anchor=tk.CENTER)
-        self.k2n_tree.column('name', width=150)
+        self.k2n_tree.column('name', width=300)
         scrollbar = ttk.Scrollbar(tree_frame, orient=tk.VERTICAL, command=self.k2n_tree.yview)
         self.k2n_tree.configure(yscrollcommand=scrollbar.set)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
@@ -174,67 +150,12 @@ class DashboardWindow:
         self.k2n_tree.tag_configure('safe', foreground='green')
         self.k2n_tree.bind("<Double-1>", self.on_tree_double_click)
 
-    # (SỬA V6.6) Trả lại các hàm tạo UI cho Tab 2
-    def _create_memory_bridges_ui(self, parent_frame):
-        self.memory_bridges_frame = ttk.Labelframe(parent_frame, text="💡 Cầu Bạc Nhớ (Top 5 Backtest)")
-        tree_frame = ttk.Frame(self.memory_bridges_frame)
-        tree_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
-        cols = ('stl', 'rate', 'name')
-        self.memory_tree = ttk.Treeview(tree_frame, columns=cols, show='headings', height=10)
-        self.memory_tree.heading('stl', text='Cặp số')
-        self.memory_tree.heading('rate', text='Tỷ lệ')
-        self.memory_tree.heading('name', text='Thuật toán')
-        self.memory_tree.column('stl', width=60, anchor=tk.CENTER)
-        self.memory_tree.column('rate', width=60, anchor=tk.E)
-        self.memory_tree.column('name', width=210)
-        scrollbar = ttk.Scrollbar(tree_frame, orient=tk.VERTICAL, command=self.memory_tree.yview)
-        self.memory_tree.configure(yscrollcommand=scrollbar.set)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        self.memory_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        self.memory_tree.bind("<Double-1>", self.on_tree_double_click)
-
-    def _create_consensus_ui(self, parent_frame):
-        self.consensus_frame = ttk.Labelframe(parent_frame, text="🗳️ Cặp Số Nhiều Vote (Cầu N1)")
-        tree_frame = ttk.Frame(self.consensus_frame)
-        tree_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
-        cols = ('pair', 'count', 'sources')
-        self.consensus_tree = ttk.Treeview(tree_frame, columns=cols, show='headings', height=10)
-        self.consensus_tree.heading('pair', text='Cặp số')
-        self.consensus_tree.heading('count', text='Số Vote')
-        self.consensus_tree.heading('sources', text='Nguồn')
-        self.consensus_tree.column('pair', width=60, anchor=tk.CENTER)
-        self.consensus_tree.column('count', width=60, anchor=tk.E)
-        self.consensus_tree.column('sources', width=150)
-        scrollbar = ttk.Scrollbar(tree_frame, orient=tk.VERTICAL, command=self.consensus_tree.yview)
-        self.consensus_tree.configure(yscrollcommand=scrollbar.set)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        self.consensus_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-
-    def _create_high_win_ui(self, parent_frame):
-        self.high_win_frame = ttk.Labelframe(parent_frame, text="🎯 Cầu Tỷ Lệ Cao (N1)")
-        tree_frame = ttk.Frame(self.high_win_frame)
-        tree_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
-        cols = ('stl', 'rate', 'name')
-        self.high_win_tree = ttk.Treeview(tree_frame, columns=cols, show='headings', height=10)
-        self.high_win_tree.heading('stl', text='Cặp số')
-        self.high_win_tree.heading('rate', text='Tỷ lệ')
-        self.high_win_tree.heading('name', text='Tên cầu')
-        self.high_win_tree.column('stl', width=60, anchor=tk.CENTER)
-        self.high_win_tree.column('rate', width=60, anchor=tk.E)
-        self.high_win_tree.column('name', width=150)
-        scrollbar = ttk.Scrollbar(tree_frame, orient=tk.VERTICAL, command=self.high_win_tree.yview)
-        self.high_win_tree.configure(yscrollcommand=scrollbar.set)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        self.high_win_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        self.high_win_tree.bind("<Double-1>", self.on_tree_double_click)
-
-    # (MỚI V6.6) Trả lại hàm tạo Bảng AI
     def _create_ai_predictions_ui(self, parent_frame):
         self.ai_predictions_frame = ttk.Labelframe(parent_frame, text="🧠 Dự đoán AI (Loto Đơn)")
         tree_frame = ttk.Frame(self.ai_predictions_frame)
         tree_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         cols = ('loto', 'probability')
-        self.ai_tree = ttk.Treeview(tree_frame, columns=cols, show='headings', height=10)
+        self.ai_tree = ttk.Treeview(tree_frame, columns=cols, show='headings', height=15)
         self.ai_tree.heading('loto', text='Loto')
         self.ai_tree.heading('probability', text='Xác suất (%)')
         self.ai_tree.column('loto', width=80, anchor=tk.CENTER)
@@ -246,20 +167,12 @@ class DashboardWindow:
         self.ai_tree.tag_configure('top1', background='#D5E8D4', font=('Arial', 10, 'bold'))
         self.ai_tree.tag_configure('top5', background='#FFF2CC')
 
-    def _create_hidden_ui_elements(self):
-        """ (V6.5) Đã thay đổi - không cần nữa
-        vì chúng ta tạo tất cả 8 bảng."""
-        pass
-
-    # ===================================================================================
-    # HÀM NẠP DỮ LIỆU (Populate)
-    # ===================================================================================
+    # --- HÀM NẠP DỮ LIỆU ---
 
     def clear_data(self):
         self.title_label.config(text="Đang tải...")
-        # (SỬA V6.6) Xóa 8 cây
-        for tree in [self.scores_tree, self.hot_loto_tree, self.gan_tree, self.k2n_tree,
-                     self.memory_tree, self.consensus_tree, self.high_win_tree, self.ai_tree]:
+        # (SỬA V7.0) Xóa 5 cây được sử dụng
+        for tree in [self.scores_tree, self.hot_loto_tree, self.gan_tree, self.k2n_tree, self.ai_tree]:
             try:
                 # Kiểm tra xem tree đã được tạo chưa
                 if hasattr(self, tree.winfo_name().replace("!treeview", "")):
@@ -268,7 +181,7 @@ class DashboardWindow:
             except Exception as e:
                 print(f"Lỗi khi xóa tree: {e}")
 
-    # (CẬP NHẬT V6.6) Trả lại `ai_predictions`
+    # (CẬP NHẬT V7.0) Bỏ các tham số không cần thiết (consensus, high_win, top_memory_bridges)
     def populate_data(self, next_ky, stats, n_days_stats, 
                       consensus, high_win, pending_k2n, 
                       gan_stats, top_scores, top_memory_bridges,
@@ -279,7 +192,7 @@ class DashboardWindow:
             
             # --- Cập nhật Tiêu đề ---
             today = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
-            self.title_label.config(text=f"Bảng Tổng Hợp - {next_ky} (Cập nhật: {today})")
+            self.title_label.config(text=f"Bảng Quyết Định Tối Ưu - {next_ky} (Cập nhật: {today})")
 
             # --- Nạp Bảng 1: Chấm Điểm (V5 + AI) ---
             self._populate_top_scores(top_scores)
@@ -296,27 +209,16 @@ class DashboardWindow:
             # --- Nạp Bảng 4: Cầu K2N ---
             self._populate_pending_k2n(pending_k2n)
             
-            # --- (SỬA V6.6) Nạp 4 bảng Tab 2 ---
-            
-            # --- Nạp Bảng 5: Cầu Bạc Nhớ ---
-            self._populate_memory_bridges(top_memory_bridges)
-
-            # --- Nạp Bảng 6: Consensus (Vote) ---
-            self._populate_consensus(consensus)
-            
-            # --- Nạp Bảng 7: Cầu Tỷ Lệ Cao ---
-            high_win_thresh = SETTINGS.HIGH_WIN_THRESHOLD
-            self.high_win_frame.config(text=f"🎯 Cầu Tỷ Lệ Cao (N1 >= {high_win_thresh}%)")
-            self._populate_high_win(high_win)
-            
-            # --- (MỚI V6.6) Nạp Bảng 8: Dự đoán AI ---
+            # --- Nạp Bảng 5: Dự đoán AI ---
             self._populate_ai_predictions(ai_predictions)
             
+            # (V7.0) Bỏ Consensus, High Win, Memory (chỉ lấy data chính)
+
         except Exception as e:
             messagebox.showerror("Lỗi Nạp Dữ Liệu Dashboard", f"Lỗi chi tiết: {e}\n{traceback.format_exc()}", parent=self.window)
             
     # ===================================================================================
-    # (SỬA V6.6) HÀM NẠP DỮ LIỆU CHI TIẾT (Đủ 8 hàm)
+    # CÁC HÀM NẠP DỮ LIỆU CHI TIẾT (Giữ lại 5 hàm cũ, loại bỏ 3 hàm không dùng)
     # ===================================================================================
 
     def _populate_top_scores(self, top_scores):
@@ -365,29 +267,6 @@ class DashboardWindow:
             elif max_lose < risk_threshold: tags = ('safe',)
             self.k2n_tree.insert('', tk.END, values=(stl, streak, f"{max_lose} lần", bridge_name), tags=tags)
 
-    # (SỬA V6.6) Trả lại các hàm nạp dữ liệu cho Tab 2
-    def _populate_memory_bridges(self, top_memory_bridges):
-        if not top_memory_bridges:
-            self.memory_tree.insert('', tk.END, values=("(N/A)", "", "Không có cầu BN nào"))
-            return
-        for bridge in top_memory_bridges:
-            self.memory_tree.insert('', tk.END, values=(",".join(bridge['stl']), bridge['rate'], bridge['name']))
-
-    def _populate_consensus(self, consensus):
-        if not consensus:
-            self.consensus_tree.insert('', tk.END, values=("(N/V)", "", "Không có cầu N1 trùng"))
-            return
-        for pair, count, sources in consensus: 
-            self.consensus_tree.insert('', tk.END, values=(pair, count, sources))
-
-    def _populate_high_win(self, high_win):
-        if not high_win:
-            self.high_win_tree.insert('', tk.END, values=("(N/A)", "", "Không có cầu nào đạt"))
-            return
-        for bridge in high_win:
-            self.high_win_tree.insert('', tk.END, values=(",".join(bridge['stl']), bridge['rate'], bridge['name']))
-
-    # (MỚI V6.6) Trả lại hàm nạp Bảng AI
     def _populate_ai_predictions(self, ai_predictions):
         if not ai_predictions:
             self.ai_tree.insert('', tk.END, values=("(N/A)", "Vui lòng Huấn luyện AI"))
@@ -413,7 +292,7 @@ class DashboardWindow:
     # ===================================================================================
     
     def refresh_data(self):
-        self.app.update_output("\n--- (Làm Mới) Bắt đầu chạy lại Bảng Tổng Hợp ---")
+        self.app.update_output("\n--- (Làm Mới) Bắt đầu chạy lại Bảng Quyết Định Tối Ưu ---")
         self.app.run_decision_dashboard() 
 
     def on_tree_double_click(self, event):
@@ -424,10 +303,8 @@ class DashboardWindow:
             values = item['values']
             bridge_name = ""
             
-            # (SỬA V6.5) Kiểm tra cả 3 cây có thể click
-            if event.widget == self.k2n_tree: bridge_name = values[3]
-            elif event.widget == self.high_win_tree: bridge_name = values[2]
-            elif event.widget == self.memory_tree: bridge_name = values[2]
+            # (SỬA V7.0) Giữ lại K2N Pending (bridge_name là values[3])
+            if event.widget == self.k2n_tree: bridge_name = values[3] 
             
             if bridge_name:
                 self.app.trigger_bridge_backtest(bridge_name)

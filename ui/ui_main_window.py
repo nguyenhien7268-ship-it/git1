@@ -34,6 +34,7 @@ try:
     from .ui_settings import SettingsWindow # (MỚI GĐ 8) Import Cài đặt
     from .ui_tuner import TunerWindow # (MỚI GĐ 9) Import Tinh chỉnh
     from .ui_optimizer import OptimizerTab # (MỚI GĐ 10) Import Tối ưu hóa
+    # from .ui_mini_dashboard import MiniDashboardWindow # (ĐÃ LOẠI BỎ V7.0)
 except ImportError:
     print("LỖI NGHIÊM TRỌNG: Không thể import các cửa sổ con từ gói /ui.")
     # Fallback (nếu chạy trực tiếp file này)
@@ -48,8 +49,8 @@ except ImportError:
 class DataAnalysisApp:
     def __init__(self, root):
         self.root = root
-        # (SỬA V6.6) Cập nhật tiêu đề
-        self.root.title("Xổ Số Data Analysis (v6.6 - Tích hợp AI)") 
+        # (SỬA V7.0) Cập nhật tiêu đề
+        self.root.title("Xổ Số Data Analysis (v7.0 - Giao diện Tối ưu)") 
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(0, weight=1)
         self.root.geometry("800x600")
@@ -93,7 +94,8 @@ class DataAnalysisApp:
         predict_frame.columnconfigure(0, weight=1)
         predict_frame.columnconfigure(1, weight=1)
         
-        self.dashboard_button = ttk.Button(predict_frame, text="Mở Bảng Tổng Hợp (V6.6 + AI)", command=self.run_decision_dashboard)
+        # (SỬA V7.0) Cập nhật tiêu đề nút
+        self.dashboard_button = ttk.Button(predict_frame, text="Mở Bảng Quyết Định Tối Ưu (V7.0)", command=self.run_decision_dashboard)
         self.dashboard_button.grid(row=0, column=0, sticky="ew", padx=5, pady=5)
         
         self.update_cache_button = ttk.Button(predict_frame, text="Cập nhật Cache K2N", command=self.run_update_all_bridge_K2N_cache_from_main)
@@ -494,14 +496,15 @@ class DataAnalysisApp:
         self.root.after(0, self.show_backtest_results, title, results_data)
             
     def run_decision_dashboard(self):
-        title = "Bảng Tổng Hợp Quyết Định"
+        # (SỬA V7.0) Cập nhật tiêu đề
+        title = "Bảng Quyết Định Tối Ưu"
         self.update_output(f"\n--- Bắt đầu: {title} ---")
-        # (SỬA V6.0) Cập nhật log
-        self.update_output("Đang chạy 8 hệ thống phân tích... (Bao gồm 3 backtest ngầm + 1 AI)") 
+        # (SỬA V7.0) Cập nhật log
+        self.update_output("Đang chạy 5 hệ thống phân tích cốt lõi... (Bao gồm 1 AI và 1 Cache K2N)") 
         self._run_task_in_thread(self._task_run_decision_dashboard, title)
 
     def _task_run_decision_dashboard(self, title):
-        """(CẬP NHẬT V6.6) Tích hợp AI vào chấm điểm VÀ hiển thị riêng."""
+        """(CẬP NHẬT V7.0) Tối ưu hóa các bước phân tích, tập trung vào 5 bước cốt lõi."""
         all_data_ai = self.load_data_ai_from_db()
         
         if not all_data_ai or len(all_data_ai) < 2:
@@ -526,41 +529,37 @@ class DataAnalysisApp:
         next_ky = f"Kỳ {int(last_row[0]) + 1}" if last_row[0].isdigit() else f"Kỳ {last_row[0]} (Next)"
 
         # --- 1. Thống kê N ngày ---
-        self.update_output(f"... (1/8) Đang thống kê Loto Về Nhiều ({n_days_stats} ngày)...")
+        self.update_output(f"... (1/5) Đang thống kê Loto Về Nhiều ({n_days_stats} ngày)...")
         stats_n_day = get_loto_stats_last_n_days(all_data_ai, n=n_days_stats)
         
         # --- 2. Chạy hàm K2N Cache TRƯỚC ---
-        self.update_output("... (2/8) Đang chạy hàm Cập nhật K2N Cache (tối ưu)...")
+        self.update_output("... (2/5) Đang chạy hàm Cập nhật K2N Cache (tối ưu)...")
         pending_k2n_data, cache_message = run_and_update_all_bridge_K2N_cache(all_data_ai, self.db_name)
         self.update_output(f"... (Cache K2N) {cache_message}")
         
-        # --- 3. Thống kê "Vote" (ĐỌC TỪ CACHE) ---
-        self.update_output("... (3/8) Đang thống kê Cặp Số Dự Đoán (đọc cache)...")
+        # --- 3. Đọc dữ liệu từ Cache (Consensus + High Win) ---
+        self.update_output("... (3/5) Đang đọc Consensus và Cầu Tỷ lệ Cao từ cache...")
         # FIX V7.1: Sửa cách gọi hàm để phù hợp với signature mới (đã bỏ last_row)
         consensus = get_prediction_consensus()
-        
-        # --- 4. Thống kê "Cầu Tỷ Lệ Cao" (ĐỌC TỪ CACHE) ---
-        self.update_output(f"... (4/8) Đang lọc Cầu Tỷ Lệ Cao (>= {high_win_thresh}%, đọc cache)...")
         # FIX V7.1: Sửa cách gọi hàm để phù hợp với signature mới (đã bỏ last_row)
         high_win = get_high_win_rate_predictions(threshold=high_win_thresh)
 
-        # --- 5. Chạy Backtest Bạc Nhớ ngầm ---
-        self.update_output("... (5/8) Đang chạy Backtest 756 Cầu Bạc Nhớ ngầm...")
-        top_memory_bridges = get_top_memory_bridge_predictions(all_data_ai, last_row, top_n=5)
-        
-        # --- 6. Thống kê Lô Gan ---
-        self.update_output(f"... (6/8) Đang tìm Lô Gan (trên {n_days_gan} kỳ)...")
+        # --- 4. Thống kê Lô Gan ---
+        self.update_output(f"... (4/5) Đang tìm Lô Gan (trên {n_days_gan} kỳ)...")
         gan_stats = get_loto_gan_stats(all_data_ai, n_days=n_days_gan)
         
-        # --- (MỚI V6.0) 7. CHẠY DỰ ĐOÁN AI ---
-        self.update_output("... (7/8) Đang chạy dự đoán AI (V6.0)...")
+        # --- (MỚI V6.0) 5. CHẠY DỰ ĐOÁN AI ---
+        self.update_output("... (5/5) Đang chạy dự đoán AI (V7.0)...")
         # FIX V7.1: Sửa lỗi gọi hàm, gọi hàm wrapper run_ai_prediction_for_dashboard()
         ai_predictions, ai_message = run_ai_prediction_for_dashboard()
         self.update_output(f"... (AI) {ai_message}")
 
-        # --- (SỬA V6.2) 8. HỆ THỐNG CHẤM ĐIỂM (LOGIC V5 + V6) ---
-        self.update_output("... (8/8) Đang chấm điểm và tổng hợp quyết định (Logic V6.2)...")
+        # --- HỆ THỐNG CHẤM ĐIỂM (LOGIC V5 + V6) ---
+        self.update_output("... (Kết thúc) Đang chấm điểm và tổng hợp quyết định...")
         
+        # (V7.0) Top Memory Bridges chỉ cần là 1 dict rỗng vì không hiển thị chi tiết trên UI mới, nhưng vẫn cần cho hàm chấm điểm.
+        top_memory_bridges = get_top_memory_bridge_predictions(all_data_ai, last_row, top_n=5) 
+
         # (SỬA V6.2) Truyền `ai_predictions` vào đây
         top_scores = get_top_scored_pairs(
             stats_n_day,
@@ -568,21 +567,21 @@ class DataAnalysisApp:
             high_win, 
             pending_k2n_data, 
             gan_stats,
-            top_memory_bridges,
+            top_memory_bridges, # Giữ lại cho chấm điểm
             ai_predictions # (MỚI V6.2) Tích hợp AI vào chấm điểm
         )
         
-        self.update_output("Phân tích hoàn tất. Đang hiển thị Bảng Tổng Hợp...")
+        self.update_output("Phân tích hoàn tất. Đang hiển thị Bảng Quyết Định Tối Ưu...")
         
-        # (SỬA V6.6) TRẢ LẠI `ai_predictions` cho hàm hiển thị
+        # (V7.0) Vẫn truyền tất cả 10 tham số để giữ chữ ký hàm, mặc dù UI mới chỉ dùng 5-6
         self.root.after(0, self._show_dashboard_window, 
             next_ky, stats_n_day, n_days_stats, 
             consensus, high_win, pending_k2n_data, 
             gan_stats, top_scores, top_memory_bridges,
-            ai_predictions # (MỚI V6.6)
+            ai_predictions 
         )
 
-    # (SỬA V6.6) TRẢ LẠI `ai_predictions`
+    # (V7.0) Vẫn giữ chữ ký hàm cũ cho compatibility
     def _show_dashboard_window(self, next_ky, stats_n_day, n_days_stats, consensus, high_win, pending_k2n_data, gan_stats, top_scores, top_memory_bridges, ai_predictions):
         try:
             if self.dashboard_window and self.dashboard_window.window.winfo_exists():
