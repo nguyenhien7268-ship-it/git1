@@ -1,11 +1,19 @@
 # Tên file: code1/app_controller.py
 #
-# (NỘI DUNG THAY THẾ TOÀN BỘ - TÁI CẤU TRÚC THEO MVC)
+# (NỘI DUNG THAY THẾ TOÀN BỘ - V7.2 MP UPGRADE - TỐI ƯU HÓA CHIẾN LƯỢC)
 #
 import traceback
 import time
 import json
 import itertools
+import os # Cần cho việc lấy số lõi CPU
+
+# (V7.2 MP) Thêm import cho Multi-Processing
+import multiprocessing 
+from multiprocessing import Process, Queue
+from multiprocessing.queues import Empty
+from concurrent.futures import ProcessPoolExecutor, as_completed
+
 # (MỚI) Import tkinter chỉ để lấy hằng số, nhưng cách tốt hơn là không import
 import tkinter as tk # Cần để sử dụng tk.NORMAL/tk.END trong các hàm cũ.
 
@@ -31,6 +39,189 @@ except ImportError:
         'update_setting': lambda k, v: (False, "SETTINGS object not initialized")
     })
 
+# ===================================================================
+# (V7.2 MP) HÀM HỖ TRỢ VÀ HÀM MỤC TIÊU CHO TỐI ƯU HÓA (Đa tiến trình)
+# ĐƯỢC ĐỊNH NGHĨA Ở TOP-LEVEL (NGOÀI CLASS) ĐỂ CÓ THỂ PICKLE
+# ===================================================================
+
+def _float_range(start, stop, step):
+    """Hàm helper (top-level) để tạo range cho số thực."""
+    if step == 0: yield start; return
+    n = start
+    while n < (stop + (step * 0.5)):
+        yield n
+        n += step
+
+def _generate_combinations(param_ranges, original_settings):
+    """Hàm helper (top-level) để tạo các tổ hợp tham số."""
+    param_lists = []
+    config_keys = list(param_ranges.keys())
+    static_keys = [k for k in original_settings.keys() if k not in config_keys]
+    
+    for key in config_keys:
+        v_from, v_to, v_step = param_ranges[key]
+        if isinstance(original_settings[key], int):
+            param_lists.append([(key, int(i)) for i in _float_range(v_from, v_to, v_step) if i >= 0])
+        else:
+            param_lists.append([(key, round(i, 2)) for i in _float_range(v_from, v_to, v_step) if i >= 0])
+    if not param_lists: return []
+
+    combinations = []
+    for combo in itertools.product(*param_lists):
+        temp_config = {}
+        for static_key in static_keys:
+            temp_config[static_key] = original_settings[static_key]
+        for key, value in combo:
+            temp_config[key] = value
+        combinations.append(temp_config)
+    return combinations
+
+def _run_single_config_test(job_payload):
+    """
+    (V7.2 MP) HÀM LÕI (WORKER)
+    Hàm này được thực thi bởi các tiến trình con trong ProcessPoolExecutor.
+    Nó chạy backtest cho MỘT tổ hợp 'config'.
+    """
+    try:
+        # Giải nén payload
+        all_data_ai, strategy, days_to_test, config, param_ranges = job_payload
+        
+        # *** QUAN TRỌNG: Import logic nghiệp vụ BÊN TRONG HÀM WORKER ***
+        # Điều này đảm bảo mỗi tiến trình con import module của riêng nó.
+        from logic.dashboard_analytics import get_historical_dashboard_data
+        from logic.bridges.bridges_classic import getAllLoto_V30
+        
+        # 1. Sao chép logic chạy backtest cho 1 config
+        total_hits = 0
+        days_tested = 0
+        
+        for day_offset in range(days_to_test):
+            actual_index = len(all_data_ai) - 1 - day_offset
+            day_index = actual_index - 1
+            if day_index < 50: continue
+            days_tested += 1
+            
+            actual_row = all_data_ai[actual_index]
+            actual_loto_set = set(getAllLoto_V30(actual_row))
+            
+            # Hàm get_historical_dashboard_data đã được import
+            # Nó sẽ tự kết nối DB (read-only) trong tiến trình này
+            top_scores = get_historical_dashboard_data(
+                all_data_ai, day_index, config
+            )
+            
+            if not top_scores: continue
+                
+            if strategy == "Tối ưu Top 1 (N1)":
+                top_1_pair_str = top_scores[0]['pair']
+                loto1, loto2 = top_1_pair_str.split('-')
+                if loto1 in actual_loto_set or loto2 in actual_loto_set:
+                    total_hits += 1
+            
+            elif strategy == "Tối ưu Top 3 (N1)":
+                top_3_pairs = {item['pair'] for item in top_scores[:3]}
+                for pair_str in top_3_pairs:
+                    loto1, loto2 = pair_str.split('-')
+                    if loto1 in actual_loto_set or loto2 in actual_loto_set:
+                        total_hits += 1; break 
+                        
+        # 2. Chuẩn bị kết quả
+        rate = total_hits / days_tested if days_tested > 0 else 0
+        hits_str = f"{total_hits}/{days_tested}"
+        config_str_json = json.dumps(config)
+        params_str_display = ", ".join([f"{key}: {value}" for key, value in config.items() if key in param_ranges])
+        
+        # Trả về kết quả (để 'as_completed' có thể nhận)
+        return (rate, hits_str, params_str_display, config_str_json)
+        
+    except Exception as e:
+        # Báo lỗi về cho tiến trình cha
+        error_msg = f"Lỗi worker: {e}\n{traceback.format_exc()}"
+        return ("error", error_msg, str(config), "{}")
+
+
+def _strategy_optimization_process_target(result_queue, all_data_ai, strategy, days_to_test, param_ranges, original_settings_backup):
+    """
+    (V7.2 MP) HÀM QUẢN LÝ (MANAGER PROCESS)
+    Hàm này chạy trong một tiến trình (Process) riêng, không làm đơ UI.
+    Nó tạo ra ProcessPoolExecutor để chạy các job song song.
+    """
+    
+    def log_to_queue(message):
+        """Gửi log về UI thread qua Queue."""
+        result_queue.put(('log', message))
+
+    try:
+        log_to_queue("Đang tạo các tổ hợp kiểm thử...")
+        combinations = _generate_combinations(param_ranges, original_settings_backup)
+        total_combos = len(combinations)
+        
+        if total_combos == 0:
+            result_queue.put(('error', "Lỗi: Không tạo được tổ hợp kiểm thử."))
+            return
+            
+        log_to_queue(f"Đã tạo {total_combos} tổ hợp. Chuẩn bị Process Pool...")
+        
+        # Tạo danh sách các "job" (payload)
+        jobs = []
+        for config in combinations:
+            jobs.append((all_data_ai, strategy, days_to_test, config, param_ranges))
+
+        results_list = []
+        jobs_completed = 0
+        
+        # Lấy số lõi CPU, trừ 1 cho hệ thống, tối thiểu 1
+        num_workers = max(1, (os.cpu_count() or 4) - 1)
+        log_to_queue(f"Khởi chạy {num_workers} tiến trình con để xử lý {total_combos} jobs...")
+
+        with ProcessPoolExecutor(max_workers=num_workers) as executor:
+            # Gửi tất cả các job
+            future_to_job = {executor.submit(_run_single_config_test, job): job for job in jobs}
+            
+            # Lấy kết quả khi chúng hoàn thành
+            for future in as_completed(future_to_job):
+                result_tuple = future.result()
+                
+                if result_tuple[0] == "error":
+                    # ('error', error_msg, str(config), "{}")
+                    log_to_queue(f"LỖI JOB: {result_tuple[2]}\n{result_tuple[1]}")
+                else:
+                    # (rate, hits_str, params_str_display, config_str_json)
+                    results_list.append(result_tuple)
+                    
+                jobs_completed += 1
+                
+                # Gửi cập nhật tiến độ
+                if jobs_completed % 5 == 0 or jobs_completed == total_combos:
+                     result_queue.put(('progress', jobs_completed, total_combos))
+
+        log_to_queue("Tất cả jobs đã hoàn thành. Đang sắp xếp kết quả...")
+        results_list.sort(key=lambda x: x[0], reverse=True)
+        
+        log_to_queue("Khôi phục cài đặt gốc...")
+        # Khôi phục cài đặt gốc (trong tiến trình này, không ảnh hưởng UI)
+        try:
+            from logic.config_manager import SETTINGS
+            for key, value in original_settings_backup.items():
+                # Tạm thời vô hiệu hóa việc ghi file, chỉ thay đổi
+                # SETTINGS.update_setting(key, value)
+                setattr(SETTINGS, key, value)
+            log_to_queue("Đã khôi phục cài đặt (trong bộ nhớ process).")
+        except Exception as e_cfg:
+            log_to_queue(f"Lỗi khôi phục settings: {e_cfg}")
+
+        # Gửi kết quả cuối cùng về UI thread
+        result_queue.put(('result', results_list))
+
+    except Exception as e:
+        # Gửi lỗi nghiêm trọng về UI thread
+        error_msg = f"Lỗi nghiêm trọng trong Process Quản lý:\n{e}\n{traceback.format_exc()}"
+        result_queue.put(('error', error_msg))
+
+# ===================================================================
+# CLASS APP CONTROLLER
+# ===================================================================
+
 class AppController:
     """
     Lớp này chứa TOÀN BỘ logic nghiệp vụ (các hàm _task) 
@@ -44,6 +235,9 @@ class AppController:
         self.logger = None # Sẽ được gán từ app_instance
         
         self.all_data_ai = None # Cache dữ liệu
+        
+        # (V7.2 MP) Biến theo dõi tiến trình
+        self.optimization_process = None
 
     def root_after(self, ms, func, *args):
         """Hàm gọi root.after an toàn (chạy trên luồng chính)."""
@@ -344,19 +538,54 @@ class AppController:
             # self.app.bridge_manager_window_instance là đối tượng View BridgeManagerWindow
             self.root_after(0, self.app.bridge_manager_window_instance.refresh_bridge_list)
 
-    def task_run_train_ai(self, title):
-        
-        def train_callback(success, message):
+    # (V7.2 MP) HÀM MỚI KIỂM TRA TRẠNG THÁI TIẾN TRÌNH
+    def _check_ai_training_status(self, process, queue, title):
+        """
+        Kiểm tra trạng thái của tiến trình huấn luyện AI và đọc kết quả từ Queue.
+        Chạy trên luồng chính của UI.
+        """
+        if not process.is_alive():
+            # Tiến trình đã kết thúc
+            self.logger.log("... Tiến trình Huấn luyện AI đã kết thúc. Đang đọc kết quả.")
+            try:
+                # Đọc kết quả từ Queue (timeout=1 để tránh block)
+                success, message = queue.get(timeout=1)
+            except Empty:
+                success, message = False, "LỖI: Tiến trình kết thúc nhưng không gửi kết quả về Queue."
+            except Exception as e:
+                success, message = False, f"LỖI đọc kết quả từ Queue: {e}"
+                
+            # Log kết quả cuối cùng
             self.logger.log(f">>> {title} HOÀN TẤT:")
             self.logger.log(message)
+            
+            # Đóng Queue và Process
+            try:
+                queue.close()
+                process.join()
+            except Exception as e:
+                self.logger.log(f"Cảnh báo: Lỗi khi đóng Process/Queue: {e}")
+        else:
+            # Tiến trình vẫn đang chạy, kiểm tra lại sau 500ms
+            self.root_after(500, self._check_ai_training_status, process, queue, title)
+
+
+    # (V7.2 MP) SỬA HÀM GỐC ĐỂ DÙNG MULTI-PROCESSING VÀ CHỨC NĂNG CHECKER MỚI
+    def task_run_train_ai(self, title):
         
-        # run_ai_training_threaded được import từ lottery_service.py
-        success, message = run_ai_training_threaded(callback=train_callback)
+        # run_ai_training_threaded (nay là run_ai_training_multiprocessing) 
+        # được import từ lottery_service.py
+        process, queue, success, message = run_ai_training_threaded()
         
         if not success:
-            self.logger.log(f"LỖI KHỞI CHẠY LUỒNG: {message}")
-            raise Exception(f"Lỗi khởi chạy luồng Huấn luyện AI: {message}")
+            self.logger.log(f"LỖI KHỞI CHẠY TIẾN TRÌNH: {message}")
+            return 
 
+        self.logger.log(message)
+        
+        # Bắt đầu vòng lặp kiểm tra trạng thái trên luồng chính (500ms)
+        self.root_after(500, self._check_ai_training_status, process, queue, title)
+        
     def task_run_backtest_memory(self, title):
         toan_bo_A_I = self.load_data_ai_from_db_controller()
         if not toan_bo_A_I:
@@ -691,7 +920,8 @@ class AppController:
             output += "THỐNG KÊ LOTO (Đầu - Đuôi)\n"
             output += "-" * 46 + "\n"
             COL_DAU_W, COL_LOTO_W, COL_DUOI_W = 3, 12, 4
-            output += f"{'Đầu'.ljust(COL_DAU_W)} | {'Loto'.ljust(COL_LOTO_W)} | {'Đuôi'.ljust(COL_DUOI_W)} | {'Loto'.ljust(COL_LOTO_W)}\n"
+            # DÒNG LỖI ĐÃ ĐƯỢC SỬA (V7.2 MP FIX)
+            output += f"{'Đầu'.ljust(COL_DAU_W)} | {'Loto'.ljust(COL_LOTO_W)} | {'Đuôi'.ljust(COL_DUOI_W)} | {'Loto'.ljust(COL_LOTO_W)}\n" 
             output += f"{'-'*COL_DAU_W} | {'-'*COL_LOTO_W} | {'-'*COL_DUOI_W} | {'-'*COL_LOTO_W}\n"
             
             for i in range(10):
@@ -743,16 +973,10 @@ class AppController:
             last_row = all_data_ai[-1]
             log_to_tuner(f"...Tải thành công {len(all_data_ai)} kỳ.")
 
-            def float_range(start, stop, step):
-                if step == 0: yield start; return
-                n = start
-                while n < (stop + (step * 0.5)): 
-                    yield n
-                    n += step
-
+            # Sử dụng hàm helper top-level
             def test_gan_days(p_key, v_from, v_to, v_step):
                 log_to_tuner(f"--- Bắt đầu kiểm thử: {p_key} ---")
-                for i in float_range(v_from, v_to, v_step):
+                for i in _float_range(v_from, v_to, v_step):
                     n = int(i);
                     if n <= 0: continue
                     # get_loto_gan_stats được import từ lottery_service.py
@@ -766,7 +990,7 @@ class AppController:
                 # run_and_update_all_bridge_K2N_cache được import từ lottery_service.py
                 run_and_update_all_bridge_K2N_cache(all_data_ai, self.db_name) 
                 log_to_tuner("... (Cache K2N hoàn tất. Bắt đầu lặp)...")
-                for i in float_range(v_from, v_to, v_step):
+                for i in _float_range(v_from, v_to, v_step):
                     # get_high_win_rate_predictions được import từ lottery_service.py
                     high_win_bridges = get_high_win_rate_predictions(threshold=i)
                     log_to_tuner(f"Kiểm thử {p_key} >= {i:.1f}%: Tìm thấy {len(high_win_bridges)} cầu đạt chuẩn.")
@@ -786,7 +1010,7 @@ class AppController:
                 if not combined_results:
                     log_to_tuner("LỖI: Không dò được cầu nào."); return
                 log_to_tuner(f"... (Dò cầu hoàn tất. Tổng cộng {len(combined_results)} cầu. Bắt đầu lặp)...")
-                for i in float_range(v_from, v_to, v_step):
+                for i in _float_range(v_from, v_to, v_step):
                     count = 0
                     for row in combined_results:
                         try:
@@ -806,7 +1030,7 @@ class AppController:
                 enabled_bridges = get_all_managed_bridges(self.db_name, only_enabled=True)
                 if not enabled_bridges:
                     log_to_tuner("LỖI: Không có cầu nào đang Bật để kiểm thử."); return
-                for i in float_range(v_from, v_to, v_step):
+                for i in _float_range(v_from, v_to, v_step):
                     count = 0
                     for bridge in enabled_bridges:
                         try:
@@ -832,7 +1056,7 @@ class AppController:
                 log_to_tuner("... (Dữ liệu nền hoàn tất. Bắt đầu lặp)...")
                 
                 original_value = SETTINGS.get_all_settings().get(p_key)
-                for i in float_range(v_from, v_to, v_step):
+                for i in _float_range(v_from, v_to, v_step):
                     val = i
                     if p_key == "K2N_RISK_START_THRESHOLD": val = int(i)
                     setattr(SETTINGS, p_key, val)
@@ -872,136 +1096,134 @@ class AppController:
             except: pass
         finally:
             self.root_after(0, tuner_window.run_button.config, {"state": tk.NORMAL})
+
+    # ===================================================================
+    # (V7.2 MP) LOGIC TỐI ƯU HÓA CHIẾN LƯỢC (ĐA TIẾN TRÌNH)
+    # ===================================================================
+
+    def _check_optimization_status(self, process, queue, optimizer_tab):
+        """
+        (V7.2 MP) Kiểm tra Queue để lấy log và kết quả từ tiến trình Tối ưu hóa.
+        Chạy trên luồng chính (UI thread).
+        """
+        try:
+            while True: # Xử lý tất cả thông điệp trong Queue
+                message = queue.get_nowait()
+                msg_type, payload = message[0], message[1:]
+                
+                if msg_type == 'log':
+                    optimizer_tab.log(payload[0])
+                
+                elif msg_type == 'progress':
+                    # Cập nhật thanh tiến trình (nếu có)
+                    jobs_done, total_jobs = payload
+                    optimizer_tab.log(f"Đã hoàn thành {jobs_done}/{total_jobs} tổ hợp...")
+                    
+                elif msg_type == 'result':
+                    optimizer_tab.log("--- HOÀN TẤT TỐI ƯU HÓA ---")
+                    
+                    # 1. Cập nhật cây kết quả
+                    results_list = payload[0]
+                    optimizer_tab.clear_results_tree()
+                    for i, (rate, hits, params_str, config_dict_str) in enumerate(results_list):
+                        rate_str = f"{rate * 100:.1f}%"
+                        tags = ('best',) if i == 0 else ()
+                        tags_with_data = (config_dict_str,) + tags
+                        optimizer_tab.tree.insert("", tk.END, values=(
+                            rate_str, hits, params_str
+                        ), tags=tags_with_data)
+                    
+                    # 2. Bật lại các nút
+                    optimizer_tab.apply_button.config(state=tk.NORMAL)
+                    optimizer_tab.run_button.config(state=tk.NORMAL)
+                    
+                    # 3. Đóng tiến trình
+                    try:
+                        queue.close()
+                        process.join()
+                    except Exception as e:
+                        self.logger.log(f"Cảnh báo: Lỗi khi đóng Process/Queue Tối ưu hóa: {e}")
+                    self.optimization_process = None # Đánh dấu đã xong
+                    return # Dừng vòng lặp 'root.after'
+
+                elif msg_type == 'error':
+                    optimizer_tab.log(f"LỖI NGHIÊM TRỌNG: {payload[0]}")
+                    optimizer_tab.run_button.config(state=tk.NORMAL) # Bật lại nút
+                    try:
+                        queue.close()
+                        process.join()
+                    except Exception: pass
+                    self.optimization_process = None
+                    return # Dừng vòng lặp 'root.after'
+
+        except Empty:
+            # Queue rỗng, không có thông điệp mới
+            pass 
+        except Exception as e:
+            optimizer_tab.log(f"Lỗi đọc Queue: {e}")
             
+        # Nếu tiến trình vẫn đang chạy, kiểm tra lại sau
+        if process.is_alive():
+            self.root_after(500, self._check_optimization_status, process, queue, optimizer_tab)
+        else:
+            # Tiến trình chết nhưng không gửi 'result'
+            if self.optimization_process: # Chỉ xử lý nếu chưa bị hủy
+                optimizer_tab.log("LỖI: Tiến trình Tối ưu hóa đã dừng đột ngột.")
+                optimizer_tab.run_button.config(state=tk.NORMAL)
+                self.optimization_process = None
+            try: queue.close(); process.join()
+            except: pass
+
+
     def task_run_strategy_optimization(self, strategy, days_to_test, param_ranges, optimizer_tab):
+        """
+        (V7.2 MP) Khởi chạy tác vụ Tối ưu hóa Chiến lược trong một tiến trình (Process) riêng.
+        """
         
+        # Nếu đang có 1 tiến trình chạy, hủy nó
+        if self.optimization_process and self.optimization_process.is_alive():
+            try:
+                self.optimization_process.terminate() # Hủy tiến trình cũ
+                self.optimization_process = None
+                optimizer_tab.log("Đã hủy tác vụ tối ưu hóa cũ.")
+            except Exception as e:
+                optimizer_tab.log(f"Lỗi khi hủy tác vụ cũ: {e}")
+
         def log_to_optimizer(message):
             self.root_after(0, optimizer_tab.log, message)
             
-        def update_tree_results_threadsafe(results_list):
-            optimizer_tab.clear_results_tree()
-            for i, (rate, hits, params_str, config_dict_str) in enumerate(results_list):
-                rate_str = f"{rate * 100:.1f}%"
-                tags = ('best',) if i == 0 else ()
-                tags_with_data = (config_dict_str,) + tags
-                optimizer_tab.tree.insert("", tk.END, values=(
-                    rate_str, hits, params_str
-                ), tags=tags_with_data)
-            
-            # tk.NORMAL được import từ tkinter
-            optimizer_tab.apply_button.config(state=tk.NORMAL)
-
-        def float_range(start, stop, step):
-            if step == 0: yield start; return
-            n = start
-            while n < (stop + (step * 0.5)):
-                yield n
-                n += step
-        
-        def generate_combinations(param_ranges, original_settings):
-            param_lists = []
-            config_keys = list(param_ranges.keys())
-            static_keys = [k for k in original_settings.keys() if k not in config_keys]
-            
-            for key in config_keys:
-                v_from, v_to, v_step = param_ranges[key]
-                if isinstance(original_settings[key], int):
-                    param_lists.append([(key, int(i)) for i in float_range(v_from, v_to, v_step) if i >= 0])
-                else:
-                    param_lists.append([(key, round(i, 2)) for i in float_range(v_from, v_to, v_step) if i >= 0])
-            if not param_lists: return []
-
-            combinations = []
-            for combo in itertools.product(*param_lists):
-                temp_config = {}
-                for static_key in static_keys:
-                    temp_config[static_key] = original_settings[static_key]
-                for key, value in combo:
-                    temp_config[key] = value
-                combinations.append(temp_config)
-            return combinations
-
         try:
             log_to_optimizer("Đang tải toàn bộ dữ liệu A:I...")
             all_data_ai = self.load_data_ai_from_db_controller() 
             if not all_data_ai or len(all_data_ai) < days_to_test + 50:
                 log_to_optimizer(f"LỖI: Cần ít nhất {days_to_test + 50} kỳ dữ liệu để kiểm thử.")
+                self.root_after(0, optimizer_tab.run_button.config, {"state": tk.NORMAL})
                 return
             log_to_optimizer(f"...Tải dữ liệu thành công ({len(all_data_ai)} kỳ).")
             
             original_settings = SETTINGS.get_all_settings()
-            combinations = generate_combinations(param_ranges, original_settings)
-            total_combos = len(combinations)
-            if total_combos == 0:
-                log_to_optimizer("Lỗi: Không tạo được tổ hợp kiểm thử."); return
-                
-            log_to_optimizer(f"Đã tạo {total_combos} tổ hợp. Bắt đầu kiểm thử...")
-            
             original_settings_backup = original_settings.copy()
-            results_list = []
             
-            for i, config in enumerate(combinations):
-                log_to_optimizer(f"--- Đang kiểm thử [{i+1}/{total_combos}]: {config} ---")
-                
-                for key, value in config.items():
-                    setattr(SETTINGS, key, value)
-                
-                total_hits = 0; days_tested = 0
-                
-                for day_offset in range(days_to_test):
-                    actual_index = len(all_data_ai) - 1 - day_offset
-                    day_index = actual_index - 1
-                    if day_index < 50: continue
-                    days_tested += 1
-                    
-                    actual_row = all_data_ai[actual_index]
-                    # getAllLoto_V30 được import từ lottery_service.py
-                    actual_loto_set = set(getAllLoto_V30(actual_row))
-                    
-                    # get_historical_dashboard_data được import từ lottery_service.py
-                    top_scores = get_historical_dashboard_data(
-                        all_data_ai, day_index, config
-                    )
-                    
-                    if not top_scores: continue
-                        
-                    if strategy == "Tối ưu Top 1 (N1)":
-                        top_1_pair_str = top_scores[0]['pair']
-                        loto1, loto2 = top_1_pair_str.split('-')
-                        if loto1 in actual_loto_set or loto2 in actual_loto_set:
-                            total_hits += 1
-                    
-                    elif strategy == "Tối ưu Top 3 (N1)":
-                        top_3_pairs = {item['pair'] for item in top_scores[:3]}
-                        for pair_str in top_3_pairs:
-                            loto1, loto2 = pair_str.split('-')
-                            if loto1 in actual_loto_set or loto2 in actual_loto_set:
-                                total_hits += 1; break 
-                                
-                rate = total_hits / days_tested if days_tested > 0 else 0
-                hits_str = f"{total_hits}/{days_tested}"
-                config_str_json = json.dumps(config)
-                params_str_display = ", ".join([f"{key}: {value}" for key, value in config.items() if key in param_ranges])
-                results_list.append((rate, hits_str, params_str_display, config_dict_str))
-                log_to_optimizer(f"-> Kết quả: {hits_str} ({rate*100:.1f}%)")
-
-            log_to_optimizer("Đang sắp xếp kết quả...")
-            results_list.sort(key=lambda x: x[0], reverse=True)
+            # Tạo Queue và Process
+            result_queue = Queue()
+            self.optimization_process = Process(
+                target=_strategy_optimization_process_target,
+                args=(
+                    result_queue, 
+                    all_data_ai, 
+                    strategy, 
+                    days_to_test, 
+                    param_ranges, 
+                    original_settings_backup
+                )
+            )
             
-            for key, value in original_settings_backup.items():
-                setattr(SETTINGS, key, value)
-            log_to_optimizer("Đã khôi phục cài đặt gốc.")
+            self.optimization_process.start()
             
-            self.root_after(0, update_tree_results_threadsafe, results_list)
-            log_to_optimizer("--- HOÀN TẤT TỐI ƯU HÓA ---")
-
+            # Bắt đầu vòng lặp kiểm tra trạng thái trên UI thread
+            self.root_after(100, self._check_optimization_status, self.optimization_process, result_queue, optimizer_tab)
+            
         except Exception as e:
-            log_to_optimizer(f"LỖI: {e}")
+            log_to_optimizer(f"LỖI KHỞI CHẠY TIẾN TRÌNH: {e}")
             log_to_optimizer(traceback.format_exc())
-            try:
-                for key, value in original_settings_backup.items():
-                    setattr(SETTINGS, key, value)
-                log_to_optimizer("Đã khôi phục cài đặt gốc sau lỗi.")
-            except NameError: pass
-        finally:
             self.root_after(0, optimizer_tab.run_button.config, {"state": tk.NORMAL})

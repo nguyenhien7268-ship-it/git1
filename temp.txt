@@ -2,17 +2,14 @@
 Đã tải cài đặt từ config.json
 ConfigManager đã khởi tạo và tải cài đặt.
 >>> (V6.0) Tải logic.ml_model (AI) thành công.
-Lottery Service API (lottery_service.py) đã tải thành công (V7.0 G2).
-LỖI KHÔNG XÁC ĐỊNH KHI CHẠY APP: 'DataAnalysisApp' object has no attribute 'controller'
+Lottery Service API (lottery_service.py) đã tải thành công (V7.2 MP).
 Traceback (most recent call last):
-  File "C:\Users\KAKA\Documents\27loto\code1\main_app.py", line 19, in <module>
-    app = DataAnalysisApp(root)
-  File "C:\Users\KAKA\Documents\27loto\code1\ui\ui_main_window.py", line 100, in __init__
-    self.dashboard_tab = DashboardWindow(self)
-                         ~~~~~~~~~~~~~~~^^^^^^
-  File "C:\Users\KAKA\Documents\27loto\code1\ui\ui_dashboard.py", line 25, in __init__
-    self.controller = app_instance.controller # Thêm tham chiếu Controller
-                      ^^^^^^^^^^^^^^^^^^^^^^^
-AttributeError: 'DataAnalysisApp' object has no attribute 'controller'
-
-Nhấn Enter để thoát...
+  File "C:\Users\KAKA\Documents\27loto\code1\main_app.py", line 9, in <module>
+    from ui.ui_main_window import DataAnalysisApp
+  File "C:\Users\KAKA\Documents\27loto\code1\ui\ui_main_window.py", line 21, in <module>
+    from app_controller import AppController
+  File "C:\Users\KAKA\Documents\27loto\code1\app_controller.py", line 732
+    output += f"{'Đầu'.ljust(COL_DAU_W)} | {'Loto'.ljust(COL_LOTO_W)} | {'Đuôi'.ljust(COL_DUOI_W)} | {'Loto'.loto_W)}\n"
+                                                                                                                   ^
+SyntaxError: f-string: unmatched ')'
+[Finished in 1.6s]

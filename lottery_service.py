@@ -1,11 +1,14 @@
 """
 ==================================================================================
-LOTTERY SERVICE API (BỘ ĐIỀU PHỐI) - (V7.1 FIX - ĐỒNG BỘ TÁCH BIỆT LOGIC)
+LOTTERY SERVICE API (BỘ ĐIỀU PHỐI) - (V7.2 MP - MULTI-PROCESSING UPGRADE)
 ==================================================================================
 """
-import threading
-from collections import defaultdict, Counter
 import os 
+from collections import defaultdict, Counter
+# (V7.2 MP) THAY THẾ threading BẰNG multiprocessing
+import multiprocessing 
+from multiprocessing import Process, Queue
+from multiprocessing.queues import Empty # Cần cho việc quản lý Queue an toàn
 
 # 1. (FIX A) Từ logic.db_manager: GIỮ CÁC HÀM CRUD CẦN THIẾT
 try:
@@ -281,41 +284,62 @@ def _get_daily_bridge_predictions(all_data_ai):
     return daily_predictions_by_loto
 
 # ==========================================================================
-# (V7.0) HÀM WRAPPER SỬ DỤNG THREADING
+# (MỚI V7.2 MP) HÀM MỤC TIÊU CHO TIẾN TRÌNH
 # ==========================================================================
 
-def run_ai_training_threaded(callback=None):
+def _train_ai_process_target(all_data_ai, result_queue):
     """
-    (V7.0) Wrapper chạy Huấn luyện AI trên luồng riêng để không làm đóng băng UI.
-    callback: Hàm được gọi khi hoàn thành (ví dụ: callback(success, message)).
+    (V7.2 MP) Hàm mục tiêu CPU-bound chạy trong tiến trình riêng (Process).
+    result_queue: Queue để gửi kết quả (success, message) về cho tiến trình cha (AppController).
+    """
+    success, result_msg = False, "Lỗi chưa xác định."
+    try:
+        # 1. Tách biệt logic: Tính toán features TẠI ĐÂY (lottery_service)
+        daily_bridge_predictions = _get_daily_bridge_predictions(all_data_ai)
+        
+        # 2. Gọi logic AI đã tách biệt (truyền features đã tính)
+        success, result_msg = train_ai_model(all_data_ai, daily_bridge_predictions)
+        
+    except Exception as e:
+        import traceback
+        result_msg = f"Lỗi tính toán features hoặc huấn luyện: {e}\n{traceback.format_exc()}"
+        
+    # 3. Gửi kết quả (success, message) vào Queue
+    result_queue.put((success, result_msg))
+
+
+# ==========================================================================
+# (V7.2 MP) HÀM WRAPPER SỬ DỤNG MULTI-PROCESSING (Thay thế run_ai_training_threaded)
+# ==========================================================================
+
+def run_ai_training_multiprocessing():
+    """
+    (V7.2 MP) Wrapper chạy Huấn luyện AI trên tiến trình riêng (Process)
+    để tận dụng đa lõi CPU, giải quyết vấn đề GIL.
+    Trả về Process và Queue để AppController quản lý kết quả.
     """
     # Lấy dữ liệu lớn từ Data Repository
     all_data_ai, msg = load_data_ai_from_db()
     if all_data_ai is None:
-        if callback: callback(False, msg)
-        return False, msg
+        # Trả về None/None/False nếu lỗi tải data
+        return None, None, False, msg
         
-    def _train_target():
-        # 1. Tách biệt logic: Tính toán features TẠI ĐÂY (lottery_service)
-        try:
-            daily_bridge_predictions = _get_daily_bridge_predictions(all_data_ai)
-        except Exception as e:
-            import traceback
-            if callback: callback(False, f"Lỗi tính toán features: {e}\n{traceback.format_exc()}")
-            return
+    # Tạo Queue để nhận kết quả từ tiến trình con
+    result_queue = Queue()
 
-        # 2. Gọi logic AI đã tách biệt (truyền features đã tính)
-        success, result_msg = train_ai_model(all_data_ai, daily_bridge_predictions)
-        
-        # 3. Gọi lại hàm callback
-        if callback:
-            callback(success, result_msg)
+    # Khởi tạo Tiến trình (Process)
+    # Không cần truyền callback, Process sẽ gửi kết quả qua Queue
+    process = Process(
+        target=_train_ai_process_target, 
+        args=(all_data_ai, result_queue)
+    )
+    process.start()
+    
+    # Trả về Process, Queue, và cờ thành công/message khởi chạy để Controller quản lý
+    return process, result_queue, True, "Quá trình huấn luyện AI đã được khởi chạy trong nền (Multi-Processing). Vui lòng chờ..."
 
-    # Khởi chạy luồng
-    thread = threading.Thread(target=_train_target)
-    thread.start()
-    return True, "Quá trình huấn luyện AI đã được khởi chạy trong nền. Vui lòng chờ..."
-
+# Giữ lại tên cũ để đảm bảo các module khác không bị lỗi import nếu chưa được sửa
+run_ai_training_threaded = run_ai_training_multiprocessing
 
 def run_ai_prediction_for_dashboard():
     """
@@ -355,7 +379,7 @@ def get_all_managed_bridges_wrapper(db_name=DB_NAME, only_enabled=False):
     # Gọi hàm mới từ data_repository.py đã được import
     return get_all_managed_bridges(db_name, only_enabled)
 
-print("Lottery Service API (lottery_service.py) đã tải thành công (V7.0 G2).")
+print("Lottery Service API (lottery_service.py) đã tải thành công (V7.2 MP).")
 
 # ==========================================================================
 # (V7.1 - FIX BẢO TRÌ) HÀM THÊM DATA TỪ TEXT

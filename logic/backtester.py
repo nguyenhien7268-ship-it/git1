@@ -1,4 +1,8 @@
 import sqlite3
+# (V7.2 MP) Thêm thư viện Multi-Processing
+from concurrent.futures import ProcessPoolExecutor, as_completed
+import os
+import traceback # Thêm để debug lỗi MP
 # (V7.1) Chỉ giữ lại import Counter cho tiện ích chung
 from collections import Counter 
 
@@ -111,7 +115,8 @@ def _parse_k2n_results(results_data):
     pending_k2n_dict = {}
     
     if not results_data or len(results_data) < 4:
-        print("Lỗi _parse_k2n_results: Dữ liệu backtest K2N không hợp lệ.")
+        # Lỗi này có thể xảy ra nếu không có cầu nào được BẬT
+        # print("Lỗi _parse_k2n_results: Dữ liệu backtest K2N không hợp lệ.")
         return cache_data_list, pending_k2n_dict
         
     try:
@@ -1012,4 +1017,4 @@ def run_and_update_all_bridge_K2N_cache(all_data_ai, db_name=DB_NAME, data_slice
 # (V7.1) XÓA: TIM_CAU_BAC_NHO_TOT_NHAT (Đã chuyển sang bridge_manager_core.py)
 # (V7.1) XÓA: get_top_memory_bridge_predictions (Đã chuyển sang dashboard_analytics.py)
 
-# (V7.1) XÓA: get_historical_dashboard_data (Đã chuyển sang dashboard_analytics.py)
+# (V7.1) XÓA: get_historical
