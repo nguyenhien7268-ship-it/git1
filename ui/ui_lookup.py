@@ -1,3 +1,7 @@
+# Tên file: du-an-backup/ui/ui_lookup.py
+#
+# (NỘI DUNG THAY THẾ TOÀN BỘ)
+#
 import tkinter as tk
 from tkinter import ttk
 
@@ -11,28 +15,28 @@ try:
     )
 except ImportError:
     print("LỖI: ui_lookup.py không thể import lottery_service.")
-    # Hàm giả
     def get_all_kys_from_db(): return []
     def get_results_by_ky(k): return None
     def getAllLoto_V30(r): return []
     def calculate_loto_stats(l): return {}, {}
 
-class LookupWindow:
-    """Quản lý cửa sổ Toplevel Tra Cứu Kết Quả."""
+class LookupWindow(ttk.Frame): # (SỬA) Kế thừa từ ttk.Frame
+    """Quản lý tab Tra Cứu Kết Quả."""
     
     def __init__(self, app):
+        # (SỬA) Khởi tạo Frame
+        super().__init__(app.notebook, padding=10)
+        
         self.app = app
         self.root = app.root
         self.all_ky_data_list = [] # Dữ liệu cache
         
-        self.app.update_output("Đang mở cửa sổ Tra Cứu...")
+        # (XÓA) Không cần tạo Toplevel
+        # self.window = tk.Toplevel(self.root) ...
         
-        self.window = tk.Toplevel(self.root)
-        self.window.title("Tra Cứu Kết Quả Kỳ Quay")
-        self.window.geometry("800x600")
-
-        paned_window = ttk.PanedWindow(self.window, orient=tk.HORIZONTAL)
-        paned_window.pack(expand=True, fill=tk.BOTH, padx=10, pady=10)
+        # (SỬA) Gắn PanedWindow vào self (Frame chính)
+        paned_window = ttk.PanedWindow(self, orient=tk.HORIZONTAL)
+        paned_window.pack(expand=True, fill=tk.BOTH, padx=0, pady=0) # Xóa padx/pady
 
         # --- Khung trái (Listbox + Search) ---
         list_frame = ttk.Frame(paned_window, width=250)
@@ -86,7 +90,8 @@ class LookupWindow:
                 self.list_box.select_set(0)
                 self.list_box.event_generate("<<ListboxSelect>>")
         except Exception as e:
-            self.app.update_output(f"Lỗi khi mở cửa sổ tra cứu: {e}")
+            # (SỬA) Gọi qua logger
+            self.app.logger.log(f"Lỗi khi mở cửa sổ tra cứu: {e}")
             self.list_box.insert(tk.END, f"Lỗi: {e}")
 
     def refresh_lookup_list(self):
@@ -104,9 +109,10 @@ class LookupWindow:
                 self.list_box.select_set(0)
                 self.list_box.event_generate("<<ListboxSelect>>")
                 
-            self.app.update_output("Đã làm mới danh sách Kỳ trong Tra Cứu.")
+            # (SỬA) Gọi qua logger
+            self.app.logger.log("Đã làm mới danh sách Kỳ trong Tra Cứu.")
         except Exception as e:
-            self.app.update_output(f"Lỗi refresh_lookup_list: {e}")
+            self.app.logger.log(f"Lỗi refresh_lookup_list: {e}")
             
     def on_lookup_search_change(self, event):
         self.filter_lookup_list()
@@ -184,7 +190,7 @@ class LookupWindow:
 
             self.update_detail_text(output)
         except Exception as e:
-            self.app.update_output(f"Lỗi on_ky_selected: {e}")
+            self.app.logger.log(f"Lỗi on_ky_selected: {e}") # (SỬA)
             self.update_detail_text(f"Lỗi: {e}")
             
     def update_detail_text(self, message):
