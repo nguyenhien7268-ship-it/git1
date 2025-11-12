@@ -1,296 +1,233 @@
 import tkinter as tk
-from tkinter import ttk, messagebox
-import traceback
+from tkinter import ttk, messagebox, simpledialog
 
-# (MỚI GĐ 10) Import SETTINGS để lấy giá trị mặc định
-try:
-    from logic.config_manager import SETTINGS
-except ImportError:
-    print("LỖI: ui_optimizer.py không thể import logic.config_manager.")
-    SETTINGS = None
+# (ĐÃ XÓA) Bỏ import logic.config_manager, logic.backtester, v.v.
+# VIEW không được chứa logic nghiệp vụ
 
 class OptimizerTab(ttk.Frame):
     """
-    (MỚI GĐ 10) Giao diện Tab "Tối ưu Hóa Chiến lược".
-    Kế thừa từ ttk.Frame và sẽ được nhúng vào Notebook chính.
+    Giao diện Tab Tối ưu Hóa Chiến lược (VIEW). 
+    Lớp này chỉ chứa giao diện và ủy quyền lệnh cho Controller.
     """
     
-    def __init__(self, parent_notebook, app_instance):
-        super().__init__(parent_notebook, padding="10")
+    def __init__(self, notebook, app_instance):
+        super().__init__(notebook, padding="10")
         self.app = app_instance
-        self.root = app_instance.root
+        self.controller = app_instance.controller # Lấy tham chiếu Controller
         
-        # Biến lưu trữ các widget
-        self.param_vars = {} # { "GAN_DAYS": (check_var, from_var, to_var, step_var) }
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(2, weight=1) # Dành không gian cho Treeview
         
-        # --- Cấu trúc GUI ---
-        self.columnconfigure(0, weight=1) # Cột cài đặt
-        self.columnconfigure(1, weight=2) # Cột kết quả
-        self.rowconfigure(0, weight=1)    # Cả 2 cột co giãn
-
-        # --- CỘT 1: KHUNG CÀI ĐẶT ---
-        settings_frame = ttk.Frame(self)
-        settings_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
-        settings_frame.columnconfigure(0, weight=1)
-        
-        # Khung Chiến lược & Ngày
-        strategy_frame = ttk.Labelframe(settings_frame, text="1. Cài đặt Chiến lược", padding="10")
-        strategy_frame.grid(row=0, column=0, sticky="ew")
-        strategy_frame.columnconfigure(1, weight=1)
-        
-        ttk.Label(strategy_frame, text="Chiến lược Tối ưu:").grid(row=0, column=0, sticky="w", padx=5, pady=5)
+        # --- Khởi tạo các biến kiểm soát ---
         self.strategy_var = tk.StringVar(value="Tối ưu Top 1 (N1)")
-        strategy_dropdown = ttk.Combobox(strategy_frame, 
-                                         textvariable=self.strategy_var, 
-                                         values=["Tối ưu Top 1 (N1)", "Tối ưu Top 3 (N1)"],
-                                         state="readonly")
-        strategy_dropdown.grid(row=0, column=1, sticky="ew", padx=5, pady=5)
+        self.days_var = tk.StringVar(value="30")
+        
+        # Danh sách các tham số có thể tối ưu
+        self.tunable_params = {
+            "AI_SCORE_WEIGHT": {"desc": "Trọng số AI", "min": 0.5, "max": 5.0, "step": 0.5, "type": float},
+            "K2N_RISK_START_THRESHOLD": {"desc": "Ngưỡng rủi ro K2N", "min": 3, "max": 7, "step": 1, "type": int},
+            "K2N_RISK_PENALTY_PER_FRAME": {"desc": "Điểm phạt K2N", "min": 0.1, "max": 1.0, "step": 0.1, "type": float},
+            "HIGH_WIN_THRESHOLD": {"desc": "Ngưỡng Cầu Tỷ lệ Cao (%)", "min": 45.0, "max": 60.0, "step": 2.5, "type": float},
+        }
+        
+        self.param_vars = {} # Chứa các StringVar/IntVar cho từng tham số
+        self._setup_ui()
+        
+    def _setup_ui(self):
+        
+        # --- Khung Điều Khiển ---
+        control_frame = ttk.Labelframe(self, text="Điều Khiển Tối ưu", padding="10")
+        control_frame.grid(row=0, column=0, sticky="ew", padx=5, pady=5)
+        
+        # Hàng 0: Chiến lược
+        ttk.Label(control_frame, text="Chiến lược:").grid(row=0, column=0, sticky="w", padx=5, pady=2)
+        strategies = ["Tối ưu Top 1 (N1)", "Tối ưu Top 3 (N1)"]
+        strategy_menu = ttk.Combobox(control_frame, textvariable=self.strategy_var, values=strategies, state="readonly", width=30)
+        strategy_menu.grid(row=0, column=1, sticky="ew", padx=5, pady=2)
+        
+        # Hàng 1: Số ngày
+        ttk.Label(control_frame, text="Số ngày Backtest:").grid(row=1, column=0, sticky="w", padx=5, pady=2)
+        days_entry = ttk.Entry(control_frame, textvariable=self.days_var, width=10)
+        days_entry.grid(row=1, column=1, sticky="w", padx=5, pady=2)
 
-        ttk.Label(strategy_frame, text="Số ngày kiểm thử:").grid(row=1, column=0, sticky="w", padx=5, pady=5)
-        self.days_to_test_var = tk.StringVar(value="30")
-        days_entry = ttk.Entry(strategy_frame, textvariable=self.days_to_test_var, width=10)
-        days_entry.grid(row=1, column=1, sticky="w", padx=5, pady=5)
+        # Hàng 2: Nút chạy/Log
+        self.run_button = ttk.Button(control_frame, text="🚀 Bắt Đầu Tối Ưu", command=self.run_optimization)
+        self.run_button.grid(row=2, column=0, columnspan=2, sticky="ew", padx=5, pady=10)
         
-        # Khung Tham số
-        params_frame = ttk.Labelframe(settings_frame, text="2. Chọn Tham số để Tối ưu Hóa", padding="10")
-        params_frame.grid(row=1, column=0, sticky="ew", pady=10)
-        params_frame.columnconfigure(1, weight=1)
         
-        # Header
-        header_frame = ttk.Frame(params_frame)
-        header_frame.grid(row=0, column=0, columnspan=5, sticky="ew")
-        header_frame.columnconfigure(1, weight=1)
-        header_frame.columnconfigure(2, weight=1)
-        header_frame.columnconfigure(3, weight=1)
-        header_frame.columnconfigure(4, weight=1)
-        ttk.Label(header_frame, text="Tham số", font=('TkDefaultFont', 9, 'bold')).grid(row=0, column=1)
-        ttk.Label(header_frame, text="Từ", font=('TkDefaultFont', 9, 'bold')).grid(row=0, column=2)
-        ttk.Label(header_frame, text="Đến", font=('TkDefaultFont', 9, 'bold')).grid(row=0, column=3)
-        ttk.Label(header_frame, text="Bước nhảy", font=('TkDefaultFont', 9, 'bold')).grid(row=0, column=4)
+        # --- Khung Tham Số Tối Ưu ---
+        param_frame = ttk.Labelframe(self, text="Phạm Vi Tham Số Kiểm Thử", padding="10")
+        param_frame.grid(row=1, column=0, sticky="ew", padx=5, pady=5)
         
-        # Lấy cài đặt mặc định
-        current_settings = SETTINGS.get_all_settings() if SETTINGS else {}
-
-        # Danh sách tham số (ĐÃ CẬP NHẬT THÊM THAM SỐ AI)
-        self.param_definitions = [
-            ("GAN_DAYS", "Số ngày Lô Gan", current_settings.get("GAN_DAYS", 15), 1),
-            ("HIGH_WIN_THRESHOLD", "Ngưỡng Cầu Tỷ Lệ Cao (%)", current_settings.get("HIGH_WIN_THRESHOLD", 47.0), 1.0),
-            ("K2N_RISK_START_THRESHOLD", "Ngưỡng phạt K2N (khung)", current_settings.get("K2N_RISK_START_THRESHOLD", 4), 1),
-            ("K2N_RISK_PENALTY_PER_FRAME", "Điểm phạt K2N / khung", current_settings.get("K2N_RISK_PENALTY_PER_FRAME", 0.5), 0.1),
-            # --- START NEW AI PARAMETERS ---
-            ("AI_MAX_DEPTH", "AI: Độ Sâu Cây Max", current_settings.get("AI_MAX_DEPTH", 6), 1),
-            ("AI_N_ESTIMATORS", "AI: Số lượng Cây (Est.)", current_settings.get("AI_N_ESTIMATORS", 200), 50),
-            ("AI_LEARNING_RATE", "AI: Tốc độ học (LR)", current_settings.get("AI_LEARNING_RATE", 0.05), 0.01),
-            ("AI_SCORE_WEIGHT", "AI: Trọng số Điểm", current_settings.get("AI_SCORE_WEIGHT", 0.2), 0.1)
-            # --- END NEW AI PARAMETERS ---
-        ]
-        
-        current_row = 1
-        for key, name, default_val, default_step in self.param_definitions:
-            check_var = tk.BooleanVar(value=False)
-            from_var = tk.StringVar(value=str(default_val))
-            to_var = tk.StringVar(value=str(default_val))
-            step_var = tk.StringVar(value=str(default_step))
+        for i, (key, data) in enumerate(self.tunable_params.items()):
+            row = i
             
-            check = ttk.Checkbutton(params_frame, variable=check_var)
-            check.grid(row=current_row, column=0, sticky="w", padx=5)
+            # Cột 0: Tên tham số
+            ttk.Label(param_frame, text=f"{data['desc']} ({key}):").grid(row=row, column=0, sticky="w", padx=5, pady=2)
             
-            ttk.Label(params_frame, text=name).grid(row=current_row, column=1, sticky="w", padx=5)
+            # Cột 1: Checkbox (Bật/Tắt tối ưu)
+            var_type = tk.IntVar if data['type'] == int else tk.DoubleVar
+            self.param_vars[key] = {
+                'enabled': tk.IntVar(value=0),
+                'from': var_type(value=data['min']),
+                'to': var_type(value=data['max']),
+                'step': var_type(value=data['step'])
+            }
+            check = ttk.Checkbutton(param_frame, variable=self.param_vars[key]['enabled'])
+            check.grid(row=row, column=1, sticky="w", padx=5, pady=2)
             
-            from_entry = ttk.Entry(params_frame, textvariable=from_var, width=8)
-            from_entry.grid(row=current_row, column=2, sticky="ew", padx=5, pady=2)
+            # Cột 2-4: From, To, Step
+            ttk.Label(param_frame, text="Từ:").grid(row=row, column=2, sticky="e", padx=2, pady=2)
+            ttk.Entry(param_frame, textvariable=self.param_vars[key]['from'], width=10).grid(row=row, column=3, sticky="w", padx=2, pady=2)
             
-            to_entry = ttk.Entry(params_frame, textvariable=to_var, width=8)
-            to_entry.grid(row=current_row, column=3, sticky="ew", padx=5, pady=2)
+            ttk.Label(param_frame, text="Đến:").grid(row=row, column=4, sticky="e", padx=2, pady=2)
+            ttk.Entry(param_frame, textvariable=self.param_vars[key]['to'], width=10).grid(row=row, column=5, sticky="w", padx=2, pady=2)
             
-            step_entry = ttk.Entry(params_frame, textvariable=step_var, width=8)
-            step_entry.grid(row=current_row, column=4, sticky="ew", padx=5, pady=2)
+            ttk.Label(param_frame, text="Bước:").grid(row=row, column=6, sticky="e", padx=2, pady=2)
+            ttk.Entry(param_frame, textvariable=self.param_vars[key]['step'], width=10).grid(row=row, column=7, sticky="w", padx=2, pady=2)
             
-            self.param_vars[key] = (check_var, from_var, to_var, step_var)
-            current_row += 1
-            
-        # Nút Chạy
-        self.run_button = ttk.Button(settings_frame, text="Bắt đầu Tối ưu Hóa Chiến lược", command=self.run_optimization)
-        self.run_button.grid(row=2, column=0, sticky="ew", pady=(15, 5))
-        
-        # Nút Áp dụng Cấu hình Tốt nhất
-        self.apply_button = ttk.Button(settings_frame, text="Áp dụng Cấu hình Tốt nhất", 
-                                       command=self.apply_best_settings, state=tk.DISABLED)
-        self.apply_button.grid(row=3, column=0, sticky="ew", pady=(5, 5))
-
-
-        # --- CỘT 2: KHUNG KẾT QUẢ ---
-        results_frame = ttk.Frame(self)
-        results_frame.grid(row=0, column=1, sticky="nsew")
-        results_frame.rowconfigure(0, weight=1) # Bảng kết quả
-        results_frame.rowconfigure(1, weight=1) # Log chi tiết
+        # --- Khung Kết Quả và Log ---
+        results_frame = ttk.Labelframe(self, text="Kết Quả Tối Ưu", padding="10")
+        results_frame.grid(row=2, column=0, sticky="nsew", padx=5, pady=5)
         results_frame.columnconfigure(0, weight=1)
+        results_frame.rowconfigure(0, weight=1)
         
-        # Bảng Kết quả Xếp hạng
-        tree_frame = ttk.Labelframe(results_frame, text="3. Kết quả Tối ưu (Xếp hạng theo Tỷ lệ thắng)", padding="10")
-        tree_frame.grid(row=0, column=0, sticky="nsew", pady=(0, 5))
-        tree_frame.rowconfigure(0, weight=1)
+        # 1. Treeview Kết quả
+        tree_frame = ttk.Frame(results_frame)
+        tree_frame.grid(row=0, column=0, sticky="nsew")
         tree_frame.columnconfigure(0, weight=1)
-        
-        self.tree = self._create_treeview(tree_frame)
-        self.tree.tag_configure('best', background='#FFFFE0', font=('TkDefaultFont', 9, 'bold'))
-        self.tree.bind("<Double-1>", self.on_result_double_click)
-
-        # Log Chi tiết
-        log_frame = ttk.Labelframe(results_frame, text="Log Chi tiết", padding="10")
-        log_frame.grid(row=1, column=0, sticky="nsew", pady=(5, 0))
-        log_frame.rowconfigure(0, weight=1)
-        log_frame.columnconfigure(0, weight=1)
-        
-        log_scrollbar = ttk.Scrollbar(log_frame, orient=tk.VERTICAL)
-        log_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        
-        self.log_text = tk.Text(log_frame, height=10, width=80, 
-                                font=('Courier New', 9), 
-                                yscrollcommand=log_scrollbar.set)
-        self.log_text.pack(expand=True, fill=tk.BOTH)
-        log_scrollbar.config(command=self.log_text.yview)
-        self.log_text.config(state=tk.DISABLED)
-
-    def _create_treeview(self, parent):
-        """Tạo Treeview cho bảng kết quả."""
-        tree_scroll_y = ttk.Scrollbar(parent, orient=tk.VERTICAL)
-        tree_scroll_y.pack(side=tk.RIGHT, fill=tk.Y)
+        tree_frame.rowconfigure(0, weight=1)
         
         cols = ('rate', 'hits', 'params')
-        tree = ttk.Treeview(parent, columns=cols, show="headings", yscrollcommand=tree_scroll_y.set)
-        tree_scroll_y.config(command=tree.yview)
+        self.tree = ttk.Treeview(tree_frame, columns=cols, show="headings", height=8)
+        self.tree.heading('rate', text='Tỷ lệ Win')
+        self.tree.column('rate', width=100, anchor='center')
+        self.tree.heading('hits', text='Hits')
+        self.tree.column('hits', width=80, anchor='center')
+        self.tree.heading('params', text='Tham số Tối ưu')
+        self.tree.column('params', width=300, anchor='w')
+        self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         
-        tree.heading('rate', text='Tỷ lệ Thắng')
-        tree.column('rate', width=80, anchor=tk.W)
-        tree.heading('hits', text='Trúng/Trượt')
-        tree.column('hits', width=80, anchor=tk.W)
-        tree.heading('params', text='Cấu hình Tham số')
-        tree.column('params', width=300, anchor=tk.W)
+        tree_scroll_y = ttk.Scrollbar(tree_frame, orient=tk.VERTICAL, command=self.tree.yview)
+        tree_scroll_y.pack(side=tk.RIGHT, fill=tk.Y)
+        self.tree.config(yscrollcommand=tree_scroll_y.set)
         
-        tree.pack(expand=True, fill=tk.BOTH)
-        return tree
+        self.tree.tag_configure('best', background='#D6F5D6', foreground='green')
+        self.tree.bind("<<TreeviewSelect>>", self.on_result_select)
+
+        # 2. Log Text Area
+        self.log_text = tk.Text(results_frame, height=5, state=tk.DISABLED, font=('Courier New', 9))
+        self.log_text.grid(row=1, column=0, sticky="ew", padx=0, pady=5)
+        
+        # 3. Nút Áp dụng & Entry cấu hình
+        apply_frame = ttk.Frame(results_frame)
+        apply_frame.grid(row=2, column=0, sticky="ew")
+        apply_frame.columnconfigure(1, weight=1)
+        
+        self.apply_button = ttk.Button(apply_frame, text="✅ ÁP DỤNG Cấu Hình", 
+                                        command=self.apply_optimized_settings, 
+                                        state=tk.DISABLED)
+        self.apply_button.grid(row=0, column=0, sticky="w", padx=(0, 5))
+        
+        self.config_entry = ttk.Entry(apply_frame, state=tk.DISABLED)
+        self.config_entry.grid(row=0, column=1, sticky="ew")
 
     def log(self, message):
-        """Ghi log an toàn vào Text box."""
+        """[VIEW CALLBACK] Ghi log vào Text Area (an toàn trên luồng chính)."""
         self.log_text.config(state=tk.NORMAL)
         self.log_text.insert(tk.END, message + "\n")
         self.log_text.see(tk.END)
         self.log_text.config(state=tk.DISABLED)
-        self.root.update_idletasks() # Cập nhật UI ngay
-        
-    def clear_log(self):
-        self.log_text.config(state=tk.NORMAL)
-        self.log_text.delete("1.0", tk.END)
-        self.log_text.config(state=tk.DISABLED)
         
     def clear_results_tree(self):
+        """[VIEW CALLBACK] Xóa nội dung Treeview."""
+        self.log_text.config(state=tk.NORMAL)
+        self.log_text.delete('1.0', tk.END)
+        self.log_text.config(state=tk.DISABLED)
         for item in self.tree.get_children():
             self.tree.delete(item)
+        self.config_entry.config(state=tk.NORMAL)
+        self.config_entry.delete(0, tk.END)
+        self.config_entry.config(state=tk.DISABLED)
+        self.apply_button.config(state=tk.DISABLED)
+
+    # --- CÁC HÀM XỬ LÝ SỰ KIỆN (CHỈ ỦY QUYỀN) ---
+    
+    def on_result_select(self, event):
+        """[VIEW ACTION] Chọn kết quả trong Treeview để hiển thị cấu hình JSON."""
+        selected_item = self.tree.focus()
+        if not selected_item: 
+            self.config_entry.config(state=tk.DISABLED)
+            return
+
+        tags = self.tree.item(selected_item, 'tags')
+        if tags and len(tags) > 0:
+            config_json_str = tags[0] # Giá trị config JSON luôn là tag đầu tiên
+            
+            self.config_entry.config(state=tk.NORMAL)
+            self.config_entry.delete(0, tk.END)
+            self.config_entry.insert(0, config_json_str)
+            self.config_entry.config(state=tk.DISABLED)
 
     def run_optimization(self):
-        """Lấy tất cả cài đặt và gọi hàm logic trong app chính."""
+        """[VIEW ACTION] Bắt đầu quá trình tối ưu hóa. Chỉ kiểm tra input cơ bản và ủy quyền."""
         try:
-            # 1. Lấy cài đặt chiến lược
-            strategy = self.strategy_var.get()
-            days_to_test = int(self.days_to_test_var.get())
-            
+            days_to_test = int(self.days_var.get())
             if days_to_test <= 0:
-                # (SỬA LỖI) parent=self
-                messagebox.showerror("Lỗi", "Số ngày kiểm thử phải lớn hơn 0.", parent=self)
-                return
+                 messagebox.showwarning("Lỗi Input", "Số ngày Backtest phải lớn hơn 0.", parent=self)
+                 return
+        except ValueError:
+            messagebox.showwarning("Lỗi Input", "Số ngày Backtest không hợp lệ.", parent=self)
+            return
 
-            # 2. Lấy các tham số cần kiểm thử
-            param_ranges = {}
-            for key, (check_var, from_var, to_var, step_var) in self.param_vars.items():
-                if check_var.get(): # Nếu được chọn
-                    val_from = float(from_var.get())
-                    val_to = float(to_var.get())
-                    val_step = float(step_var.get())
+        param_ranges = {}
+        enabled_count = 0
+        
+        # 1. Thu thập các tham số đã Bật
+        for key, vars in self.param_vars.items():
+            if vars['enabled'].get() == 1:
+                enabled_count += 1
+                try:
+                    val_from = vars['from'].get()
+                    val_to = vars['to'].get()
+                    val_step = vars['step'].get()
                     
-                    if val_step <= 0 or val_from > val_to:
-                        # (SỬA LỖI) parent=self
-                        messagebox.showerror("Lỗi Giá trị", f"Khoảng giá trị cho '{key}' không hợp lệ.", parent=self)
+                    if val_step == 0:
+                        messagebox.showwarning("Lỗi Tham số", f"Bước nhảy của {self.tunable_params[key]['desc']} không được bằng 0.", parent=self)
                         return
-                    
-                    # Chuyển đổi tham số số nguyên sang int (ví dụ: MAX_DEPTH, N_ESTIMATORS)
-                    if key in ["GAN_DAYS", "K2N_RISK_START_THRESHOLD", "AI_MAX_DEPTH", "AI_N_ESTIMATORS"]:
-                        # Kiểm tra nếu giá trị là số nguyên
-                        if val_from != int(val_from) or val_to != int(val_to) or val_step != int(val_step):
-                             messagebox.showerror("Lỗi Giá trị", f"'{key}' phải là số nguyên.", parent=self)
-                             return
-                        val_from = int(val_from)
-                        val_to = int(val_to)
-                        val_step = int(val_step)
+                    if val_from > val_to:
+                        messagebox.showwarning("Lỗi Tham số", f"Giá trị 'Từ' phải nhỏ hơn hoặc bằng 'Đến' cho {self.tunable_params[key]['desc']}.", parent=self)
+                        return
                         
                     param_ranges[key] = (val_from, val_to, val_step)
+                    
+                except ValueError:
+                    messagebox.showwarning("Lỗi Input", f"Các giá trị Từ/Đến/Bước cho {self.tunable_params[key]['desc']} phải là số.", parent=self)
+                    return
+        
+        if enabled_count == 0:
+            messagebox.showwarning("Thiếu Input", "Vui lòng chọn ít nhất một tham số để tối ưu.", parent=self)
+            return
             
-            if not param_ranges:
-                # (SỬA LỖI) parent=self
-                messagebox.showwarning("Chưa chọn", "Vui lòng chọn ít nhất một tham số để tối ưu hóa.", parent=self)
-                return
-
-            # 3. Xóa log cũ và chuẩn bị
-            self.clear_log()
-            self.clear_results_tree()
-            self.apply_button.config(state=tk.DISABLED)
-            self.log(f"--- BẮT ĐẦU TỐI ƯU HÓA CHIẾN LƯỢC ---")
-            self.log(f"Chiến lược: {strategy}")
-            self.log(f"Số ngày kiểm thử: {days_to_test} ngày (tính từ ngày gần nhất)")
-            self.log(f"Các tham số kiểm thử:")
-            for key, (f, t, s) in param_ranges.items():
-                self.log(f" - {key}: Từ {f} đến {t} (bước {s})")
-            self.log("CẢNH BÁO: Tác vụ này rất nặng và sẽ mất nhiều thời gian...")
+        # 2. Ủy quyền cho Controller
+        self.run_button.config(state=tk.DISABLED)
+        self.clear_results_tree()
+        self.log(f"--- Bắt đầu Tối ưu Chiến lược: {self.strategy_var.get()} trên {days_to_test} ngày ---")
+        
+        self.app.task_manager.run_task(
+            self.controller.task_run_strategy_optimization, 
+            self.strategy_var.get(), 
+            days_to_test, 
+            param_ranges, 
+            self # Truyền đối tượng View hiện tại (self) làm callback
+        )
+        
+    def apply_optimized_settings(self):
+        """[VIEW ACTION] Áp dụng cấu hình đã chọn. Chỉ lấy giá trị và ủy quyền."""
+        config_dict_str = self.config_entry.get().strip()
+        if not config_dict_str:
+            messagebox.showwarning("Lỗi", "Vui lòng chọn một kết quả tối ưu để áp dụng.", parent=self)
+            return
             
-            # 4. Tắt nút
-            self.run_button.config(state=tk.DISABLED)
-            
-            # 5. Gọi hàm logic trong app chính (sẽ được tạo ở Bước 4)
-            self.app.run_strategy_optimization(strategy, days_to_test, param_ranges, self)
-            
-        except ValueError:
-            # (SỬA LỖI) parent=self
-            messagebox.showerror("Lỗi Giá trị", "Giá trị 'Số ngày', 'Từ', 'Đến', 'Bước nhảy' phải là số.", parent=self)
-        except Exception as e:
-            # (SỬA LỖI) parent=self
-            messagebox.showerror("Lỗi", f"Lỗi không xác định: {e}", parent=self)
-            self.log(traceback.format_exc())
-
-    def on_result_double_click(self, event):
-        """(MỚI GĐ 10) Khi double-click, hỏi người dùng có muốn áp dụng cấu hình này không."""
-        try:
-            item_id = self.tree.focus()
-            if not item_id: return
-            
-            # Lấy dict cấu hình đã lưu
-            config_dict = self.tree.item(item_id, 'tags')[0]
-            if not config_dict or not isinstance(config_dict, str):
-                return
-
-            # (Hàm này sẽ được tạo ở Bước 4)
-            self.app.apply_optimized_settings(config_dict_str=config_dict, optimizer_window=self)
-            
-        except Exception as e:
-            self.log(f"Lỗi khi chọn kết quả: {e}")
-            self.log(traceback.format_exc())
-
-    def apply_best_settings(self):
-        """Áp dụng cấu hình tốt nhất (dòng đầu tiên)."""
-        try:
-            children = self.tree.get_children()
-            if not children:
-                self.log("Lỗi: Không có kết quả nào để áp dụng.")
-                return
-                
-            item_id = children[0] # Lấy dòng đầu tiên
-            config_dict_str = self.tree.item(item_id, 'tags')[0]
-            if not config_dict_str or not isinstance(config_dict_str, str):
-                 self.log("Lỗi: Không tìm thấy dữ liệu cấu hình trong kết quả tốt nhất.")
-                 return
-
-            # (Hàm này sẽ được tạo ở Bước 4)
-            self.app.apply_optimized_settings(config_dict_str=config_dict_str, optimizer_window=self)
-            
-        except Exception as e:
-            self.log(f"Lỗi khi áp dụng kết quả tốt nhất: {e}")
-            self.log(traceback.format_exc())
+        # Ủy quyền cho View chính/Controller để xử lý xác nhận và lưu logic
+        self.app.apply_optimized_settings(config_dict_str, self)

@@ -1,6 +1,6 @@
 # Tên file: du-an-backup/ui/ui_main_window.py
 #
-# (NỘI DUNG THAY THẾ TOÀN BỘ - ĐÃ SỬA LỖI tk.END)
+# (NỘI DUNG THAY THẾ TOÀN BỘ - ĐÃ SỬA LỖI Initialization Order)
 #
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, simpledialog
@@ -8,7 +8,7 @@ import os
 import traceback 
 import json 
 
-# Import toàn bộ logic từ file lottery_service.py
+# Import toàn bộ logic từ file lottery_service.py (Giữ nguyên)
 try:
     from lottery_service import *
 except ImportError:
@@ -61,7 +61,7 @@ class DataAnalysisApp:
         self.root.rowconfigure(0, weight=1)
         self.root.geometry("1024x768") 
 
-        self.db_name = DB_NAME
+        # self.db_name = DB_NAME (Đã bỏ vì không import lottery_service)
         
         self.bridge_manager_window = None
         self.bridge_manager_window_instance = None 
@@ -97,7 +97,14 @@ class DataAnalysisApp:
         # 3. Khởi tạo Logger
         self.logger = Logger(self.output_text, self.root)
         
-        # 4. Khởi tạo các Tab còn lại
+        # ====================================================================
+        # FIX LỖI: KHỞI TẠO CONTROLLER TRƯỚC KHI KHỞI TẠO BẤT KỲ VIEW NÀO
+        # ====================================================================
+        self.controller = AppController(self)
+        self.controller.logger = self.logger
+        # ====================================================================
+        
+        # 4. Khởi tạo các Tab còn lại (Giờ đây chúng có thể truy cập self.controller)
         self.tab1_frame = ttk.Frame(self.notebook, padding="10")
         self.tab1_frame.columnconfigure(0, weight=1)
         self.tab1_frame.rowconfigure(0, weight=0) 
@@ -210,23 +217,44 @@ class DataAnalysisApp:
             self.optimizer_tab.run_button, self.optimizer_tab.apply_button
         ]
 
-        # --- KHỞI TẠO CÁC DỊCH VỤ LÕI & CONTROLLER (Giữ nguyên) ---
+        # --- KHỞI TẠO CÁC DỊCH VỤ LÕI (Sử dụng self.controller đã có) ---
         self.task_manager = TaskManager(self.logger, self.all_buttons, self.root)
         self.task_manager.optimizer_apply_button = self.optimizer_tab.apply_button
         
-        self.controller = AppController(self)
-        self.controller.logger = self.logger
+        # self.controller = AppController(self) # <- Đã di chuyển lên trên
+        # self.controller.logger = self.logger # <- Đã di chuyển lên trên
         
-        self.logger.log("Hệ thống (GĐ 3.2: Đã sửa lỗi tk.END) sẵn sàng.")
+        self.logger.log("Hệ thống (GĐ 3.2: Đã chuyển sang MVC) sẵn sàng.")
 
 
     # --- (MỚI) HÀM XÓA TEXT (Callback cho Controller) ---
     def clear_update_text_area(self):
         """Hàm này được gọi từ controller để xóa text box (an toàn)."""
-        if self.update_text_area:
+        if self.update_text_area and self.update_text_area.winfo_exists():
             self.update_text_area.delete("1.0", tk.END)
 
-    # --- (GIỮ NGUYÊN TOÀN BỘ CÁC HÀM CÒN LẠI) ---
+    # NEW: Thêm các hàm callback cần thiết cho Controller (như trong ui_main_window.py cuối)
+
+    def _log_to_optimizer(self, message, optimizer_window):
+        """Callback để ghi log vào cửa sổ Optimizer con."""
+        if optimizer_window and optimizer_window.winfo_exists():
+            optimizer_window.log(message)
+
+    def _show_save_success_dialog(self, title, message, parent_widget):
+        """Callback để hiển thị thông báo thành công sau khi lưu (từ Controller)."""
+        messagebox.showinfo(title, message, parent=parent_widget)
+        if self.bridge_manager_window and self.bridge_manager_window_instance and self.bridge_manager_window_instance.winfo_exists():
+            try:
+                # Nếu Quản lý Cầu đang mở, tự động làm mới danh sách.
+                self.bridge_manager_window_instance.refresh_bridge_list()
+            except Exception as e_refresh:
+                self.logger.log(f"Lỗi khi tự động làm mới QL Cầu: {e_refresh}")
+
+    def _show_error_dialog(self, title, message, parent_widget):
+        """Callback để hiển thị thông báo lỗi (từ Controller)."""
+        messagebox.showerror(title, message, parent=parent_widget)
+    
+    # --- CÁC HÀM XỬ LÝ SỰ KIỆN GIAO DIỆN (Đại diện lệnh) ---
     
     def browse_file(self):
         file_path = filedialog.askopenfilename(
@@ -340,21 +368,20 @@ class DataAnalysisApp:
                                  strategy, days_to_test, param_ranges, optimizer_tab)
             
     def apply_optimized_settings(self, config_dict_str, optimizer_window):
+        # Đây là View: chỉ xử lý UI (hộp thoại) và ủy quyền logic nghiệp vụ cho Controller
         try:
-            def log_to_optimizer(message):
-                self.root.after(0, optimizer_window.log, message)
             config_dict = json.loads(config_dict_str)
             if not messagebox.askyesno("Xác nhận Áp dụng", 
                                        f"Bạn có chắc chắn muốn áp dụng cấu hình này và lưu vào 'config.json' không?\n\n{config_dict_str}",
                                        parent=optimizer_window):
                 return
-            log_to_optimizer("Đang áp dụng cấu hình mới...")
-            for key, value in config_dict.items():
-                success, msg = SETTINGS.update_setting(key, value)
-                if success: log_to_optimizer(f" - Đã lưu: {key} = {value}")
-                else: log_to_optimizer(f" - LỖI LƯU: {msg}")
-            log_to_optimizer("--- Áp dụng hoàn tất! ---")
-            messagebox.showinfo("Thành công", "Đã áp dụng và lưu cấu hình mới!", parent=optimizer_window)
+            
+            # Ủy quyền tác vụ lưu/cập nhật SETTINGS cho Controller
+            self.task_manager.run_task(self.controller.task_apply_optimized_settings, 
+                                       config_dict, optimizer_window)
+            
+        except json.JSONDecodeError:
+             messagebox.showerror("Lỗi", "Lỗi: Chuỗi cấu hình không phải định dạng JSON hợp lệ.", parent=optimizer_window)
         except Exception as e:
              messagebox.showerror("Lỗi", f"Lỗi khi áp dụng cấu hình: {e}", parent=optimizer_window)
 
@@ -368,16 +395,19 @@ class DataAnalysisApp:
         self.task_manager.run_task(self.controller.task_run_decision_dashboard, title)
 
     def _on_dashboard_close(self):
-        if self.dashboard_tab:
+        if self.dashboard_tab and self.dashboard_tab.winfo_exists():
             self.dashboard_tab.clear_data()
 
-    def _show_dashboard_window(self, next_ky, stats_n_day, n_days_stats, consensus, high_win, pending_k2n_data, gan_stats, top_scores, top_memory_bridges, ai_predictions):
+    # NOTE: Thêm tham số gan_threshold và risk_threshold cho Dashboard
+    def _show_dashboard_window(self, next_ky, stats_n_day, n_days_stats, consensus, high_win, pending_k2n_data, gan_stats, top_scores, top_memory_bridges, ai_predictions, gan_threshold, risk_threshold):
         try:
             self.dashboard_tab.populate_data(
                 next_ky, stats_n_day, n_days_stats, 
                 consensus, high_win, pending_k2n_data, 
                 gan_stats, top_scores, top_memory_bridges,
-                ai_predictions
+                ai_predictions,
+                gan_threshold, 
+                risk_threshold
             )
             self.notebook.select(self.dashboard_tab)
         except Exception as e:
@@ -388,7 +418,8 @@ class DataAnalysisApp:
     def show_lookup_window(self):
         self.logger.log("Đang chuyển sang Tab Tra Cứu...")
         try:
-            self.lookup_tab.refresh_lookup_list()
+            if self.lookup_tab and self.lookup_tab.winfo_exists():
+                self.lookup_tab.refresh_lookup_list()
         except Exception as e:
             self.logger.log(f"Lỗi tự động làm mới Tra Cứu: {e}")
         self.notebook.select(self.lookup_tab)
@@ -427,6 +458,7 @@ class DataAnalysisApp:
             self.logger.log(f"Lỗi trigger: Không nhận dạng được loại cầu '{bridge_name}'")
 
     def _save_bridge_from_treeview(self, tree):
+        # Đây là View: chỉ xử lý UI (hộp thoại nhập liệu) và ủy quyền logic nghiệp vụ cho Controller
         try:
             selected_item = tree.focus()
             if not selected_item:
@@ -448,21 +480,10 @@ class DataAnalysisApp:
                                                  parent=tree.master)
             if description is None: return
 
-            success, message = upsert_managed_bridge(bridge_name, description, win_rate)
-            
-            if success:
-                self.logger.log(f"LƯU/CẬP NHẬT CẦU: {message}")
-                messagebox.showinfo("Thành công", message, parent=tree.master)
-                if self.bridge_manager_window and self.bridge_manager_window.winfo_exists():
-                    try:
-                        self.bridge_manager_window_instance.refresh_bridge_list()
-                    except Exception as e_refresh:
-                        self.logger.log(f"Lỗi khi tự động làm mới QL Cầu: {e_refresh}")
-            else:
-                self.logger.log(f"LỖI LƯU CẦU: {message}")
-                messagebox.showerror("Lỗi", message, parent=tree.master)
+            # Ủy quyền tác vụ lưu/cập nhật Model cho Controller
+            self.task_manager.run_task(self.controller.task_save_bridge, 
+                                       bridge_name, description, win_rate, tree.master)
+
 
         except Exception as e:
             messagebox.showerror("Lỗi", f"Lỗi _save_bridge_from_treeview: {e}", parent=tree.master)
-
-# (Khối __main__ đã được chuyển sang main_app.py)

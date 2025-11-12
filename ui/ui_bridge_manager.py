@@ -1,41 +1,27 @@
 import tkinter as tk
 from tkinter import ttk, messagebox, simpledialog
 
-# Import các hàm logic cần thiết
-try:
-    from lottery_service import (
-        get_all_managed_bridges, 
-        add_managed_bridge, 
-        update_managed_bridge, 
-        delete_managed_bridge
-    )
-except ImportError:
-    print("LỖI: ui_bridge_manager.py không thể import lottery_service.")
-    # Hàm giả
-    def get_all_managed_bridges(): return []
-    def add_managed_bridge(n, d, w): return False, "Lỗi"
-    def update_managed_bridge(i, d, s): return False, "Lỗi"
-    def delete_managed_bridge(i): return False, "Lỗi"
-
+# (ĐÃ XÓA) Import các hàm logic trực tiếp (vi phạm MVC)
 
 class BridgeManagerWindow:
-    """Quản lý cửa sổ Toplevel Quản lý Cầu."""
+    """Quản lý cửa sổ Toplevel Quản lý Cầu (VIEW)."""
 
     def __init__(self, app):
         self.app = app
+        self.controller = app.controller # Lấy tham chiếu Controller từ app chính
         self.root = app.root
-        self.all_bridges_cache = [] # Cache
+        self.all_bridges_cache = [] # Cache dữ liệu cầu (VIEW data)
         
         if hasattr(self.app, 'bridge_manager_window') and self.app.bridge_manager_window and self.app.bridge_manager_window.winfo_exists():
             self.app.bridge_manager_window.lift()
             return
             
-        self.app.update_output("Đang mở cửa sổ Quản lý Cầu...")
+        self.app.logger.log("Đang mở cửa sổ Quản lý Cầu...")
         
         self.window = tk.Toplevel(self.root)
         self.app.bridge_manager_window = self.window # Gán lại vào app chính
         self.window.title("Quản lý Cầu Đã Lưu (Cache K2N)")
-        self.window.geometry("1000x500") # (MỚI GĐ 4) Tăng chiều rộng
+        self.window.geometry("1000x500") 
 
         manager_frame = ttk.Frame(self.window, padding="10")
         manager_frame.pack(expand=True, fill=tk.BOTH)
@@ -52,7 +38,6 @@ class BridgeManagerWindow:
         tree_scroll_y = ttk.Scrollbar(tree_frame, orient=tk.VERTICAL)
         tree_scroll_y.pack(side=tk.RIGHT, fill=tk.Y)
         
-        # (SỬA GĐ 4) Thêm cột 'max_lose'
         cols = ('id', 'name', 'rate', 'streak', 'max_lose', 'next_pred', 'status')
         self.tree = ttk.Treeview(tree_frame, 
                                  columns=cols, 
@@ -70,7 +55,6 @@ class BridgeManagerWindow:
         self.tree.heading('streak', text='Chuỗi Thắng')
         self.tree.column('streak', width=80, anchor=tk.W)
         
-        # (MỚI GĐ 4) Thêm cột Chuỗi Thua Max
         self.tree.heading('max_lose', text='Thua Max (K2N)')
         self.tree.column('max_lose', width=90, anchor=tk.W)
         
@@ -84,7 +68,7 @@ class BridgeManagerWindow:
         self.tree.tag_configure('disabled', foreground='gray')
         self.tree.tag_configure('enabled', foreground='black')
         self.tree.tag_configure('pending_n2', background='#FFFFE0') 
-        self.tree.tag_configure('high_risk', foreground='red') # (MỚI GĐ 4)
+        self.tree.tag_configure('high_risk', foreground='red') 
         
         # Gán treeview vào app chính để hàm _save_bridge... có thể gọi
         self.app.bridge_manager_tree = self.tree
@@ -111,6 +95,7 @@ class BridgeManagerWindow:
         button_frame_edit.columnconfigure(0, weight=1)
         button_frame_edit.columnconfigure(1, weight=1)
         
+        # Lệnh gọi đến các hàm ủy quyền
         add_button = ttk.Button(button_frame_edit, text="Thêm Cầu Mới", 
                                 command=self.add_new_bridge)
         add_button.grid(row=0, column=0, sticky="ew", padx=2)
@@ -127,6 +112,7 @@ class BridgeManagerWindow:
                                    command=self.delete_selected_bridge)
         delete_button.grid(row=1, column=1, sticky="ew", padx=2, pady=5)
         
+        # Lệnh gọi đến app chính (Controller)
         update_rates_button = ttk.Button(edit_frame, text="Cập nhật Cache K2N Toàn bộ Cầu", 
                                          command=self.run_update_all_k2n_cache)
         update_rates_button.grid(row=4, column=0, columnspan=2, sticky="ew", padx=5, pady=(15, 5))
@@ -134,42 +120,45 @@ class BridgeManagerWindow:
 
         # --- Logic cho cửa sổ Quản lý ---
         self.tree.bind("<<TreeviewSelect>>", self.on_bridge_select)
+        # Bắt đầu tải dữ liệu bằng cách gọi Controller
         self.refresh_bridge_list()
         
-    def refresh_bridge_list(self):
-        """(SỬA GĐ 4) Tải lại dữ liệu cho Treeview Quản lý Cầu (cache K2N + Max Lose)."""
+    def populate_bridge_list(self, bridges_data):
+        """
+        [VIEW CALLBACK] Hàm được Controller gọi để hiển thị dữ liệu mới.
+        """
         if not self.tree: return
         for item in self.tree.get_children():
             self.tree.delete(item)
         
-        self.all_bridges_cache = get_all_managed_bridges()
+        self.all_bridges_cache = bridges_data
+        
         for bridge in self.all_bridges_cache:
             status_text = "Đang Bật" if bridge['is_enabled'] == 1 else "Đã Tắt"
             tag = 'enabled' if bridge['is_enabled'] == 1 else 'disabled'
             
-            # (SỬA GĐ 4) Lấy dữ liệu cache
             rate = bridge.get('win_rate_text') or "N/A"
             streak = bridge.get('current_streak') or 0
-            max_lose = bridge.get('max_lose_streak_k2n') or 0 # (MỚI GĐ 4)
+            max_lose = bridge.get('max_lose_streak_k2n') or 0 
             prediction = bridge.get('next_prediction_stl') or "N/A"
             
             tags = [tag]
             if "N2" in str(prediction):
                 tags.append('pending_n2')
-            if max_lose >= 5: # (MỚI GĐ 4) Cảnh báo rủi ro
+            if max_lose >= 5: 
                 tags.append('high_risk')
             
             self.tree.insert("", tk.END, values=(
                 bridge['id'],
                 bridge['name'],
                 rate,
-                f"{streak} thắng", # (SỬA GĐ 4) Rõ nghĩa hơn
-                f"{max_lose} thua", # (MỚI GĐ 4)
+                f"{streak} thắng", 
+                f"{max_lose} thua", 
                 prediction,
                 status_text
             ), tags=tuple(tags))
             
-        self.app.update_output(f"Đã làm mới danh sách Quản lý Cầu (tìm thấy {len(self.all_bridges_cache)} cầu).")
+        self.app.logger.log(f"Đã làm mới danh sách Quản lý Cầu (tìm thấy {len(self.all_bridges_cache)} cầu).")
         
     def get_selected_bridge_info(self):
         """Helper: Lấy id và dữ liệu của cầu đang chọn."""
@@ -186,56 +175,48 @@ class BridgeManagerWindow:
             if bridge_data['id'] == bridge_id:
                 return bridge_id, bridge_data
         return None, None
+        
+    # --- CÁC HÀM XỬ LÝ SỰ KIỆN (CHỈ ỦY QUYỀN) ---
 
+    def refresh_bridge_list(self):
+        """[VIEW ACTION] Gọi Controller để tải dữ liệu."""
+        # Gọi hàm Controller (truyền đối tượng View hiện tại để Controller gọi callback)
+        self.controller.task_load_managed_bridges(self)
+        
     def add_new_bridge(self):
-        """Logic nút 'Thêm Cầu Mới' (Thủ công)."""
+        """[VIEW ACTION] Gọi Controller để thêm cầu mới."""
         bridge_name = self.name_entry.get().strip()
         description = self.desc_entry.get().strip()
+        
         if not bridge_name:
             messagebox.showwarning("Thiếu tên", "Tên cầu không được để trống.", parent=self.window)
             return
-            
-        success, message = add_managed_bridge(bridge_name, description, "Tự thêm")
-        if success:
-            self.app.update_output(message)
-            self.refresh_bridge_list()
-            self.name_entry.config(state=tk.NORMAL)
-            self.name_entry.delete(0, tk.END)
-            self.desc_entry.delete(0, tk.END)
-        else:
-            self.app.update_output(f"LỖI: {message}")
-            messagebox.showerror("Lỗi", message, parent=self.window)
+        
+        # Ủy quyền cho Controller
+        self.controller.task_add_managed_bridge(bridge_name, description, self.window)
 
     def update_selected_bridge(self):
-        """Logic nút 'Cập nhật Mô tả'."""
+        """[VIEW ACTION] Gọi Controller để cập nhật mô tả."""
         bridge_id, bridge_data = self.get_selected_bridge_info()
         if not bridge_id: return
         
         new_description = self.desc_entry.get().strip()
-        success, message = update_managed_bridge(bridge_id, new_description, bridge_data['is_enabled'])
-        if success:
-            self.app.update_output(f"Đã cập nhật mô tả cho cầu ID {bridge_id}.")
-            self.refresh_bridge_list()
-        else:
-            self.app.update_output(f"LỖI: {message}")
-            messagebox.showerror("Lỗi", message, parent=self.window)
+        
+        # Ủy quyền cho Controller
+        self.controller.task_update_managed_bridge(bridge_id, new_description, bridge_data['is_enabled'], self.window)
 
     def toggle_bridge_status(self):
-        """Logic nút 'Bật / Tắt Cầu'."""
+        """[VIEW ACTION] Gọi Controller để bật/tắt trạng thái."""
         bridge_id, bridge_data = self.get_selected_bridge_info()
         if not bridge_id: return
         
         new_status = 0 if bridge_data['is_enabled'] == 1 else 1
-        success, message = update_managed_bridge(bridge_id, bridge_data['description'], new_status)
-        if success:
-            self.app.update_output(f"Đã {'BẬT' if new_status==1 else 'TẮT'} cầu ID {bridge_id}.")
-            self.refresh_bridge_list()
-        else:
-            self.app.update_output(f"LỖI: {message}")
-            messagebox.showerror("Lỗi", message, parent=self.window)
+        
+        # Ủy quyền cho Controller
+        self.controller.task_update_managed_bridge(bridge_id, bridge_data['description'], new_status, self.window)
 
     def delete_selected_bridge(self):
-        """Logic nút 'XÓA Cầu'."""
+        """[VIEW ACTION] Gọi Controller để xóa cầu."""
         bridge_id, bridge_data = self.get_selected_bridge_info()
         if not bridge_id: return
         
@@ -244,16 +225,11 @@ class BridgeManagerWindow:
                                    parent=self.window):
             return
             
-        success, message = delete_managed_bridge(bridge_id)
-        if success:
-            self.app.update_output(f"Đã XÓA cầu ID {bridge_id}.")
-            self.refresh_bridge_list()
-        else:
-            self.app.update_output(f"LỖI: {message}")
-            messagebox.showerror("Lỗi", message, parent=self.window)
+        # Ủy quyền cho Controller
+        self.controller.task_delete_managed_bridge(bridge_id, self.window)
 
     def on_bridge_select(self, event):
-        """(SỬA GĐ 4) Khi chọn cầu trong Treeview."""
+        """[VIEW ACTION] Khi chọn cầu trong Treeview (chỉ cập nhật Entry)."""
         selected_item = self.tree.focus()
         if not selected_item: return
         item = self.tree.item(selected_item)
@@ -271,9 +247,9 @@ class BridgeManagerWindow:
         self.desc_entry.delete(0, tk.END)
         self.desc_entry.insert(0, bridge_data.get('description', '')) 
         
-        self.status_label.config(text=f"Trạng thái: {values[6]}") # (SỬA GĐ 4) Index 6 (Status)
+        self.status_label.config(text=f"Trạng thái: {values[6]}") 
         
-    # (SỬA LỖI) GỌI ĐÚNG TÊN HÀM
     def run_update_all_k2n_cache(self):
-        """Gọi hàm chạy K2N cache đa luồng từ app chính."""
+        """Gọi hàm chạy K2N cache đa luồng từ app chính (đã là Controller)."""
+        # Hàm này đã được ủy quyền đúng ở ui_main_window.py
         self.app.run_update_all_bridge_K2N_cache_from_main()

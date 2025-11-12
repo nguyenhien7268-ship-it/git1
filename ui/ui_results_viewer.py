@@ -2,14 +2,15 @@ import tkinter as tk
 from tkinter import ttk
 
 class ResultsViewerWindow:
-    """Quản lý cửa sổ Toplevel hiển thị kết quả backtest (Treeview)."""
+    """Quản lý cửa sổ Toplevel hiển thị kết quả backtest (Treeview) - VIEW."""
     
     def __init__(self, app, title, results_data, show_save_button=False):
         self.app = app  # Tham chiếu đến DataAnalysisApp chính
         self.root = app.root
         
         if not results_data:
-            self.app.update_output(f"Lỗi: Không có kết quả để hiển thị cho {title}.")
+            # SỬA: Thay thế update_output bằng logger.log
+            self.app.logger.log(f"Lỗi: Không có kết quả để hiển thị cho {title}.")
             return
 
         self.window = tk.Toplevel(self.root)
@@ -84,17 +85,19 @@ class ResultsViewerWindow:
         self.tree.pack(expand=True, fill=tk.BOTH)
 
     def copy_all_to_clipboard(self, data):
+        """[VIEW UTILITY] Copy dữ liệu bảng."""
         try:
             tsv_string = ""
             for row in data:
                 tsv_string += "\t".join(map(str, row)) + "\n"
             self.root.clipboard_clear()
             self.root.clipboard_append(tsv_string)
-            self.app.update_output(f"Đã copy {len(data)} hàng vào clipboard (dạng TSV).")
+            self.app.logger.log(f"Đã copy {len(data)} hàng vào clipboard (dạng TSV).")
         except Exception as e:
-            self.app.update_output(f"Lỗi khi copy toàn bộ: {e}")
+            self.app.logger.log(f"Lỗi khi copy toàn bộ: {e}")
 
     def on_right_click(self, event):
+        """[VIEW ACTION] Menu chuột phải."""
         try:
             item_id = self.tree.identify_row(event.y)
             column_id = self.tree.identify_column(event.x)
@@ -108,7 +111,7 @@ class ResultsViewerWindow:
             def copy_cell_to_clipboard():
                 self.root.clipboard_clear()
                 self.root.clipboard_append(cell_value)
-                self.app.update_output(f"Đã copy: {cell_value}")
+                self.app.logger.log(f"Đã copy: {cell_value}")
 
             self.context_menu.add_command(label=f"Copy '{cell_value}'", command=copy_cell_to_clipboard)
             
@@ -118,8 +121,9 @@ class ResultsViewerWindow:
             
             self.context_menu.tk_popup(event.x_root, event.y_root)
         except Exception as e:
-            self.app.update_output(f"Lỗi menu chuột phải: {e}")
+            self.app.logger.log(f"Lỗi menu chuột phải: {e}")
             
     def save_selected_bridge(self):
-        # Gọi lại hàm _save_bridge_from_treeview của app chính
+        """[VIEW ACTION] Ủy quyền cho View chính để khởi tạo lưu cầu."""
+        # Gọi lại hàm _save_bridge_from_treeview của app chính (đã được refactor)
         self.app._save_bridge_from_treeview(self.tree)

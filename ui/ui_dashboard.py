@@ -1,24 +1,20 @@
-# Tên file: du-an-backup/ui/ui_dashboard.py
+# Tên file: code1/ui/ui_dashboard.py
 #
-# (NỘI DUNG THAY THẾ TOÀN BỘ - GĐ 4: TÍCH HỢP BIỂU ĐỒ)
+# (NỘI DUNG THAY THẾ TOÀN BỘ - TÁI CẤU TRÚC THEO MVC)
 #
 import tkinter as tk
 from tkinter import ttk, messagebox
 import datetime
 import traceback
 
-# (MỚI GĐ 4) Import thư viện biểu đồ và pandas
+# (MỚI GĐ 4) Import thư viện biểu đồ và pandas (Giữ lại, vì đây là Presentation Logic)
 import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 # Tinh chỉnh matplotlib cho giao diện tối (hoặc sáng)
 plt.style.use('ggplot') 
 
-try:
-    from logic.config_manager import SETTINGS
-except ImportError:
-    print("LỖI: ui_dashboard.py không thể import logic.config_manager...")
-    SETTINGS = type('obj', (object,), {'GAN_DAYS': 15, 'HIGH_WIN_THRESHOLD': 47.0, 'K2N_RISK_START_THRESHOLD': 4})
+# (ĐÃ XÓA) Bỏ import logic.config_manager. SETTINGS sẽ được truyền từ Controller.
 
 class DashboardWindow(ttk.Frame): 
     def __init__(self, app_instance):
@@ -26,6 +22,7 @@ class DashboardWindow(ttk.Frame):
         
         self.app = app_instance
         self.root = app_instance.root
+        self.controller = app_instance.controller # Thêm tham chiếu Controller
         
         # (MỚI GĐ 4) Biến giữ đối tượng biểu đồ
         self.fig = None
@@ -84,7 +81,7 @@ class DashboardWindow(ttk.Frame):
         self.pending_k2n_frame.grid(row=3, column=0, columnspan=2, sticky="nsew", padx=5, pady=5)
         
     # ===================================================================================
-    # CÁC HÀM TẠO UI (Giữ nguyên 5 hàm cũ, thêm 1 hàm mới)
+    # CÁC HÀM TẠO UI 
     # ===================================================================================
     
     def _create_top_scores_ui(self, parent_frame):
@@ -92,7 +89,7 @@ class DashboardWindow(ttk.Frame):
         tree_frame = ttk.Frame(self.top_scores_frame)
         tree_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         cols = ('score', 'pair', 'gan', 'reasons')
-        self.scores_tree = ttk.Treeview(tree_frame, columns=cols, show='headings', height=10) # (SỬA) Giảm chiều cao
+        self.scores_tree = ttk.Treeview(tree_frame, columns=cols, show='headings', height=10) 
         self.scores_tree.heading('score', text='Điểm')
         self.scores_tree.heading('pair', text='Cặp số')
         self.scores_tree.heading('gan', text='Gan')
@@ -114,7 +111,7 @@ class DashboardWindow(ttk.Frame):
         tree_frame = ttk.Frame(self.ai_predictions_frame)
         tree_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         cols = ('loto', 'probability')
-        self.ai_tree = ttk.Treeview(tree_frame, columns=cols, show='headings', height=10) # (SỬA) Giảm chiều cao
+        self.ai_tree = ttk.Treeview(tree_frame, columns=cols, show='headings', height=10) 
         self.ai_tree.heading('loto', text='Loto')
         self.ai_tree.heading('probability', text='Xác suất (%)')
         self.ai_tree.column('loto', width=80, anchor=tk.CENTER)
@@ -126,19 +123,15 @@ class DashboardWindow(ttk.Frame):
         self.ai_tree.tag_configure('top1', background='#D5E8D4', font=('Arial', 10, 'bold'))
         self.ai_tree.tag_configure('top5', background='#FFF2CC')
 
-    # (MỚI GĐ 4) Hàm tạo khu vực biểu đồ
     def _create_scores_chart_ui(self, parent_frame):
         self.scores_chart_frame = ttk.Labelframe(parent_frame, text="📊 Biểu đồ Phân bổ Điểm (Top 5)")
         
-        # Cấu hình kích thước (figsize) và DPI
-        self.fig = plt.Figure(figsize=(10, 2.5), dpi=100) # Rộng, thấp
+        self.fig = plt.Figure(figsize=(10, 2.5), dpi=100) 
         self.ax = self.fig.add_subplot(111)
         
-        # Nhúng Matplotlib vào Tkinter
         self.canvas = FigureCanvasTkAgg(self.fig, master=self.scores_chart_frame)
         self.canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=5, pady=5)
         
-        # Giảm khoảng cách lề
         self.fig.tight_layout(pad=0.5)
 
     def _create_hot_loto_ui(self, parent_frame):
@@ -204,6 +197,7 @@ class DashboardWindow(ttk.Frame):
                 for item in tree.get_children():
                     tree.delete(item)
             except Exception as e:
+                # In lỗi an toàn
                 print(f"Lỗi khi xóa tree {tree.winfo_name()}: {e}")
         
         # (MỚI GĐ 4) Xóa biểu đồ
@@ -213,12 +207,13 @@ class DashboardWindow(ttk.Frame):
                 self.ax.set_title("Đang tải dữ liệu biểu đồ...")
                 self.canvas.draw()
         except Exception as e:
+            # In lỗi an toàn
             print(f"Lỗi xóa biểu đồ: {e}")
 
     def populate_data(self, next_ky, stats, n_days_stats, 
                       consensus, high_win, pending_k2n, 
                       gan_stats, top_scores, top_memory_bridges,
-                      ai_predictions): 
+                      ai_predictions, gan_threshold=15, risk_threshold=4): # Cập nhật signature để nhận ngưỡng
         
         try:
             self.clear_data()
@@ -237,12 +232,13 @@ class DashboardWindow(ttk.Frame):
             self._populate_hot_loto(stats)
 
             # Nạp Bảng 3: Lô Gan
-            gan_threshold = SETTINGS.GAN_DAYS
-            self.gan_loto_frame.config(text=f"🧊 Lô Gan (Trên {gan_threshold} ngày)")
+            # SỬA: Dùng tham số gan_threshold được truyền vào
+            self.gan_loto_frame.config(text=f"🧊 Lô Gan (Trên {gan_threshold} ngày)") 
             self._populate_gan_loto(gan_stats)
 
             # Nạp Bảng 4: Cầu K2N
-            self._populate_pending_k2n(pending_k2n)
+            # SỬA: Truyền tham số risk_threshold vào hàm nạp
+            self._populate_pending_k2n(pending_k2n, risk_threshold) 
             
             # Nạp Bảng 5: Dự đoán AI
             self._populate_ai_predictions(ai_predictions)
@@ -270,10 +266,9 @@ class DashboardWindow(ttk.Frame):
                 item['reasons']
             ), tags=tags)
 
-    # (MỚI GĐ 4) Hàm vẽ biểu đồ
     def _populate_top_scores_chart(self, top_scores):
         try:
-            self.ax.clear() # Xóa biểu đồ cũ
+            self.ax.clear() 
 
             if not top_scores or len(top_scores) == 0:
                 self.ax.set_title("Không có dữ liệu điểm để vẽ biểu đồ")
@@ -281,7 +276,6 @@ class DashboardWindow(ttk.Frame):
                 return
 
             # 1. Trích xuất dữ liệu (Top 5)
-            # (Chúng ta cần đảo ngược lại, vì matplotlib vẽ từ dưới lên)
             top_5_data = top_scores[:5][::-1] 
             
             pairs = [item['pair'] for item in top_5_data]
@@ -293,7 +287,7 @@ class DashboardWindow(ttk.Frame):
             # 3. Vẽ biểu đồ (vẽ ngang - 'barh' - để dễ đọc tên)
             df.plot(kind='barh', x='Cặp số', y='Điểm', ax=self.ax, 
                     legend=False, 
-                    color=['#60a5fa', '#3b82f6', '#2563eb', '#1d4ed8', '#1e3a8a']) # Tông màu xanh
+                    color=['#60a5fa', '#3b82f6', '#2563eb', '#1d4ed8', '#1e3a8a']) 
 
             # 4. Tinh chỉnh biểu đồ
             self.ax.set_title("Top 5 Cặp số có Điểm cao nhất", fontsize=10)
@@ -302,10 +296,10 @@ class DashboardWindow(ttk.Frame):
             
             # Thêm giá trị (điểm) vào cuối mỗi cột
             for index, value in enumerate(scores):
-                self.ax.text(value + 0.1, index, f"{value:.2f}", va='center', fontsize=8) # 0.1 là khoảng cách
+                self.ax.text(value + 0.1, index, f"{value:.2f}", va='center', fontsize=8) 
             
             self.ax.tick_params(axis='both', which='major', labelsize=8)
-            self.fig.tight_layout(pad=1.0) # Căn chỉnh lại lề
+            self.fig.tight_layout(pad=1.0) 
 
             # 5. Vẽ lên canvas
             self.canvas.draw()
@@ -330,15 +324,17 @@ class DashboardWindow(ttk.Frame):
         for loto, days in gan_stats:
             self.gan_tree.insert('', tk.END, values=(loto, f"{days} ngày"))
 
-    def _populate_pending_k2n(self, pending_k2n):
+    def _populate_pending_k2n(self, pending_k2n, risk_threshold): # SỬA: Nhận risk_threshold
         if not pending_k2n:
             self.k2n_tree.insert('', tk.END, values=("(N/A)", "", "", "Không có cầu K2N nào chờ"))
             return
         try:
+            # Sắp xếp vẫn là logic hiển thị (View)
             sorted_k2n = sorted(pending_k2n.items(), key=lambda item: (int(str(item[1]['streak']).split(' ')[0]), -int(item[1].get('max_lose', 99))), reverse=True)
         except Exception:
              sorted_k2n = list(pending_k2n.items())
-        risk_threshold = SETTINGS.K2N_RISK_START_THRESHOLD
+             
+        # SỬA: Dùng risk_threshold được truyền vào
         for bridge_name, data in sorted_k2n:
             stl, streak, max_lose = data['stl'], data['streak'], data.get('max_lose', 0)
             tags = ()
@@ -359,10 +355,11 @@ class DashboardWindow(ttk.Frame):
             self.ai_tree.insert('', tk.END, values=(loto, f"{prob:.2f}%"), tags=tags)
 
     # ===================================================================================
-    # HÀM TƯƠNG TÁC (Giữ nguyên)
+    # HÀM TƯƠNG TÁC (CHỈ ỦY QUYỀN)
     # ===================================================================================
     
     def refresh_data(self):
+        """[VIEW ACTION] Ủy quyền cho app chính/Controller chạy lại Dashboard."""
         self.app.logger.log("\n--- (Làm Mới) Bắt đầu chạy lại Bảng Quyết Định Tối Ưu ---")
         self.app.run_decision_dashboard() 
 
@@ -377,6 +374,7 @@ class DashboardWindow(ttk.Frame):
             if event.widget == self.k2n_tree: bridge_name = values[3] 
             
             if bridge_name:
+                # Ủy quyền cho app chính/Controller chạy backtest
                 self.app.trigger_bridge_backtest(bridge_name)
         except Exception as e:
             print(f"Lỗi double-click: {e}")

@@ -2,28 +2,24 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 import traceback
 
-# (MỚI GĐ 9) Import SETTINGS để lấy giá trị hiện tại
-try:
-    from logic.config_manager import SETTINGS
-except ImportError:
-    print("LỖI: ui_tuner.py không thể import logic.config_manager.")
-    SETTINGS = None
+# (ĐÃ XÓA) Bỏ import logic.config_manager, VIEW không được truy cập SETTINGS trực tiếp
 
 class TunerWindow:
     """
-    (MỚI GĐ 9) Cửa sổ "Trợ lý Tinh chỉnh Tham số".
-    Giúp người dùng backtest các tham số trong config.json.
+    Cửa sổ "Trợ lý Tinh chỉnh Tham số" (VIEW).
+    Lớp này chỉ chứa giao diện và ủy quyền lệnh cho Controller.
     """
 
     def __init__(self, app):
         self.app = app
         self.root = app.root
+        self.controller = app.controller # Lấy tham chiếu Controller
         
         if hasattr(self.app, 'tuner_window') and self.app.tuner_window and self.app.tuner_window.window.winfo_exists():
             self.app.tuner_window.window.lift()
             return
             
-        self.app.update_output("Đang mở Trợ lý Tinh chỉnh Tham số...")
+        self.app.logger.log("Đang mở Trợ lý Tinh chỉnh Tham số...") # Dùng logger thay vì update_output
         
         self.window = tk.Toplevel(self.root)
         self.app.tuner_window = self # Gán lại vào app chính
@@ -104,15 +100,14 @@ class TunerWindow:
         self.log_text.config(state=tk.DISABLED)
         
     def on_param_select(self, event):
-        """Khi người dùng chọn một tham số, tự động điền giá trị hiện tại."""
-        if not SETTINGS: return
-        
+        """[VIEW ACTION] Khi người dùng chọn một tham số, gọi Controller để lấy giá trị hiện tại."""
         selected_name = self.param_var.get()
-        # Tìm key từ value
         selected_key = next((key for key, value in self.tunable_parameters.items() if value == selected_name), None)
         
         if selected_key:
-            current_value = SETTINGS.get_all_settings().get(selected_key)
+            # Ủy quyền cho Controller để đọc cấu hình
+            current_value = self.controller.get_current_setting_value(selected_key)
+            
             if current_value is not None:
                 self.from_var.set(str(current_value))
                 self.to_var.set(str(current_value))
@@ -123,7 +118,7 @@ class TunerWindow:
                     self.step_var.set("1")
 
     def log(self, message):
-        """Ghi log an toàn vào Text box."""
+        """[VIEW CALLBACK] Ghi log an toàn vào Text box."""
         self.log_text.config(state=tk.NORMAL)
         self.log_text.insert(tk.END, message + "\n")
         self.log_text.see(tk.END)
@@ -131,12 +126,13 @@ class TunerWindow:
         self.window.update_idletasks() # Cập nhật UI ngay
         
     def clear_log(self):
+        """[VIEW CALLBACK] Xóa nội dung log."""
         self.log_text.config(state=tk.NORMAL)
         self.log_text.delete("1.0", tk.END)
         self.log_text.config(state=tk.DISABLED)
 
     def run_tuning(self):
-        """Lấy giá trị và gọi hàm logic trong app chính."""
+        """[VIEW ACTION] Lấy giá trị và ủy quyền cho Controller."""
         try:
             # 1. Lấy tham số
             selected_name = self.param_var.get()
@@ -167,12 +163,12 @@ class TunerWindow:
             # 4. Tắt nút
             self.run_button.config(state=tk.DISABLED)
             
-            # 5. Gọi hàm logic trong app chính (sẽ được tạo ở Bước 2)
-            # Hàm này sẽ tự chạy đa luồng
+            # 5. Ủy quyền cho Controller
+            # Hàm này đã được ủy quyền đúng ở ui_main_window.py, nhưng ta sẽ gọi qua self.app để giữ luồng gọi như cũ:
             self.app.run_parameter_tuning(param_key, val_from, val_to, val_step, self)
             
         except ValueError:
             messagebox.showerror("Lỗi Giá trị", "Giá trị 'Từ', 'Đến', 'Bước nhảy' phải là số.", parent=self.window)
         except Exception as e:
             messagebox.showerror("Lỗi", f"Lỗi không xác định: {e}", parent=self.window)
-            self.log(traceback.format_exc())
+            self.app.logger.log(traceback.format_exc())

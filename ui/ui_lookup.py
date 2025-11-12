@@ -1,42 +1,26 @@
-# Tên file: du-an-backup/ui/ui_lookup.py
+# Tên file: code1/ui/ui_lookup.py
 #
-# (NỘI DUNG THAY THẾ TOÀN BỘ)
+# (NỘI DUNG THAY THẾ TOÀN BỘ - TÁI CẤU TRÚC THEO MVC)
 #
 import tkinter as tk
 from tkinter import ttk
 
-# Import các hàm logic cần thiết
-try:
-    from lottery_service import (
-        get_all_kys_from_db, 
-        get_results_by_ky, 
-        getAllLoto_V30, 
-        calculate_loto_stats
-    )
-except ImportError:
-    print("LỖI: ui_lookup.py không thể import lottery_service.")
-    def get_all_kys_from_db(): return []
-    def get_results_by_ky(k): return None
-    def getAllLoto_V30(r): return []
-    def calculate_loto_stats(l): return {}, {}
+# (ĐÃ XÓA) Bỏ import logic.lottery_service. VIEW không được truy cập Model trực tiếp.
 
-class LookupWindow(ttk.Frame): # (SỬA) Kế thừa từ ttk.Frame
-    """Quản lý tab Tra Cứu Kết Quả."""
+class LookupWindow(ttk.Frame): 
+    """Quản lý tab Tra Cứu Kết Quả (VIEW)."""
     
     def __init__(self, app):
-        # (SỬA) Khởi tạo Frame
         super().__init__(app.notebook, padding=10)
         
         self.app = app
         self.root = app.root
-        self.all_ky_data_list = [] # Dữ liệu cache
-        
-        # (XÓA) Không cần tạo Toplevel
-        # self.window = tk.Toplevel(self.root) ...
+        self.controller = app.controller # Lấy tham chiếu Controller
+        self.all_ky_data_list = [] # Dữ liệu Listbox (View Cache)
         
         # (SỬA) Gắn PanedWindow vào self (Frame chính)
         paned_window = ttk.PanedWindow(self, orient=tk.HORIZONTAL)
-        paned_window.pack(expand=True, fill=tk.BOTH, padx=0, pady=0) # Xóa padx/pady
+        paned_window.pack(expand=True, fill=tk.BOTH, padx=0, pady=0) 
 
         # --- Khung trái (Listbox + Search) ---
         list_frame = ttk.Frame(paned_window, width=250)
@@ -84,41 +68,29 @@ class LookupWindow(ttk.Frame): # (SỬA) Kế thừa từ ttk.Frame
 
         # --- Nạp dữ liệu ---
         try:
-            self.refresh_lookup_list()
+            self.refresh_lookup_list() # Lời gọi đầu tiên
             self.list_box.bind("<<ListboxSelect>>", self.on_ky_selected)
-            if self.list_box.size() > 0:
-                self.list_box.select_set(0)
-                self.list_box.event_generate("<<ListboxSelect>>")
         except Exception as e:
-            # (SỬA) Gọi qua logger
             self.app.logger.log(f"Lỗi khi mở cửa sổ tra cứu: {e}")
             self.list_box.insert(tk.END, f"Lỗi: {e}")
 
+    # ===================================================================
+    # VIEW ACTIONS (ỦY QUYỀN CHO CONTROLLER)
+    # ===================================================================
+
     def refresh_lookup_list(self):
-        """Tải lại toàn bộ dữ liệu cho Listbox Tra Cứu."""
+        """[VIEW ACTION] Ủy quyền cho Controller tải danh sách Kỳ."""
         try:
-            self.all_ky_data_list = get_all_kys_from_db() 
-            if not self.all_ky_data_list:
-                self.list_box.delete(0, tk.END)
-                self.list_box.insert(tk.END, "Lỗi: Không tìm thấy dữ liệu.")
-                return
-            
-            self.filter_lookup_list()
-            
-            if self.list_box.size() > 0:
-                self.list_box.select_set(0)
-                self.list_box.event_generate("<<ListboxSelect>>")
-                
-            # (SỬA) Gọi qua logger
-            self.app.logger.log("Đã làm mới danh sách Kỳ trong Tra Cứu.")
+            self.controller.task_load_ky_list(self)
+            self.app.logger.log("Đang tải danh sách Kỳ trong Tra Cứu...")
         except Exception as e:
-            self.app.logger.log(f"Lỗi refresh_lookup_list: {e}")
-            
+             self.app.logger.log(f"Lỗi khi ủy quyền refresh_lookup_list: {e}")
+
     def on_lookup_search_change(self, event):
         self.filter_lookup_list()
 
     def filter_lookup_list(self):
-        """Chỉ lọc và hiển thị, không tải lại DB."""
+        """Chỉ lọc và hiển thị dựa trên Listbox Cache (View Logic)."""
         search_term = self.search_entry.get().strip().lower()
         self.list_box.delete(0, tk.END)
         self.update_detail_text("...")
@@ -131,7 +103,7 @@ class LookupWindow(ttk.Frame): # (SỬA) Kế thừa từ ttk.Frame
                 self.list_box.insert(tk.END, display_text)
 
     def on_ky_selected(self, event):
-        """Hiển thị chi tiết kỳ (Đã căn chỉnh)."""
+        """[VIEW ACTION] Lấy Kỳ đã chọn và ủy quyền cho Controller tải chi tiết."""
         if not self.detail_text: return
         try:
             widget = event.widget
@@ -141,57 +113,37 @@ class LookupWindow(ttk.Frame): # (SỬA) Kế thừa từ ttk.Frame
             selected_line = widget.get(selected_indices[0])
             ma_so_ky = selected_line.split()[0]
             
-            row = get_results_by_ky(ma_so_ky)
-            if not row:
-                self.update_detail_text(f"Không tìm thấy dữ liệu chi tiết cho kỳ: {ma_so_ky}")
-                return
+            # 1. Hiển thị trạng thái tải
+            self.update_detail_text(f"Đang tải chi tiết kỳ {ma_so_ky}...")
+
+            # 2. Ủy quyền cho Controller. Controller sẽ trả về chuỗi đã định dạng.
+            self.controller.task_load_ky_details(ma_so_ky, self)
             
-            loto_list = getAllLoto_V30(row)
-            dau_stats, duoi_stats = calculate_loto_stats(loto_list)
-
-            output = f"KẾT QUẢ KỲ: {ma_so_ky}\n"
-            output += "=" * 46 + "\n\n"
-            giai_ten = ["Đặc Biệt", "Nhất", "Nhì", "Ba", "Bốn", "Năm", "Sáu", "Bảy"]
-            LABEL_WIDTH, NUMBER_WIDTH = 10, 33 
-            
-            for i in range(len(giai_ten)):
-                giai_name = giai_ten[i].ljust(LABEL_WIDTH)
-                giai_data_str = str(row[i+2] or "")
-                numbers = [n.strip() for n in giai_data_str.split(',') if n.strip()]
-                num_count = len(numbers)
-
-                if num_count == 0:
-                    output += f"{giai_name} : {''.center(NUMBER_WIDTH)}\n"
-                elif num_count <= 3:
-                    line_str = " - ".join(numbers)
-                    output += f"{giai_name} : {line_str.center(NUMBER_WIDTH)}\n"
-                elif num_count == 4:
-                    line1_str, line2_str = " - ".join(numbers[:2]), " - ".join(numbers[2:])
-                    output += f"{giai_name} : {line1_str.center(NUMBER_WIDTH)}\n"
-                    output += f"{''.ljust(LABEL_WIDTH)} : {line2_str.center(NUMBER_WIDTH)}\n"
-                elif num_count == 6:
-                    line1_str, line2_str = " - ".join(numbers[:3]), " - ".join(numbers[3:])
-                    output += f"{giai_name} : {line1_str.center(NUMBER_WIDTH)}\n"
-                    output += f"{''.ljust(LABEL_WIDTH)} : {line2_str.center(NUMBER_WIDTH)}\n"
-                else:
-                    output += f"{giai_name} : {" - ".join(numbers)}\n"
-
-            output += "\n" + "=" * 46 + "\n"
-            output += "THỐNG KÊ LOTO (Đầu - Đuôi)\n"
-            output += "-" * 46 + "\n"
-            COL_DAU_W, COL_LOTO_W, COL_DUOI_W = 3, 12, 4
-            output += f"{'Đầu'.ljust(COL_DAU_W)} | {'Loto'.ljust(COL_LOTO_W)} | {'Đuôi'.ljust(COL_DUOI_W)} | {'Loto'.ljust(COL_LOTO_W)}\n"
-            output += f"{'-'*COL_DAU_W} | {'-'*COL_LOTO_W} | {'-'*COL_DUOI_W} | {'-'*COL_LOTO_W}\n"
-            
-            for i in range(10):
-                dau_val_str = ",".join(dau_stats[i])
-                duoi_val_str = ",".join(duoi_stats[i])
-                output += f"{str(i).ljust(COL_DAU_W)} | {dau_val_str.ljust(COL_LOTO_W)} | {str(i).ljust(COL_DUOI_W)} | {duoi_val_str.ljust(COL_LOTO_W)}\n"
-
-            self.update_detail_text(output)
         except Exception as e:
-            self.app.logger.log(f"Lỗi on_ky_selected: {e}") # (SỬA)
+            self.app.logger.log(f"Lỗi on_ky_selected: {e}") 
             self.update_detail_text(f"Lỗi: {e}")
+
+    # ===================================================================
+    # VIEW CALLBACKS (CONTROLLER GỌI ĐỂ CẬP NHẬT UI)
+    # ===================================================================
+
+    def populate_ky_list(self, ky_data_list):
+        """[VIEW CALLBACK] Controller gọi để điền dữ liệu Listbox."""
+        self.all_ky_data_list = ky_data_list
+        
+        # Chỉ gọi filter, không tự động gọi ListboxSelect
+        self.filter_lookup_list()
+        
+        if self.list_box.size() > 0:
+            # Tự động chọn dòng đầu tiên
+            self.list_box.select_set(0)
+            self.list_box.event_generate("<<ListboxSelect>>")
+            
+        self.app.logger.log(f"Đã tải {len(ky_data_list)} kỳ.")
+
+    def populate_ky_details(self, output_text):
+        """[VIEW CALLBACK] Controller gọi để điền chi tiết Kỳ."""
+        self.update_detail_text(output_text)
             
     def update_detail_text(self, message):
         """Hàm hỗ trợ cập nhật Text ở cửa sổ tra cứu"""
