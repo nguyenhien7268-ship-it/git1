@@ -1,3 +1,7 @@
+# Tên file: du-an-backup/logic/db_manager.py
+#
+# (NỘI DUNG THAY THẾ TOÀN BỘ - BỔ SUNG HÀM BỊ THIẾU)
+#
 import sqlite3
 import re
 
@@ -159,6 +163,24 @@ def get_results_by_ky(ma_so_ky, db_name=DB_NAME):
         print(f"Lỗi get_results_by_ky: {e}")
         return None
 
+# ==========================================================
+# (BỔ SUNG HÀM BỊ THIẾU)
+# Hàm này bị thiếu, khiến data_parser.py không thể import
+# ==========================================================
+def delete_all_managed_bridges(cursor):
+    """Xóa SẠCH tất cả các cầu đã lưu. Chỉ dùng khi nạp lại file."""
+    try:
+        cursor.execute('DELETE FROM ManagedBridges')
+        # Tùy chọn: Reset auto-increment nếu cần
+        cursor.execute("DELETE FROM sqlite_sequence WHERE name='ManagedBridges'")
+        print("(DB) Đã xóa tất cả ManagedBridges (do nạp lại).")
+        return True
+    except Exception as e:
+        print(f"Lỗi delete_all_managed_bridges: {e}")
+        return False
+# ==========================================================
+
+
 # --- CRUD Functions for ManagedBridges ---
 
 def add_managed_bridge(bridge_name, description, win_rate_text, db_name=DB_NAME):
@@ -244,7 +266,7 @@ def update_bridge_win_rate_batch(rate_data_list, db_name=DB_NAME):
         sql_update = "UPDATE ManagedBridges SET win_rate_text = ? WHERE name = ?"
         
         # Thực thi hàng loạt
-        cursor.execututemany(sql_update, rate_data_list)
+        cursor.executemany(sql_update, rate_data_list)
         conn.commit()
         
         updated_count = cursor.rowcount
