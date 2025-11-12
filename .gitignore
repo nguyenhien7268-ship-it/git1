@@ -1,12 +1,5 @@
-# Python files & folders
 __pycache__/
 *.pyc
-
-# Build/Packaging folders (ví dụ: PyInstaller)
 build/
 dist/
 *.spec
-
-# Large Model files (Nếu bạn dùng Git LFS)
-*.joblib
-*.db

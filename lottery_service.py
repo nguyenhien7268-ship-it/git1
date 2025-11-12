@@ -356,3 +356,29 @@ def get_all_managed_bridges_wrapper(db_name=DB_NAME, only_enabled=False):
     return get_all_managed_bridges(db_name, only_enabled)
 
 print("Lottery Service API (lottery_service.py) đã tải thành công (V7.0 G2).")
+
+# ==========================================================================
+# (V7.1 - FIX BẢO TRÌ) HÀM THÊM DATA TỪ TEXT
+# ==========================================================================
+
+def run_and_update_from_text(raw_data):
+    """
+    (V7.1) Thực hiện Nạp và Thêm data kỳ mới từ text.
+    Sử dụng hàm setup_database và parse_and_APPEND_data_TEXT đã được import.
+    """
+    conn = None
+    try:
+        # setup_database và parse_and_APPEND_data_TEXT đã được import ở trên
+        conn, cursor = setup_database()
+        total_keys_added = parse_and_APPEND_data_TEXT(raw_data, conn, cursor)
+        conn.close()
+        
+        if total_keys_added > 0:
+            return True, f"Đã thêm thành công {total_keys_added} kỳ mới."
+        else:
+            return False, "Không có kỳ nào được thêm (có thể do trùng lặp hoặc định dạng sai)."
+            
+    except Exception as e:
+        if conn: conn.close()
+        import traceback
+        return False, f"Lỗi nghiêm trọng khi thêm data kỳ mới: {e}\n{traceback.format_exc()}"

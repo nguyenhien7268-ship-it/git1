@@ -30,17 +30,18 @@ def _standardize_pair(stl_list):
 try:
     # Cố gắng import bằng relative import (khi chạy trong package)
     from .bridges.bridges_classic import getAllLoto_V30 
+    # SỬA FIX: Sử dụng import rõ ràng từ dashboard_analytics
     from .dashboard_analytics import get_loto_stats_last_n_days, get_loto_gan_stats
 except ImportError:
     # Fallback: cố gắng import bằng absolute path (khi chạy test hoặc lỗi package)
     try:
         from logic.bridges.bridges_classic import getAllLoto_V30 
-        from dashboard_analytics import get_loto_stats_last_n_days, get_loto_gan_stats
+        from logic.dashboard_analytics import get_loto_stats_last_n_days, get_loto_gan_stats
     except ImportError:
          print("LỖI KHÔNG THỂ IMPORT: bridges_classic hoặc dashboard_analytics.")
          def getAllLoto_V30(r): return []
-         def get_loto_stats_last_n_days(a, b): return {}
-         def get_loto_gan_stats(a, b): return {}
+         def get_loto_stats_last_n_days(a, b): return [] # Changed to [] for consistency
+         def get_loto_gan_stats(a, b): return [] # Changed to [] for consistency
 
 
 def prepare_training_data(all_data_ai, daily_bridge_predictions):

@@ -18,7 +18,7 @@ class DashboardWindow:
         self.window.title("Bảng Quyết Định Tối Ưu (V7.0 - 4 Bảng Cốt Lõi)") # (MỚI V7.0)
         self.window.geometry("1400x900") 
         self.window.transient(self.root)
-        self.window.grab_set()
+        # Đã xóa self.window.grab_set() để cửa sổ là NON-MODAL
 
         self.window.columnconfigure(0, weight=1)
         self.window.rowconfigure(1, weight=1) 
@@ -171,23 +171,24 @@ class DashboardWindow:
 
     def clear_data(self):
         self.title_label.config(text="Đang tải...")
-        # (SỬA V7.0) Xóa 5 cây được sử dụng
+        # (SỬA LỖI) Xóa tất cả các Treeview được sử dụng
         for tree in [self.scores_tree, self.hot_loto_tree, self.gan_tree, self.k2n_tree, self.ai_tree]:
             try:
-                # Kiểm tra xem tree đã được tạo chưa
-                if hasattr(self, tree.winfo_name().replace("!treeview", "")):
-                    for item in tree.get_children():
-                        tree.delete(item)
+                # Xóa toàn bộ dữ liệu trong Treeview
+                for item in tree.get_children():
+                    tree.delete(item)
             except Exception as e:
-                print(f"Lỗi khi xóa tree: {e}")
+                # Báo cáo lỗi nếu có (dù không nên xảy ra)
+                print(f"Lỗi khi xóa tree {tree.winfo_name()}: {e}")
 
-    # (CẬP NHẬT V7.0) Bỏ các tham số không cần thiết (consensus, high_win, top_memory_bridges)
+    # Hàm này được giữ nguyên và sử dụng để cập nhật
     def populate_data(self, next_ky, stats, n_days_stats, 
                       consensus, high_win, pending_k2n, 
                       gan_stats, top_scores, top_memory_bridges,
                       ai_predictions): 
         
         try:
+            # BƯỚC KHẮC PHỤC LỖI: Luôn xóa dữ liệu cũ trước khi nạp dữ liệu mới
             self.clear_data()
             
             # --- Cập nhật Tiêu đề ---
@@ -292,6 +293,7 @@ class DashboardWindow:
     # ===================================================================================
     
     def refresh_data(self):
+        # Hàm này được gọi khi nhấn nút "Làm Mới" trên Dashboard
         self.app.update_output("\n--- (Làm Mới) Bắt đầu chạy lại Bảng Quyết Định Tối Ưu ---")
         self.app.run_decision_dashboard() 
 

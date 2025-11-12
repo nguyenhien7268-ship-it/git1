@@ -49,7 +49,7 @@ except ImportError:
 class DataAnalysisApp:
     def __init__(self, root):
         self.root = root
-        # (SỬA V7.0) Cập nhật tiêu đề
+        # (Sửa V7.0) Cập nhật tiêu đề
         self.root.title("Xổ Số Data Analysis (v7.0 - Giao diện Tối ưu)") 
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(0, weight=1)
@@ -60,7 +60,9 @@ class DataAnalysisApp:
         self.bridge_manager_window = None
         self.bridge_manager_tree = None
         self.bridge_manager_window_instance = None 
+        # TÍCH HỢP TỐI ƯU HÓA: BIẾN THAM CHIẾU CHO NON-MODAL
         self.dashboard_window = None 
+
         self.settings_window = None # (MỚI GĐ 8) Quản lý Cài đặt
         self.tuner_window = None # (MỚI GĐ 9) Quản lý Tinh chỉnh
         # (MỚI GĐ 10) Biến cho Tab Tối ưu hóa
@@ -94,7 +96,7 @@ class DataAnalysisApp:
         predict_frame.columnconfigure(0, weight=1)
         predict_frame.columnconfigure(1, weight=1)
         
-        # (SỬA V7.0) Cập nhật tiêu đề nút
+        # (Sửa V7.0) Cập nhật tiêu đề nút
         self.dashboard_button = ttk.Button(predict_frame, text="Mở Bảng Quyết Định Tối Ưu (V7.0)", command=self.run_decision_dashboard)
         self.dashboard_button.grid(row=0, column=0, sticky="ew", padx=5, pady=5)
         
@@ -322,6 +324,8 @@ class DataAnalysisApp:
                 self.update_output(f"- Đã chèn {total_records_ai} hàng A:I (backtest).")
                 self.update_output(f"- Đã xóa mọi Cầu Đã Lưu (do nạp lại).")
                 self.update_output(">>> Sẵn sàng cho Chức Năng Soi Cầu.")
+                # Tự động chạy lại Dashboard nếu nó đang mở
+                self.root.after(0, self.run_decision_dashboard)
 
         except Exception as e:
             self.update_output(f"LỖI trong Bước 1 (Xóa Hết): {e}")
@@ -353,6 +357,8 @@ class DataAnalysisApp:
                 self.update_output(f"Thêm dữ liệu hoàn tất.")
                 self.update_output(f"- Đã thêm {total_keys_added} kỳ mới vào DB.")
                 self.update_output(">>> Sẵn sàng cho Chức Năng Soi Cầu.")
+                # Tự động chạy lại Dashboard nếu nó đang mở
+                self.root.after(0, self.run_decision_dashboard)
 
         except Exception as e:
             self.update_output(f"LỖI trong Bước 1 (Append): {e}")
@@ -362,6 +368,7 @@ class DataAnalysisApp:
                 conn.close()
                 self.update_output("Đã đóng kết nối database.")
 
+    # SỬA LOGIC CỐT LÕI TẠI ĐÂY
     def run_update_from_text(self):
         raw_data = self.update_text_area.get("1.0", tk.END)
         if not raw_data.strip():
@@ -371,24 +378,32 @@ class DataAnalysisApp:
         self._run_task_in_thread(self._task_run_update_from_text, raw_data)
 
     def _task_run_update_from_text(self, raw_data):
-        conn = None 
         try:
-            conn, cursor = setup_database()
-            total_keys_added = parse_and_APPEND_data_TEXT(raw_data, conn, cursor) 
+            # FIX LỖI: Gọi hàm wrapper mới từ lottery_service.py
+            success, message = run_and_update_from_text(raw_data)
             
-            self.update_output(f"Hoàn tất: Đã thêm thành công {total_keys_added} kỳ mới.")
-            if total_keys_added > 0:
+            self.update_output(message) # In kết quả
+            
+            if success:
+                # Nếu thêm thành công, xóa text area 
                 self.root.after(0, self.update_text_area.delete, "1.0", tk.END)
+                
+                # *** KHẮC PHỤC LỖI KHÔNG CẬP NHẬT: THÊM ĐỘ TRỄ ĐỒNG BỘ ***
+                # Thêm độ trễ nhỏ để đảm bảo DB commit/OS flush hoàn tất trước khi đọc lại
+                time.sleep(0.5) 
+                
+                # TỰ ĐỘNG chạy lại Dashboard
+                self.root.after(0, self.update_output, "Đã thêm dữ liệu. Tự động chạy lại Bảng Tổng Hợp...")
+                self.root.after(0, self.run_decision_dashboard)
             else:
-                self.update_output("(Không có kỳ nào được thêm, có thể do dữ liệu đã tồn tại hoặc định dạng sai.)")
+                self.update_output("(Không có kỳ nào được thêm hoặc có lỗi nghiêm trọng.)")
 
         except Exception as e:
             self.update_output(f"LỖI khi cập nhật: {e}")
             self.update_output(traceback.format_exc())
         finally:
-            if conn:
-                conn.close()
-                self.update_output("Đã đóng kết nối database.")
+            self.update_output("Đã hoàn tất tác vụ thêm từ text.")
+
 
     # --- HÀM LOGIC SOI CẦU (Callbacks - Đã cập nhật Đa luồng) ---
 
@@ -495,20 +510,28 @@ class DataAnalysisApp:
         self.update_output(f"Backtest Cầu Đã Lưu K2N hoàn tất. Đang mở cửa sổ kết quả...")
         self.root.after(0, self.show_backtest_results, title, results_data)
             
+    # HÀM NÀY ĐƯỢC CHUYỂN THÀNH HÀM ĐIỀU PHỐI MỞ/CẬP NHẬT
     def run_decision_dashboard(self):
-        # (SỬA V7.0) Cập nhật tiêu đề
+        # (Sửa V7.0) Cập nhật tiêu đề
         title = "Bảng Quyết Định Tối Ưu"
         self.update_output(f"\n--- Bắt đầu: {title} ---")
-        # (SỬA V7.0) Cập nhật log
-        self.update_output("Đang chạy 5 hệ thống phân tích cốt lõi... (Bao gồm 1 AI và 1 Cache K2N)") 
+        # Kiểm tra xem Dashboard đã mở chưa, nếu mở rồi thì không cần báo động "RẤT NẶNG"
+        if self.dashboard_window and self.dashboard_window.window.winfo_exists():
+            self.update_output("Đang chạy lại 5 hệ thống phân tích cốt lõi để cập nhật...")
+        else:
+            self.update_output("Đang chạy 5 hệ thống phân tích cốt lõi... (Bao gồm 1 AI và 1 Cache K2N)") 
+        
         self._run_task_in_thread(self._task_run_decision_dashboard, title)
 
     def _task_run_decision_dashboard(self, title):
         """(CẬP NHẬT V7.0) Tối ưu hóa các bước phân tích, tập trung vào 5 bước cốt lõi."""
-        all_data_ai = self.load_data_ai_from_db()
+        # BƯỚC FIX CỐT LÕI: ÉP BUỘC TẢI LẠI DỮ LIỆU MỚI NHẤT
+        all_data_ai = self.load_data_ai_from_db() 
         
         if not all_data_ai or len(all_data_ai) < 2:
             self.update_output("LỖI: Cần ít nhất 2 kỳ dữ liệu để chạy Bảng Tổng Hợp.")
+            # Xử lý trường hợp không đủ data: nếu dashboard đang mở, đóng nó.
+            self.root.after(0, self._on_dashboard_close)
             return
         
         last_row = all_data_ai[-1]
@@ -534,6 +557,7 @@ class DataAnalysisApp:
         
         # --- 2. Chạy hàm K2N Cache TRƯỚC ---
         self.update_output("... (2/5) Đang chạy hàm Cập nhật K2N Cache (tối ưu)...")
+        # Truyền all_data_ai đã được tải lại ở trên
         pending_k2n_data, cache_message = run_and_update_all_bridge_K2N_cache(all_data_ai, self.db_name)
         self.update_output(f"... (Cache K2N) {cache_message}")
         
@@ -581,25 +605,39 @@ class DataAnalysisApp:
             ai_predictions 
         )
 
-    # (V7.0) Vẫn giữ chữ ký hàm cũ cho compatibility
+    # HÀM MỚI: DỌN DẸP BIẾN THAM CHIẾU KHI NGƯỜI DÙNG ĐÓNG CỬA SỔ
+    def _on_dashboard_close(self):
+        """Dọn dẹp biến tham chiếu khi cửa sổ Dashboard bị đóng."""
+        if self.dashboard_window is not None and self.dashboard_window.window.winfo_exists():
+            self.dashboard_window.window.destroy()
+        self.dashboard_window = None
+
+    # THAY ĐỔI CỐT LÕI: LOGIC NON-MODAL VÀ TÁI SỬ DỤNG CỬA SỔ
+    # Vẫn giữ chữ ký hàm cũ cho compatibility
     def _show_dashboard_window(self, next_ky, stats_n_day, n_days_stats, consensus, high_win, pending_k2n_data, gan_stats, top_scores, top_memory_bridges, ai_predictions):
         try:
-            if self.dashboard_window and self.dashboard_window.window.winfo_exists():
-                self.dashboard_window.window.lift()
-                self.dashboard_window.clear_data()
-            else:
+            # 1. Khởi tạo nếu chưa mở (hoặc đã đóng)
+            if self.dashboard_window is None or not self.dashboard_window.window.winfo_exists():
                 self.dashboard_window = DashboardWindow(self) 
+                # THIẾT LẬP DỌN DẸP BIẾN THAM CHIẾU KHI CỬA SỔ BỊ ĐÓNG (QUAN TRỌNG)
+                self.dashboard_window.window.protocol("WM_DELETE_WINDOW", self._on_dashboard_close)
             
-            # (SỬA V6.6) TRẢ LẠI `ai_predictions`
+            # 2. Cập nhật dữ liệu
             self.dashboard_window.populate_data(
                 next_ky, stats_n_day, n_days_stats, 
                 consensus, high_win, pending_k2n_data, 
                 gan_stats, top_scores, top_memory_bridges,
-                ai_predictions # (MỚI V6.6)
+                ai_predictions
             )
+            # 3. Đưa cửa sổ lên trên cùng
+            self.dashboard_window.window.lift()
+
         except Exception as e:
             self.update_output(f"LỖI khi hiển thị Bảng Tổng Hợp: {e}")
             self.update_output(traceback.format_exc())
+            # Nếu có lỗi, đảm bảo biến tham chiếu được dọn dẹp
+            self._on_dashboard_close()
+
 
     # ===================================================================================
     # (MỚI GĐ 5) HÀM CẬP NHẬT K2N CACHE (Từ nút bấm chính)
@@ -1033,11 +1071,11 @@ class DataAnalysisApp:
                 
             log_to_optimizer(f"Đã tạo {total_combos} tổ hợp. Bắt đầu kiểm thử...")
             
-            # 3. Lặp qua từng tổ hợp
-            results_list = []
-            
             # (MỚI GĐ 10) Lưu giá trị SETTINGS gốc
             original_settings_backup = original_settings.copy()
+            
+            # 3. Lặp qua từng tổ hợp
+            results_list = []
             
             for i, config in enumerate(combinations):
                 log_to_optimizer(f"--- Đang kiểm thử [{i+1}/{total_combos}]: {config} ---")
