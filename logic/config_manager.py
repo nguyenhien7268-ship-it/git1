@@ -10,7 +10,7 @@ class AppSettings:
     Lưu trữ tất cả các tham số có thể định cấu hình của hệ thống.
     """
     def __init__(self):
-        # Giá trị mặc định (ĐÃ THÊM AI_SCORE_WEIGHT)
+        # Giá trị mặc định (ĐÃ THÊM AI_LEARNING_RATE, AI_OBJECTIVE)
         self.defaults = {
             "STATS_DAYS": 7,
             "GAN_DAYS": 15,
@@ -20,7 +20,11 @@ class AppSettings:
             "K2N_RISK_START_THRESHOLD": 4,
             "K2N_RISK_PENALTY_PER_FRAME": 0.5,
             "AI_PROB_THRESHOLD": 45.0, 
-            "AI_SCORE_WEIGHT": 0.2 # (V7.0 GĐ3) ĐÃ THÊM
+            "AI_MAX_DEPTH": 15,
+            "AI_N_ESTIMATORS": 100,
+            "AI_LEARNING_RATE": 0.1, # MỚI: Learning Rate cho GBM
+            "AI_OBJECTIVE": "binary:logistic", # MỚI: Objective cho XGBoost/LightGBM
+            "AI_SCORE_WEIGHT": 0.2 
         }
         
         # Tải cài đặt
@@ -55,7 +59,7 @@ class AppSettings:
             self.save_settings(log=False)
 
     def save_settings(self, log=True):
-        """Lưu cài đặt hiện tại vào file JSON. (ĐÃ THÊM AI_SCORE_WEIGHT)"""
+        """Lưu cài đặt hiện tại vào file JSON. (ĐÃ THÊM AI_LEARNING_RATE, AI_OBJECTIVE)"""
         try:
             settings_to_save = {
                 "STATS_DAYS": self.STATS_DAYS,
@@ -66,7 +70,11 @@ class AppSettings:
                 "K2N_RISK_START_THRESHOLD": self.K2N_RISK_START_THRESHOLD,
                 "K2N_RISK_PENALTY_PER_FRAME": self.K2N_RISK_PENALTY_PER_FRAME,
                 "AI_PROB_THRESHOLD": self.AI_PROB_THRESHOLD,
-                "AI_SCORE_WEIGHT": self.AI_SCORE_WEIGHT # (V7.0 GĐ3) ĐÃ THÊM
+                "AI_MAX_DEPTH": self.AI_MAX_DEPTH,
+                "AI_N_ESTIMATORS": self.AI_N_ESTIMATORS,
+                "AI_LEARNING_RATE": self.AI_LEARNING_RATE,
+                "AI_OBJECTIVE": self.AI_OBJECTIVE,
+                "AI_SCORE_WEIGHT": self.AI_SCORE_WEIGHT 
             }
             with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
                 json.dump(settings_to_save, f, indent=4)
@@ -81,7 +89,7 @@ class AppSettings:
             return False, f"Lỗi khi lưu file: {e}"
 
     def _update_class_attributes(self):
-        """Cập nhật các thuộc tính của lớp từ dict đã tải. (ĐÃ THÊM AI_SCORE_WEIGHT)"""
+        """Cập nhật các thuộc tính của lớp từ dict đã tải. (ĐÃ THÊM AI_LEARNING_RATE, AI_OBJECTIVE)"""
         self.STATS_DAYS = int(self.settings.get("STATS_DAYS", 7))
         self.GAN_DAYS = int(self.settings.get("GAN_DAYS", 15))
         self.HIGH_WIN_THRESHOLD = float(self.settings.get("HIGH_WIN_THRESHOLD", 47.0))
@@ -90,10 +98,14 @@ class AppSettings:
         self.K2N_RISK_START_THRESHOLD = int(self.settings.get("K2N_RISK_START_THRESHOLD", 4))
         self.K2N_RISK_PENALTY_PER_FRAME = float(self.settings.get("K2N_RISK_PENALTY_PER_FRAME", 0.5))
         self.AI_PROB_THRESHOLD = float(self.settings.get("AI_PROB_THRESHOLD", 45.0))
-        self.AI_SCORE_WEIGHT = float(self.settings.get("AI_SCORE_WEIGHT", 0.2)) # (V7.0 GĐ3) ĐÃ THÊM
+        self.AI_MAX_DEPTH = int(self.settings.get("AI_MAX_DEPTH", 15))
+        self.AI_N_ESTIMATORS = int(self.settings.get("AI_N_ESTIMATORS", 100))
+        self.AI_LEARNING_RATE = float(self.settings.get("AI_LEARNING_RATE", 0.1)) # MỚI
+        self.AI_OBJECTIVE = str(self.settings.get("AI_OBJECTIVE", "binary:logistic")) # MỚI
+        self.AI_SCORE_WEIGHT = float(self.settings.get("AI_SCORE_WEIGHT", 0.2))
 
     def get_all_settings(self):
-        """Trả về một dict của các cài đặt hiện tại (để UI sử dụng). (ĐÃ THÊM AI_SCORE_WEIGHT)"""
+        """Trả về một dict của các cài đặt hiện tại (để UI sử dụng). (ĐÃ THÊM AI_LEARNING_RATE, AI_OBJECTIVE)"""
         return {
             "STATS_DAYS": self.STATS_DAYS,
             "GAN_DAYS": self.GAN_DAYS,
@@ -103,7 +115,11 @@ class AppSettings:
             "K2N_RISK_START_THRESHOLD": self.K2N_RISK_START_THRESHOLD,
             "K2N_RISK_PENALTY_PER_FRAME": self.K2N_RISK_PENALTY_PER_FRAME,
             "AI_PROB_THRESHOLD": self.AI_PROB_THRESHOLD,
-            "AI_SCORE_WEIGHT": self.AI_SCORE_WEIGHT # (V7.0 GĐ3) ĐÃ THÊM
+            "AI_MAX_DEPTH": self.AI_MAX_DEPTH,
+            "AI_N_ESTIMATORS": self.AI_N_ESTIMATORS,
+            "AI_LEARNING_RATE": self.AI_LEARNING_RATE, # MỚI
+            "AI_OBJECTIVE": self.AI_OBJECTIVE, # MỚI
+            "AI_SCORE_WEIGHT": self.AI_SCORE_WEIGHT
         }
         
     def update_setting(self, key, value):
@@ -116,6 +132,8 @@ class AppSettings:
                     value = int(value)
                 elif isinstance(default_val, float):
                     value = float(value)
+                elif isinstance(default_val, str): # Xử lý string cho AI_OBJECTIVE
+                    value = str(value)
                 
                 setattr(self, key, value)
                 self.settings[key] = value
@@ -133,7 +151,7 @@ try:
     print("ConfigManager đã khởi tạo và tải cài đặt.")
 except Exception as e:
     print(f"LỖI NGHIÊM TRỌNG khi khởi tạo ConfigManager: {e}")
-    # Fallback nếu có lỗi nghiêm trọng (ĐÃ THÊM AI_SCORE_WEIGHT)
+    # Fallback nếu có lỗi nghiêm trọng 
     SETTINGS = type('obj', (object,), {
         'STATS_DAYS': 7,
         'GAN_DAYS': 15,
@@ -143,5 +161,9 @@ except Exception as e:
         'K2N_RISK_START_THRESHOLD': 4,
         'K2N_RISK_PENALTY_PER_FRAME': 0.5,
         'AI_PROB_THRESHOLD': 45.0, 
-        'AI_SCORE_WEIGHT': 0.2 # (V7.0 GĐ3) ĐÃ THÊM
+        'AI_MAX_DEPTH': 15,
+        'AI_N_ESTIMATORS': 100,
+        'AI_LEARNING_RATE': 0.1,
+        'AI_OBJECTIVE': "binary:logistic",
+        'AI_SCORE_WEIGHT': 0.2
     })

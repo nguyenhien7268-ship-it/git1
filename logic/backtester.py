@@ -32,14 +32,13 @@ try:
 except ImportError:
     # Fallback cho db_manager
     print("Lỗi: Không thể import db_manager trong backtester.py")
-    DB_NAME = 'xo_so_prizes_all_logic.db'
+    DB_NAME = 'data/xo_so_prizes_all_logic.db' # <--- ĐÃ SỬA
     def get_all_managed_bridges(d, o): return []
     def update_bridge_win_rate_batch(r, d): return False, "Lỗi Import"
     def update_bridge_k2n_cache_batch(r, d): return False, "Lỗi Import"
-
 # Import các hàm cầu cổ điển
 try:
-    from .bridges_classic import (
+    from .bridges.bridges_classic import (
         ALL_15_BRIDGE_FUNCTIONS_V5, 
         getAllLoto_V30, 
         checkHitSet_V30_K2N
@@ -53,7 +52,7 @@ except ImportError:
 
 # Import các hàm cầu V16 (VÀ V17 MỚI)
 try:
-    from .bridges_v16 import (
+    from .bridges.bridges_v16 import (
         getPositionName_V16, 
         get_index_from_name_V16,
         taoSTL_V30_Bong,
@@ -71,7 +70,7 @@ except ImportError:
 
 # (V7.1) Import các hàm Bạc Nhớ (chỉ cần cho Backtest Memory)
 try:
-    from .bridges_memory import (
+    from .bridges.bridges_memory import (
         get_27_loto_names,
         get_27_loto_positions,
         calculate_bridge_stl

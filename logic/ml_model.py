@@ -1,7 +1,7 @@
 import joblib
 import pandas as pd
 import numpy as np
-from sklearn.ensemble import RandomForestClassifier
+import xgboost as xgb # <--- ĐÃ THAY THẾ RandomForestClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 import os
@@ -14,7 +14,10 @@ try:
 except ImportError:
     from config_manager import SETTINGS
 
-MODEL_FILE_PATH = "loto_model.joblib"
+# ĐÃ SỬA: Cập nhật đường dẫn mới cho file mô hình và scaler
+MODEL_FILE_PATH = "logic/ml_model_files/loto_model.joblib"
+SCALER_FILE_PATH = "logic/ml_model_files/ai_scaler.joblib" 
+
 ALL_LOTOS = [str(i).zfill(2) for i in range(100)]
 MIN_DATA_TO_TRAIN = 50 
 
@@ -26,18 +29,19 @@ def _standardize_pair(stl_list):
 # --- HÀM NỘI BỘ HỖ TRỢ (ĐƯỢC GIỮ LẠI ĐỂ TÍNH LOTO/GAN) ---
 try:
     # Cố gắng import bằng relative import (khi chạy trong package)
-    from .bridges_classic import getAllLoto_V30
+    from .bridges.bridges_classic import getAllLoto_V30 
+    # SỬA FIX: Sử dụng import rõ ràng từ dashboard_analytics
     from .dashboard_analytics import get_loto_stats_last_n_days, get_loto_gan_stats
 except ImportError:
     # Fallback: cố gắng import bằng absolute path (khi chạy test hoặc lỗi package)
     try:
-        from bridges_classic import getAllLoto_V30
-        from dashboard_analytics import get_loto_stats_last_n_days, get_loto_gan_stats
+        from logic.bridges.bridges_classic import getAllLoto_V30 
+        from logic.dashboard_analytics import get_loto_stats_last_n_days, get_loto_gan_stats
     except ImportError:
          print("LỖI KHÔNG THỂ IMPORT: bridges_classic hoặc dashboard_analytics.")
          def getAllLoto_V30(r): return []
-         def get_loto_stats_last_n_days(a, b): return {}
-         def get_loto_gan_stats(a, b): return {}
+         def get_loto_stats_last_n_days(a, b): return [] # Changed to [] for consistency
+         def get_loto_gan_stats(a, b): return [] # Changed to [] for consistency
 
 
 def prepare_training_data(all_data_ai, daily_bridge_predictions):
@@ -48,7 +52,7 @@ def prepare_training_data(all_data_ai, daily_bridge_predictions):
         print(f"Cần tối thiểu {MIN_DATA_TO_TRAIN} kỳ để huấn luyện AI.")
         return None, None
         
-    print("... (AI V7.0 G2) Bước 2: Bắt đầu trích xuất đặc trưng (features) và nhãn (labels)...")
+    print("... (AI V7.1 XGBoost) Bước 2: Bắt đầu trích xuất đặc trưng (features) và nhãn (labels)...")
 
     X = [] # Features
     y = [] # Labels (Lô tô có về hay không)
@@ -84,7 +88,7 @@ def prepare_training_data(all_data_ai, daily_bridge_predictions):
         for loto in ALL_LOTOS:
             features = []
             
-            # --- FEATURE CƠ BẢI (F1 -> F6) ---
+            # --- FEATURE CƠ BÁI (F1 -> F6) ---
             # F1: Tần suất Lô tô Hot (Về trong 7 ngày gần nhất)
             features.append(loto_stats_last_7_map.get(loto, 0) / stats_days)
             
@@ -128,7 +132,7 @@ def prepare_training_data(all_data_ai, daily_bridge_predictions):
 
 def train_ai_model(all_data_ai, daily_bridge_predictions):
     """
-    (V7.0 G2) Hàm huấn luyện AI. Sử dụng tham số tuning từ config.
+    (V7.1 XGBoost) Hàm huấn luyện AI. Đã chuyển sang sử dụng XGBoost.
     """
     if all_data_ai is None:
         return False, "Dữ liệu AI rỗng. Vui lòng kiểm tra lại DB."
@@ -146,52 +150,61 @@ def train_ai_model(all_data_ai, daily_bridge_predictions):
         X_train = scaler.fit_transform(X_train)
         X_test = scaler.transform(X_test)
         
-        # === [MỚI V7.0 G2] SỬ DỤNG THAM SỐ TỪ CONFIG ===
+        # === [MỚI V7.1] SỬ DỤNG THAM SỐ VÀ MÔ HÌNH XGBOOST ===
         # FIX: Sửa truy cập SETTINGS
-        max_depth = getattr(SETTINGS, 'AI_MAX_DEPTH', 15)
-        n_estimators = getattr(SETTINGS, 'AI_N_ESTIMATORS', 100)
+        max_depth = getattr(SETTINGS, 'AI_MAX_DEPTH', 6)
+        n_estimators = getattr(SETTINGS, 'AI_N_ESTIMATORS', 200)
+        learning_rate = getattr(SETTINGS, 'AI_LEARNING_RATE', 0.05)
+        obj_func = getattr(SETTINGS, 'AI_OBJECTIVE', 'binary:logistic')
         
-        print(f"... Bắt đầu huấn luyện mô hình RandomForest: Depth={max_depth}, Est={n_estimators}")
+        print(f"... Bắt đầu huấn luyện mô hình XGBoost: Depth={max_depth}, Est={n_estimators}, LR={learning_rate}")
         
-        model = RandomForestClassifier(
+        model = xgb.XGBClassifier( # <--- XGBOOST
             n_estimators=n_estimators, 
             max_depth=max_depth, 
+            learning_rate=learning_rate,
+            objective=obj_func,
+            # Tinh chỉnh cho mô hình phân loại nhị phân
+            eval_metric='logloss',
             random_state=42, 
-            class_weight='balanced',
-            n_jobs=-1 # Sử dụng tất cả CPU
+            n_jobs=-1, # Sử dụng tất cả CPU
+            scale_pos_weight=(len(y) - np.sum(y)) / np.sum(y) # Xử lý mất cân bằng lớp
         )
         model.fit(X_train, y_train)
         
-        # Lưu mô hình và Scaler
+        # Lưu mô hình và Scaler (ĐÃ CẬP NHẬT ĐƯỜNG DẪN)
         joblib.dump(model, MODEL_FILE_PATH)
-        joblib.dump(scaler, 'ai_scaler.joblib')
+        joblib.dump(scaler, SCALER_FILE_PATH)
         
         # Đánh giá cơ bản
         accuracy = model.score(X_test, y_test)
 
-        return True, f"Huấn luyện thành công (V7.0 G2)! Độ chính xác cơ bản: {accuracy:.4f}. Đã lưu mô hình vào {MODEL_FILE_PATH}"
+        return True, f"Huấn luyện thành công (V7.1 XGBoost)! Độ chính xác cơ bản: {accuracy:.4f}. Đã lưu mô hình vào {MODEL_FILE_PATH}"
 
     except Exception as e:
         import traceback
         print(traceback.format_exc())
-        return False, f"Lỗi nghiêm trọng khi huấn luyện AI (V7.0 G2): {e}"
+        return False, f"Lỗi nghiêm trọng khi huấn luyện AI (V7.1 XGBoost): {e}"
 
 
 def get_ai_predictions(all_data_ai, bridge_predictions_for_today):
     """
-    (V7.0 G2) Hàm dự đoán. Sử dụng 3 Q-Features mới.
+    (V7.1 XGBoost) Hàm dự đoán. Sử dụng 3 Q-Features mới.
     """
     
-    if not os.path.exists(MODEL_FILE_PATH) or not os.path.exists('ai_scaler.joblib'):
+    # ĐÃ SỬA: Dùng hằng số mới
+    if not os.path.exists(MODEL_FILE_PATH) or not os.path.exists(SCALER_FILE_PATH):
         return None, "Lỗi: Không tìm thấy tệp mô hình `loto_model.joblib` hoặc `ai_scaler.joblib`. Vui lòng chạy 'Huấn luyện AI' trước."
+        
     if not all_data_ai or len(all_data_ai) < 2:
         return None, "Không đủ dữ liệu lịch sử để dự đoán."
         
     try:
+        # Tải bằng hằng số mới
         model = joblib.load(MODEL_FILE_PATH)
-        scaler = joblib.load('ai_scaler.joblib')
+        scaler = joblib.load(SCALER_FILE_PATH)
         
-        print("... (AI V7.0 G2) Đang trích xuất đặc trưng dự đoán...")
+        print("... (AI V7.1 XGBoost) Đang trích xuất đặc trưng dự đoán...")
 
         X_new = []
         last_data = all_data_ai[-1] # Dữ liệu kỳ gần nhất (D)
@@ -264,11 +277,11 @@ def get_ai_predictions(all_data_ai, bridge_predictions_for_today):
             })
 
         results.sort(key=lambda x: x['probability'], reverse=True)
-        print("... (AI V7.0 G2) Dự đoán hoàn tất.")
+        print("... (AI V7.1 XGBoost) Dự đoán hoàn tất.")
         
-        return results, f"AI (Q-Features V7.0 G2) đã dự đoán (Top 1: {results[0]['loto']} - {results[0]['probability']:.1f}%)"
+        return results, f"AI (XGBoost V7.1) đã dự đoán (Top 1: {results[0]['loto']} - {results[0]['probability']:.1f}%)"
 
     except Exception as e:
         import traceback
         print(traceback.format_exc())
-        return None, f"Lỗi khi dự đoán AI (V7.0 G2): {e}"
+        return None, f"Lỗi khi dự đoán AI (V7.1 XGBoost): {e}"

@@ -71,12 +71,18 @@ class OptimizerTab(ttk.Frame):
         # Lấy cài đặt mặc định
         current_settings = SETTINGS.get_all_settings() if SETTINGS else {}
 
-        # Danh sách tham số
+        # Danh sách tham số (ĐÃ CẬP NHẬT THÊM THAM SỐ AI)
         self.param_definitions = [
             ("GAN_DAYS", "Số ngày Lô Gan", current_settings.get("GAN_DAYS", 15), 1),
             ("HIGH_WIN_THRESHOLD", "Ngưỡng Cầu Tỷ Lệ Cao (%)", current_settings.get("HIGH_WIN_THRESHOLD", 47.0), 1.0),
             ("K2N_RISK_START_THRESHOLD", "Ngưỡng phạt K2N (khung)", current_settings.get("K2N_RISK_START_THRESHOLD", 4), 1),
-            ("K2N_RISK_PENALTY_PER_FRAME", "Điểm phạt K2N / khung", current_settings.get("K2N_RISK_PENALTY_PER_FRAME", 0.5), 0.1)
+            ("K2N_RISK_PENALTY_PER_FRAME", "Điểm phạt K2N / khung", current_settings.get("K2N_RISK_PENALTY_PER_FRAME", 0.5), 0.1),
+            # --- START NEW AI PARAMETERS ---
+            ("AI_MAX_DEPTH", "AI: Độ Sâu Cây Max", current_settings.get("AI_MAX_DEPTH", 6), 1),
+            ("AI_N_ESTIMATORS", "AI: Số lượng Cây (Est.)", current_settings.get("AI_N_ESTIMATORS", 200), 50),
+            ("AI_LEARNING_RATE", "AI: Tốc độ học (LR)", current_settings.get("AI_LEARNING_RATE", 0.05), 0.01),
+            ("AI_SCORE_WEIGHT", "AI: Trọng số Điểm", current_settings.get("AI_SCORE_WEIGHT", 0.2), 0.1)
+            # --- END NEW AI PARAMETERS ---
         ]
         
         current_row = 1
@@ -207,6 +213,16 @@ class OptimizerTab(ttk.Frame):
                         messagebox.showerror("Lỗi Giá trị", f"Khoảng giá trị cho '{key}' không hợp lệ.", parent=self)
                         return
                     
+                    # Chuyển đổi tham số số nguyên sang int (ví dụ: MAX_DEPTH, N_ESTIMATORS)
+                    if key in ["GAN_DAYS", "K2N_RISK_START_THRESHOLD", "AI_MAX_DEPTH", "AI_N_ESTIMATORS"]:
+                        # Kiểm tra nếu giá trị là số nguyên
+                        if val_from != int(val_from) or val_to != int(val_to) or val_step != int(val_step):
+                             messagebox.showerror("Lỗi Giá trị", f"'{key}' phải là số nguyên.", parent=self)
+                             return
+                        val_from = int(val_from)
+                        val_to = int(val_to)
+                        val_step = int(val_step)
+                        
                     param_ranges[key] = (val_from, val_to, val_step)
             
             if not param_ranges:

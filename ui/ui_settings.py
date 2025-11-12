@@ -12,7 +12,8 @@ except ImportError:
             "STATS_DAYS": 7, "GAN_DAYS": 15, "HIGH_WIN_THRESHOLD": 47.0,
             "AUTO_ADD_MIN_RATE": 50.0, "AUTO_PRUNE_MIN_RATE": 40.0,
             "K2N_RISK_START_THRESHOLD": 4, "K2N_RISK_PENALTY_PER_FRAME": 0.5,
-            "AI_PROB_THRESHOLD": 45.0 # (MỚI)
+            "AI_PROB_THRESHOLD": 45.0,
+            "AI_MAX_DEPTH": 6, "AI_N_ESTIMATORS": 200, "AI_LEARNING_RATE": 0.05, "AI_SCORE_WEIGHT": 0.2
         },
         'update_setting': lambda k, v: (False, "Lỗi: Không tìm thấy config_manager")
     })
@@ -37,7 +38,7 @@ class SettingsWindow:
         self.window = tk.Toplevel(self.root)
         self.app.settings_window = self # Gán lại vào app chính
         self.window.title("Cài đặt Hệ thống")
-        self.window.geometry("550x380") # (Cập nhật kích thước)
+        self.window.geometry("550x450") # (Cập nhật kích thước)
 
         main_frame = ttk.Frame(self.window, padding="10")
         main_frame.pack(expand=True, fill=tk.BOTH)
@@ -53,8 +54,16 @@ class SettingsWindow:
                 ("STATS_DAYS", "Số ngày Thống kê Loto Hot", "Số ngày (ví dụ: 7) dùng để tính loto về nhiều."),
                 ("GAN_DAYS", "Số ngày tính Lô Gan", "Loto không về trong số ngày này sẽ bị coi là Gan (ví dụ: 15)."),
                 ("HIGH_WIN_THRESHOLD", "Ngưỡng Cầu Tỷ Lệ Cao (%)", "Tỷ lệ K2N tối thiểu để một cầu được coi là 'Tỷ Lệ Cao' (ví dụ: 47.0)."),
-                ("AI_PROB_THRESHOLD", "Ngưỡng Kích Hoạt AI (%)", "Xác suất tối thiểu để dự đoán AI được tính điểm thưởng (ví dụ: 45.0).") # (MỚI)
+                ("AI_PROB_THRESHOLD", "Ngưỡng Kích Hoạt AI (%)", "Xác suất tối thiểu để dự đoán AI được tính điểm thưởng (ví dụ: 45.0).")
             ]),
+            # --- START NEW GROUP ---
+            ("Cài đặt Mô hình AI (XGBoost V7.1)", [
+                ("AI_MAX_DEPTH", "Độ Sâu Cây Max", "Độ sâu tối đa của cây (ví dụ: 6) - Cần Huấn luyện lại."),
+                ("AI_N_ESTIMATORS", "Số lượng Cây (Estimators)", "Số lượng cây trong rừng (ví dụ: 200) - Cần Huấn luyện lại."),
+                ("AI_LEARNING_RATE", "Tốc độ học (Learning Rate)", "Tốc độ học của mô hình GBM (ví dụ: 0.05) - Cần Huấn luyện lại."),
+                ("AI_SCORE_WEIGHT", "Trọng số Điểm AI", "Mức độ ảnh hưởng của xác suất AI lên điểm tổng lực (ví dụ: 0.2)."),
+            ]),
+            # --- END NEW GROUP ---
             ("Tự động Dò Cầu", [
                 ("AUTO_ADD_MIN_RATE", "Ngưỡng Thêm Cầu Mới (%)", "Khi dò cầu (V17+BN), tự động thêm nếu tỷ lệ N1 > X (ví dụ: 50.0)."),
                 ("AUTO_PRUNE_MIN_RATE", "Ngưỡng Lọc Cầu Yếu (%)", "Khi lọc cầu, tự động TẮT nếu tỷ lệ K2N < X (ví dụ: 40.0).")
