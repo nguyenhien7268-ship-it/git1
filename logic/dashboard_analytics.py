@@ -1,6 +1,11 @@
 import sqlite3
 from collections import Counter, defaultdict
 import math
+import joblib # (MỚI) Thêm joblib để lưu/tải cache
+import os # (MỚI) Thêm os để kiểm tra file
+
+# (MỚI V7.2 Caching) Đường dẫn file cache
+CACHE_FILE_PATH = "logic/ml_model_files/optimization_cache.joblib"
 
 # Import SETTINGS
 try:
@@ -149,7 +154,11 @@ def get_loto_gan_stats(all_data_ai, n_days=None):
         return []
 
 def get_top_memory_bridge_predictions(all_data_ai, last_row, top_n=5):
-    """ Chạy backtest N1 756 cầu bạc nhớ ngầm và trả về dự đoán của TOP N cầu tốt nhất. """
+    """ 
+    (HÀM NÀY CHỈ DÙNG CHO DASHBOARD CHÍNH)
+    Chạy backtest N1 756 cầu bạc nhớ ngầm và trả về dự đoán của TOP N cầu tốt nhất. 
+    LƯU Ý: HÀM NÀY RẤT NẶNG, KHÔNG ĐƯỢC GỌI TRONG BỘ TỐI ƯU HÓA.
+    """
     print("... (BTH) Bắt đầu chạy backtest 756 cầu Bạc Nhớ ngầm...")
     
     def _validate_data(data):
@@ -625,52 +634,149 @@ def get_high_win_simulation(data_slice, last_row, threshold):
             
     return high_win_bridges
 
-def get_historical_dashboard_data(all_data_ai, day_index, temp_settings):
-    """ Hàm "chủ" để mô phỏng Bảng Tổng Hợp tại một ngày trong quá khứ. """
-    
-    # 1. Cắt lát dữ liệu
-    data_slice = all_data_ai[:day_index + 1]
-    if len(data_slice) < 2: return None 
-    
-    last_row = data_slice[-1]
-    prev_row = data_slice[-2]
-    
-    # 2. Lấy các giá trị cài đặt tạm thời
-    n_days_stats = int(temp_settings.get("STATS_DAYS", 7))
-    n_days_gan = int(temp_settings.get("GAN_DAYS", 15))
-    high_win_thresh = float(temp_settings.get("HIGH_WIN_THRESHOLD", 47.0))
-    
-    # 3. Chạy 7 hệ thống (phiên bản mô phỏng)
-    
-    # (1) Loto Hot
-    stats_n_day = get_loto_stats_last_n_days(data_slice, n=n_days_stats)
-    
-    # (2) Cache K2N (để lấy pending - cần dict pending_k2n)
-    _, pending_k2n_data = _parse_k2n_results(
-        BACKTEST_15_CAU_K2N_V30_AI_V8(data_slice, 2, len(data_slice) + 1, history=False)
-    )
-    
-    # (3) Consensus (Vote)
-    consensus = get_consensus_simulation(data_slice, last_row)
-    
-    # (4) Cầu Tỷ Lệ Cao
-    high_win = get_high_win_simulation(data_slice, last_row, threshold=high_win_thresh)
+# ===================================================================================
+# (MỚI V7.2 Caching) HÀM TẠO CACHE TỐI ƯU HÓA
+# ===================================================================================
 
-    # (5) Cầu Bạc Nhớ
-    top_memory_bridges = get_top_memory_bridge_predictions(data_slice, last_row, top_n=5)
+def generate_full_optimization_cache(all_data_ai, progress_callback=None):
+    """
+    (V7.2 Caching) HÀM NẶNG (Chạy 1 lần, 15-30 phút)
+    Tạo file cache chứa TOÀN BỘ dữ liệu backtest (Memory, K2N, Consensus, v.v.)
+    cho TẤT CẢ các ngày trong lịch sử.
     
-    # (6) Lô Gan
-    gan_stats = get_loto_gan_stats(data_slice, n_days=n_days_gan)
+    progress_callback(current_day, total_days)
+    """
     
-    # (7) Chấm điểm
+    print(f"Bắt đầu tạo Cache Tối ưu hóa (sẽ mất thời gian)...")
+    full_cache_data = {} # { day_index: { 'stats': [...], 'consensus': [...], ... } }
+    
+    total_days = len(all_data_ai)
+    
+    # Lặp qua toàn bộ lịch sử (bỏ qua 50 ngày đầu)
+    for day_index in range(50, total_days):
+        
+        # Cập nhật tiến độ (nếu có callback)
+        if progress_callback and day_index % 10 == 0:
+            progress_callback(day_index, total_days)
+            
+        # 1. Cắt lát dữ liệu (giống hệt như worker)
+        data_slice = all_data_ai[:day_index + 1]
+        last_row = data_slice[-1]
+        
+        # 2. Lấy cài đặt mặc định (vì hàm này không dùng temp_settings)
+        n_days_stats = SETTINGS.STATS_DAYS
+        n_days_gan = SETTINGS.GAN_DAYS
+        high_win_thresh = SETTINGS.HIGH_WIN_THRESHOLD
+
+        # 3. Chạy TẤT CẢ các hàm mô phỏng (tính toán nặng)
+        
+        # (1) Loto Hot (Nhanh)
+        stats_n_day = get_loto_stats_last_n_days(data_slice, n=n_days_stats)
+        
+        # (2) Cache K2N (Nặng)
+        _, pending_k2n_data = _parse_k2n_results(
+            BACKTEST_15_CAU_K2N_V30_AI_V8(data_slice, 2, len(data_slice) + 1, history=False)
+        )
+        
+        # (3) Consensus (Vote) (Nhanh)
+        consensus = get_consensus_simulation(data_slice, last_row)
+        
+        # (4) Cầu Tỷ Lệ Cao (Rất Nặng)
+        high_win = get_high_win_simulation(data_slice, last_row, threshold=high_win_thresh)
+
+        # (5) Cầu Bạc Nhớ (CỰC KỲ NẶNG)
+        top_memory_bridges = get_top_memory_bridge_predictions(data_slice, last_row, top_n=5)
+        
+        # (6) Lô Gan (Nhanh)
+        gan_stats = get_loto_gan_stats(data_slice, n_days=n_days_gan)
+        
+        # 4. Lưu tất cả vào cache
+        full_cache_data[day_index] = {
+            'stats': stats_n_day,
+            'pending_k2n': pending_k2n_data,
+            'consensus': consensus,
+            'high_win': high_win,
+            'memory': top_memory_bridges,
+            'gan': gan_stats
+        }
+
+    # 5. Lưu vào file
+    try:
+        joblib.dump(full_cache_data, CACHE_FILE_PATH)
+        print(f"Đã lưu Cache Tối ưu hóa vào {CACHE_FILE_PATH}")
+        return True, f"Tạo cache thành công! ({len(full_cache_data)} ngày)"
+    except Exception as e:
+        print(f"Lỗi nghiêm trọng khi LƯU cache: {e}")
+        return False, f"Lỗi khi lưu cache: {e}"
+
+# ===================================================================================
+# (SỬA V7.2 Caching) HÀM WORKER MÔ PHỎNG LỊCH SỬ
+# ===================================================================================
+
+def get_historical_dashboard_data(all_data_ai, day_index, temp_settings, optimization_cache=None):
+    """ 
+    (V7.2 MP Caching UPGRADE)
+    Hàm "worker" CỰC NHANH.
+    Nếu có 'optimization_cache', hàm này chỉ đọc từ cache và chấm điểm.
+    Nếu không, nó sẽ chạy logic cũ (chậm).
+    """
+    
+    # 1. Lấy dữ liệu (Hoặc từ Cache, hoặc tính toán)
+    
+    if optimization_cache:
+        # === CHẾ ĐỘ CACHE (NHANH) ===
+        try:
+            cached_data = optimization_cache[day_index]
+        except KeyError:
+            # Ngày này không có trong cache (có thể là ngày mới), bỏ qua
+            return None 
+            
+        # Lấy dữ liệu đã tính toán trước
+        stats_n_day = cached_data['stats']
+        pending_k2n_data = cached_data['pending_k2n']
+        consensus = cached_data['consensus']
+        high_win = cached_data['high_win']
+        top_memory_bridges = cached_data['memory']
+        gan_stats = cached_data['gan']
+
+    else:
+        # === CHẾ ĐỘ MÔ PHỎNG (CHẬM - Dùng cho hotfix lần trước) ===
+        # (Giữ lại logic này nếu cache không tải được)
+        
+        # 1. Cắt lát dữ liệu
+        data_slice = all_data_ai[:day_index + 1]
+        if len(data_slice) < 2: return None 
+        
+        last_row = data_slice[-1]
+        
+        # 2. Lấy các giá trị cài đặt tạm thời
+        n_days_stats = int(temp_settings.get("STATS_DAYS", 7))
+        n_days_gan = int(temp_settings.get("GAN_DAYS", 15))
+        high_win_thresh = float(temp_settings.get("HIGH_WIN_THRESHOLD", 47.0))
+        
+        # 3. Chạy 7 hệ thống (phiên bản mô phỏng)
+        stats_n_day = get_loto_stats_last_n_days(data_slice, n=n_days_stats)
+        _, pending_k2n_data = _parse_k2n_results(
+            BACKTEST_15_CAU_K2N_V30_AI_V8(data_slice, 2, len(data_slice) + 1, history=False)
+        )
+        consensus = get_consensus_simulation(data_slice, last_row)
+        high_win = get_high_win_simulation(data_slice, last_row, threshold=high_win_thresh)
+        
+        # (FIX LẦN TRƯỚC - VÔ HIỆU HÓA)
+        top_memory_bridges = [] 
+        
+        gan_stats = get_loto_gan_stats(data_slice, n_days=n_days_gan)
+    
+    # === PHẦN CHUNG: CHẤM ĐIỂM ===
+    # (Hàm này chỉ dùng dữ liệu đã xử lý, nên rất nhanh)
     top_scores = get_top_scored_pairs(
         stats_n_day,
         consensus, 
         high_win, 
         pending_k2n_data, # Dữ liệu pending K2N
         gan_stats,
-        top_memory_bridges, 
-        ai_predictions=None
+        top_memory_bridges, # (Sẽ có dữ liệu nếu chạy bằng cache)
+        ai_predictions=None # Tối ưu hóa không test AI
     )
     
     return top_scores

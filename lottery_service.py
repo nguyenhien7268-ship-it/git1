@@ -1,6 +1,6 @@
 """
 ==================================================================================
-LOTTERY SERVICE API (BỘ ĐIỀU PHỐI) - (V7.2 MP - MULTI-PROCESSING UPGRADE)
+LOTTERY SERVICE API (BỘ ĐIỀU PHỐI) - (V7.2 MP & MLOps & Caching UPGRADE)
 ==================================================================================
 """
 import os 
@@ -95,7 +95,9 @@ try:
         get_prediction_consensus,
         get_high_win_rate_predictions,
         get_top_memory_bridge_predictions,
-        get_historical_dashboard_data
+        get_historical_dashboard_data,
+        generate_full_optimization_cache, # (MỚI V7.2 Caching)
+        CACHE_FILE_PATH # (MỚI V7.2 Caching)
     )
 except ImportError as e:
     print(f"LỖI NGHIÊM TRỌNG: Không thể import logic.dashboard_analytics: {e}")
@@ -107,7 +109,8 @@ except ImportError as e:
 try:
     from logic.ml_model import (
         train_ai_model,
-        get_ai_predictions
+        get_ai_predictions,
+        evaluate_current_model # (MỚI V7.2 MLOps) Import hàm đánh giá
     )
     print(">>> (V6.0) Tải logic.ml_model (AI) thành công.")
 except ImportError as e:
@@ -117,6 +120,9 @@ except ImportError as e:
         return False, f"Lỗi: Không tìm thấy logic.ml_model.py hoặc lỗi import nội bộ: {e}"
     def get_ai_predictions(all_data, bridge_predictions_for_today): 
         return None, f"Lỗi: Không tìm thấy logic.ml_model.py hoặc lỗi import nội bộ: {e}"
+    # (MỚI V7.2 MLOps) Giả lập hàm đánh giá nếu lỗi
+    def evaluate_current_model():
+        return None, None, f"Lỗi: Không tìm thấy logic.ml_model.py: {e}"
 # ==========================================================================
 
 
@@ -305,7 +311,35 @@ def _train_ai_process_target(all_data_ai, result_queue):
         result_msg = f"Lỗi tính toán features hoặc huấn luyện: {e}\n{traceback.format_exc()}"
         
     # 3. Gửi kết quả (success, message) vào Queue
-    result_queue.put((success, result_msg))
+    result_queue.put(('done', success, result_msg))
+
+
+# (MỚI V7.2 Caching) HÀM MỤC TIÊU CHO TẠO CACHE
+def _generate_cache_process_target(all_data_ai, result_queue):
+    """
+    (V7.2 Caching) Hàm mục tiêu (rất nặng) chạy trong tiến trình riêng.
+    Gọi hàm lõi từ dashboard_analytics và báo cáo tiến độ.
+    """
+    try:
+        # 1. Định nghĩa callback để gửi tiến độ qua Queue
+        def progress_callback(current, total):
+            # Gửi thông điệp 'progress'
+            result_queue.put(('progress', current, total))
+            
+        # 2. Gọi hàm lõi (nặng)
+        # (Hàm generate_full_optimization_cache đã được import)
+        success, result_msg = generate_full_optimization_cache(
+            all_data_ai, 
+            progress_callback=progress_callback
+        )
+        
+        # 3. Gửi kết quả cuối cùng
+        result_queue.put(('done', success, result_msg))
+
+    except Exception as e:
+        import traceback
+        result_msg = f"Lỗi nghiêm trọng khi tạo cache: {e}\n{traceback.format_exc()}"
+        result_queue.put(('done', False, result_msg))
 
 
 # ==========================================================================
@@ -318,43 +352,48 @@ def run_ai_training_multiprocessing():
     để tận dụng đa lõi CPU, giải quyết vấn đề GIL.
     Trả về Process và Queue để AppController quản lý kết quả.
     """
-    # Lấy dữ liệu lớn từ Data Repository
     all_data_ai, msg = load_data_ai_from_db()
     if all_data_ai is None:
-        # Trả về None/None/False nếu lỗi tải data
         return None, None, False, msg
         
-    # Tạo Queue để nhận kết quả từ tiến trình con
     result_queue = Queue()
-
-    # Khởi tạo Tiến trình (Process)
-    # Không cần truyền callback, Process sẽ gửi kết quả qua Queue
     process = Process(
         target=_train_ai_process_target, 
         args=(all_data_ai, result_queue)
     )
     process.start()
-    
-    # Trả về Process, Queue, và cờ thành công/message khởi chạy để Controller quản lý
     return process, result_queue, True, "Quá trình huấn luyện AI đã được khởi chạy trong nền (Multi-Processing). Vui lòng chờ..."
 
 # Giữ lại tên cũ để đảm bảo các module khác không bị lỗi import nếu chưa được sửa
 run_ai_training_threaded = run_ai_training_multiprocessing
 
+# (MỚI V7.2 Caching) HÀM WRAPPER TẠO CACHE
+def run_optimization_cache_generation():
+    """
+    (V7.2 Caching) Wrapper chạy tác vụ tạo Cache (rất nặng) trong tiến trình riêng.
+    """
+    all_data_ai, msg = load_data_ai_from_db()
+    if all_data_ai is None:
+        return None, None, False, msg
+        
+    result_queue = Queue()
+    process = Process(
+        target=_generate_cache_process_target, 
+        args=(all_data_ai, result_queue)
+    )
+    process.start()
+    return process, result_queue, True, "Bắt đầu tạo Cache Tối ưu hóa (tác vụ này rất nặng, 15-30 phút). Vui lòng chờ..."
+
 def run_ai_prediction_for_dashboard():
     """
     (V7.0) Hàm mới thay thế cho việc gọi trực tiếp get_ai_predictions
     """
-    # Lấy dữ liệu lớn từ Data Repository
     all_data_ai, msg = load_data_ai_from_db()
     if all_data_ai is None or len(all_data_ai) < 2:
         return None, msg
         
-    # 1. Tách biệt logic: Tính toán features cho ngày gần nhất
     try:
-        # Chỉ truyền 2 hàng cuối cùng: [D-1, D] để tính dự đoán cho ngày D+1 (features của ngày D)
         last_two_rows = all_data_ai[-2:] 
-        # _get_daily_bridge_predictions sẽ trả về dự đoán cho kỳ của last_two_rows[-1]
         daily_preds_map = _get_daily_bridge_predictions(last_two_rows) 
         
         current_ky = str(last_two_rows[-1][0])
@@ -363,23 +402,45 @@ def run_ai_prediction_for_dashboard():
         import traceback
         return None, f"Lỗi tính toán features dự đoán: {e}\n{traceback.format_exc()}"
 
-    # 2. Gọi logic AI đã tách biệt
-    # FIX: Gọi hàm lõi AI với đủ tham số
     return get_ai_predictions(all_data_ai, bridge_predictions_for_today)
+
+# ==========================================================================
+# (MỚI V7.2 MLOps) HÀM WRAPPER ĐÁNH GIÁ MODEL
+# ==========================================================================
+def run_model_evaluation():
+    """
+    (V7.2 MLOps) Wrapper gọi hàm đánh giá mô hình, so sánh và trả về
+    trạng thái (OK/WARN) cùng thông điệp.
+    """
+    DRIFT_THRESHOLD = 0.03 
+    
+    try:
+        current_acc, prev_acc, message = evaluate_current_model()
+        
+        if current_acc is None:
+            return 'ERROR', message
+
+        prev_acc = prev_acc or 0.0
+            
+        if current_acc < (prev_acc - DRIFT_THRESHOLD):
+            return 'WARN', f"CẢNH BÁO Model Drift! Độ chính xác giảm từ {prev_acc:.3f} xuống {current_acc:.3f}."
+        else:
+            return 'OK', f"Độ chính xác AI ổn định: {current_acc:.3f} (Lần trước: {prev_acc:.3f})"
+            
+    except Exception as e:
+        return 'ERROR', f"Lỗi nghiêm trọng khi chạy MLOps evaluation: {e}"
 
 # ==========================================================================
 # CÁC HÀM HỖ TRỢ CŨ (Đảm bảo chữ ký/logic đúng)
 # ==========================================================================
 
-# Wrapper cho get_all_managed_bridges để tương thích
 def get_all_managed_bridges_wrapper(db_name=DB_NAME, only_enabled=False):
     """
     Wrapper (Giữ lại hàm này cho tương thích)
     """
-    # Gọi hàm mới từ data_repository.py đã được import
     return get_all_managed_bridges(db_name, only_enabled)
 
-print("Lottery Service API (lottery_service.py) đã tải thành công (V7.2 MP).")
+print("Lottery Service API (lottery_service.py) đã tải thành công (V7.2 MP & MLOps & Caching).")
 
 # ==========================================================================
 # (V7.1 - FIX BẢO TRÌ) HÀM THÊM DATA TỪ TEXT
@@ -388,11 +449,9 @@ print("Lottery Service API (lottery_service.py) đã tải thành công (V7.2 MP
 def run_and_update_from_text(raw_data):
     """
     (V7.1) Thực hiện Nạp và Thêm data kỳ mới từ text.
-    Sử dụng hàm setup_database và parse_and_APPEND_data_TEXT đã được import.
     """
     conn = None
     try:
-        # setup_database và parse_and_APPEND_data_TEXT đã được import ở trên
         conn, cursor = setup_database()
         total_keys_added = parse_and_APPEND_data_TEXT(raw_data, conn, cursor)
         conn.close()

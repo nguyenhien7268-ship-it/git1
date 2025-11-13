@@ -7,7 +7,7 @@ from tkinter import ttk, messagebox, simpledialog
 class OptimizerTab(ttk.Frame):
     """
     Giao diện Tab Tối ưu Hóa Chiến lược (VIEW). 
-    Lớp này chỉ chứa giao diện và ủy quyền lệnh cho Controller.
+    (V7.2 Caching) Đã thêm nút "Tạo Cache".
     """
     
     def __init__(self, notebook, app_instance):
@@ -50,9 +50,15 @@ class OptimizerTab(ttk.Frame):
         days_entry = ttk.Entry(control_frame, textvariable=self.days_var, width=10)
         days_entry.grid(row=1, column=1, sticky="w", padx=5, pady=2)
 
-        # Hàng 2: Nút chạy/Log
-        self.run_button = ttk.Button(control_frame, text="🚀 Bắt Đầu Tối Ưu", command=self.run_optimization)
-        self.run_button.grid(row=2, column=0, columnspan=2, sticky="ew", padx=5, pady=10)
+        # (MỚI V7.2 Caching) Hàng 2: Nút Tạo Cache
+        self.generate_cache_button = ttk.Button(control_frame, text="1. (Chạy 1 lần) Tạo Cache Tối ưu hóa (15-30p)", 
+                                                 command=self.generate_cache, style="Accent.TButton")
+        self.generate_cache_button.grid(row=2, column=0, columnspan=2, sticky="ew", padx=5, pady=(10, 5))
+
+        # (SỬA V7.2 Caching) Hàng 3: Nút chạy
+        self.run_button = ttk.Button(control_frame, text="2. Bắt Đầu Tối Ưu (Nhanh - Yêu cầu Cache)", 
+                                      command=self.run_optimization)
+        self.run_button.grid(row=3, column=0, columnspan=2, sticky="ew", padx=5, pady=5)
         
         
         # --- Khung Tham Số Tối Ưu ---
@@ -169,6 +175,23 @@ class OptimizerTab(ttk.Frame):
             self.config_entry.insert(0, config_json_str)
             self.config_entry.config(state=tk.DISABLED)
 
+    # (MỚI V7.2 Caching) HÀM MỚI
+    def generate_cache(self):
+        """[VIEW ACTION] Bắt đầu tạo cache tối ưu hóa. Ủy quyền cho Controller."""
+        
+        # Vô hiệu hóa cả 2 nút
+        self.run_button.config(state=tk.DISABLED)
+        self.generate_cache_button.config(state=tk.DISABLED)
+        self.clear_results_tree()
+        self.log("--- Bắt đầu Tạo Cache Tối ưu hóa (15-30 phút)... ---")
+        self.log("Tiến trình chạy nền, vui lòng theo dõi log và chờ...")
+        
+        # Gọi tác vụ trong controller
+        self.app.task_manager.run_task(
+            self.controller.task_run_generate_cache, 
+            self # Truyền 'self' (OptimizerTab) để controller gọi lại hàm .log()
+        )
+
     def run_optimization(self):
         """[VIEW ACTION] Bắt đầu quá trình tối ưu hóa. Chỉ kiểm tra input cơ bản và ủy quyền."""
         try:
@@ -211,6 +234,7 @@ class OptimizerTab(ttk.Frame):
             
         # 2. Ủy quyền cho Controller
         self.run_button.config(state=tk.DISABLED)
+        self.generate_cache_button.config(state=tk.DISABLED) # (MỚI) Tắt cả nút cache
         self.clear_results_tree()
         self.log(f"--- Bắt đầu Tối ưu Chiến lược: {self.strategy_var.get()} trên {days_to_test} ngày ---")
         

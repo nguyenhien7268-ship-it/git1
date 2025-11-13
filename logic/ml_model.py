@@ -18,6 +18,10 @@ except ImportError:
 MODEL_FILE_PATH = "logic/ml_model_files/loto_model.joblib"
 SCALER_FILE_PATH = "logic/ml_model_files/ai_scaler.joblib" 
 
+# (MỚI V7.2 MLOps) Đường dẫn cho bộ dữ liệu kiểm tra cố định
+TEST_X_FILE_PATH = "logic/ml_model_files/ai_X_test.joblib"
+TEST_Y_FILE_PATH = "logic/ml_model_files/ai_y_test.joblib"
+
 ALL_LOTOS = [str(i).zfill(2) for i in range(100)]
 MIN_DATA_TO_TRAIN = 50 
 
@@ -133,6 +137,7 @@ def prepare_training_data(all_data_ai, daily_bridge_predictions):
 def train_ai_model(all_data_ai, daily_bridge_predictions):
     """
     (V7.1 XGBoost) Hàm huấn luyện AI. Đã chuyển sang sử dụng XGBoost.
+    (V7.2 MLOps) Bổ sung lưu trữ Test Set (X_test, y_test) và lưu trữ Accuracy.
     """
     if all_data_ai is None:
         return False, "Dữ liệu AI rỗng. Vui lòng kiểm tra lại DB."
@@ -148,7 +153,7 @@ def train_ai_model(all_data_ai, daily_bridge_predictions):
         # Chuẩn hóa dữ liệu (Scaling)
         scaler = StandardScaler()
         X_train = scaler.fit_transform(X_train)
-        X_test = scaler.transform(X_test)
+        X_test = scaler.transform(X_test) # <-- QUAN TRỌNG: X_test đã được scale
         
         # === [MỚI V7.1] SỬ DỤNG THAM SỐ VÀ MÔ HÌNH XGBOOST ===
         # FIX: Sửa truy cập SETTINGS
@@ -164,7 +169,6 @@ def train_ai_model(all_data_ai, daily_bridge_predictions):
             max_depth=max_depth, 
             learning_rate=learning_rate,
             objective=obj_func,
-            # Tinh chỉnh cho mô hình phân loại nhị phân
             eval_metric='logloss',
             random_state=42, 
             n_jobs=-1, # Sử dụng tất cả CPU
@@ -172,20 +176,65 @@ def train_ai_model(all_data_ai, daily_bridge_predictions):
         )
         model.fit(X_train, y_train)
         
-        # Lưu mô hình và Scaler (ĐÃ CẬP NHẬT ĐƯỜNG DẪN)
+        # 1. Lưu mô hình và Scaler (ĐÃ CẬP NHẬT ĐƯỜNG DẪN)
         joblib.dump(model, MODEL_FILE_PATH)
         joblib.dump(scaler, SCALER_FILE_PATH)
         
-        # Đánh giá cơ bản
+        # 2. Đánh giá cơ bản
         accuracy = model.score(X_test, y_test)
 
-        return True, f"Huấn luyện thành công (V7.1 XGBoost)! Độ chính xác cơ bản: {accuracy:.4f}. Đã lưu mô hình vào {MODEL_FILE_PATH}"
+        # 3. (MỚI V7.2 MLOps) Lưu bộ dữ liệu kiểm tra (Test Set) đã được scale
+        joblib.dump(X_test, TEST_X_FILE_PATH)
+        joblib.dump(y_test, TEST_Y_FILE_PATH)
+        
+        # 4. (MỚI V7.2 MLOps) Lưu điểm Accuracy vào config
+        try:
+            SETTINGS.update_setting('AI_LAST_ACCURACY', float(accuracy))
+        except Exception as e_cfg:
+            print(f"Cảnh báo MLOps: Không thể lưu AI_LAST_ACCURACY vào config: {e_cfg}")
+
+        return True, f"Huấn luyện thành công (V7.1 XGBoost)! Độ chính xác: {accuracy:.4f}. Đã lưu mô hình VÀ bộ dữ liệu kiểm tra."
 
     except Exception as e:
         import traceback
         print(traceback.format_exc())
         return False, f"Lỗi nghiêm trọng khi huấn luyện AI (V7.1 XGBoost): {e}"
 
+# ==========================================================================
+# (MỚI V7.2 MLOps) HÀM ĐÁNH GIÁ MÔ HÌNH (MLOps)
+# ==========================================================================
+def evaluate_current_model():
+    """
+    (V7.2 MLOps) Tải mô hình hiện tại và bộ dữ liệu kiểm tra cố định (fixed test set)
+    để đánh giá độ chính xác (phát hiện Model Drift).
+    
+    Trả về: (current_accuracy, previous_accuracy, message)
+    """
+    try:
+        if not os.path.exists(MODEL_FILE_PATH):
+            return None, None, "Lỗi MLOps: Không tìm thấy tệp mô hình. Cần Huấn luyện AI."
+        if not os.path.exists(TEST_X_FILE_PATH) or not os.path.exists(TEST_Y_FILE_PATH):
+            return None, None, "Lỗi MLOps: Không tìm thấy bộ test set (X/y). Cần Huấn luyện AI."
+            
+        # 1. Tải mô hình và bộ test set
+        model = joblib.load(MODEL_FILE_PATH)
+        X_test_scaled = joblib.load(TEST_X_FILE_PATH) # X_test đã được scale khi lưu
+        y_test = joblib.load(TEST_Y_FILE_PATH)
+        
+        # 2. Đánh giá
+        current_accuracy = model.score(X_test_scaled, y_test)
+        
+        # 3. Lấy độ chính xác đã lưu
+        previous_accuracy = getattr(SETTINGS, 'AI_LAST_ACCURACY', 0.0)
+        
+        return current_accuracy, previous_accuracy, "Đánh giá MLOps hoàn tất."
+
+    except FileNotFoundError:
+         return None, None, "Lỗi MLOps: Không tìm thấy tệp (model/test_set). Cần Huấn luyện AI."
+    except Exception as e:
+        return None, None, f"Lỗi MLOps khi đánh giá: {e}"
+
+# ==========================================================================
 
 def get_ai_predictions(all_data_ai, bridge_predictions_for_today):
     """
