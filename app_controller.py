@@ -1,35 +1,30 @@
 # Tên file: code1/app_controller.py
 #
-# (NỘI DUNG THAY THẾ TOÀN BỘ - V7.2 MP & MLOps & Caching UPGRADE)
+# (NỘI DUNG THAY THẾ TOÀN BỘ - V7.3.1 - Tự động hóa AI có điều kiện)
 #
 import traceback
 import time
 import json
 import itertools
-import os # Cần cho việc lấy số lõi CPU
+import os 
 
-# (V7.2 MP) Thêm import cho Multi-Processing
 import multiprocessing 
 from multiprocessing import Process, Queue
 from multiprocessing.queues import Empty
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
-# (MỚI) Import tkinter chỉ để lấy hằng số, nhưng cách tốt hơn là không import
-import tkinter as tk # Cần để sử dụng tk.NORMAL/tk.END trong các hàm cũ.
+import tkinter as tk 
 
-# Import toàn bộ logic từ file lottery_service.py
 try:
     from lottery_service import *
 except ImportError:
     print("LỖI NGHIÊM TRỌNG: Controller không tìm thấy 'lottery_service.py'.")
     exit()
 
-# Import SETTINGS
 try:
     from logic.config_manager import SETTINGS
 except ImportError:
     print("LỖI: Controller không thể import logic.config_manager.")
-    # Sử dụng giá trị mặc định (Fallback)
     SETTINGS = type('obj', (object,), {
         'STATS_DAYS': 7, 'GAN_DAYS': 15, 'HIGH_WIN_THRESHOLD': 47.0,
         'AUTO_ADD_MIN_RATE': 50.0, 'AUTO_PRUNE_MIN_RATE': 40.0,
@@ -41,11 +36,9 @@ except ImportError:
 
 # ===================================================================
 # (V7.2 MP) HÀM HỖ TRỢ VÀ HÀM MỤC TIÊU CHO TỐI ƯU HÓA (Đa tiến trình)
-# ĐƯỢC ĐỊNH NGHĨA Ở TOP-LEVEL (NGOÀI CLASS) ĐỂ CÓ THỂ PICKLE
 # ===================================================================
 
 def _float_range(start, stop, step):
-    """Hàm helper (top-level) để tạo range cho số thực."""
     if step == 0: yield start; return
     n = start
     while n < (stop + (step * 0.5)):
@@ -53,7 +46,6 @@ def _float_range(start, stop, step):
         n += step
 
 def _generate_combinations(param_ranges, original_settings):
-    """Hàm helper (top-level) để tạo các tổ hợp tham số."""
     param_lists = []
     config_keys = list(param_ranges.keys())
     static_keys = [k for k in original_settings.keys() if k not in config_keys]
@@ -77,21 +69,12 @@ def _generate_combinations(param_ranges, original_settings):
     return combinations
 
 def _run_single_config_test(job_payload):
-    """
-    (V7.2 MP) HÀM LÕI (WORKER)
-    Hàm này được thực thi bởi các tiến trình con trong ProcessPoolExecutor.
-    Nó chạy backtest cho MỘT tổ hợp 'config'.
-    (V7.2 Caching) Nâng cấp để nhận cache.
-    """
     try:
-        # Giải nén payload (MỚI: thêm optimization_cache)
         all_data_ai, strategy, days_to_test, config, param_ranges, optimization_cache = job_payload
         
-        # *** QUAN TRỌNG: Import logic nghiệp vụ BÊN TRONG HÀM WORKER ***
         from logic.dashboard_analytics import get_historical_dashboard_data
         from logic.bridges.bridges_classic import getAllLoto_V30
         
-        # 1. Sao chép logic chạy backtest cho 1 config
         total_hits = 0
         days_tested = 0
         
@@ -104,12 +87,11 @@ def _run_single_config_test(job_payload):
             actual_row = all_data_ai[actual_index]
             actual_loto_set = set(getAllLoto_V30(actual_row))
             
-            # (MỚI V7.2 Caching) Truyền cache vào hàm worker
             top_scores = get_historical_dashboard_data(
                 all_data_ai, 
                 day_index, 
                 config, 
-                optimization_cache=optimization_cache # <-- SỬ DỤNG CACHE
+                optimization_cache=optimization_cache 
             )
             
             if not top_scores: continue
@@ -127,7 +109,6 @@ def _run_single_config_test(job_payload):
                     if loto1 in actual_loto_set or loto2 in actual_loto_set:
                         total_hits += 1; break 
                         
-        # 2. Chuẩn bị kết quả
         rate = total_hits / days_tested if days_tested > 0 else 0
         hits_str = f"{total_hits}/{days_tested}"
         config_str_json = json.dumps(config)
@@ -141,24 +122,18 @@ def _run_single_config_test(job_payload):
 
 
 def _strategy_optimization_process_target(result_queue, all_data_ai, strategy, days_to_test, param_ranges, original_settings_backup):
-    """
-    (V7.2 MP) HÀM QUẢN LÝ (MANAGER PROCESS)
-    (V7.2 Caching) Nâng cấp để TẢI cache và TRUYỀN cache cho worker.
-    """
     
     def log_to_queue(message):
-        """Gửi log về UI thread qua Queue."""
         result_queue.put(('log', message))
 
     try:
-        # (MỚI V7.2 Caching) Tải cache trước khi bắt đầu
         import joblib
-        from logic.dashboard_analytics import CACHE_FILE_PATH # Import path
+        from logic.dashboard_analytics import CACHE_FILE_PATH 
         
         log_to_queue(f"Đang tải Cache Tối ưu hóa từ {CACHE_FILE_PATH}...")
         if not os.path.exists(CACHE_FILE_PATH):
             log_to_queue("LỖI NGHIÊM TRỌNG: Không tìm thấy file 'optimization_cache.joblib'.")
-            log_to_queue(">>> Vui lòng chạy tác vụ 'Tạo Cache Tối ưu hóa' trước.")
+            log_to_queue(">>> Vui lòng chạy tác vụ '1. Tạo Cache Tối ưu hóa' trước.")
             result_queue.put(('error', "Không tìm thấy file cache."))
             return
             
@@ -174,7 +149,6 @@ def _strategy_optimization_process_target(result_queue, all_data_ai, strategy, d
             
         log_to_queue(f"Đã tạo {total_combos} tổ hợp. Chuẩn bị Process Pool...")
         
-        # Tạo danh sách các "job" (payload) - (MỚI: Thêm optimization_cache)
         jobs = []
         for config in combinations:
             jobs.append((all_data_ai, strategy, days_to_test, config, param_ranges, optimization_cache))
@@ -198,7 +172,7 @@ def _strategy_optimization_process_target(result_queue, all_data_ai, strategy, d
                     
                 jobs_completed += 1
                 
-                if jobs_completed % 100 == 0 or jobs_completed == total_combos: # Cập nhật nhanh hơn
+                if jobs_completed % 100 == 0 or jobs_completed == total_combos: 
                      result_queue.put(('progress', jobs_completed, total_combos))
 
         log_to_queue("Tất cả jobs đã hoàn thành. Đang sắp xếp kết quả...")
@@ -228,19 +202,17 @@ class AppController:
     Lớp này chứa TOÀN BỘ logic nghiệp vụ (các hàm _task) 
     """
     def __init__(self, app_instance):
-        self.app = app_instance # Tham chiếu đến DataAnalysisApp
+        self.app = app_instance 
         self.root = app_instance.root
         self.db_name = DB_NAME if 'DB_NAME' in globals() else "xo_so_prizes_all_logic.db"
         self.logger = None 
         
-        self.all_data_ai = None # Cache dữ liệu
+        self.all_data_ai = None 
         
-        # (V7.2 MP) Biến theo dõi tiến trình
         self.optimization_process = None
-        self.cache_gen_process = None # (MỚI V7.2 Caching)
+        self.cache_gen_process = None 
 
     def root_after(self, ms, func, *args):
-        """Hàm gọi root.after an toàn (chạy trên luồng chính)."""
         self.root.after(ms, func, *args)
         
     # ===================================================================
@@ -248,7 +220,6 @@ class AppController:
     # ===================================================================
 
     def load_data_ai_from_db_controller(self):
-        """Tải (hoặc tải lại) dữ liệu A:I từ DB."""
         rows_of_lists, message = load_data_ai_from_db(self.db_name) 
         if rows_of_lists is None:
             self.logger.log(message)
@@ -264,6 +235,7 @@ class AppController:
     # ===================================================================
 
     def task_run_parsing(self, input_file):
+        """(SỬA V7.3.1) Thêm cờ auto_retrain=True cho MLOps"""
         conn = None 
         try:
             with open(input_file, 'r', encoding='utf-8-sig') as f:
@@ -285,6 +257,9 @@ class AppController:
                 self.logger.log(f"- Đã xóa mọi Cầu Đã Lưu (do nạp lại).")
                 self.logger.log(">>> Sẵn sàng cho Chức Năng Soi Cầu.")
                 self.root_after(0, self.app.run_decision_dashboard) 
+                
+                # (SỬA V7.3.1) Tự động hóa AI khi nạp file LỚN
+                self.root_after(1500, self._check_model_drift_after_update, True) # auto_retrain = True
 
         except Exception as e:
             self.logger.log(f"LỖI trong Bước 1 (Xóa Hết): {e}")
@@ -295,6 +270,7 @@ class AppController:
                 self.logger.log("Đã đóng kết nối database.")
 
     def task_run_parsing_append(self, input_file):
+        """(SỬA V7.3.1) Thêm cờ auto_retrain=True cho MLOps"""
         conn = None
         try:
             with open(input_file, 'r', encoding='utf-8-sig') as f:
@@ -311,6 +287,9 @@ class AppController:
                 self.logger.log(f"- Đã thêm {total_keys_added} kỳ mới vào DB.")
                 self.logger.log(">>> Sẵn sàng cho Chức Năng Soi Cầu.")
                 self.root_after(0, self.app.run_decision_dashboard) 
+                
+                # (SỬA V7.3.1) Tự động hóa AI khi nạp file LỚN
+                self.root_after(1500, self._check_model_drift_after_update, True) # auto_retrain = True
 
         except Exception as e:
             self.logger.log(f"LỖI trong Bước 1 (Append): {e}")
@@ -320,27 +299,35 @@ class AppController:
                 conn.close()
                 self.logger.log("Đã đóng kết nối database.")
 
-    # (MỚI V7.2 MLOps) Hàm helper để kiểm tra AI sau khi thêm dữ liệu
-    def _check_model_drift_after_update(self):
+    # (SỬA V7.3.1) Thêm tham số 'auto_retrain_on_drift'
+    def _check_model_drift_after_update(self, auto_retrain_on_drift=False):
         """
-        (MLOps) Được gọi sau khi thêm dữ liệu mới để kiểm tra Model Drift.
+        (MLOps) Được gọi sau khi thêm dữ liệu mới.
+        Nếu auto_retrain_on_drift=True, sẽ tự động huấn luyện lại nếu phát hiện drift.
         """
         self.logger.log("[Kiểm tra AI] Đang đánh giá mô hình sau khi thêm dữ liệu...")
         
-        # run_model_evaluation được import từ lottery_service
         eval_status, eval_msg = run_model_evaluation() 
         
         self.logger.log(f"[Kiểm tra AI] {eval_msg}")
         
         if eval_status == 'WARN':
-            # Nếu phát hiện sụt giảm, ghi log cảnh báo lớn
             self.logger.log("======================================")
             self.logger.log("CẢNH BÁO: ĐỘ CHÍNH XÁC AI GIẢM!")
-            self.logger.log("Phát hiện độ chính xác AI có thể đã giảm sau khi thêm dữ liệu mới (Model Drift).")
-            self.logger.log(">>> ĐỀ XUẤT: Chạy lại 'Huấn luyện AI' để cập nhật mô hình.")
-            self.logger.log("======================================")
+            self.logger.log("Phát hiện độ chính xác AI có thể đã giảm (Model Drift).")
+            
+            if auto_retrain_on_drift:
+                # (SỬA V7.3.1) TỰ ĐỘNG HUẤN LUYỆN LẠI
+                self.logger.log(">>> [TỰ ĐỘNG] Kích hoạt huấn luyện AI chạy nền...")
+                self.logger.log("======================================")
+                self.task_run_train_ai("Tự động Huấn luyện AI (do Model Drift)")
+            else:
+                # Chỉ cảnh báo
+                self.logger.log(">>> ĐỀ XUẤT: Chạy lại 'Huấn luyện AI' để cập nhật mô hình.")
+                self.logger.log("======================================")
 
     def task_run_update_from_text(self, raw_data):
+        """(SỬA V7.3.1) Thêm cờ auto_retrain=False cho MLOps"""
         try:
             success, message = run_and_update_from_text(raw_data)
             
@@ -352,8 +339,8 @@ class AppController:
                 self.root_after(0, self.logger.log, "Đã thêm dữ liệu. Tự động chạy lại Bảng Tổng Hợp...")
                 self.root_after(0, self.app.run_decision_dashboard) 
                 
-                # (MỚI V7.2 MLOps) Lên lịch kiểm tra AI sau 1.5s (để dashboard chạy xong)
-                self.root_after(1500, self._check_model_drift_after_update)
+                # (SỬA V7.3.1) KHÔNG tự động hóa AI khi nạp từ text
+                self.root_after(1500, self._check_model_drift_after_update, False) # auto_retrain = False
             else:
                 self.logger.log("(Không có kỳ nào được thêm hoặc có lỗi nghiêm trọng.)")
 
@@ -539,11 +526,7 @@ class AppController:
             self.logger.log("Đang tự động làm mới cửa sổ Quản lý Cầu...")
             self.root_after(0, self.app.bridge_manager_window_instance.refresh_bridge_list)
 
-    # (V7.2 MP) HÀM KIỂM TRA TRẠNG THÁI (Huấn luyện AI)
     def _check_ai_training_status(self, process, queue, title):
-        """
-        Kiểm tra trạng thái của tiến trình huấn luyện AI.
-        """
         try:
             while True:
                 message = queue.get_nowait()
@@ -557,7 +540,7 @@ class AppController:
                         queue.close(); process.join()
                     except Exception as e:
                         self.logger.log(f"Cảnh báo: Lỗi khi đóng Process/Queue AI: {e}")
-                    return # Dừng
+                    return 
         except Empty:
             pass
         except Exception as e:
@@ -594,63 +577,190 @@ class AppController:
         self.root_after(0, self.app.show_backtest_results, title, results_data)
         
     # ===================================================================
-    # CÁC HÀM ĐIỀU KHIỂN LOGIC (MVC Delegation)
+    # LOGIC TẠO CACHE VÀ TỐI ƯU HÓA (V7.2 Caching)
     # ===================================================================
-    
-    def get_current_setting_value(self, setting_key):
-        try:
-            return SETTINGS.get_all_settings().get(setting_key)
-        except Exception:
-            self.logger.log(f"Cảnh báo: Không thể đọc giá trị hiện tại của setting '{setting_key}'.")
-            return None
 
-    def task_load_all_settings(self, settings_view):
+    def _check_cache_generation_status(self, process, queue, optimizer_tab):
         try:
-            settings_data = SETTINGS.get_all_settings()
-            self.root_after(0, settings_view.populate_settings, settings_data)
+            while True: 
+                message = queue.get_nowait()
+                msg_type, payload = message[0], message[1:]
+                
+                if msg_type == 'progress':
+                    current, total = payload
+                    if current % 100 == 0: 
+                        optimizer_tab.log(f"Đang tạo cache... {current}/{total} ngày")
+                    
+                elif msg_type == 'done':
+                    success, msg = payload
+                    optimizer_tab.log(f"--- TẠO CACHE HOÀN TẤT ---")
+                    optimizer_tab.log(msg)
+                    
+                    optimizer_tab.run_button.config(state=tk.NORMAL)
+                    if hasattr(optimizer_tab, 'generate_cache_button'):
+                        optimizer_tab.generate_cache_button.config(state=tk.NORMAL)
+                    
+                    try:
+                        queue.close(); process.join()
+                    except Exception as e:
+                        self.logger.log(f"Cảnh báo: Lỗi khi đóng Process/Queue Tạo Cache: {e}")
+                    self.cache_gen_process = None
+                    return 
+
+        except Empty:
+            pass 
         except Exception as e:
-            self.logger.log(f"LỖI trong task_load_all_settings: {e}")
-            self.logger.log(traceback.format_exc())
-            self.root_after(0, self.app._show_error_dialog, 
-                            "Lỗi Tải Cấu Hình", 
-                            f"Lỗi khi tải cấu hình: {e}", 
-                            settings_view.window)
+            optimizer_tab.log(f"Lỗi đọc Queue Tạo Cache: {e}")
+            
+        if process.is_alive():
+            self.root_after(1000, self._check_cache_generation_status, process, queue, optimizer_tab)
+        else:
+            if self.cache_gen_process: 
+                optimizer_tab.log("LỖI: Tiến trình Tạo Cache đã dừng đột ngột.")
+                optimizer_tab.run_button.config(state=tk.NORMAL)
+                if hasattr(optimizer_tab, 'generate_cache_button'):
+                     optimizer_tab.generate_cache_button.config(state=tk.NORMAL)
+                self.cache_gen_process = None
+            try: queue.close(); process.join()
+            except: pass
 
-    def task_save_all_settings(self, new_settings_dict, parent_widget):
+    def task_run_generate_cache(self, optimizer_tab):
+        if self.cache_gen_process and self.cache_gen_process.is_alive():
+            try:
+                self.cache_gen_process.terminate()
+                optimizer_tab.log("Đã hủy tác vụ tạo cache cũ.")
+            except Exception as e:
+                optimizer_tab.log(f"Lỗi khi hủy tác vụ cache cũ: {e}")
+        
+        process, queue, success, message = run_optimization_cache_generation()
+        
+        if not success:
+            optimizer_tab.log(f"LỖI KHỞI CHẠY TIẾN TRÌNH: {message}")
+            return 
+
+        self.cache_gen_process = process
+        optimizer_tab.log(message)
+        
+        self.root_after(1000, self._check_cache_generation_status, process, queue, optimizer_tab)
+
+    def _check_optimization_status(self, process, queue, optimizer_tab):
         try:
-            success_count = 0
-            for key, value in new_settings_dict.items():
-                success, msg = SETTINGS.update_setting(key, value)
-                if success: 
-                    self.logger.log(f" - Đã lưu: {key} = {value}")
-                    success_count += 1
-                else: 
-                    self.logger.log(f" - LỖI LƯU: {msg}")
-            
-            if success_count > 0:
-                 self.root_after(0, self.app._show_save_success_dialog, 
-                                 "Thành công", 
-                                 f"Đã lưu thành công {success_count} tham số!", 
-                                 parent_widget)
-            else:
-                 self.root_after(0, self.app._show_error_dialog, 
-                                 "Thất bại", 
-                                 "Không có tham số nào được lưu thành công.", 
-                                 parent_widget)
+            while True: 
+                message = queue.get_nowait()
+                msg_type, payload = message[0], message[1:]
+                
+                if msg_type == 'log':
+                    optimizer_tab.log(payload[0])
+                
+                elif msg_type == 'progress':
+                    jobs_done, total_jobs = payload
+                    optimizer_tab.log(f"Đã hoàn thành {jobs_done}/{total_jobs} tổ hợp...")
+                    
+                elif msg_type == 'result':
+                    optimizer_tab.log("--- HOÀN TẤT TỐI ƯU HÓA ---")
+                    
+                    results_list = payload[0]
+                    optimizer_tab.clear_results_tree()
+                    for i, (rate, hits, params_str, config_dict_str) in enumerate(results_list):
+                        rate_str = f"{rate * 100:.1f}%"
+                        tags = ('best',) if i == 0 else ()
+                        tags_with_data = (config_dict_str,) + tags
+                        optimizer_tab.tree.insert("", tk.END, values=(
+                            rate_str, hits, params_str
+                        ), tags=tags_with_data)
+                    
+                    optimizer_tab.apply_button.config(state=tk.NORMAL)
+                    optimizer_tab.run_button.config(state=tk.NORMAL)
+                    if hasattr(optimizer_tab, 'generate_cache_button'):
+                         optimizer_tab.generate_cache_button.config(state=tk.NORMAL)
+                    
+                    try:
+                        queue.close(); process.join()
+                    except Exception as e:
+                        self.logger.log(f"Cảnh báo: Lỗi khi đóng Process/Queue Tối ưu hóa: {e}")
+                    self.optimization_process = None 
+                    return 
 
+                elif msg_type == 'error':
+                    optimizer_tab.log(f"LỖI NGHIÊM TRỌNG: {payload[0]}")
+                    optimizer_tab.run_button.config(state=tk.NORMAL)
+                    if hasattr(optimizer_tab, 'generate_cache_button'):
+                         optimizer_tab.generate_cache_button.config(state=tk.NORMAL)
+                    try:
+                        queue.close(); process.join()
+                    except Exception: pass
+                    self.optimization_process = None
+                    return 
+
+        except Empty:
+            pass 
         except Exception as e:
-             self.root_after(0, self.app._show_error_dialog, 
-                             "Lỗi", 
-                             f"Lỗi khi lưu cấu hình: {e}", 
-                             parent_widget)
-             self.logger.log(f"LỖI trong task_save_all_settings: {e}")
-             self.logger.log(traceback.format_exc())
-        finally:
-            if hasattr(self.app, 'settings_window') and self.app.settings_window:
-                self.root_after(0, self.app.settings_window._re_enable_save_button)
+            optimizer_tab.log(f"Lỗi đọc Queue Tối ưu hóa: {e}")
             
+        if process.is_alive():
+            self.root_after(500, self._check_optimization_status, process, queue, optimizer_tab)
+        else:
+            if self.optimization_process: 
+                optimizer_tab.log("LỖI: Tiến trình Tối ưu hóa đã dừng đột ngột.")
+                optimizer_tab.run_button.config(state=tk.NORMAL)
+                if hasattr(optimizer_tab, 'generate_cache_button'):
+                     optimizer_tab.generate_cache_button.config(state=tk.NORMAL)
+                self.optimization_process = None
+            try: queue.close(); process.join()
+            except: pass
+
+
+    def task_run_strategy_optimization(self, strategy, days_to_test, param_ranges, optimizer_tab):
+        
+        if self.optimization_process and self.optimization_process.is_alive():
+            try:
+                self.optimization_process.terminate() 
+                optimizer_tab.log("Đã hủy tác vụ tối ưu hóa cũ.")
+            except Exception as e:
+                optimizer_tab.log(f"Lỗi khi hủy tác vụ cũ: {e}")
+
+        def log_to_optimizer(message):
+            self.root_after(0, optimizer_tab.log, message)
+            
+        try:
+            log_to_optimizer("Đang tải toàn bộ dữ liệu A:I...")
+            all_data_ai = self.load_data_ai_from_db_controller() 
+            if not all_data_ai or len(all_data_ai) < days_to_test + 50:
+                log_to_optimizer(f"LỖI: Cần ít nhất {days_to_test + 50} kỳ dữ liệu để kiểm thử.")
+                self.root_after(0, optimizer_tab.run_button.config, {"state": tk.NORMAL})
+                return
+            log_to_optimizer(f"...Tải dữ liệu thành công ({len(all_data_ai)} kỳ).")
+            
+            original_settings = SETTINGS.get_all_settings()
+            original_settings_backup = original_settings.copy()
+            
+            result_queue = Queue()
+            self.optimization_process = Process(
+                target=_strategy_optimization_process_target, 
+                args=(
+                    result_queue, 
+                    all_data_ai, 
+                    strategy, 
+                    days_to_test, 
+                    param_ranges, 
+                    original_settings_backup
+                )
+            )
+            
+            self.optimization_process.start()
+            
+            self.root_after(100, self._check_optimization_status, self.optimization_process, result_queue, optimizer_tab)
+            
+        except Exception as e:
+            log_to_optimizer(f"LỖI KHỞI CHẠY TIẾN TRÌNH: {e}")
+            log_to_optimizer(traceback.format_exc())
+            self.root_after(0, optimizer_tab.run_button.config, {"state": tk.NORMAL})
+            
+    # ===================================================================
+    # CÁC HÀM MVC (VIEW-CONTROLLER) KHÁC
+    # ===================================================================
+
     def task_apply_optimized_settings(self, config_dict, optimizer_window):
-        """Áp dụng và lưu cấu hình tối ưu hóa vào config.json."""
         def log_to_optimizer(message):
             self.root_after(0, self.app._log_to_optimizer, message, optimizer_window)
 
@@ -883,333 +993,3 @@ class AppController:
             self.logger.log(f"LỖI trong task_load_ky_details: {e}")
             self.logger.log(traceback.format_exc())
             self.root_after(0, lookup_view.populate_ky_details, f"LỖI TẢI CHI TIẾT KỲ: {e}")
-
-    def task_run_parameter_tuning(self, param_key, val_from, val_to, val_step, tuner_window):
-        
-        def log_to_tuner(message):
-            self.root_after(0, tuner_window.log, message)
-            
-        try:
-            log_to_tuner("Đang tải dữ liệu A:I...")
-            all_data_ai = self.load_data_ai_from_db_controller() 
-            if not all_data_ai or len(all_data_ai) < 2:
-                log_to_tuner("LỖI: Không thể tải dữ liệu A:I.")
-                return
-            last_row = all_data_ai[-1]
-            log_to_tuner(f"...Tải thành công {len(all_data_ai)} kỳ.")
-
-            def test_gan_days(p_key, v_from, v_to, v_step):
-                log_to_tuner(f"--- Bắt đầu kiểm thử: {p_key} ---")
-                for i in _float_range(v_from, v_to, v_step):
-                    n = int(i);
-                    if n <= 0: continue
-                    gan_stats = get_loto_gan_stats(all_data_ai, n_days=n)
-                    log_to_tuner(f"Kiểm thử {p_key} = {n}: Tìm thấy {len(gan_stats)} loto gan.")
-                log_to_tuner(f"--- Hoàn tất kiểm thử {p_key} ---")
-
-            def test_high_win_threshold(p_key, v_from, v_to, v_step):
-                log_to_tuner(f"--- Bắt đầu kiểm thử: {p_key} ---")
-                log_to_tuner("... (Chạy Cache K2N một lần để lấy dữ liệu mới nhất)...")
-                run_and_update_all_bridge_K2N_cache(all_data_ai, self.db_name) 
-                log_to_tuner("... (Cache K2N hoàn tất. Bắt đầu lặp)...")
-                for i in _float_range(v_from, v_to, v_step):
-                    high_win_bridges = get_high_win_rate_predictions(threshold=i)
-                    log_to_tuner(f"Kiểm thử {p_key} >= {i:.1f}%: Tìm thấy {len(high_win_bridges)} cầu đạt chuẩn.")
-                log_to_tuner(f"--- Hoàn tất kiểm thử {p_key} ---")
-
-            def test_auto_add_rate(p_key, v_from, v_to, v_step):
-                log_to_tuner(f"--- Bắt đầu kiểm thử: {p_key} ---")
-                log_to_tuner("... (Chạy Dò Cầu V17... Rất nặng, vui lòng chờ)...")
-                ky_bat_dau = 2; ky_ket_thuc = len(all_data_ai) + (ky_bat_dau - 1)
-                results_v17 = TIM_CAU_TOT_NHAT_V16(all_data_ai, ky_bat_dau, ky_ket_thuc, self.db_name)
-                log_to_tuner("... (Chạy Dò Cầu Bạc Nhớ...)...")
-                results_memory = TIM_CAU_BAC_NHO_TOT_NHAT(all_data_ai, ky_bat_dau, ky_ket_thuc)
-                combined_results = []
-                if results_v17 and len(results_v17) > 1: combined_results.extend([row for row in results_v17[1:] if "---" not in str(row[0])])
-                if results_memory and len(results_memory) > 1: combined_results.extend([row for row in results_memory[1:] if "---" not in str(row[0])])
-                if not combined_results:
-                    log_to_tuner("LỖI: Không dò được cầu nào."); return
-                log_to_tuner(f"... (Dò cầu hoàn tất. Tổng cộng {len(combined_results)} cầu. Bắt đầu lặp)...")
-                for i in _float_range(v_from, v_to, v_step):
-                    count = 0
-                    for row in combined_results:
-                        try:
-                            rate = float(str(row[3]).replace('%', ''))
-                            if rate >= i: count += 1
-                        except (ValueError, IndexError): continue
-                    log_to_tuner(f"Kiểm thử {p_key} >= {i:.1f}%: Sẽ thêm/cập nhật {count} cầu.")
-                log_to_tuner(f"--- Hoàn tất kiểm thử {p_key} ---")
-
-            def test_auto_prune_rate(p_key, v_from, v_to, v_step):
-                log_to_tuner(f"--- Bắt đầu kiểm thử: {p_key} ---")
-                log_to_tuner("... (Chạy Cache K2N một lần để lấy dữ liệu mới nhất)...")
-                run_and_update_all_bridge_K2N_cache(all_data_ai, self.db_name)
-                log_to_tuner("... (Cache K2N hoàn tất. Bắt đầu lặp)...")
-                enabled_bridges = get_all_managed_bridges(self.db_name, only_enabled=True)
-                if not enabled_bridges:
-                    log_to_tuner("LỖI: Không có cầu nào đang Bật để kiểm thử."); return
-                for i in _float_range(v_from, v_to, v_step):
-                    count = 0
-                    for bridge in enabled_bridges:
-                        try:
-                            rate_str = str(bridge.get('win_rate_text', '100%')).replace('%', '')
-                            if not rate_str or rate_str == "N/A": continue
-                            rate = float(rate_str)
-                            if rate < i: count += 1
-                        except ValueError: continue
-                    log_to_tuner(f"Kiểm thử {p_key} < {i:.1f}%: Sẽ TẮT {count} cầu.")
-                log_to_tuner(f"--- Hoàn tất kiểm thử {p_key} ---")
-
-            def test_k2n_risk_logic(p_key, v_from, v_to, v_step):
-                log_to_tuner(f"--- Bắt đầu kiểm thử: {p_key} ---")
-                log_to_tuner("... (Chạy Cache K2N một lần để lấy dữ liệu nền)...")
-                pending_k2n, _ = run_and_update_all_bridge_K2N_cache(all_data_ai, self.db_name) 
-                stats_n_day = get_loto_stats_last_n_days(all_data_ai)
-                consensus = get_prediction_consensus() 
-                high_win = get_high_win_rate_predictions() 
-                gan_stats = get_loto_gan_stats(all_data_ai)
-                top_memory = get_top_memory_bridge_predictions(all_data_ai, last_row)
-                ai_preds, _ = run_ai_prediction_for_dashboard()
-                log_to_tuner("... (Dữ liệu nền hoàn tất. Bắt đầu lặp)...")
-                
-                original_value = SETTINGS.get_all_settings().get(p_key)
-                for i in _float_range(v_from, v_to, v_step):
-                    val = i
-                    if p_key == "K2N_RISK_START_THRESHOLD": val = int(i)
-                    setattr(SETTINGS, p_key, val)
-                    top_scores = get_top_scored_pairs(
-                        stats_n_day, consensus, high_win, 
-                        pending_k2n, gan_stats, top_memory, ai_preds
-                    )
-                    if not top_scores:
-                        log_to_tuner(f"Kiểm thử {p_key} = {val}: Không có cặp nào đạt điểm.")
-                    else:
-                        top_score_item = top_scores[0]
-                        log_to_tuner(f"Kiểm thử {p_key} = {val}: Top 1 là {top_score_item['pair']} (Điểm: {top_score_item['score']})")
-                if original_value is not None:
-                    setattr(SETTINGS, p_key, original_value)
-                log_to_tuner(f"--- Hoàn tất kiểm thử {p_key} ---")
-
-            # --- Bộ điều phối kiểm thử ---
-            if param_key == "GAN_DAYS": test_gan_days(param_key, val_from, val_to, val_step)
-            elif param_key == "HIGH_WIN_THRESHOLD": test_high_win_threshold(param_key, val_from, val_to, val_step)
-            elif param_key == "AUTO_ADD_MIN_RATE": test_auto_add_rate(param_key, val_from, val_to, val_step)
-            elif param_key == "AUTO_PRUNE_MIN_RATE": test_auto_prune_rate(param_key, val_from, val_to, val_step)
-            elif param_key == "K2N_RISK_START_THRESHOLD" or param_key == "K2N_RISK_PENALTY_PER_FRAME":
-                test_k2n_risk_logic(param_key, val_from, val_to, val_step)
-            else:
-                log_to_tuner(f"Lỗi: Chưa định nghĩa logic kiểm thử cho {param_key}")
-
-        except Exception as e:
-            log_to_tuner(f"LỖI: {e}")
-            log_to_tuner(traceback.format_exc())
-            try:
-                current_settings = SETTINGS.get_all_settings()
-                for key in current_settings.keys():
-                    if key in locals() and locals()[key] is not None:
-                        setattr(SETTINGS, key, locals()[key])
-                log_to_tuner("Đã khôi phục cài đặt gốc sau lỗi.")
-            except: pass
-        finally:
-            self.root_after(0, tuner_window.run_button.config, {"state": tk.NORMAL})
-            
-    # ===================================================================
-    # (MỚI V7.2 Caching) LOGIC TẠO CACHE TỐI ƯU HÓA
-    # ===================================================================
-
-    def _check_cache_generation_status(self, process, queue, optimizer_tab):
-        """
-        (V7.2 Caching) Kiểm tra Queue để lấy log và tiến độ từ tiến trình Tạo Cache.
-        """
-        try:
-            while True: 
-                message = queue.get_nowait()
-                msg_type, payload = message[0], message[1:]
-                
-                if msg_type == 'progress':
-                    # Cập nhật tiến độ
-                    current, total = payload
-                    if current % 100 == 0: # Chỉ log mỗi 100 ngày
-                        optimizer_tab.log(f"Đang tạo cache... {current}/{total} ngày")
-                    
-                elif msg_type == 'done':
-                    # Tác vụ hoàn tất
-                    success, msg = payload
-                    optimizer_tab.log(f"--- TẠO CACHE HOÀN TẤT ---")
-                    optimizer_tab.log(msg)
-                    
-                    # Bật lại các nút
-                    optimizer_tab.run_button.config(state=tk.NORMAL)
-                    optimizer_tab.generate_cache_button.config(state=tk.NORMAL) # (Sẽ thêm ở Giai đoạn 3)
-                    
-                    try:
-                        queue.close(); process.join()
-                    except Exception as e:
-                        self.logger.log(f"Cảnh báo: Lỗi khi đóng Process/Queue Tạo Cache: {e}")
-                    self.cache_gen_process = None
-                    return # Dừng
-
-        except Empty:
-            pass 
-        except Exception as e:
-            optimizer_tab.log(f"Lỗi đọc Queue Tạo Cache: {e}")
-            
-        if process.is_alive():
-            self.root_after(1000, self._check_cache_generation_status, process, queue, optimizer_tab)
-        else:
-            if self.cache_gen_process: 
-                optimizer_tab.log("LỖI: Tiến trình Tạo Cache đã dừng đột ngột.")
-                optimizer_tab.run_button.config(state=tk.NORMAL)
-                if hasattr(optimizer_tab, 'generate_cache_button'):
-                     optimizer_tab.generate_cache_button.config(state=tk.NORMAL)
-                self.cache_gen_process = None
-            try: queue.close(); process.join()
-            except: pass
-
-    def task_run_generate_cache(self, optimizer_tab):
-        """
-        (MỚI V7.2 Caching) Khởi chạy tác vụ Tạo Cache (rất nặng) trong tiến trình riêng.
-        """
-        # Hủy tiến trình cũ nếu đang chạy
-        if self.cache_gen_process and self.cache_gen_process.is_alive():
-            try:
-                self.cache_gen_process.terminate()
-                optimizer_tab.log("Đã hủy tác vụ tạo cache cũ.")
-            except Exception as e:
-                optimizer_tab.log(f"Lỗi khi hủy tác vụ cache cũ: {e}")
-        
-        # run_optimization_cache_generation được import từ lottery_service
-        process, queue, success, message = run_optimization_cache_generation()
-        
-        if not success:
-            optimizer_tab.log(f"LỖI KHỞI CHẠY TIẾN TRÌNH: {message}")
-            return 
-
-        self.cache_gen_process = process
-        optimizer_tab.log(message)
-        
-        # Bắt đầu vòng lặp kiểm tra trạng thái
-        self.root_after(1000, self._check_cache_generation_status, process, queue, optimizer_tab)
-
-    # ===================================================================
-    # (V7.2 MP) LOGIC TỐI ƯU HÓA CHIẾN LƯỢC (ĐA TIẾN TRÌNH)
-    # ===================================================================
-
-    def _check_optimization_status(self, process, queue, optimizer_tab):
-        """
-        (V7.2 MP) Kiểm tra Queue để lấy log và kết quả từ tiến trình Tối ưu hóa.
-        """
-        try:
-            while True: 
-                message = queue.get_nowait()
-                msg_type, payload = message[0], message[1:]
-                
-                if msg_type == 'log':
-                    optimizer_tab.log(payload[0])
-                
-                elif msg_type == 'progress':
-                    jobs_done, total_jobs = payload
-                    optimizer_tab.log(f"Đã hoàn thành {jobs_done}/{total_jobs} tổ hợp...")
-                    
-                elif msg_type == 'result':
-                    optimizer_tab.log("--- HOÀN TẤT TỐI ƯU HÓA ---")
-                    
-                    results_list = payload[0]
-                    optimizer_tab.clear_results_tree()
-                    for i, (rate, hits, params_str, config_dict_str) in enumerate(results_list):
-                        rate_str = f"{rate * 100:.1f}%"
-                        tags = ('best',) if i == 0 else ()
-                        tags_with_data = (config_dict_str,) + tags
-                        optimizer_tab.tree.insert("", tk.END, values=(
-                            rate_str, hits, params_str
-                        ), tags=tags_with_data)
-                    
-                    optimizer_tab.apply_button.config(state=tk.NORMAL)
-                    optimizer_tab.run_button.config(state=tk.NORMAL)
-                    if hasattr(optimizer_tab, 'generate_cache_button'):
-                         optimizer_tab.generate_cache_button.config(state=tk.NORMAL)
-                    
-                    try:
-                        queue.close(); process.join()
-                    except Exception as e:
-                        self.logger.log(f"Cảnh báo: Lỗi khi đóng Process/Queue Tối ưu hóa: {e}")
-                    self.optimization_process = None 
-                    return 
-
-                elif msg_type == 'error':
-                    optimizer_tab.log(f"LỖI NGHIÊM TRỌNG: {payload[0]}")
-                    optimizer_tab.run_button.config(state=tk.NORMAL)
-                    if hasattr(optimizer_tab, 'generate_cache_button'):
-                         optimizer_tab.generate_cache_button.config(state=tk.NORMAL)
-                    try:
-                        queue.close(); process.join()
-                    except Exception: pass
-                    self.optimization_process = None
-                    return 
-
-        except Empty:
-            pass 
-        except Exception as e:
-            optimizer_tab.log(f"Lỗi đọc Queue Tối ưu hóa: {e}")
-            
-        if process.is_alive():
-            self.root_after(500, self._check_optimization_status, process, queue, optimizer_tab)
-        else:
-            if self.optimization_process: 
-                optimizer_tab.log("LỖI: Tiến trình Tối ưu hóa đã dừng đột ngột.")
-                optimizer_tab.run_button.config(state=tk.NORMAL)
-                if hasattr(optimizer_tab, 'generate_cache_button'):
-                     optimizer_tab.generate_cache_button.config(state=tk.NORMAL)
-                self.optimization_process = None
-            try: queue.close(); process.join()
-            except: pass
-
-
-    def task_run_strategy_optimization(self, strategy, days_to_test, param_ranges, optimizer_tab):
-        """
-        (V7.2 MP & Caching) Khởi chạy tác vụ Tối ưu hóa Chiến lược.
-        """
-        
-        if self.optimization_process and self.optimization_process.is_alive():
-            try:
-                self.optimization_process.terminate() 
-                optimizer_tab.log("Đã hủy tác vụ tối ưu hóa cũ.")
-            except Exception as e:
-                optimizer_tab.log(f"Lỗi khi hủy tác vụ cũ: {e}")
-
-        def log_to_optimizer(message):
-            self.root_after(0, optimizer_tab.log, message)
-            
-        try:
-            log_to_optimizer("Đang tải toàn bộ dữ liệu A:I...")
-            all_data_ai = self.load_data_ai_from_db_controller() 
-            if not all_data_ai or len(all_data_ai) < days_to_test + 50:
-                log_to_optimizer(f"LỖI: Cần ít nhất {days_to_test + 50} kỳ dữ liệu để kiểm thử.")
-                self.root_after(0, optimizer_tab.run_button.config, {"state": tk.NORMAL})
-                return
-            log_to_optimizer(f"...Tải dữ liệu thành công ({len(all_data_ai)} kỳ).")
-            
-            original_settings = SETTINGS.get_all_settings()
-            original_settings_backup = original_settings.copy()
-            
-            result_queue = Queue()
-            self.optimization_process = Process(
-                target=_strategy_optimization_process_target, # (Hàm manager đã được sửa để TẢI cache)
-                args=(
-                    result_queue, 
-                    all_data_ai, 
-                    strategy, 
-                    days_to_test, 
-                    param_ranges, 
-                    original_settings_backup
-                )
-            )
-            
-            self.optimization_process.start()
-            
-            self.root_after(100, self._check_optimization_status, self.optimization_process, result_queue, optimizer_tab)
-            
-        except Exception as e:
-            log_to_optimizer(f"LỖI KHỞI CHẠY TIẾN TRÌNH: {e}")
-            log_to_optimizer(traceback.format_exc())
-            self.root_after(0, optimizer_tab.run_button.config, {"state": tk.NORMAL})
