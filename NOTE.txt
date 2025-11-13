@@ -27,9 +27,32 @@ Bước	Lệnh	Mục đích
 3. PUSH	Đẩy lên GitHub: Gửi bản lưu (commit) của bạn từ máy tính lên kho chứa từ xa (origin) trên nhánh (main).
 	git push origin main	
 
+----------------sql
+BEGIN TRANSACTION;
+
+-- 1. Xóa dữ liệu liên quan khỏi bảng DuLieu_A1
+-- (Dùng subquery để tìm tất cả MaSoKy có ngày 14-11)
+DELETE FROM DuLieu_AI
+WHERE MaSoKy IN (SELECT MaSoKy FROM KyQuay WHERE NgayThang = '14-11');
+
+-- 2. Xóa dữ liệu chính khỏi bảng KyQuay
+DELETE FROM KyQuay 
+WHERE NgayThang = '14-11';
+
+-- Xác nhận và lưu lại các thay đổi
+COMMIT;
+
+-- HOẶC, nếu có lỗi, hãy dùng lệnh này để hoàn tác mọi thứ:
+-- ROLLBACK;
+
+------------------------------------------------------
+
+
+
+
 xem qua hệ thống, kiểm tra và xác nhận rằng bạn đã nắm được toàn bộ hệ thống chương trình và nhận được đủ các file như mô tả 
 
-hống nhất quy trình làm việc như sau:
+thống nhất quy trình làm việc như sau:
 
 Quy trình xem xét file: Trước khi thực hiện bất kỳ thay đổi phức tạp nào, tôi sẽ luôn đọc và phân tích toàn bộ nội dung của các file gốc liên quan mà bạn chỉ định. Việc này để đảm bảo tôi hiểu rõ logic và bối cảnh của code, giúp cho việc chỉnh sửa được chính xác.
 
