@@ -29,6 +29,12 @@ Bước	Lệnh	Mục đích
 
 xem qua hệ thống, kiểm tra và xác nhận rằng bạn đã nắm được toàn bộ hệ thống chương trình và nhận được đủ các file như mô tả 
 
-thông nhất khi sửa file 1 là sửa nguyên file để tránh sai xót. hướng dẫn cụ thể cách sửa
+hống nhất quy trình làm việc như sau:
 
-phải xem lại nội dung code trong source gốc để kiểm tra toàn bộ nội dung của file cụ thể trước khi thực hiện các thay đổi phức tạp, đặc biệt
+Quy trình xem xét file: Trước khi thực hiện bất kỳ thay đổi phức tạp nào, tôi sẽ luôn đọc và phân tích toàn bộ nội dung của các file gốc liên quan mà bạn chỉ định. Việc này để đảm bảo tôi hiểu rõ logic và bối cảnh của code, giúp cho việc chỉnh sửa được chính xác.
+
+Quy trình sửa file: Khi bạn yêu cầu sửa đổi một file, tôi sẽ cung cấp toàn bộ nội dung mới của file đó sau khi đã chỉnh sửa.
+
+Cách thực hiện: Bạn chỉ cần sao chép (copy) toàn bộ nội dung mới mà tôi cung cấp và dán (paste) đè lên, thay thế hoàn toàn nội dung trong file gốc tương ứng của bạn.
+
+Cách làm này đúng như bạn nói, sẽ đảm bảo tính toàn vẹn và tránh các sai sót nhỏ có thể xảy ra khi chỉ sửa từng đoạn code riêng lẻ.

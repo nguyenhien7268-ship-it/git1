@@ -1,6 +1,6 @@
 # Tên file: code1/app_controller.py
 #
-# (NỘI DUNG THAY THẾ TOÀN BỘ - V7.3.1 - Tự động hóa AI có điều kiện)
+# (NỘI DUNG THAY THẾ TOÀN BỘ - V7.3.1 - SỬA LỖI THIẾU HÀM TINH CHỈNH THAM SỐ)
 #
 import traceback
 import time
@@ -52,7 +52,7 @@ def _generate_combinations(param_ranges, original_settings):
     
     for key in config_keys:
         v_from, v_to, v_step = param_ranges[key]
-        if isinstance(original_settings[key], int):
+        if isinstance(original_settings.get(key, 0), int): # Sửa lỗi nếu key không có
             param_lists.append([(key, int(i)) for i in _float_range(v_from, v_to, v_step) if i >= 0])
         else:
             param_lists.append([(key, round(i, 2)) for i in _float_range(v_from, v_to, v_step) if i >= 0])
@@ -62,7 +62,7 @@ def _generate_combinations(param_ranges, original_settings):
     for combo in itertools.product(*param_lists):
         temp_config = {}
         for static_key in static_keys:
-            temp_config[static_key] = original_settings[static_key]
+            temp_config[static_key] = original_settings.get(static_key) # Sửa lỗi nếu key không có
         for key, value in combo:
             temp_config[key] = value
         combinations.append(temp_config)
@@ -71,6 +71,19 @@ def _generate_combinations(param_ranges, original_settings):
 def _run_single_config_test(job_payload):
     try:
         all_data_ai, strategy, days_to_test, config, param_ranges, optimization_cache = job_payload
+        
+        # ======================================================
+        # (SỬA LỖI TỐI ƯU HÓA) Ép SETTINGS của worker này sử dụng config mới
+        # ======================================================
+        try:
+            from logic.config_manager import SETTINGS
+            for key, value in config.items():
+                if hasattr(SETTINGS, key):
+                    setattr(SETTINGS, key, value)
+        except Exception as e_cfg:
+            # Ghi lỗi vào kết quả nếu không thể set config
+            return ("error", f"Loi worker khi set config: {e_cfg}", str(config), "{}")
+        # ======================================================
         
         from logic.dashboard_analytics import get_historical_dashboard_data
         from logic.bridges.bridges_classic import getAllLoto_V30
@@ -87,6 +100,7 @@ def _run_single_config_test(job_payload):
             actual_row = all_data_ai[actual_index]
             actual_loto_set = set(getAllLoto_V30(actual_row))
             
+            # Hàm này giờ sẽ sử dụng SETTINGS đã được cập nhật ở trên
             top_scores = get_historical_dashboard_data(
                 all_data_ai, 
                 day_index, 
@@ -665,6 +679,8 @@ class AppController:
                         rate_str = f"{rate * 100:.1f}%"
                         tags = ('best',) if i == 0 else ()
                         tags_with_data = (config_dict_str,) + tags
+                        
+                        # (SỬA LỖI HIỂN THỊ TỪ LẦN TRƯỚC)
                         optimizer_tab.tree.insert("", tk.END, values=(
                             rate_str, hits, params_str
                         ), tags=tags_with_data)
@@ -757,7 +773,203 @@ class AppController:
             self.root_after(0, optimizer_tab.run_button.config, {"state": tk.NORMAL})
             
     # ===================================================================
+    # (MỚI) BỔ SUNG CÁC HÀM CHO TINH CHỈNH THAM SỐ (TUNER)
+    # ===================================================================
+
+    def task_run_parameter_tuning(self, param_key, val_from, val_to, val_step, tuner_view):
+        """
+        [CONTROLLER TASK] Chạy kiểm thử cho 1 tham số duy nhất.
+        Hàm này được chạy trong 1 thread riêng bởi TaskManager của main_app.
+        """
+        def log_to_view(message):
+            # Sử dụng root_after để đảm bảo an toàn thread cho Tkinter
+            self.root_after(0, tuner_view.log, message)
+        
+        try:
+            log_to_view("Đang tải dữ liệu A:I và Cache Tối ưu hóa...")
+            
+            # 1. Tải dữ liệu
+            all_data_ai = self.load_data_ai_from_db_controller()
+            if not all_data_ai:
+                log_to_view("LỖI: Không thể tải dữ liệu.")
+                return
+
+            # 2. Tải cache
+            from logic.dashboard_analytics import CACHE_FILE_PATH
+            import joblib
+            if not os.path.exists(CACHE_FILE_PATH):
+                log_to_view(f"LỖI: Không tìm thấy file cache: {CACHE_FILE_PATH}")
+                log_to_view(">>> Vui lòng chạy '1. Tạo Cache Tối ưu hóa' trước.")
+                return
+            optimization_cache = joblib.load(CACHE_FILE_PATH)
+            log_to_view("... Tải dữ liệu và cache thành công.")
+
+            # 3. Lấy cài đặt gốc
+            original_settings = SETTINGS.get_all_settings()
+            original_settings_backup = original_settings.copy()
+
+            # 4. Tạo dải tham số CHỈ cho 1 key
+            param_ranges = {param_key: (val_from, val_to, val_step)}
+            
+            # 5. Tạo các tổ hợp (combinations)
+            combinations = _generate_combinations(param_ranges, original_settings_backup)
+            total_combos = len(combinations)
+            if total_combos == 0:
+                log_to_view("LỖI: Không tạo được tổ hợp kiểm thử.")
+                return
+            
+            log_to_view(f"Đã tạo {total_combos} tổ hợp. Bắt đầu kiểm thử...")
+            
+            # Sử dụng các giá trị mặc định cho tuner
+            days_to_test = 30 
+            strategy = "Tối ưu Top 1 (N1)" 
+            
+            results_list = []
+            
+            # 6. Lặp và chạy test (Không cần ProcessPool vì đã ở trong thread riêng)
+            for i, config in enumerate(combinations):
+                current_value = config.get(param_key)
+                log_to_view(f"Đang chạy {i+1}/{total_combos}: {param_key} = {current_value}")
+                
+                job_payload = (all_data_ai, strategy, days_to_test, config, param_ranges, optimization_cache)
+                
+                # Gọi trực tiếp hàm worker
+                result_tuple = _run_single_config_test(job_payload)
+                
+                if result_tuple[0] == "error":
+                    log_to_view(f"LỖI JOB: {result_tuple[1]}")
+                else:
+                    results_list.append(result_tuple)
+
+            log_to_view("... Kiểm thử hoàn tất. Đang sắp xếp kết quả.")
+            results_list.sort(key=lambda x: x[0], reverse=True)
+            
+            log_to_view("\n" + "="*30)
+            log_to_view("--- KẾT QUẢ TỐT NHẤT ---")
+            if results_list:
+                rate, hits, params, _ = results_list[0]
+                log_to_view(f"Tỷ lệ: {rate*100:.1f}% ({hits})")
+                log_to_view(f"Tham số: {params}")
+            
+            log_to_view("\n--- Toàn bộ kết quả (từ cao đến thấp) ---")
+            for (rate, hits, params, _) in results_list:
+                 log_to_view(f" - {params} -> {rate*100:.1f}% ({hits})")
+                 
+            log_to_view("="*30)
+            log_to_view("--- HOÀN TẤT ---")
+            
+            # 7. Khôi phục cài đặt gốc (RẤT QUAN TRỌNG)
+            for key, value in original_settings_backup.items():
+                if hasattr(SETTINGS, key):
+                    setattr(SETTINGS, key, value)
+            log_to_view("Đã khôi phục cài đặt gốc.")
+
+        except Exception as e:
+            log_to_view(f"LỖI NGHIÊM TRỌNG TRONG LUỒNG KIỂM THỬ: {e}")
+            log_to_view(traceback.format_exc())
+        finally:
+            # 8. Bật lại nút (luôn luôn chạy)
+            self.root_after(0, tuner_view.run_button.config, {"state": tk.NORMAL})
+            
+    # ===================================================================
     # CÁC HÀM MVC (VIEW-CONTROLLER) KHÁC
+    # ===================================================================
+
+    # ===================================================================
+    # CÁC HÀM XỬ LÝ CHO CÀI ĐẶT (SETTINGS)
+    # ===================================================================
+
+    def task_load_all_settings(self, settings_view):
+        """
+        [CONTROLLER TASK] Tải tất cả cài đặt từ Model (SETTINGS) và
+        gọi callback của View (populate_settings) để hiển thị.
+        """
+        try:
+            self.logger.log("Đang tải cài đặt (config.json) từ Model...")
+            # 1. Tải cài đặt từ Model
+            current_settings = SETTINGS.get_all_settings() 
+            
+            if not current_settings:
+                self.logger.log("Lỗi: Không thể tải cài đặt từ config_manager.")
+                current_settings = {} # Gửi dict rỗng để tránh lỗi
+                
+            # 2. Gọi callback của View để điền dữ liệu
+            self.root_after(0, settings_view.populate_settings, current_settings)
+
+        except Exception as e:
+            self.logger.log(f"LỖI trong task_load_all_settings: {e}")
+            self.logger.log(traceback.format_exc())
+            self.root_after(0, self.app._show_error_dialog, 
+                            "Lỗi Tải Cài Đặt", 
+                            f"Lỗi khi tải cài đặt: {e}", 
+                            settings_view.window)
+
+    def task_save_all_settings(self, new_settings_dict, parent_widget):
+        """
+        [CONTROLLER TASK] Nhận dữ liệu cài đặt mới từ View và
+        ủy quyền cho Model (SETTINGS) để lưu vào file config.json.
+        """
+        try:
+            self.logger.log("Đang lưu cài đặt mới (config.json)...")
+            
+            success_count = 0
+            error_messages = []
+            
+            # 1. Ủy quyền cho Model (SETTINGS) để lưu từng cài đặt
+            for key, value in new_settings_dict.items():
+                success, msg = SETTINGS.update_setting(key, value)
+                if success: 
+                    self.logger.log(f" - Đã lưu: {key} = {value}")
+                    success_count += 1
+                else: 
+                    self.logger.log(f" - LỖI LƯU {key}: {msg}")
+                    error_messages.append(msg)
+            
+            self.logger.log("--- Lưu cài đặt hoàn tất! ---")
+            
+            # 2. Hiển thị thông báo kết quả (qua main_app)
+            if success_count == len(new_settings_dict):
+                self.root_after(0, self.app._show_save_success_dialog, 
+                                "Thành công", 
+                                f"Đã lưu thành công {success_count} tham số.", 
+                                parent_widget)
+            elif success_count > 0:
+                 self.root_after(0, self.app._show_warning_dialog, 
+                                "Lưu một phần", 
+                                f"Đã lưu {success_count} tham số.\nLỗi: {'; '.join(error_messages)}", 
+                                parent_widget)
+            else:
+                 self.root_after(0, self.app._show_error_dialog, 
+                                "Thất bại", 
+                                f"Không có tham số nào được lưu.\nLỗi: {'; '.join(error_messages)}", 
+                                parent_widget)
+
+        except Exception as e:
+            self.logger.log(f"LỖI trong task_save_all_settings: {e}")
+            self.logger.log(traceback.format_exc())
+            self.root_after(0, self.app._show_error_dialog, 
+                            "Lỗi", 
+                            f"Lỗi nghiêm trọng khi lưu cài đặt: {e}", 
+                            parent_widget)
+        finally:
+            # 3. (QUAN TRỌNG) Gọi callback để bật lại nút Save trên View
+            if hasattr(self.app, 'settings_window') and self.app.settings_window and self.app.settings_window.window == parent_widget:
+                self.root_after(0, self.app.settings_window._re_enable_save_button)
+
+    def get_current_setting_value(self, key):
+        """
+        [CONTROLLER] Lấy một giá trị cài đặt cụ thể từ Model (SETTINGS).
+        (Hàm này được ui_tuner.py gọi)
+        """
+        try:
+            # Sử dụng hàm get() an toàn của SETTINGS
+            return SETTINGS.get(key, None) 
+        except Exception as e:
+            self.logger.log(f"Lỗi khi get_current_setting_value cho {key}: {e}")
+            return None
+            
+    # ===================================================================
+    # (Kết thúc phần bổ sung)
     # ===================================================================
 
     def task_apply_optimized_settings(self, config_dict, optimizer_window):
@@ -931,6 +1143,8 @@ class AppController:
 
     def _format_ky_details(self, ma_so_ky, row):
         try:
+            from logic.bridges.bridges_classic import getAllLoto_V30, calculate_loto_stats # Import local
+            
             loto_list = getAllLoto_V30(row)
             dau_stats, duoi_stats = calculate_loto_stats(loto_list)
 
