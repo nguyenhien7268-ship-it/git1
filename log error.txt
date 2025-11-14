@@ -1,0 +1,23 @@
+LỖI LUỒNG: BACKTEST_MANAGED_BRIDGES_K2N() missing 1 required positional argument: 'ky_ket_thuc_kiem_tra'
+Traceback (most recent call last):
+  File "C:\Users\KAKA\Documents\27loto\code1\core_services.py", line 65, in _thread_wrapper
+    target_function(*args)
+    ~~~~~~~~~~~~~~~^^^^^^^
+  File "C:\Users\KAKA\Documents\27loto\code1\app_controller.py", line 462, in task_run_decision_dashboard
+    pending_k2n_data, cache_message = run_and_update_all_bridge_K2N_cache(all_data_ai, self.db_name)
+                                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: BACKTEST_MANAGED_BRIDGES_K2N() missing 1 required positional argument: 'ky_ket_thuc_kiem_tra'
+
+
+--- Bắt đầu: Cập nhật Cache K2N Hàng Loạt ---
+Đang chạy Backtest K2N (tối ưu) cho 15 Cầu CĐ + Cầu Đã Lưu...
+Đã tải 4944 hàng A:I từ DB.
+LỖI LUỒNG: BACKTEST_MANAGED_BRIDGES_K2N() missing 1 required positional argument: 'ky_ket_thuc_kiem_tra'
+Traceback (most recent call last):
+  File "C:\Users\KAKA\Documents\27loto\code1\core_services.py", line 65, in _thread_wrapper
+    target_function(*args)
+    ~~~~~~~~~~~~~~~^^^^^^^
+  File "C:\Users\KAKA\Documents\27loto\code1\app_controller.py", line 504, in task_run_update_all_bridge_K2N_cache
+    _, message = run_and_update_all_bridge_K2N_cache(all_data_ai, self.db_name)
+                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: BACKTEST_MANAGED_BRIDGES_K2N() missing 1 required positional argument: 'ky_ket_thuc_kiem_tra'

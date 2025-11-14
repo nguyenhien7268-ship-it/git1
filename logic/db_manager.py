@@ -159,6 +159,34 @@ def get_results_by_ky(ma_so_ky, db_name=DB_NAME):
         print(f"Lỗi get_results_by_ky: {e}")
         return None
 
+# ===================================================================================
+# (MỚI) GIAI ĐOẠN 1: HÀM TẢI TẤT CẢ DỮ LIỆU
+# ===================================================================================
+def get_all_data_ai_results(db_name=DB_NAME):
+    """
+    (MỚI - GĐ 1) Tải toàn bộ dữ liệu từ DuLieu_AI, sắp xếp theo MaSoKy tăng dần.
+    Trả về một list các tuple (hàng) để nạp vào bộ nhớ.
+    """
+    try:
+        conn = sqlite3.connect(db_name)
+        # Thiết lập row_factory để trả về dữ liệu dạng dictionary (dễ xử lý hơn)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        # Sắp xếp theo MaSoKy TĂNG DẦN (ASC) để đảm bảo dữ liệu theo đúng thứ tự thời gian
+        cursor.execute('SELECT * FROM DuLieu_AI ORDER BY MaSoKy ASC')
+        
+        rows = cursor.fetchall()
+        # Chuyển đổi [sqlite3.Row, sqlite3.Row] thành [dict, dict]
+        data_as_dicts = [dict(row) for row in rows]
+        
+        conn.close()
+        return data_as_dicts
+    except Exception as e:
+        print(f"Lỗi get_all_data_ai_results: {e}")
+        return []
+# ===================================================================================
+
 # --- CRUD Functions for ManagedBridges ---
 
 def add_managed_bridge(bridge_name, description, win_rate_text, db_name=DB_NAME):
@@ -244,7 +272,7 @@ def update_bridge_win_rate_batch(rate_data_list, db_name=DB_NAME):
         sql_update = "UPDATE ManagedBridges SET win_rate_text = ? WHERE name = ?"
         
         # Thực thi hàng loạt
-        cursor.execututemany(sql_update, rate_data_list)
+        cursor.executemany(sql_update, rate_data_list)
         conn.commit()
         
         updated_count = cursor.rowcount
@@ -272,7 +300,11 @@ def upsert_managed_bridge(bridge_name, description, win_rate_text, db_name=DB_NA
     try:
         from .bridges.bridges_v16 import get_index_from_name_V16
     except ImportError:
-        from bridges_v16 import get_index_from_name_V16
+        try:
+            from logic.bridges.bridges_v16 import get_index_from_name_V16
+        except ImportError:
+            # Fallback nếu cả hai đều thất bại (giữ hàm giả)
+            pass 
 
     conn = None
     try:
