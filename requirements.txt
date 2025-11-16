@@ -1,0 +1,14 @@
+# Các thư viện cho CI
+pytest
+flake8
+
+# Các thư viện tôi đoán dự án của bạn cần
+scikit-learn
+pandas
+numpy
+
+# Nếu bạn dùng giao diện (các file ui_...), 
+# bạn có thể cần một trong các thư viện sau (ví dụ: PyQt5):
+# PyQt5
+
+# --- Thêm bất kỳ thư viện nào khác bạn đã dùng vào đây ---
