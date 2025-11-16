@@ -3,10 +3,11 @@ name: Python CI
 on:
   push:
     branches:
-      - main
+      - main                  # <-- Chạy khi push lên nhánh main
+      - sua-loi-tu-9ba36d2  # <-- Chạy khi push lên nhánh này
   pull_request:
     branches:
-      - main
+      - main                  # <-- Vẫn chạy khi có pull request vào main
 
 jobs:
   test:
