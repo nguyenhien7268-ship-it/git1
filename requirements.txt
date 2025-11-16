@@ -6,7 +6,10 @@ flake8
 scikit-learn
 pandas
 numpy
-
+matplotlib
+seaborn
+joblib
+XGBoost
 # Nếu bạn dùng giao diện (các file ui_...), 
 # bạn có thể cần một trong các thư viện sau (ví dụ: PyQt5):
 # PyQt5
