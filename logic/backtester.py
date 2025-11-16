@@ -1,10 +1,55 @@
+# TÊN FILE: logic/backtester.py
+# NỘI DUNG THAY THẾ TOÀN BỘ (SỬA LỖI LOGIC 4%)
+
 import sqlite3
 # (V7.2 MP) Thêm thư viện Multi-Processing
 from concurrent.futures import ProcessPoolExecutor, as_completed
 import os
 import traceback # Thêm để debug lỗi MP
 # (V7.1) Chỉ giữ lại import Counter cho tiện ích chung
-from collections import Counter 
+from collections import Counter, defaultdict
+from typing import List, Dict, Tuple, Any, Optional
+import pandas as pd # Cần thiết cho BridgeContext
+
+# =======================================================================
+# (GĐ 4) IMPORT BRIDGE MANAGER VÀ CÁC CẤU TRÚC BRIDGE
+# =======================================================================
+try:
+    from .bridges.base_bridge import BridgeContext, BridgeResult
+    from .bridges.bridge_manager_core import BridgeManager
+    bridge_manager = BridgeManager.get_instance()
+except ImportError as e:
+    print(f"LỖI: backtester.py không thể import BridgeManager: {e}")
+    # Fallback cho BridgeManager
+    class DummyBridgeManager:
+        def run_all_bridges(self, context): return []
+    bridge_manager = DummyBridgeManager()
+
+
+# =======================================================================
+# (GĐ 1) THAY THẾ IMPORT CRUD CỦA DB_MANAGER BẰNG DATASERVICE
+# =======================================================================
+try:
+    from .data_service import DataService
+    # Khởi tạo DataService Singleton
+    data_service = DataService.get_instance()
+    
+    # Lấy các hàm CRUD cần thiết từ DataService (đã được bao bọc)
+    update_bridge_win_rate_batch = data_service.update_bridge_win_rate_batch
+    update_bridge_k2n_cache_batch = data_service.update_bridge_k2n_cache_batch
+    
+    # Chỉ giữ lại DB_NAME từ db_manager (cho các hàm khác chưa refactor)
+    from .db_manager import DB_NAME
+    
+    print(">>> (V7.0 - GĐ 1) Tải DataService cho backtester thành công.")
+except ImportError as e:
+    print(f"LỖI NGHIÊM TRỌNG: backtester.py không thể import DataService/DB_NAME: {e}")
+    # Fallback cho các hàm CRUD (để tránh lỗi syntax)
+    def update_bridge_win_rate_batch(*args, **kwargs): return False, "Lỗi DataService"
+    def update_bridge_k2n_cache_batch(*args, **kwargs): return False, "Lỗi DataService"
+    DB_NAME = 'data/xo_so_prizes_all_logic.db' 
+# =======================================================================
+
 
 # (V7.1) Chỉ giữ lại import config_manager
 try:
@@ -25,981 +70,304 @@ except ImportError:
 
 # (V7.1) Giữ lại các Import Cần Thiết cho Backtest
 try:
-    from .db_manager import (
-        DB_NAME, 
-        # (V7.1) Xóa get_all_managed_bridges (Lấy từ Repository)
-        update_bridge_win_rate_batch,
-        update_bridge_k2n_cache_batch
-    )
-    # (V7.1) Cần Import từ Repository cho các hàm cache
-    from .data_repository import get_all_managed_bridges 
-except ImportError:
-    # Fallback cho db_manager
-    print("Lỗi: Không thể import db_manager trong backtester.py")
-    DB_NAME = 'data/xo_so_prizes_all_logic.db' # <--- ĐÃ SỬA
-    def get_all_managed_bridges(d, o): return []
-    def update_bridge_win_rate_batch(r, d): return False, "Lỗi Import"
-    def update_bridge_k2n_cache_batch(r, d): return False, "Lỗi Import"
-# Import các hàm cầu cổ điển
-try:
-    from .bridges.bridges_classic import (
-        ALL_15_BRIDGE_FUNCTIONS_V5, 
-        getAllLoto_V30, 
-        checkHitSet_V30_K2N
-    )
-except ImportError:
-    # Fallback
-    print("Lỗi: Không thể import bridges_classic trong backtester.py")
-    ALL_15_BRIDGE_FUNCTIONS_V5 = []
-    def getAllLoto_V30(r): return []
-    def checkHitSet_V30_K2N(p, l): return "Lỗi"
+    # (GĐ 4) XÓA TẤT CẢ CÁC IMPORT HÀM CẦU TRỰC TIẾP
+    from .data_repository import load_data_ai_from_db # Dù đã lỗi thời, giữ lại nếu code cũ vẫn gọi
+    
+    # (SỬA LỖI IMPORT) Thêm lại getAllLoto_V30 (cần thiết cho Backtest)
+    from .bridges.bridges_classic import getAllLoto_V30
+    
+    # (SỬA LỖI IMPORT) Xóa toàn bộ khối 'from .utils import ...'
+    # vì các hàm này không tồn tại trong file utils.py.
+    # Logic sẽ được thay thế inline bên dưới.
+    
+    # (SỬA LỖI TIỀM ẨN) Xóa 'from .dashboard_analytics import get_top_scored_pairs'
+    # để phá vỡ Import Vòng (Circular Import)
 
-# Import các hàm cầu V16 (VÀ V17 MỚI)
-try:
-    from .bridges.bridges_v16 import (
-        getPositionName_V16, 
-        get_index_from_name_V16,
-        taoSTL_V30_Bong,
-        getAllPositions_V17_Shadow,
-        getPositionName_V17_Shadow
-    )
-except ImportError:
-    # Fallback
-    print("Lỗi: Không thể import bridges_v16 trong backtester.py")
-    def getPositionName_V16(i): return "Lỗi"
-    def get_index_from_name_V16(n): return None
-    def taoSTL_V30_Bong(a, b): return ['00', '00']
-    def getAllPositions_V17_Shadow(r): return []
-    def getPositionName_V17_Shadow(i): return "Lỗi V17"
-
-# (V7.1) Import các hàm Bạc Nhớ (chỉ cần cho Backtest Memory)
-try:
-    from .bridges.bridges_memory import (
-        get_27_loto_names,
-        get_27_loto_positions,
-        calculate_bridge_stl
-    )
-except ImportError:
-    print("Lỗi: Không thể import bridges_memory trong backtester.py")
-    def get_27_loto_names(): return []
-    def get_27_loto_positions(r): return []
-    def calculate_bridge_stl(l1, l2, type): return ['00', '00']
+except ImportError as e:
+    print(f"LỖI: backtester.py không thể import các module logic: {e}")
 
 
 # ===================================================================================
-# I. HÀM HỖ TRỢ CHUNG (V7.1)
+# HÀM BACKTEST CƠ SỞ (CORE BACKTEST) - ĐÃ TÁI CẤU TRÚC (GĐ 4)
 # ===================================================================================
 
-def _validate_backtest_params(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra):
-    if not all([toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra]):
-        return None, None, None, None, [["LỖI:", "Cần đủ tham số."]]
-    try:
-        startRow, endRow = int(ky_bat_dau_kiem_tra), int(ky_ket_thuc_kiem_tra)
-    except ValueError:
-        return None, None, None, None, [["LỖI:", "Kỳ BĐ/KT phải là số."]]
-    if not (startRow > 1 and startRow <= endRow):
-        return None, None, None, None, [["LỖI:", f"Kỳ BĐ/KT không hợp lệ."]]
-    allData = toan_bo_A_I
-    finalEndRow = min(endRow, (len(allData) + startRow - 1))
-    startCheckRow = startRow + 1
-    if startCheckRow > finalEndRow:
-        return None, None, None, None, [["LỖI:", "Dữ liệu không đủ để chạy."]]
-    offset = startRow
-    return allData, finalEndRow, startCheckRow, offset, None
-
-def _parse_k2n_results(results_data):
+# --- TONGHOP_TOP_CAU_RATE_V5 (Backtest N1) ---
+def TONGHOP_TOP_CAU_RATE_V5(all_data_ai: List[List[Any]], managed_bridges: List[Dict[str, Any]]) -> Tuple[Dict[str, Dict[str, str]], str]:
     """
-    (Giữ lại) Hàm nội bộ: Phân tích kết quả 4 hàng từ backtest K2N.
+    (GĐ 4 - TÁI CẤU TRÚC) Thực hiện Backtest N1 BẰNG BridgeManager.
     """
-    cache_data_list = []
-    pending_k2n_dict = {}
+    # (SỬA LỖI 4%) Yêu cầu ít nhất 3 hàng (N-2, N-1, N)
+    if not all_data_ai or len(all_data_ai) < 3:
+        return {}, "Không đủ dữ liệu lịch sử (cần ít nhất 3 ngày)."
+        
+    print("... (GĐ 4) Backtest N1 bằng BridgeManager: Bắt đầu...")
     
-    if not results_data or len(results_data) < 4:
-        # Lỗi này có thể xảy ra nếu không có cầu nào được BẬT
-        # print("Lỗi _parse_k2n_results: Dữ liệu backtest K2N không hợp lệ.")
-        return cache_data_list, pending_k2n_dict
-        
-    try:
-        headers = results_data[0] # Hàng 0: Tên cầu
-        rates = results_data[1]   # Hàng 1: Tỷ Lệ %
-        streaks = results_data[2] # Hàng 2: Chuỗi Thắng / Thua Max
-        pending = results_data[3] # Hàng 3: Dự đoán
-        
-        num_bridges = len(headers) - 1 # Trừ cột "Kỳ"
-        
-        for j in range(1, num_bridges + 1):
-            bridge_name = str(headers[j]).split(' (')[0] # Lấy tên gốc
-            
-            # 1. Lấy Tỷ lệ
-            win_rate_text = str(rates[j])
-            
-            # 2. Lấy Chuỗi Thắng và Chuỗi Thua Max
-            streak_text_full = str(streaks[j]) # "3 thắng / 5 thua"
-            current_streak = 0
-            max_lose_streak = 0
-            try:
-                parts = streak_text_full.split(' / ')
-                current_streak = int(parts[0].split(' ')[0])
-                max_lose_streak = int(parts[1].split(' ')[0])
-            except Exception:
-                pass 
-                
-            # 3. Lấy Dự đoán
-            pending_text = str(pending[j])
-            next_prediction_stl = "LỖI"
-            
-            if "(Đang chờ N2)" in pending_text:
-                next_prediction_stl = pending_text.split(' (')[0]
-                pending_k2n_dict[bridge_name] = {
-                    'stl': next_prediction_stl,
-                    'streak': f"{current_streak} khung",
-                    'max_lose': max_lose_streak
-                }
-            elif "(Khung mới N1)" in pending_text:
-                next_prediction_stl = pending_text.split(' (')[0]
-            
-            # 4. Thêm max_lose_streak vào danh sách cache
-            cache_data_list.append((
-                win_rate_text,
-                current_streak,
-                next_prediction_stl,
-                max_lose_streak, 
-                bridge_name
-            ))
-            
-    except Exception as e:
-        print(f"Lỗi _parse_k2n_results: {e}")
-        
-    return cache_data_list, pending_k2n_dict
-
-# ===================================================================================
-# II. TỔNG HỢP TOP CẦU (V7.1)
-# ===================================================================================
-
-def TONGHOP_TOP_CAU_CORE_V5(fullBacktestN1Range, lastDataRowForPrediction, topN, scoringFunction):
-    try:
-        if not fullBacktestN1Range or len(fullBacktestN1Range) < 2:
-            return [["LỖI: 'fullBacktestN1Range' không hợp lệ."]]
-        if not lastDataRowForPrediction or len(lastDataRowForPrediction) < 10:
-            return [["LỖI: 'lastDataRowForPrediction' không hợp lệ."]]
-        
-        lastKy = lastDataRowForPrediction[0]
-        nextKy = f"Kỳ {int(lastKy) + 1}" if lastKy.isdigit() else f"Kỳ {lastKy} (Next)"
-
-        headers = fullBacktestN1Range[0]
-        dataRows = [row for row in fullBacktestN1Range[1:] if "Tỷ Lệ %" not in str(row[0]) and "HOÀN THÀNH" not in str(row[0]) and not str(row[0]).startswith("Kỳ") and not "(Dự đoán N1)" in str(row)]
-        
-        numDataRows = len(dataRows)
-        if numDataRows == 0:
-            return [["LỖI: Không tìm thấy dữ liệu backtest hợp lệ."]]
-            
-        bridgeColumns = []
-        for j, header in enumerate(headers):
-            if str(header).startswith("Cầu "):
-                bridgeColumns.append({"name": str(header).split(' (')[0], "colIndex": j})
-        
-        if not bridgeColumns:
-            return [["LỖI: Không tìm thấy cột 'Cầu ' nào trong tiêu đề."]]
-        
-        bridgeStats = []
-        num_cau_functions = len(ALL_15_BRIDGE_FUNCTIONS_V5)
-        
-        for i, bridge in enumerate(bridgeColumns):
-            if i >= num_cau_functions: break
-            colIdx = bridge["colIndex"]
-            wins, currentStreak = 0, 0
-            
-            for k in range(numDataRows):
-                if "✅" in str(dataRows[k][colIdx]): wins += 1
-            for k in range(numDataRows - 1, -1, -1):
-                if "✅" in str(dataRows[k][colIdx]): currentStreak += 1
-                else: break
-            
-            winRate = (wins / numDataRows) if numDataRows > 0 else 0
-            score = scoringFunction(winRate, currentStreak)
-            
-            bridgeStats.append({
-                "name": bridge["name"], "bridgeFuncIndex": i,
-                "rate": winRate, "streak": currentStreak, "score": score
-            })
-
-        bridgeStats.sort(key=lambda x: x["score"], reverse=True)
-        
-        topBridges = bridgeStats[:topN]
-        outputParts, seenNumbers = [], set()
-        
-        for bridge in topBridges:
-            try:
-                stl = ALL_15_BRIDGE_FUNCTIONS_V5[bridge["bridgeFuncIndex"]](lastDataRowForPrediction)
-                bridgeNum = bridge["name"].replace('Cầu ', '')
-                num1, num2 = stl[0], stl[1]
-                pairPart1, pairPart2 = None, None
-
-                if num1 not in seenNumbers:
-                    pairPart1, seenNumbers = num1, seenNumbers | {num1}
-                if num2 not in seenNumbers:
-                    pairPart2, seenNumbers = f"{num2}({bridgeNum})", seenNumbers | {num2}
-                elif pairPart1:
-                    pairPart1 = f"{num1}({bridgeNum})"
-                
-                if pairPart1 and pairPart2: outputParts.append(f"{pairPart1}, {pairPart2}")
-                elif pairPart1: outputParts.append(pairPart1)
-                elif pairPart2: outputParts.append(pairPart2)
-            except Exception as e:
-                print(f"Lỗi khi gọi hàm cầu {bridge['name']}: {e}")
-        
-        return [[f"{nextKy}: {', '.join(outputParts)}"]]
-    except Exception as e:
-        print(f"Lỗi TONGHOP_CORE_V5: {e}")
-        return [[f"LỖI: {e}"]]
-
-def TONGHOP_TOP_CAU_N1_V5(fullBacktestN1Range, lastDataRowForPrediction, topN = 3):
-    scoreByStreak = lambda rate, streak: (streak * 1000) + (rate * 100)
-    return TONGHOP_TOP_CAU_CORE_V5(
-        fullBacktestN1Range, lastDataRowForPrediction, topN, scoreByStreak
-    )
-
-def TONGHOP_TOP_CAU_RATE_V5(fullBacktestN1Range, lastDataRowForPrediction, topN = 3):
-    scoreByRate = lambda rate, streak: (rate * 1000) + (streak * 100)
-    return TONGHOP_TOP_CAU_CORE_V5(
-        fullBacktestN1Range, lastDataRowForPrediction, topN, scoreByRate
-    )
-
-# ===================================================================================
-# III. HÀM BACKTEST CỐT LÕI (V7.1)
-# ===================================================================================
-
-def BACKTEST_15_CAU_K2N_V30_AI_V8(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra, history=True):
-    """ Backtest 15 Cầu Cổ Điển K2N """
-    allData, finalEndRow, startCheckRow, offset, error = _validate_backtest_params(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra)
-    if error: return error
-    # ... (giữ nguyên logic backtest 15 cầu K2N) ...
-    headers = ["Kỳ (Cột A)", "Cầu 1 (Đề+5)", "Cầu 2 (G6+G7)", "Cầu 3 (GĐB+G1)", 
-               "Cầu 4 (GĐB+G1)", "Cầu 5 (G7+G7)", "Cầu 6 (G7+G7)", 
-               "Cầu 7 (G5+G7)", "Cầu 8 (G3+G4)", "Cầu 9 (GĐB+G1)",
-               "Cầu 10 (G2+G3)", "Cầu 11 (GĐB+G3)", "Cầu 12 (GĐB+G3)",
-               "Cầu 13 (G7.3+8)", "Cầu 14 (G1+2)", "Cầu 15 (Đề+7)", "Tổng Trúng"]
-    results = [headers]
+    bridge_performance: Dict[str, Dict[str, Any]] = defaultdict(lambda: {'hits': 0, 'total': 0, 'win_rate_text': '0.00%'})
     
-    in_frame = [False] * 15
-    prediction_in_frame = [None] * 15
-    current_streak_k2n = [0] * 15 
+    # Tạo DataFrame từ all_data_ai (list of lists) MỘT LẦN để tối ưu
+    columns = ['MaSoKy', 'Col_A_Ky', 'Col_B_GDB', 'Col_C_G1', 'Col_D_G2', 'Col_E_G3', 'Col_F_G4', 'Col_G_G5', 'Col_H_G6', 'Col_I_G7']
+    all_data_df = pd.DataFrame(all_data_ai, columns=columns)
     
-    current_lose_streak_k2n = [0] * 15
-    max_lose_streak_k2n = [0] * 15
-    
-    cau_functions = ALL_15_BRIDGE_FUNCTIONS_V5
-    
-    data_rows = []
-    totalTestDays = 0
-    win_counts = [0] * 15
-    
-    for k in range(startCheckRow, finalEndRow + 1):
-        prevRow_idx, actualRow_idx = k - 1 - offset, k - offset
-        if actualRow_idx >= len(allData) or prevRow_idx < 0: continue
-        prevRow, actualRow = allData[prevRow_idx], allData[actualRow_idx]
-        if not actualRow or not actualRow[0] or str(actualRow[0]).strip() == "": break
+    # ===================================================================
+    # (SỬA LỖI 4%)
+    # Bắt đầu lặp từ i = 2 (để có [i-2] và [i-1])
+    # ===================================================================
+    for i in range(2, len(all_data_ai)):
+        current_row = all_data_ai[i] # Kỳ kết quả thực tế (N)
         
-        if not prevRow or len(actualRow) < 10 or not actualRow[2] or not actualRow[9]:
-            if history:
-                data_rows.append([actualRow[0] or k, "Lỗi dữ liệu hàng"] + [""] * 15)
-            continue
+        actual_lotos = getAllLoto_V30(current_row) 
+        
+        # (SỬA LỖI 4%) Cung cấp 2 HÀNG (N-2 và N-1) cho Context
+        # Lấy lát cắt (slice) [i-2:i] (bao gồm hàng i-2 và i-1)
+        context_df = all_data_df.iloc[i-2:i]
+        context = BridgeContext(historical_data=context_df)
+        
+        all_bridge_results: List[BridgeResult] = bridge_manager.run_all_bridges(context)
+        # ===================================================================
+        
+        # Xử lý kết quả (Chấm điểm N1)
+        for result in all_bridge_results:
+            bridge_id = result.bridge_id
             
-        actualSoKy, actualLotoSet = actualRow[0] or k, set(getAllLoto_V30(actualRow))
-        totalTestDays += 1
-        
-        daily_results_row, totalHits = [actualSoKy], 0
-        
-        try:
-            for j in range(15):
-                cell_output = "" 
-                if in_frame[j]:
-                    pred = prediction_in_frame[j]
-                    check_result = checkHitSet_V30_K2N(pred, actualLotoSet)
-                    if "✅" in check_result:
-                        if history: cell_output = f"{','.join(pred)} ✅ (Ăn N2)"
-                        win_counts[j] += 1
-                        current_streak_k2n[j] += 1 
-                        current_lose_streak_k2n[j] = 0 
-                    else:
-                        if history: cell_output = f"{','.join(pred)} ❌ (Trượt K2N)"
-                        current_streak_k2n[j] = 0 
-                        current_lose_streak_k2n[j] += 1
-                        if current_lose_streak_k2n[j] > max_lose_streak_k2n[j]:
-                            max_lose_streak_k2n[j] = current_lose_streak_k2n[j]
-                            
-                    in_frame[j], prediction_in_frame[j] = False, None
-                else:
-                    pred = cau_functions[j](prevRow)
-                    check_result = checkHitSet_V30_K2N(pred, actualLotoSet)
-                    if "✅" in check_result:
-                        if history: cell_output = f"{','.join(pred)} ✅ (Ăn N1)"
-                        win_counts[j] += 1
-                        current_streak_k2n[j] += 1
-                        current_lose_streak_k2n[j] = 0 
-                    else:
-                        if history: cell_output = f"{','.join(pred)} (Trượt N1...)"
-                        in_frame[j], prediction_in_frame[j] = True, pred
-                
-                if history:
-                    daily_results_row.append(cell_output)
-                    if "✅" in check_result:
-                        totalHits += 1
-                        
-            if history:
-                daily_results_row.append(totalHits)
-                data_rows.append(daily_results_row)
-                
-        except Exception as e:
-            if history:
-                data_rows.append([actualSoKy, f"Lỗi: {e}"] + [""] * 15)
-    
-    if history:
-        data_rows.reverse()
-    
-    if totalTestDays > 0:
-        rate_row, total_wins = ["Tỷ Lệ %"], 0
-        for count in win_counts:
-            rate = (count / totalTestDays) * 100
-            rate_row.append(f"{rate:.2f}%")
-            total_wins += count
-        rate_row.append(f"TB: {(total_wins / totalTestDays):.2f}")
-        results.insert(1, rate_row)
-        
-        streak_row = ["Chuỗi Thắng / Thua Max"]
-        for i in range(15):
-            streak_row.append(f"{current_streak_k2n[i]} thắng / {max_lose_streak_k2n[i]} thua")
-        streak_row.append("---")
-        results.insert(2, streak_row) 
+            if result.prediction_type != 'STL':
+                continue
 
-    try:
-        last_data_row_for_prediction = allData[finalEndRow - offset]
-    except IndexError:
-        results.append(["LỖI DỰ ĐOÁN", "Không có dữ liệu hàng cuối."])
-        return results
-        
-    finalRowK = f"Kỳ {int(last_data_row_for_prediction[0]) + 1}" if last_data_row_for_prediction[0].isdigit() else f"Kỳ {finalEndRow + 1}"
-    finalRow, openFrames = [finalRowK], 0
-    for j in range(15):
-        if in_frame[j]:
-            finalRow.append(f"{','.join(prediction_in_frame[j])} (Đang chờ N2)")
-            openFrames += 1
+            bridge_performance[bridge_id]['total'] += 1
+            
+            is_hit = False
+            for pred_loto in result.predictions:
+                if pred_loto in actual_lotos: 
+                    is_hit = True
+                    break
+            
+            if is_hit:
+                bridge_performance[bridge_id]['hits'] += 1
+
+    # (SỬA LỖI HIỂN THỊ N1)
+    # Tính toán Win Rate cuối cùng và trả về ĐẦY ĐỦ THÔNG TIN
+    final_results: Dict[str, Dict[str, str]] = {}
+    for bridge_id, perf in bridge_performance.items():
+        if perf['total'] > 0:
+            rate = (perf['hits'] / perf['total']) * 100
+            win_rate_text = f"{rate:.2f}%"
+            final_results[bridge_id] = {
+                'win_rate_text': win_rate_text,
+                'total_wins': perf['hits'],
+                'total_days': perf['total']
+            }
         else:
-            try:
-                pred = cau_functions[j](last_data_row_for_prediction)
-                finalRow.append(f"{','.join(pred)} (Khung mới N1)")
-            except Exception:
-                finalRow.append("LỖI PREDICT")
-    finalRow.append(f"{openFrames} khung mở" if openFrames > 0 else "0")
-    
-    results.insert(3, finalRow) 
-    
-    if history:
-        results.extend(data_rows)
-    
-    return results
-
-def BACKTEST_15_CAU_N1_V31_AI_V8(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra):
-    """ Backtest 15 Cầu Lô N1 """
-    # ... (giữ nguyên logic backtest 15 cầu N1) ...
-    allData, finalEndRow, startCheckRow, offset, error = _validate_backtest_params(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra)
-    if error: return error
-    headers = ["Kỳ (Cột A)", "Cầu 1 (Đề+5)", "Cầu 2 (G6+G7)", "Cầu 3 (GĐB+G1)", 
-               "Cầu 4 (GĐB+G1)", "Cầu 5 (G7+G7)", "Cầu 6 (G7+G7)", 
-               "Cầu 7 (G5+G7)", "Cầu 8 (G3+G4)", "Cầu 9 (GĐB+G1)",
-               "Cầu 10 (G2+G3)", "Cầu 11 (GĐB+G3)", "Cầu 12 (GĐB+G3)",
-               "Cầu 13 (G7.3+8)", "Cầu 14 (G1+2)", "Cầu 15 (Đề+7)", "Tổng Trúng"]
-    results = [headers]
-    cau_functions = ALL_15_BRIDGE_FUNCTIONS_V5
-    
-    data_rows = [] 
-    
-    for k in range(startCheckRow, finalEndRow + 1):
-        prevRow_idx, actualRow_idx = k - 1 - offset, k - offset
-        if actualRow_idx >= len(allData) or prevRow_idx < 0: continue
-        prevRow, actualRow = allData[prevRow_idx], allData[actualRow_idx]
-        if not actualRow or not actualRow[0] or str(actualRow[0]).strip() == "": break
-        if not prevRow or len(actualRow) < 10 or not actualRow[2] or not actualRow[9]:
-            data_rows.append([actualRow[0] or k, "Lỗi dữ liệu hàng"] + [""] * 15)
-            continue
-        actualSoKy, actualLotoSet = actualRow[0] or k, set(getAllLoto_V30(actualRow))
-        daily_results_row, totalHits = [actualSoKy], 0
-        try:
-            for j in range(15):
-                pred = cau_functions[j](prevRow)
-                check_result = checkHitSet_V30_K2N(pred, actualLotoSet)
-                cell_output = f"{','.join(pred)} {check_result}"
-                if "✅" in check_result: totalHits += 1
-                daily_results_row.append(cell_output)
-            daily_results_row.append(totalHits)
-            data_rows.append(daily_results_row)
-        except Exception as e:
-            data_rows.append([actualSoKy, f"Lỗi: {e}"] + [""] * 15)
+            final_results[bridge_id] = {
+                'win_rate_text': '0.00%',
+                'total_wins': 0,
+                'total_days': 0
+            }
             
-    data_rows.reverse() 
+    return final_results, f"Backtest N1 (GĐ 4) hoàn tất: {len(final_results)} cầu được xử lý."
+
+
+# --- BACKTEST_MANAGED_BRIDGES_K2N (Backtest K2N) ---
+def BACKTEST_MANAGED_BRIDGES_K2N(all_data_ai: List[List[Any]], managed_bridges: List[Dict[str, Any]], history: bool = True) -> Tuple[Dict[str, Dict[str, Any]], str]:
+    """
+    (GĐ 4 - TÁI CẤU TRÚC) Thực hiện Backtest K2N BẰNG BridgeManager.
+    """
+    # (SỬA LỖI 4%) Yêu cầu ít nhất 2 hàng cho lịch sử, 3 hàng nếu tính streak
+    min_rows = 3 if history else 2
+    if not all_data_ai or len(all_data_ai) < min_rows:
+        return {}, f"Không đủ dữ liệu lịch sử (cần ít nhất {min_rows} ngày) để backtest K2N."
     
-    totalTestDays = len(data_rows)
-    if totalTestDays > 0:
-        win_counts = [0] * 15
-        for row in data_rows: 
-            for j in range(15):
-                if "✅" in str(row[j+1]): win_counts[j] += 1
-        rate_row, total_wins = ["Tỷ Lệ %"], 0
-        for count in win_counts:
-            rate = (count / totalTestDays) * 100
-            rate_row.append(f"{rate:.2f}%")
-            total_wins += count
-        rate_row.append(f"TB: {(total_wins / totalTestDays):.2f}")
-        results.insert(1, rate_row)
+    print("... (GĐ 4) Backtest K2N bằng BridgeManager: Bắt đầu...")
+
+    # 1. Tạo DataFrame
+    columns = ['MaSoKy', 'Col_A_Ky', 'Col_B_GDB', 'Col_C_G1', 'Col_D_G2', 'Col_E_G3', 'Col_F_G4', 'Col_G_G5', 'Col_H_G6', 'Col_I_G7']
+    all_data_df = pd.DataFrame(all_data_ai, columns=columns)
+
+    # 2. Khởi tạo bộ theo dõi K2N cho *chỉ* các cầu Managed
+    k2n_trackers: Dict[str, Dict[str, Any]] = {}
+    managed_bridge_names = {b['name'] for b in managed_bridges}
+    
+    for name in managed_bridge_names:
+        k2n_trackers[name] = {
+            'win_rate_text': '0.00%', 
+            'current_streak': 0,
+            'max_lose_streak_k2n': 0,
+            'next_prediction_stl': None
+        }
+
+    # 3. Lặp qua lịch sử để tính Streak
+    # ===================================================================
+    # (SỬA LỖI 4%)
+    # ===================================================================
+    if history and len(all_data_ai) > 2:
+        # Bắt đầu lặp từ i = 2 (để có [i-2] và [i-1])
+        for i in range(2, len(all_data_ai)):
+            current_row = all_data_ai[i] # (N)
             
-    try:
-        last_data_row_for_prediction = allData[finalEndRow - offset]
-    except IndexError:
-        results.append(["LỖI DỰ ĐOÁN", "Không có dữ liệu hàng cuối."])
-        return results
-
-    finalRowK = f"Kỳ {int(last_data_row_for_prediction[0]) + 1}" if last_data_row_for_prediction[0].isdigit() else f"Kỳ {finalEndRow + 1}"
-    finalRow = [finalRowK]
-    for j in range(15):
-        try:
-            pred = cau_functions[j](last_data_row_for_prediction)
-            finalRow.append(f"{','.join(pred)} (Dự đoán N1)")
-        except Exception:
-            finalRow.append("LỖI PREDICT")
-    finalRow.append("---")
-    
-    results.insert(2, finalRow) 
-    results.extend(data_rows) 
-    
-    return results
-
-# (V7.1) XÓA: TIM_CAU_TOT_NHAT_V16 (Đã chuyển sang bridge_manager_core.py)
-
-def BACKTEST_CUSTOM_CAU_V16(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra, custom_bridge_name, mode):
-    """ Backtest một cầu tùy chỉnh N1/K2N (V17 Shadow) """
-    # ... (giữ nguyên logic backtest cầu tùy chỉnh) ...
-    try:
-        parts = custom_bridge_name.split('+')
-        name1, name2 = parts[0].strip(), parts[1].strip()
-        
-        idx1, idx2 = get_index_from_name_V16(name1), get_index_from_name_V16(name2)
-        
-        if idx1 is None or idx2 is None:
-            return [["LỖI:", f"Không thể dịch tên cầu '{custom_bridge_name}'."]]
-
-        allData, finalEndRow, startCheckRow, offset, error = _validate_backtest_params(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra)
-        if error: return error
-
-        results = [ ["Kỳ (Cột A)", "Kết Quả"] ]
-        in_frame, prediction_in_frame = False, None
-        totalTestDays, win_count = 0, 0
-        
-        data_rows = [] 
-
-        for k in range(startCheckRow, finalEndRow + 1):
-            prevRow_idx, actualRow_idx = k - 1 - offset, k - offset
-            if actualRow_idx >= len(allData) or prevRow_idx < 0: continue
-            prevRow_data, actualRow = allData[prevRow_idx], allData[actualRow_idx]
-            if not actualRow or not actualRow[0] or str(actualRow[0]).strip() == "": break
-            if not prevRow_data or len(actualRow) < 10 or not actualRow[2] or not actualRow[9]:
-                data_rows.append([actualRow[0] or k, "Lỗi dữ liệu hàng"])
-                continue
+            # (SỬA LỖI 4%) Cung cấp 2 HÀNG (N-2 và N-1) cho Context
+            context_df = all_data_df.iloc[i-2:i]
             
-            actualSoKy, actualLotoSet = actualRow[0] or k, set(getAllLoto_V30(actualRow))
-            
-            prevPositions = getAllPositions_V17_Shadow(prevRow_data)
-            
-            a, b = prevPositions[idx1], prevPositions[idx2]
-            if a is None or b is None:
-                data_rows.append([actualSoKy, "Lỗi (vị trí rỗng)"])
-                continue
-            
-            totalTestDays += 1
-            pred = taoSTL_V30_Bong(a, b)
-            check_result = checkHitSet_V30_K2N(pred, actualLotoSet)
-            cell_output = ""
+            actual_lotos = getAllLoto_V30(current_row)
+            context = BridgeContext(historical_data=context_df)
+            all_bridge_results: List[BridgeResult] = bridge_manager.run_all_bridges(context)
 
-            if mode == 'N1':
-                cell_output = f"{','.join(pred)} {check_result}"
-                if "✅" in check_result: win_count += 1
-            elif mode == 'K2N':
-                if in_frame:
-                    check_result = checkHitSet_V30_K2N(prediction_in_frame, actualLotoSet)
-                    if "✅" in check_result:
-                        cell_output, win_count = f"{','.join(prediction_in_frame)} ✅ (Ăn N2)", win_count + 1
-                    else:
-                        cell_output = f"{','.join(prediction_in_frame)} ❌ (Trượt K2N)"
-                    in_frame, prediction_in_frame = False, None
-                else:
-                    if "✅" in check_result:
-                        cell_output, win_count = f"{','.join(pred)} ✅ (Ăn N1)", win_count + 1
-                    else:
-                        cell_output, in_frame, prediction_in_frame = f"{','.join(pred)} (Trượt N1...)", True, pred
-            data_rows.append([actualSoKy, cell_output])
-        
-        data_rows.reverse() 
-        results.extend(data_rows) 
+            managed_results = [r for r in all_bridge_results if r.bridge_id in managed_bridge_names]
 
-        if totalTestDays > 0:
-            rate = (win_count / totalTestDays) * 100
-            results.insert(1, ["Tỷ Lệ %", f"{rate:.2f}% ({win_count}/{totalTestDays})"])
-        
-        if mode == 'K2N':
-            finalRowK = f"Kỳ {int(allData[finalEndRow - offset][0]) + 1}" if allData[finalEndRow - offset][0].isdigit() else f"Kỳ {finalEndRow + 1}"
-            final_cell = "---"
-            if in_frame: final_cell = f"{','.join(prediction_in_frame)} (Đang chờ N2)"
-            results.insert(2, [finalRowK, final_cell]) 
-        
-        return results
-    except Exception as e:
-        print(f"Lỗi BACKTEST_CUSTOM_CAU_V16: {e}")
-        return [["LỖI:", str(e)]]
-
-# (V7.1) XÓA: BACKTEST_MANAGED_BRIDGES_N1 (Đã giữ lại hàm dưới)
-# (V7.1) XÓA: BACKTEST_MANAGED_BRIDGES_K2N (Đã giữ lại hàm dưới)
-
-def BACKTEST_MANAGED_BRIDGES_N1(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra, db_name=DB_NAME):
-    """ Backtest N1 cho Cầu Đã Lưu (V17 Shadow) """
-    try:
-        # (V7.1) Dùng get_all_managed_bridges từ Repository
-        bridges_to_test = get_all_managed_bridges(db_name, only_enabled=True)
-    except Exception as e:
-        return [["LỖI:", f"Không thể tải danh sách cầu: {e}"]]
-    if not bridges_to_test:
-        return [["LỖI:", "Không có cầu nào được Bật trong 'Quản lý Cầu'."]]
-
-    allData, finalEndRow, startCheckRow, offset, error = _validate_backtest_params(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra)
-    if error: return error
-
-    headers = ["Kỳ (Cột A)"]
-    for bridge in bridges_to_test:
-        headers.append(f"{bridge['name']}")
-    results = [headers]
-    
-    data_rows = [] 
-    
-    for k in range(startCheckRow, finalEndRow + 1):
-        prevRow_idx, actualRow_idx = k - 1 - offset, k - offset
-        if actualRow_idx >= len(allData) or prevRow_idx < 0: continue
-        prevRow, actualRow = allData[prevRow_idx], allData[actualRow_idx]
-        if not actualRow or not actualRow[0] or str(actualRow[0]).strip() == "": break
-        if not prevRow or len(actualRow) < 10 or not actualRow[2] or not actualRow[9]:
-            data_rows.append([actualRow[0] or k, "Lỗi dữ liệu hàng"])
-            continue
-        
-        actualSoKy, actualLotoSet = actualRow[0] or k, set(getAllLoto_V30(actualRow))
-        
-        prevPositions = getAllPositions_V17_Shadow(prevRow)
-        daily_results_row = [actualSoKy]
-        
-        for bridge in bridges_to_test:
-            try:
-                idx1, idx2 = bridge["pos1_idx"], bridge["pos2_idx"]
-                a, b = prevPositions[idx1], prevPositions[idx2]
-                if a is None or b is None:
-                    daily_results_row.append("Lỗi Vị Trí")
-                    continue
-                pred = taoSTL_V30_Bong(a, b)
-                check_result = checkHitSet_V30_K2N(pred, actualLotoSet)
-                daily_results_row.append(f"{','.join(pred)} {check_result}")
-            except Exception as e:
-                daily_results_row.append(f"Lỗi: {e}")
-        data_rows.append(daily_results_row)
-            
-    data_rows.reverse() 
-    
-    totalTestDays = len(data_rows)
-    num_bridges = len(bridges_to_test)
-    if totalTestDays > 0:
-        win_counts = [0] * num_bridges
-        for row in data_rows:
-            for j in range(num_bridges):
-                if "✅" in str(row[j+1]): win_counts[j] += 1
-        rate_row = ["Tỷ Lệ %"]
-        for count in win_counts:
-            rate = (count / totalTestDays) * 100
-            rate_row.append(f"{rate:.2f}%")
-        results.insert(1, rate_row)
-            
-    try:
-        last_data_row = allData[finalEndRow - offset]
-        finalRowK = f"Kỳ {int(last_data_row[0]) + 1}" if last_data_row[0].isdigit() else f"Kỳ {finalEndRow + 1}"
-        finalRow = [finalRowK]
-        
-        last_positions = getAllPositions_V17_Shadow(last_data_row)
-        
-        for bridge in bridges_to_test:
-            idx1, idx2 = bridge["pos1_idx"], bridge["pos2_idx"]
-            a, b = last_positions[idx1], last_positions[idx2]
-            if a is None or b is None:
-                finalRow.append("Lỗi Vị Trí")
-                continue
-            pred = taoSTL_V30_Bong(a, b)
-            finalRow.append(f"{','.join(pred)} (Dự đoán N1)")
-        
-        results.insert(2, finalRow) 
-        results.extend(data_rows) 
-        
-    except Exception as e:
-        print(f"Lỗi dự đoán Cầu Đã Lưu: {e}")
-        results.append(["LỖI DỰ ĐOÁN"])
-
-    return results
-
-def BACKTEST_MANAGED_BRIDGES_K2N(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra, db_name=DB_NAME, history=True):
-    """ Backtest K2N cho Cầu Đã Lưu (V17 Shadow) """
-    try:
-        # (V7.1) Dùng get_all_managed_bridges từ Repository
-        bridges_to_test = get_all_managed_bridges(db_name, only_enabled=True)
-    except Exception as e:
-        return [["LỖI:", f"Không thể tải danh sách cầu: {e}"]]
-    if not bridges_to_test:
-        return [["LỖI:", "Không có cầu nào được Bật trong 'Quản lý Cầu'."]]
-
-    allData, finalEndRow, startCheckRow, offset, error = _validate_backtest_params(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra)
-    if error: return error
-
-    num_bridges = len(bridges_to_test)
-    headers = ["Kỳ (Cột A)"]
-    for bridge in bridges_to_test:
-        headers.append(f"{bridge['name']}")
-        
-    results = [headers] 
-    
-    in_frame = [False] * num_bridges
-    prediction_in_frame = [None] * num_bridges
-    current_streak_k2n = [0] * num_bridges 
-    
-    current_lose_streak_k2n = [0] * num_bridges
-    max_lose_streak_k2n = [0] * num_bridges
-    
-    data_rows = []
-    totalTestDays = 0
-    win_counts = [0] * num_bridges
-    
-    for k in range(startCheckRow, finalEndRow + 1):
-        prevRow_idx, actualRow_idx = k - 1 - offset, k - offset
-        if actualRow_idx >= len(allData) or prevRow_idx < 0: continue
-        prevRow, actualRow = allData[prevRow_idx], allData[actualRow_idx]
-        if not actualRow or not actualRow[0] or str(actualRow[0]).strip() == "": break
-        
-        if not prevRow or len(actualRow) < 10 or not actualRow[2] or not actualRow[9]:
-            if history:
-                data_rows.append([actualRow[0] or k, "Lỗi dữ liệu hàng"])
-            continue
-        
-        actualSoKy, actualLotoSet = actualRow[0] or k, set(getAllLoto_V30(actualRow))
-        prevPositions = getAllPositions_V17_Shadow(prevRow)
-        totalTestDays += 1
-        
-        daily_results_row = [actualSoKy]
-        
-        for j, bridge in enumerate(bridges_to_test):
-            try:
-                cell_output = "" 
-                if in_frame[j]:
-                    pred = prediction_in_frame[j]
-                    check_result = checkHitSet_V30_K2N(pred, actualLotoSet)
-                    if "✅" in check_result:
-                        if history: cell_output = f"{','.join(pred)} ✅ (Ăn N2)"
-                        win_counts[j] += 1
-                        current_streak_k2n[j] += 1
-                        current_lose_streak_k2n[j] = 0 
-                    else:
-                        if history: cell_output = f"{','.join(pred)} ❌ (Trượt K2N)"
-                        current_streak_k2n[j] = 0
-                        current_lose_streak_k2n[j] += 1
-                        if current_lose_streak_k2n[j] > max_lose_streak_k2n[j]:
-                            max_lose_streak_k2n[j] = current_lose_streak_k2n[j]
-                            
-                    in_frame[j], prediction_in_frame[j] = False, None
-                else:
-                    idx1, idx2 = bridge["pos1_idx"], bridge["pos2_idx"]
-                    a, b = prevPositions[idx1], prevPositions[idx2]
-                    if a is None or b is None:
-                        if history: daily_results_row.append("Lỗi Vị Trí")
-                        continue
-                    
-                    pred = taoSTL_V30_Bong(a, b)
-                    check_result = checkHitSet_V30_K2N(pred, actualLotoSet)
-                    
-                    if "✅" in check_result:
-                        if history: cell_output = f"{','.join(pred)} ✅ (Ăn N1)"
-                        win_counts[j] += 1
-                        current_streak_k2n[j] += 1
-                        current_lose_streak_k2n[j] = 0 
-                    else:
-                        if history: cell_output = f"{','.join(pred)} (Trượt N1...)"
-                        in_frame[j], prediction_in_frame[j] = True, pred
+            for result in managed_results:
+                bridge_id = result.bridge_id
                 
-                if history:
-                    daily_results_row.append(cell_output)
-                    
-            except Exception as e:
-                if history:
-                    daily_results_row.append(f"Lỗi: {e}")
-                    
-        if history:
-            data_rows.append(daily_results_row)
-            
-    if history:
-        data_rows.reverse()
+                is_hit_k2n = False
+                for pred_loto in result.predictions:
+                    if pred_loto in actual_lotos:
+                        is_hit_k2n = True
+                        break
+                
+                if is_hit_k2n:
+                    k2n_trackers[bridge_id]['current_streak'] = 0 
+                else:
+                    k2n_trackers[bridge_id]['current_streak'] += 1 
+                    if k2n_trackers[bridge_id]['current_streak'] > k2n_trackers[bridge_id]['max_lose_streak_k2n']:
+                        k2n_trackers[bridge_id]['max_lose_streak_k2n'] = k2n_trackers[bridge_id]['current_streak']
+
+    # 4. Lấy dự đoán cho ngày tiếp theo (dựa trên 2 hàng cuối cùng)
+    # (SỬA LỖI 4%) Cung cấp 2 HÀNG cuối
+    context_df_today = all_data_df.iloc[max(0, len(all_data_df)-2):]
+    context_today = BridgeContext(historical_data=context_df_today)
+    results_today: List[BridgeResult] = bridge_manager.run_all_bridges(context_today)
+    # ===================================================================
     
-    if totalTestDays > 0:
-        rate_row = ["Tỷ Lệ %"]
-        for count in win_counts:
-            rate = (count / totalTestDays) * 100
-            rate_row.append(f"{rate:.2f}%")
-        results.insert(1, rate_row)
-        
-        streak_row = ["Chuỗi Thắng / Thua Max"]
-        for i in range(num_bridges):
-            streak_row.append(f"{current_streak_k2n[i]} thắng / {max_lose_streak_k2n[i]} thua")
-        results.insert(2, streak_row) 
-            
-    try:
-        last_data_row = allData[finalEndRow - offset]
-        finalRowK = f"Kỳ {int(last_data_row[0]) + 1}" if last_data_row[0].isdigit() else f"Kỳ {finalEndRow + 1}"
-        finalRow = [finalRowK]
-        
-        last_positions = getAllPositions_V17_Shadow(last_data_row)
-        
-        for j, bridge in enumerate(bridges_to_test):
-            if in_frame[j]:
-                finalRow.append(f"{','.join(prediction_in_frame[j])} (Đang chờ N2)")
+    managed_results_today = [r for r in results_today if r.bridge_id in managed_bridge_names]
+    
+    for result in managed_results_today:
+        bridge_id = result.bridge_id
+        if bridge_id in k2n_trackers:
+            if result.predictions:
+                k2n_trackers[bridge_id]['next_prediction_stl'] = ",".join(sorted(result.predictions))
             else:
-                idx1, idx2 = bridge["pos1_idx"], bridge["pos2_idx"]
-                a, b = last_positions[idx1], last_positions[idx2]
-                if a is None or b is None:
-                    finalRow.append("Lỗi Vị Trí")
-                    continue
-                pred = taoSTL_V30_Bong(a, b)
-                finalRow.append(f"{','.join(pred)} (Khung mới N1)")
-        
-        results.insert(3, finalRow) 
-        
-        if history:
-            results.extend(data_rows)
-        
-    except Exception as e:
-        print(f"Lỗi dự đoán Cầu Đã Lưu K2N: {e}")
-        results.append(["LỖI DỰ ĐOÁN"])
+                k2n_trackers[bridge_id]['next_prediction_stl'] = None
 
-    return results
+    # 5. Cập nhật Tỷ lệ thắng (Lấy từ Backtest N1)
+    for bridge in managed_bridges:
+        if bridge['name'] in k2n_trackers:
+            k2n_trackers[bridge['name']]['win_rate_text'] = bridge.get('win_rate_text', '0.00%')
 
-
-def BACKTEST_MEMORY_BRIDGES(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra):
-    """ Backtest cho 756 Cầu Bạc Nhớ (N1) """
-    print("Bắt đầu Backtest 756 Cầu Bạc Nhớ...")
-    
-    allData, finalEndRow, startCheckRow, offset, error = _validate_backtest_params(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra)
-    if error: return error
-
-    loto_names = get_27_loto_names()
-    num_positions = len(loto_names) # = 27
-    
-    algorithms = [] 
-    headers = ["Kỳ (Cột A)"]
-    
-    for i in range(num_positions):
-        for j in range(i, num_positions):
-            name_sum = f"Tổng({loto_names[i]} + {loto_names[j]})"
-            headers.append(name_sum)
-            algorithms.append((i, j, 'sum', name_sum))
-            
-            name_diff = f"Hiệu(|{loto_names[i]} - {loto_names[j]}|)"
-            headers.append(name_diff)
-            algorithms.append((i, j, 'diff', name_diff))
-
-    num_algorithms = len(algorithms) # = 756
-    results = [headers]
-    
-    print(f"Đã tạo {num_algorithms} thuật toán Bạc Nhớ. Bắt đầu tiền xử lý...")
-
-    processedData = []
-    for k in range(startCheckRow, finalEndRow + 1):
-        prevRow_idx, actualRow_idx = k - 1 - offset, k - offset
-        if actualRow_idx >= len(allData) or prevRow_idx < 0: continue
-        prevRow, actualRow = allData[prevRow_idx], allData[actualRow_idx]
-        if not prevRow or not actualRow or not actualRow[0] or str(actualRow[0]).strip() == "" or len(actualRow) < 10 or not actualRow[9]:
-            processedData.append({"soKy": actualRow[0] or k, "error": True})
-            continue
-        
-        processedData.append({
-          "soKy": actualRow[0] or k,
-          "error": False,
-          "prevLotos": get_27_loto_positions(prevRow),
-          "actualLotoSet": set(getAllLoto_V30(actualRow))
-        })
-    
-    print(f"Tiền xử lý hoàn tất. Bắt đầu backtest {len(processedData)} ngày...")
-    
-    data_rows = []
-    win_counts = [0] * num_algorithms
-    totalTestDays = 0
-
-    for dayData in processedData:
-        if dayData["error"]:
-            data_rows.append([dayData["soKy"], "Lỗi dữ liệu hàng"])
-            continue
-            
-        actualSoKy = dayData["soKy"]
-        actualLotoSet = dayData["actualLotoSet"]
-        prevLotos = dayData["prevLotos"]
-        daily_results_row = [actualSoKy]
-        totalTestDays += 1
-        
-        for j in range(num_algorithms):
-            alg = algorithms[j]
-            idx1, idx2, alg_type = alg[0], alg[1], alg[2]
-            
-            loto1, loto2 = prevLotos[idx1], prevLotos[idx2]
-            pred_stl = calculate_bridge_stl(loto1, loto2, alg_type)
-            check_result = checkHitSet_V30_K2N(pred_stl, actualLotoSet)
-            
-            cell_output = f"{','.join(pred_stl)} {check_result}"
-            if "✅" in check_result:
-                win_counts[j] += 1
-                
-            daily_results_row.append(cell_output)
-            
-        data_rows.append(daily_results_row)
-
-    data_rows.reverse() 
-    
-    if totalTestDays > 0:
-        rate_row = ["Tỷ Lệ %"]
-        for count in win_counts:
-            rate = (count / totalTestDays) * 100
-            rate_row.append(f"{rate:.2f}%")
-        results.insert(1, rate_row)
-            
-    try:
-        last_data_row = allData[finalEndRow - offset]
-        finalRowK = f"Kỳ {int(last_data_row[0]) + 1}" if last_data_row[0].isdigit() else f"Kỳ {finalEndRow + 1}"
-        finalRow = [finalRowK]
-        last_lotos = get_27_loto_positions(last_data_row)
-        
-        for j in range(num_algorithms):
-            alg = algorithms[j]
-            idx1, idx2, alg_type = alg[0], alg[1], alg[2]
-            loto1, loto2 = last_lotos[idx1], last_lotos[idx2]
-            pred_stl = calculate_bridge_stl(loto1, loto2, alg_type)
-            finalRow.append(f"{','.join(pred_stl)} (Dự đoán N1)")
-        
-        results.insert(2, finalRow) 
-        results.extend(data_rows) 
-        
-    except Exception as e:
-        print(f"Lỗi dự đoán Cầu Bạc Nhớ: {e}")
-        results.append(["LỖI DỰ ĐOÁN"])
-
-    print("Hoàn tất Backtest Cầu Bạc Nhớ.")
-    return results
+    return k2n_trackers, f"Backtest K2N (GĐ 4) hoàn tất: {len(k2n_trackers)} cầu được xử lý."
 
 # ===================================================================================
-# IV. HÀM CẬP NHẬT CACHE/TỶ LỆ (V7.1)
+# WRAPPER: CẬP NHẬT TỶ LỆ THẮNG HÀNG LOẠT (N1)
 # ===================================================================================
 
-def run_and_update_all_bridge_rates(all_data_ai, db_name=DB_NAME):
-    """ Cập nhật Tỷ lệ (Win Rate) cho Cầu Đã Lưu """
-    try:
-        if not all_data_ai:
-            return 0, "Không có dữ liệu A:I để chạy backtest."
-            
-        ky_bat_dau = 2
-        ky_ket_thuc = len(all_data_ai) + (ky_bat_dau - 1)
+def run_and_update_all_bridge_rates(all_data_ai: List[List[Any]], 
+                                    managed_bridges: List[Dict[str, Any]], 
+                                    write_to_db: bool = True, 
+                                    db_name: str = DB_NAME) -> Tuple[Dict[str, float], str]:
+    """
+    (V7.1 - GĐ 4) Wrapper Backtest N1. Gọi TONGHOP (đã refactor) và DataService.
+    """
+    if not all_data_ai:
+        return {}, "Không có dữ liệu lịch sử để backtest."
+    
+    print("... Bắt đầu Backtest N1 (GĐ 4) cho tất cả các cầu...")
+    
+    # 1. Backtest N1 (Sử dụng hàm TONGHOP đã refactor GĐ 4)
+    # (SỬA LỖI 4%) Hàm này giờ sẽ chạy đúng
+    total_results_dict, message = TONGHOP_TOP_CAU_RATE_V5(
+        all_data_ai=all_data_ai,
+        managed_bridges=managed_bridges
+    )
+    
+    # 2. Xử lý kết quả và tạo list cập nhật
+    rate_data_list: List[Tuple[str, str]] = []
+    
+    # (SỬA LỖI HIỂN THỊ N1) Lọc kết quả để CHỈ CẬP NHẬT các cầu managed
+    final_filtered_dict = {}
+    
+    for bridge in managed_bridges:
+        bridge_name = bridge['name']
+        if bridge_name in total_results_dict:
+            # Lấy data của cầu managed
+            bridge_data = total_results_dict[bridge_name]
+            # Thêm vào list để cập nhật DB
+            rate_data_list.append((bridge_data['win_rate_text'], bridge_name))
+            # Thêm vào dict để trả về cho UI
+            final_filtered_dict[bridge_name] = bridge_data
+        else:
+            # (Xử lý) Cầu managed nhưng không có kết quả (ví dụ: cầu mới)
+            final_filtered_dict[bridge_name] = {
+                'win_rate_text': '0.00%',
+                'total_wins': 0,
+                'total_days': 0
+            }
+
+
+    # 3. Cập nhật CSDL (Nếu được phép)
+    if not rate_data_list:
+        return final_filtered_dict, "Không có dữ liệu tỷ lệ thắng (Managed) để cập nhật DB."
         
-        # 1. Chạy backtest N1 (đã là V17)
-        results_n1 = BACKTEST_MANAGED_BRIDGES_N1(all_data_ai, ky_bat_dau, ky_ket_thuc, db_name)
-        
-        if not results_n1 or len(results_n1) < 2 or "LỖI" in str(results_n1[0][0]):
-            if not results_n1:
-                return 0, "Backtest N1 không trả về kết quả."
-            if "Không có cầu nào" in str(results_n1[0][1]):
-                return 0, "Không có cầu nào được Bật để cập nhật."
-            return 0, f"Lỗi khi chạy Backtest N1: {results_n1[0]}"
-            
-        headers = results_n1[0] 
-        rates = results_n1[1]   
-        
-        rate_data_list = []
-        num_bridges = len(headers) - 1 
-        
-        if num_bridges == 0:
-            return 0, "Không có cầu nào trong kết quả backtest."
-            
-        for i in range(1, num_bridges + 1):
-            bridge_name = str(headers[i])
-            win_rate_text = str(rates[i])
-            rate_data_list.append((win_rate_text, bridge_name))
-            
-        if not rate_data_list:
-            return 0, "Không trích xuất được dữ liệu tỷ lệ."
-            
-        # 2. Cập nhật DB
-        success, message = update_bridge_win_rate_batch(rate_data_list, db_name)
+    if write_to_db:
+        print(f"... (GĐ 1) Đang cập nhật {len(rate_data_list)} bản ghi (Managed) vào CSDL qua DataService...")
+        success, message_db = update_bridge_win_rate_batch(rate_data_list)
         
         if success:
-            return len(rate_data_list), message
+            return final_filtered_dict, message_db
         else:
-            return 0, message
+            return {}, message_db
+    else:
+        # (SỬA LỖI HIỂN THỊ N1) Trả về dict đã lọc
+        return final_filtered_dict, f"Mô phỏng Backtest N1 hoàn tất ({len(final_filtered_dict)} cầu)."
 
-    except Exception as e:
-        return 0, f"Lỗi nghiêm trọng trong run_and_update_all_bridge_rates: {e}"
+# ===================================================================================
+# WRAPPER: CẬP NHẬT CACHE K2N HÀNG LOẠT
+# ===================================================================================
 
-def run_and_update_all_bridge_K2N_cache(all_data_ai, db_name=DB_NAME, data_slice=None, write_to_db=True):
-    """ Cập nhật Cache K2N cho Cầu Cổ Điển và Cầu Đã Lưu """
+def run_and_update_all_bridge_K2N_cache(all_data_ai: List[List[Any]], 
+                                        managed_bridges: List[Dict[str, Any]], 
+                                        write_to_db: bool = True, 
+                                        db_name: str = DB_NAME) -> Tuple[Dict[str, Any], str]:
+    """
+    (V7.1 - GĐ 4) Wrapper Backtest K2N. Gọi BACKTEST (đã refactor) và DataService.
+    """
+    if not all_data_ai:
+        return {}, "Không có dữ liệu lịch sử để backtest K2N."
+    
+    print("... Bắt đầu Backtest K2N (GĐ 4) cho Cầu Đã Lưu (ManagedBridges)...")
+    
     try:
-        data_to_use = data_slice if data_slice else all_data_ai
+        # 1. Backtest K2N (Sử dụng hàm đã refactor GĐ 4)
+        # (SỬA LỖI 4%) Hàm này giờ sẽ chạy đúng
+        full_pending_k2n_dict, message = BACKTEST_MANAGED_BRIDGES_K2N(
+            all_data_ai=all_data_ai,
+            managed_bridges=managed_bridges,
+            history=True # Yêu cầu tính toán lại toàn bộ streak
+        )
         
-        if not data_to_use:
-            return {}, "Không có dữ liệu A:I để chạy backtest K2N cache."
+        # 2. Xử lý kết quả và tạo list cập nhật
+        full_cache_data_list: List[Tuple[Any, ...]] = []
+        
+        for bridge_name, data in full_pending_k2n_dict.items():
+            managed_bridge_data = next((b for b in managed_bridges if b['name'] == bridge_name), None)
+            win_rate_text = managed_bridge_data.get('win_rate_text', '0.00%') if managed_bridge_data else '0.00%'
+
+            cache_tuple = (
+                win_rate_text,
+                data.get('current_streak', 0),
+                data.get('next_prediction_stl', None),
+                data.get('max_lose_streak_k2n', 0), 
+                bridge_name
+            )
+            full_cache_data_list.append(cache_tuple)
             
-        ky_bat_dau = 2
-        ky_ket_thuc = len(data_to_use) + (ky_bat_dau - 1)
-        
-        full_cache_data_list = []
-        full_pending_k2n_dict = {}
-        
-        # --- 1. Chạy 15 Cầu Cổ Điển K2N ---
-        if write_to_db: 
-            print("... (Cache K2N) Đang chạy 15 Cầu Cổ Điển K2N (tối ưu)...")
-        results_15_cau = BACKTEST_15_CAU_K2N_V30_AI_V8(data_to_use, ky_bat_dau, ky_ket_thuc, history=False)
-        
-        cache_list_15, pending_dict_15 = _parse_k2n_results(results_15_cau)
-        full_cache_data_list.extend(cache_list_15)
-        full_pending_k2n_dict.update(pending_dict_15)
-        if write_to_db:
-            print(f"... (Cache K2N) Đã phân tích {len(cache_list_15)} cầu CĐ.")
-
-        # --- 2. Chạy Cầu Đã Lưu K2N ---
-        if write_to_db:
-            print("... (Cache K2N) Đang chạy Cầu Đã Lưu K2N (tối ưu)...")
-        results_managed = BACKTEST_MANAGED_BRIDGES_K2N(data_to_use, ky_bat_dau, ky_ket_thuc, db_name, history=False)
-        
-        if results_managed and "LỖI" not in str(results_managed[0][0]):
-            cache_list_managed, pending_dict_managed = _parse_k2n_results(results_managed)
-            full_cache_data_list.extend(cache_list_managed)
-            full_pending_k2n_dict.update(pending_dict_managed)
-            if write_to_db:
-                print(f"... (Cache K2N) Đã phân tích {len(cache_list_managed)} cầu đã lưu.")
-        else:
-            if write_to_db:
-                print("... (Cache K2N) Bỏ qua Cầu Đã Lưu (không có cầu nào hoặc bị lỗi).")
-
-        # --- 3. Cập nhật CSDL (Nếu được phép) ---
         if not full_cache_data_list:
+            print("... (Cache K2N) Bỏ qua Cầu Đã Lưu (không có cầu nào hoặc bị lỗi).")
             return {}, "Không có dữ liệu cache K2N nào để cập nhật."
-        
+
+        # 3. Cập nhật CSDL (Nếu được phép)
         if write_to_db:
-            print(f"... (Cache K2N) Đang cập nhật {len(full_cache_data_list)} bản ghi cache vào CSDL...")
-            success, message = update_bridge_k2n_cache_batch(full_cache_data_list, db_name)
+            print(f"... (GĐ 1) Đang cập nhật {len(full_cache_data_list)} bản ghi cache K2N vào CSDL qua DataService...")
+            success, message_db = update_bridge_k2n_cache_batch(full_cache_data_list)
             
             if success:
-                return full_pending_k2n_dict, message 
+                return full_pending_k2n_dict, message_db
             else:
-                return {}, message
+                return {}, message_db
         else:
             return full_pending_k2n_dict, f"Mô phỏng Cache K2N hoàn tất ({len(full_cache_data_list)} cầu)."
 
@@ -1008,13 +376,36 @@ def run_and_update_all_bridge_K2N_cache(all_data_ai, db_name=DB_NAME, data_slice
         print(traceback.format_exc())
         return {}, f"Lỗi nghiêm trọng trong run_and_update_all_bridge_K2N_cache: {e}"
 
-# (V7.1) XÓA: find_and_auto_manage_bridges (Đã chuyển sang bridge_manager_core.py)
-# (V7.1) XÓA: prune_bad_bridges (Đã chuyển sang bridge_manager_core.py)
+# ===================================================================================
+# CÁC HÀM BACKTEST CŨ (ĐÃ LỖI THỜI - GIỮ LẠI LÀM STUB)
+# ===================================================================================
 
-# (V7.1) XÓA: Các hàm analytics (get_loto_stats_last_n_days, get_prediction_consensus, get_high_win_rate_predictions, get_top_scored_pairs, get_loto_gan_stats)
-# (V7.1) ĐÃ CHUYỂN SANG dashboard_analytics.py
+def BACKTEST_15_CAU_K2N_V30_AI_V8(*args, **kwargs):
+    """(GĐ 4) LỖI THỜI. Logic đã chuyển sang BridgeManager."""
+    print("CẢNH BÁO: Hàm BACKTEST_15_CAU_K2N_V30_AI_V8 đã lỗi thời (V7.0).")
+    return {}
 
-# (V7.1) XÓA: TIM_CAU_BAC_NHO_TOT_NHAT (Đã chuyển sang bridge_manager_core.py)
-# (V7.1) XÓA: get_top_memory_bridge_predictions (Đã chuyển sang dashboard_analytics.py)
+def BACKTEST_15_CAU_N1_V31_AI_V8(*args, **kwargs):
+    """(GĐ 4) LỖI THỜI. Logic đã chuyển sang BridgeManager."""
+    print("CẢNH BÁO: Hàm BACKTEST_15_CAU_N1_V31_AI_V8 đã lỗi thời (V7.0).")
+    return {}
 
-# (V7.1) XÓA: get_historical
+def BACKTEST_CUSTOM_CAU_V16(*args, **kwargs):
+    """(GĐ 4) LỖI THỜI. Logic đã chuyển sang BridgeManager."""
+    print("CẢNH BÁO: Hàm BACKTEST_CUSTOM_CAU_V16 đã lỗi thời (V7.0).")
+    return {}
+
+def BACKTEST_MANAGED_BRIDGES_N1(*args, **kwargs):
+    """(GĐ 4) LỖI THỜI. Logic đã chuyển sang BridgeManager."""
+    print("CẢNH BÁO: Hàm BACKTEST_MANAGED_BRIDGES_N1 đã lỗi thời (V7.0).")
+    return {}
+
+def BACKTEST_MEMORY_BRIDGES(*args, **kwargs):
+    """(GĐ 4) LỖI THỜI. Logic đã chuyển sang BridgeManager."""
+    print("CẢNH BÁO: Hàm BACKTEST_MEMORY_BRIDGES đã lỗi thời (V7.0).")
+    return {}
+
+def TONGHOP_TOP_CAU_N1_V5(*args, **kwargs):
+    """(GĐ 4) LỖI THỜI. Logic đã chuyển sang TONGHOP_TOP_CAU_RATE_V5 (V7.0)."""
+    print("CẢNH BÁO: Hàm TONGHOP_TOP_CAU_N1_V5 đã lỗi thời (V7.0).")
+    return {}

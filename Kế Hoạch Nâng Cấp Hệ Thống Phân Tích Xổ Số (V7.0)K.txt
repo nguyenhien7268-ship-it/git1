@@ -1,1 +1,33 @@
-Quá trình tái cấu trúc MVC đã thành công đưa hệ thống lên phiên bản ổn định và dễ bảo trì (V7.2). Sau khi khắc phục lỗi Tối ưu hóa, ưu tiên tiếp theo nên tập trung vào việc nâng cấp hiệu năng thực tế của các tác vụ tính toán nặng và độ tin cậy lâu dài của mô hình AI.Dưới đây là đề xuất ưu tiên nâng cấp tiếp theo, được chia thành 2 giai đoạn:🥇 ƯU TIÊN SỐ 1: TỐI ƯU HIỆU NĂNG CPU THỰC TẾ (Multi-Processing)Hiện tại, hệ thống sử dụng Multi-Threading cho các tác vụ nặng (như Huấn luyện AI và Backtest hàng loạt). Tuy nhiên, do Python có GIL (Global Interpreter Lock), Multi-Threading không thể tận dụng nhiều lõi CPU cùng lúc cho các tác vụ tính toán nặng (CPU-bound).Nâng cấp quan trọng nhất là chuyển từ Multi-Threading sang Multi-Processing.Mục tiêu nâng cấpThay đổi cần thiếtLợi íchTối ưu hóa CPUChuyển đổi việc Huấn luyện AI, Backtest Cầu Bạc Nhớ và Tối ưu hóa Chiến lược từ threading sang module multiprocessing (hoặc concurrent.futures.ProcessPoolExecutor).⚡ Tăng tốc độ Huấn luyện AI và chạy Tối ưu hóa/Backtest lên gấp N lần (N là số lõi CPU của máy). Các tác vụ nặng sẽ hoàn thành nhanh hơn đáng kể.Cập nhật ModelCần cập nhật lottery_service.py và các hàm task_run_... trong app_controller.py để xử lý các tiến trình (Process) thay vì luồng (Thread).Tác vụ vẫn chạy ngầm và không làm đóng băng giao diện, nhưng đạt hiệu suất tính toán tối đa.🥈 ƯU TIÊN SỐ 2: ĐẢM BẢO ĐỘ TIN CẬY CỦA HỆ THỐNG AI (MLOps Cơ bản)Mặc dù Mô hình AI (XGBoost) đã được tích hợp, nó vẫn được quản lý thủ công (lưu file .joblib). Điều này tạo ra rủi ro về độ chính xác của mô hình theo thời gian (Model Drift).Mục tiêu nâng cấpThay đổi cần thiếtLợi íchGiám sát Độ chính xácThêm một tác vụ định kỳ (ví dụ: trong Dashboard) để chạy mô hình AI trên một bộ dữ liệu kiểm tra cố định và ghi lại điểm số (score).Sớm phát hiện Model Drift (khi độ chính xác giảm), cho tín hiệu cần Huấn luyện lại.Tái Huấn luyện Tự độngTích hợp hàm kiểm tra độ chính xác vào quá trình nạp dữ liệu mới. Nếu dữ liệu mới làm giảm đáng kể độ chính xác của mô hình hiện tại, hệ thống sẽ tự động đề xuất hoặc thực hiện tái huấn luyện mô hình.Đảm bảo Mô hình AI luôn được cập nhật và duy trì hiệu suất dự đoán cao nhất.GỢI Ý DÀI HẠN (Nếu Tài nguyên Cho Phép)Nâng cấp UI (UX): Sau khi MVC đã hoàn thiện, việc chuyển đổi từ Tkinter sang một framework hiện đại hơn như PyQt/PySide sẽ là dễ dàng nhất. Điều này sẽ cải thiện đáng kể giao diện người dùng, thêm các biểu đồ tương tác cao cấp, và nâng cao trải nghiệm tổng thể.
+Kế Hoạch Nâng Cấp Hệ Thống Phân Tích Xổ Số (V7.0) mà bạn đã cung cấp.
+
+Tôi đã nắm được mục tiêu cốt lõi là tái cấu trúc toàn bộ hệ thống theo kiến trúc "plug-in", giúp việc bảo trì, gỡ lỗi và đặc biệt là mở rộng (thêm cầu mới) trở nên dễ dàng và tự động hơn.
+
+Kế hoạch được chia làm 5 giai đoạn rất rõ ràng:
+
+Giai đoạn 1: Chuẩn hóa Giao diện Dữ liệu
+
+Tạo ra một DataService duy nhất (logic/data_service.py) để quản lý mọi truy cập dữ liệu, thay thế việc gọi DBManager trực tiếp từ nhiều nơi.
+
+Mục tiêu là giải quyết triệt để vấn đề "không có dữ liệu" và chuẩn hóa nguồn dữ liệu đầu vào.
+
+Giai đoạn 2: Định nghĩa "Hợp đồng Cầu" (Bridge Interface)
+
+Tạo một Lớp Trừu tượng (BaseBridge) trong logic/bridges/base_bridge.py.
+
+Tất cả các file cầu hiện tại (bridges_classic.py, bridges_v16.py...) sẽ phải kế thừa từ BaseBridge và tuân thủ các phương thức chung như calculate_predictions(data).
+
+Giai đoạn 3: Xây dựng Bộ Quản lý Cầu (Bridge Manager)
+
+Nâng cấp bridge_manager_core.py để nó có khả năng tự động "quét" và "phát hiện" tất cả các cầu (plug-in) tuân thủ BaseBridge trong thư mục logic/bridges/.
+
+Cung cấp các hàm điều hành như run_all_bridges(data).
+
+Giai đoạn 4: Tái cấu trúc Backtester
+
+Viết lại logic/backtester.py để nó hoàn toàn độc lập với logic của từng cầu.
+
+Backtester sẽ chỉ nói chuyện với DataService (để lấy lịch sử) và BridgeManager (để chạy dự đoán).
+
+Giai đoạn 5: Mở rộng "Tìm Cầu Mới Thông Minh"
+
+Sử dụng dữ liệu hiệu suất (performance data) từ Backtester làm đầu vào cho các mô-đun phân tích (meta-analysis) hoặc mô hình ML, biến các cầu cơ bản thành "features" cho một "siêu cầu" thông minh.

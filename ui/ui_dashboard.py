@@ -324,23 +324,52 @@ class DashboardWindow(ttk.Frame):
         for loto, days in gan_stats:
             self.gan_tree.insert('', tk.END, values=(loto, f"{days} ngày"))
 
-    def _populate_pending_k2n(self, pending_k2n, risk_threshold): # SỬA: Nhận risk_threshold
+    def _populate_pending_k2n(self, pending_k2n, risk_threshold):
+        """
+        (FIX LỖI KeyError) Sửa lại các key truy cập dữ liệu để khớp với CSDL
+        (ví dụ: 'stl' -> 'next_prediction_stl')
+        """
         if not pending_k2n:
             self.k2n_tree.insert('', tk.END, values=("(N/A)", "", "", "Không có cầu K2N nào chờ"))
             return
+        
         try:
-            # Sắp xếp vẫn là logic hiển thị (View)
-            sorted_k2n = sorted(pending_k2n.items(), key=lambda item: (int(str(item[1]['streak']).split(' ')[0]), -int(item[1].get('max_lose', 99))), reverse=True)
-        except Exception:
+            # (FIX) Sửa key 'streak' -> 'current_streak' và 'max_lose' -> 'max_lose_streak_k2n'
+            sorted_k2n = sorted(
+                pending_k2n.items(), 
+                key=lambda item: (
+                    int(str(item[1].get('current_streak', 0)).split(' ')[0]), 
+                    -int(item[1].get('max_lose_streak_k2n', 0))
+                ), 
+                reverse=True
+            )
+        except Exception as e:
+             print(f"Lỗi sắp xếp K2N (UI): {e}") # Log lỗi
              sorted_k2n = list(pending_k2n.items())
              
-        # SỬA: Dùng risk_threshold được truyền vào
+        items_added = 0
         for bridge_name, data in sorted_k2n:
-            stl, streak, max_lose = data['stl'], data['streak'], data.get('max_lose', 0)
-            tags = ()
-            if max_lose > risk_threshold: tags = ('risk',)
-            elif max_lose < risk_threshold: tags = ('safe',)
-            self.k2n_tree.insert('', tk.END, values=(stl, streak, f"{max_lose} lần", bridge_name), tags=tags)
+            try:
+                # (FIX) Sửa key 'stl' -> 'next_prediction_stl', 'streak' -> 'current_streak', 'max_lose' -> 'max_lose_streak_k2n'
+                stl = data.get('next_prediction_stl', 'LỖI')
+                streak = data.get('current_streak', 0)
+                max_lose = data.get('max_lose_streak_k2n', 0)
+
+                # Chỉ hiển thị các cầu đang chờ (streak > 0)
+                if streak > 0:
+                    tags = ()
+                    if max_lose > risk_threshold: tags = ('risk',)
+                    elif max_lose < risk_threshold: tags = ('safe',)
+                    
+                    self.k2n_tree.insert('', tk.END, values=(stl, f"{streak} ngày", f"{max_lose} lần", bridge_name), tags=tags)
+                    items_added += 1
+            
+            except Exception as e_inner:
+                print(f"Lỗi nạp dòng K2N (UI) {bridge_name}: {e_inner}")
+        
+        # Nếu sau khi lọc không có cầu nào (streak > 0), hiển thị thông báo
+        if items_added == 0:
+             self.k2n_tree.insert('', tk.END, values=("(N/A)", "", "", "Không có cầu K2N nào chờ"))
 
     def _populate_ai_predictions(self, ai_predictions):
         if not ai_predictions:

@@ -1,0 +1,10 @@
+Traceback (most recent call last):
+  File "C:\Users\KAKA\Documents\27loto\git1\main_app.py", line 9, in <module>
+    from ui.ui_main_window import DataAnalysisApp
+  File "C:\Users\KAKA\Documents\27loto\git1\ui\ui_main_window.py", line 13, in <module>
+    from lottery_service import *
+  File "C:\Users\KAKA\Documents\27loto\git1\lottery_service.py", line 346
+    target:_train_ai_process_target, 
+          ^
+SyntaxError: invalid syntax
+[Finished in 148ms]

@@ -290,7 +290,13 @@ class DataAnalysisApp:
 
     def _show_save_success_dialog(self, title, message, parent_widget):
         messagebox.showinfo(title, message, parent=parent_widget)
-        if self.bridge_manager_window and self.bridge_manager_window_instance and self.bridge_manager_window_instance.winfo_exists():
+        # ===================================================================
+        # (SỬA LỖI) Đã sửa lỗi:
+        # 1. Đổi `self.bridge_manager_window_instance.winfo_exists()` (lỗi)
+        # 2. thành `self.bridge_manager_window.winfo_exists()` (đúng)
+        # 3. Thêm check `self.bridge_manager_window` (widget) trước
+        # ===================================================================
+        if self.bridge_manager_window and self.bridge_manager_window.winfo_exists() and self.bridge_manager_window_instance:
             try:
                 self.bridge_manager_window_instance.refresh_bridge_list()
             except Exception as e_refresh:

@@ -1,3 +1,6 @@
+# TÊN FILE: logic/config_manager.py
+# NỘI DUNG THAY THẾ TOÀN BỘ (SỬA LỖI KIẾN TRÚC - THÊM HÀM GET)
+
 import json
 import os
 import traceback
@@ -104,6 +107,19 @@ class AppSettings:
         self.AI_OBJECTIVE = str(self.settings.get("AI_OBJECTIVE", "binary:logistic")) # MỚI
         self.AI_SCORE_WEIGHT = float(self.settings.get("AI_SCORE_WEIGHT", 0.2))
 
+    # ===================================================================
+    # (SỬA LỖI KIẾN TRÚC)
+    # Thêm hàm get() để tương thích với các module khác
+    # ===================================================================
+    def get(self, key, default=None):
+        """
+        Lấy một giá trị cài đặt bằng tên (key)
+        (Tương thích với cách gọi của bridge_manager)
+        """
+        # Sử dụng getattr để lấy thuộc tính một cách an toàn
+        return getattr(self, key, default)
+    # ===================================================================
+
     def get_all_settings(self):
         """Trả về một dict của các cài đặt hiện tại (để UI sử dụng). (ĐÃ THÊM AI_LEARNING_RATE, AI_OBJECTIVE)"""
         return {
@@ -165,5 +181,6 @@ except Exception as e:
         'AI_N_ESTIMATORS': 100,
         'AI_LEARNING_RATE': 0.1,
         'AI_OBJECTIVE': "binary:logistic",
-        'AI_SCORE_WEIGHT': 0.2
+        'AI_SCORE_WEIGHT': 0.2,
+        'get': lambda k, d: d # Thêm hàm get() cho fallback
     })

@@ -52,12 +52,10 @@ COMMIT;
 
 xem qua hệ thống, kiểm tra và xác nhận rằng bạn đã nắm được toàn bộ hệ thống chương trình và nhận được đủ các file như mô tả 
 
-thống nhất quy trình làm việc như sau:
+thống nhất lại quy trình làm việc chính xác như sau:
 
-Quy trình xem xét file: Trước khi thực hiện bất kỳ thay đổi phức tạp nào, tôi sẽ luôn đọc và phân tích toàn bộ nội dung của các file gốc liên quan mà bạn chỉ định. Việc này để đảm bảo tôi hiểu rõ logic và bối cảnh của code, giúp cho việc chỉnh sửa được chính xác.
+Quy trình Phân Tích (Tôi làm): Tôi sẽ luôn dùng công cụ File Fetcher để đọc và phân tích các file gốc bạn cung cấp hoặc file bạn vừa tải lên.
 
-Quy trình sửa file: Khi bạn yêu cầu sửa đổi một file, tôi sẽ cung cấp toàn bộ nội dung mới của file đó sau khi đã chỉnh sửa.
+Quy trình Sửa Đổi (Tôi làm): Sau khi phân tích (ví dụ, tìm ra lỗi), tôi sẽ là người cung cấp toàn bộ nội dung mới đã được sửa lỗi cho file cần thay đổi.
 
-Cách thực hiện: Bạn chỉ cần sao chép (copy) toàn bộ nội dung mới mà tôi cung cấp và dán (paste) đè lên, thay thế hoàn toàn nội dung trong file gốc tương ứng của bạn.
-
-Cách làm này đúng như bạn nói, sẽ đảm bảo tính toàn vẹn và tránh các sai sót nhỏ có thể xảy ra khi chỉ sửa từng đoạn code riêng lẻ.
+Quy trình Áp Dụng (Bạn làm): Bạn sẽ lấy nội dung tôi cung cấp và áp dụng (thay đổi) vào hệ thống của bạn.

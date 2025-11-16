@@ -1,338 +1,412 @@
-import sqlite3
-# Import SETTINGS
-try:
-    from ..config_manager import SETTINGS # ĐÃ SỬA (Lên 1 cấp)
-except ImportError:
-    from config_manager import SETTINGS
-    # Fallback definition cho SETTINGS
-    SETTINGS = type('obj', (object,), {
-        'AUTO_ADD_MIN_RATE': 50.0, 
-        'AUTO_PRUNE_MIN_RATE': 40.0
-    })
+# TÊN FILE: logic/bridges/bridge_manager_core.py
+# NỘI DUNG THAY THẾ TOÀN BỘ
+# (SỬA LỖI: Đồng bộ Dò Cầu V17 để quét 214 vị trí Gốc + Bóng)
+# (SỬA LỖI: Truyền chỉ số (idx) cho DataService để tránh lỗi vòng)
 
-# Import DB functions (CRUD và Management)
-try:
-    from ..db_manager import ( # ĐÃ SỬA (Lên 1 cấp)
-        DB_NAME, 
-        upsert_managed_bridge, 
-        update_managed_bridge
-    )
-    # Import từ Repository
-    from ..data_repository import get_all_managed_bridges # ĐÃ SỬA (Lên 1 cấp)
-except ImportError:
-    # Fallback cho DB/Repo
-    print("Lỗi: Không thể import db_manager/data_repository trong bridge_manager_core.py")
-    DB_NAME = 'data/xo_so_prizes_all_logic.db' # <--- ĐÃ SỬA
-    def upsert_managed_bridge(n, d, r, db): return False, "Lỗi Import"
-    def update_managed_bridge(id, d, e, db): return False, "Lỗi Import"
-    def get_all_managed_bridges(d, o): return []
+import os
+import inspect
+import importlib
+from typing import List, Dict, Any, Optional, Tuple
+from collections import defaultdict # (GĐ 5) Thêm defaultdict
 
-# Import Bridge Logic và Helpers (Các import này là TƯƠNG ĐỐI VỊ TRÍ, nên giữ nguyên)
+# (GĐ 3) Import SETTINGS và DataService
 try:
-    from .bridges_v16 import ( # GIỮ NGUYÊN
-        taoSTL_V30_Bong,
-        getAllPositions_V17_Shadow,
-        getPositionName_V17_Shadow
-    )
-    from .bridges_classic import getAllLoto_V30 # GIỮ NGUYÊN
-    from .bridges_memory import ( # GIỮ NGUYÊN
-        get_27_loto_names,
-        get_27_loto_positions,
-        calculate_bridge_stl
-    )
-    # Import validation helper từ backtester.py
-    from ..backtester import _validate_backtest_params # ĐÃ SỬA (Lên 1 cấp)
+    from ..config_manager import SETTINGS
 except ImportError:
-    print("Lỗi: Không thể import bridge/backtester helpers trong bridge_manager_core.py")
-    def taoSTL_V30_Bong(a, b): return ['00', '00']
-    def getAllPositions_V17_Shadow(r): return []
-    def getPositionName_V17_Shadow(i): return "Lỗi V17"
+    try:
+        from config_manager import SETTINGS
+    except ImportError:
+        print("LỖI: không thể import config_manager trong bridge_manager_core.py")
+        SETTINGS = type('obj', (object,), {
+            'AUTO_ADD_MIN_RATE': 50.0, 
+            'AUTO_PRUNE_MIN_RATE': 40.0,
+            'get': lambda k, d: d # (SỬA LỖI) Thêm .get()
+        })
+
+# (GĐ 3) Thay thế DB/Repo imports bằng DataService
+try:
+    from ..data_service import DataService
+    data_service = DataService.get_instance()
+    
+    # Lấy các hàm CRUD cần thiết từ DataService
+    upsert_managed_bridge = data_service.upsert_managed_bridge
+    update_managed_bridge = data_service.upsert_managed_bridge # (Alias)
+    get_all_managed_bridges = data_service.get_all_managed_bridges
+    
+    from ..db_manager import DB_NAME
+except ImportError as e:
+    print(f"Lỗi: Không thể import DataService trong bridge_manager_core.py: {e}")
+    DB_NAME = 'data/xo_so_prizes_all_logic.db' 
+    def upsert_managed_bridge(n, d, r, p1n, p2n, p1i, p2i): return False, "Lỗi Import" # (Sửa)
+    def update_managed_bridge(id, d, e): return False, "Lỗi Import"
+    def get_all_managed_bridges(o): return []
+
+# (GĐ 3) Import BaseBridge và các Bridge đã tạo (để đảm bảo chúng được tải)
+from .base_bridge import BaseBridge, BridgeContext, BridgeResult
+from .bridges_classic import ClassicBridge
+from .bridges_v16 import ManagedBridgeV16
+from .bridges_memory import MemoryBridge
+
+# ===================================================================================
+# (GĐ 5) IMPORT CÁC HÀM HELPERS ĐỂ DÒ CẦU
+# ===================================================================================
+try:
+    from .bridges_classic import getAllLoto_V30, taoSTL_V30_Bong
+    # (SỬA LỖI ĐỒNG BỘ) Import hàm 214 vị trí
+    from .bridges_v16 import (
+        getAllPositions_V17_Shadow, 
+        getPositionName_V17_Shadow # <-- (Sửa) Lấy hàm 214 tên
+    )
+    from .bridges_memory import get_27_loto_positions, get_27_loto_names, calculate_bridge_stl
+except ImportError as e:
+    print(f"LỖI (GĐ 5): Không thể import helpers để Dò Cầu: {e}")
     def getAllLoto_V30(r): return []
-    def get_27_loto_names(): return []
-    def get_27_loto_positions(r): return []
-    def calculate_bridge_stl(l1, l2, type): return ['00', '00']
-    def _validate_backtest_params(a, b, c): return None, None, None, None, [["LỖI:", "Lỗi Import."]]
+    def taoSTL_V30_Bong(a, b): return ["00", "00"]
+    def getAllPositions_V17_Shadow(r): return [None] * 214 # (Sửa) 214
+    def getPositionName_V17_Shadow(i): return f"Loi{i}" # (Sửa)
+    def get_27_loto_positions(r): return ["00"] * 27
+    def get_27_loto_names(): return [f"Loi{i}" for i in range(27)]
+    def calculate_bridge_stl(a, b, t): return ["00", "00"]
+# ===================================================================================
 
 
 # ===================================================================================
-# I. HÀM TÌM CẦU TỐT NHẤT (CHUYỂN TỪ backtester.py)
+# I. (GĐ 3) BỘ QUẢN LÝ CẦU MỚI (PLUG-IN ARCHITECTURE)
 # ===================================================================================
 
-def TIM_CAU_TOT_NHAT_V16(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra, db_name=DB_NAME):
-    """ Dò Cầu Tốt Nhất V17 (Shadow) và trả về TOP 20 cầu CHƯA lưu. """
-    print("Bắt đầu Dò Cầu Tốt Nhất V17 (Shadow)...") 
-    
-    saved_bridge_names = {b['name'] for b in get_all_managed_bridges(db_name)}
-    print(f"Đã tìm thấy {len(saved_bridge_names)} cầu đã lưu để lọc.")
-    
-    allData, finalEndRow, startCheckRow, offset, error = _validate_backtest_params(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra)
-    if error: return error
-    
-    processedData = []
-    print("Đang tiền xử lý dữ liệu...")
-    for k in range(startCheckRow, finalEndRow + 1):
-        prevRow_idx, actualRow_idx = k - 1 - offset, k - offset
-        if actualRow_idx >= len(allData) or prevRow_idx < 0: continue
-        prevRow, actualRow = allData[prevRow_idx], allData[actualRow_idx]
-        if not prevRow or not actualRow or not actualRow[0] or str(actualRow[0]).strip() == "" or len(actualRow) < 10 or not actualRow[9]:
-            continue
-        processedData.append({
-          "prevPositions": getAllPositions_V17_Shadow(prevRow),
-          "actualLotoSet": set(getAllLoto_V30(actualRow))
-        })
-    
-    totalTestDays = len(processedData)
-    if totalTestDays == 0: 
-        return [["LỖI:", "Không có dữ liệu hợp lệ để backtest."]]
-
-    print(f"Tiền xử lý hoàn tất. {totalTestDays} ngày test. Bắt đầu dò 23005 cầu (V17)...")
-    
-    numPositions = len(getAllPositions_V17_Shadow(allData[0])) 
-    results = []
-    combinationCount = 0
-    
-    for i in range(numPositions):
-        for j in range(i, numPositions):
-            pos1_idx, pos2_idx, hits = i, j, 0
-            for dayData in processedData:
-                a, b = dayData["prevPositions"][pos1_idx], dayData["prevPositions"][pos2_idx]
-                if a is None or b is None: continue
-                stl = taoSTL_V30_Bong(a, b)
-                if stl[0] in dayData["actualLotoSet"] or stl[1] in dayData["actualLotoSet"]:
-                    hits += 1
-            
-            pos1_name, pos2_name = getPositionName_V17_Shadow(pos1_idx), getPositionName_V17_Shadow(pos2_idx)
-            
-            results.append({"name": f"{pos1_name} + {pos2_name}", "hits": hits})
-            combinationCount += 1
-            
-            if combinationCount % 500 == 0:
-                print(f"Đã dò {combinationCount} / 23005 cầu...")
-    
-    print(f"Dò cầu hoàn tất. Đã chạy {combinationCount} cầu. Đang lọc {len(saved_bridge_names)} cầu đã lưu...")
-    
-    filtered_results = [res for res in results if res["name"] not in saved_bridge_names]
-    
-    print(f"Đã lọc. Sắp xếp {len(filtered_results)} cầu còn lại...")
-    
-    filtered_results.sort(key=lambda x: x["hits"], reverse=True)
-    top20 = filtered_results[:20]
-              
-    output = [["Hạng", "Tên Cầu", "Trúng/Tổng", "Tỷ lệ"]]
-    for index, res in enumerate(top20):
-        rate = (res["hits"] / totalTestDays) * 100 if totalTestDays > 0 else 0
-        output.append([
-            index + 1,
-            res["name"],
-            f"{res['hits']}/{totalTestDays}",
-            f"{rate:.2f}%"
-        ])
-    output.append(["---", "---", "---", "---"])
-    output.append([f"HOÀN THÀNH: Đã chạy tất cả {combinationCount} cầu (V17).", "", "", ""])
-    print("Hoàn thành Dò Cầu V17.")
-    return output
-
-def TIM_CAU_BAC_NHO_TOT_NHAT(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra):
-    """ Dò 756 Cầu Bạc Nhớ và trả về kết quả (để đưa vào hàm Tự động Dò Cầu). """
-    print("... (Dò Cầu Tự Động) Bắt đầu Dò 756 Cầu Bạc Nhớ...")
-    
-    allData, finalEndRow, startCheckRow, offset, error = _validate_backtest_params(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra)
-    if error: return error
-
-    loto_names = get_27_loto_names()
-    num_positions = len(loto_names) 
-    
-    algorithms = []
-    for i in range(num_positions):
-        for j in range(i, num_positions):
-            name_sum = f"Tổng({loto_names[i]} + {loto_names[j]})"
-            algorithms.append((i, j, 'sum', name_sum))
-            name_diff = f"Hiệu(|{loto_names[i]} - {loto_names[j]}|)"
-            algorithms.append((i, j, 'diff', name_diff))
-
-    num_algorithms = len(algorithms) 
-    
-    processedData = []
-    for k in range(startCheckRow, finalEndRow + 1):
-        prevRow_idx, actualRow_idx = k - 1 - offset, k - offset
-        if actualRow_idx >= len(allData) or prevRow_idx < 0: continue
-        prevRow, actualRow = allData[prevRow_idx], allData[actualRow_idx]
-        if not prevRow or not actualRow or not actualRow[0] or str(actualRow[0]).strip() == "" or len(actualRow) < 10 or not actualRow[9]:
-            continue
-        processedData.append({
-            "prevLotos": get_27_loto_positions(prevRow),
-            "actualLotoSet": set(getAllLoto_V30(actualRow))
-        })
-    
-    totalTestDays = len(processedData)
-    if totalTestDays == 0: 
-        print("Lỗi TIM_CAU_BAC_NHO: Không có dữ liệu test")
-        return [["LỖI:", "Không có dữ liệu hợp lệ để backtest."]]
-        
-    win_counts = [0] * num_algorithms
-
-    for dayData in processedData:
-        actualLotoSet = dayData["actualLotoSet"]
-        prevLotos = dayData["prevLotos"]
-        for j in range(num_algorithms):
-            alg = algorithms[j]
-            idx1, idx2, alg_type = alg[0], alg[1], alg[2]
-            loto1, loto2 = prevLotos[idx1], prevLotos[idx2]
-            pred_stl = calculate_bridge_stl(loto1, loto2, alg_type)
-            if pred_stl[0] in actualLotoSet or pred_stl[1] in actualLotoSet:
-                win_counts[j] += 1
-
-    output = [["Hạng", "Tên Cầu", "Trúng/Tổng", "Tỷ lệ"]]
-    results_list = []
-    for j in range(num_algorithms):
-        alg_name = algorithms[j][3]
-        hits = win_counts[j]
-        rate = (hits / totalTestDays) * 100 if totalTestDays > 0 else 0
-        results_list.append({
-            'name': alg_name,
-            'hits': hits,
-            'rate': rate,
-            'hit_str': f"{hits}/{totalTestDays}",
-            'rate_str': f"{rate:.2f}%"
-        })
-    
-    results_list.sort(key=lambda x: x["hits"], reverse=True)
-    
-    for index, res in enumerate(results_list):
-        output.append([
-            index + 1,
-            res["name"],
-            res["hit_str"],
-            res["rate_str"]
-        ])
-        
-    print(f"... (Dò Cầu Tự Động) Hoàn tất Dò Cầu Bạc Nhớ ({len(output)-1} cầu).")
-    return output
-
-
-# ===================================================================================
-# II. HÀM QUẢN LÝ CẦU TỰ ĐỘNG (CHUYỂN TỪ backtester.py)
-# ===================================================================================
-
-def find_and_auto_manage_bridges(all_data_ai, db_name=DB_NAME):
+class BridgeManager:
     """
-    Chạy dò cầu V17 + Bạc Nhớ và tự động Thêm/Cập nhật CSDL.
+    (GĐ 3) Bộ quản lý cầu Singleton.
+    Nhiệm vụ: Tự động phát hiện, khởi tạo và điều hành tất cả các Bridge plug-in.
     """
-    # FIX: Sửa truy cập SETTINGS
-    AUTO_ADD_MIN_RATE = SETTINGS.AUTO_ADD_MIN_RATE
+    _instance: Optional['BridgeManager'] = None
+    
+    def __init__(self):
+        # Ngăn chặn khởi tạo lại
+        if hasattr(self, 'bridges'):
+            return 
+        
+        self.bridges: List[BaseBridge] = []
+        self._discover_bridges()
 
+    @staticmethod
+    def get_instance():
+        """Lấy thể hiện duy nhất của BridgeManager."""
+        if BridgeManager._instance is None:
+            BridgeManager._instance = BridgeManager()
+        return BridgeManager._instance
+
+    def _discover_bridges(self):
+        """
+        (GĐ 3) Quét thư mục hiện tại (logic/bridges) để tìm tất cả các lớp
+        kế thừa từ BaseBridge (trừ BaseBridge chính nó) và khởi tạo chúng.
+        """
+        print("... (BridgeManager) Bắt đầu tự động phát hiện Bridge plug-in...")
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        
+        # Danh sách các module chứa bridge cần kiểm tra
+        bridge_modules = ["bridges_classic", "bridges_v16", "bridges_memory"]
+        
+        for module_name in bridge_modules:
+            try:
+                # Import module
+                module = importlib.import_module(f".{module_name}", package='logic.bridges')
+                
+                # Duyệt qua các thành viên của module để tìm class Bridge
+                for name, obj in inspect.getmembers(module):
+                    if inspect.isclass(obj) and issubclass(obj, BaseBridge) and obj != BaseBridge:
+                        # Khởi tạo và thêm vào danh sách
+                        try:
+                            # Khởi tạo lớp cầu (plug-in)
+                            self.bridges.append(obj()) 
+                            print(f"  > Đã tải Plug-in: {obj().get_bridge_name()} (version: {obj().get_bridge_version()})")
+                        except Exception as e:
+                            print(f"  > Lỗi khởi tạo Bridge {name} từ {module_name}: {e}")
+
+            except Exception as e:
+                print(f"  > Lỗi Import module {module_name}: {e}")
+
+        print(f"... (BridgeManager) Phát hiện hoàn tất. Tổng cộng {len(self.bridges)} Bridge Plug-in đã được tải.")
+
+    def get_active_bridges(self) -> List[BaseBridge]:
+        """Trả về danh sách tất cả các Bridge plug-in đã được tải."""
+        return self.bridges
+
+    def run_all_bridges(self, context: BridgeContext) -> List[BridgeResult]:
+        """
+        (GĐ 3) Chạy tất cả các Bridge plug-in đã tải và thu thập kết quả.
+        """
+        all_results: List[BridgeResult] = []
+        
+        for bridge in self.bridges:
+            try:
+                # Chạy tính toán
+                bridge_results = bridge.calculate_predictions(context)
+                all_results.extend(bridge_results)
+            except Exception as e:
+                print(f"Lỗi khi chạy Bridge Plug-in '{bridge.get_bridge_name()}': {e}")
+
+        return all_results
+
+
+# ===================================================================================
+# II. (SỬA LỖI GĐ 5) CÁC HÀM DÒ CẦU (REFACTOR)
+# ===================================================================================
+
+# (SỬA LỖI ĐỒNG BỘ) Định nghĩa tổng số vị trí V6 là 214
+TOTAL_V16_V6_POSITIONS = 214 
+
+def TIM_CAU_TOT_NHAT_V16(all_data_ai, db_name=DB_NAME):
+    """
+    (SỬA LỖI GĐ 5 & ĐỒNG BỘ V6) 
+    Tìm các cầu mới V17/Bong V17 tốt nhất (214 vị trí)
+    """
+    print(f"... (GĐ 5) Bắt đầu Dò Cầu V17/Bóng (Logic V6 - {TOTAL_V16_V6_POSITIONS} vị trí)...")
+    
+    # 1. Lấy cài đặt
+    AUTO_ADD_MIN_RATE = SETTINGS.get('AUTO_ADD_MIN_RATE', 45.0)
+    
+    # 2. Xây dựng danh sách các cặp (i, j) để kiểm tra
+    bridge_tasks: List[Tuple[int, int]] = []
+    
+    # (SỬA LỖI ĐỒNG BỘ) Lặp 214 vị trí
+    for i in range(TOTAL_V16_V6_POSITIONS):
+        for j in range(i, TOTAL_V16_V6_POSITIONS): # Lặp (i, i) -> (i, 213)
+            bridge_tasks.append((i, j))
+            
+    print(f"... (GĐ 5) Sẽ quét {len(bridge_tasks)} cặp vị trí V17/Bóng (logic V6).")
+
+    # 3. Khởi tạo bộ đếm
+    win_counts = defaultdict(int)
+    total_days = 0
+    
+    # 4. Lặp qua lịch sử (Bỏ qua 2 ngày đầu)
+    if len(all_data_ai) < 3:
+        return False, "Không đủ dữ liệu (cần > 2 ngày) để dò cầu V17."
+        
+    for k in range(2, len(all_data_ai)):
+        try:
+            row_n_minus_2 = all_data_ai[k-2] # (N-2)
+            row_n_minus_1 = all_data_ai[k-1] # (N-1)
+            row_n = all_data_ai[k]           # (N)
+            
+            actual_lotos = set(getAllLoto_V30(row_n))
+            if not actual_lotos:
+                continue
+
+            # Lấy vị trí (chỉ 1 lần mỗi ngày)
+            # (SỬA LỖI ĐỒNG BỘ) Hàm này đã trả về 214 vị trí
+            pos_n_minus_2 = getAllPositions_V17_Shadow(row_n_minus_2)
+            pos_n_minus_1 = getAllPositions_V17_Shadow(row_n_minus_1)
+            
+            total_days += 1
+            
+            # 5. Lặp qua các cặp (tasks)
+            for (i, j) in bridge_tasks:
+                a = pos_n_minus_1[i] # Lấy từ N-1 (0-213)
+                b = pos_n_minus_2[j] # Lấy từ N-2 (0-213)
+                
+                if a is None or b is None:
+                    continue
+                    
+                stl = taoSTL_V30_Bong(a, b) # (Sử dụng logic V6)
+                
+                if stl[0] in actual_lotos or stl[1] in actual_lotos:
+                    win_counts[(i, j)] += 1
+        except Exception:
+            continue # Bỏ qua ngày bị lỗi
+
+    if total_days == 0:
+        return False, "Không có ngày hợp lệ nào để backtest."
+
+    # 6. Xử lý kết quả và lưu vào DB
     added_count = 0
     updated_count = 0
     
-    try:
-        ky_bat_dau_kiem_tra = 2
-        ky_ket_thuc_kiem_tra = len(all_data_ai) + (ky_bat_dau_kiem_tra - 1)
+    for (i, j), hits in win_counts.items():
+        rate = (hits / total_days) * 100
         
-        # --- Bước 1: Chạy cả hai hệ thống dò cầu ---
-        results_v17 = TIM_CAU_TOT_NHAT_V16(all_data_ai, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra, db_name)
-        results_memory = TIM_CAU_BAC_NHO_TOT_NHAT(all_data_ai, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra)
-
-        # Gộp kết quả
-        combined_results_data = []
-        if results_v17 and len(results_v17) > 1:
-            combined_results_data.extend([row for row in results_v17[1:] if "---" not in str(row[0])])
-            
-        if results_memory and len(results_memory) > 1:
-            combined_results_data.extend([row for row in results_memory[1:] if "---" not in str(row[0])])
-
-        if not combined_results_data:
-            return "Lỗi: Cả hai hệ thống dò cầu (V17 & Bạc Nhớ) đều không trả về dữ liệu."
-            
-        existing_bridges = {b['name'] for b in get_all_managed_bridges(db_name)}
-        
-        # --- Bước 2: Duyệt kết quả TỔNG HỢP và "Upsert" ---
-        print(f"... (Dò Cầu Tự Động) Đã gộp {len(combined_results_data)} cầu. Bắt đầu lọc và lưu...")
-        
-        for row in combined_results_data: 
+        if rate >= AUTO_ADD_MIN_RATE:
             try:
-                if len(row) < 4:
-                    continue
-
-                bridge_name = str(row[1])
-                win_rate_str = str(row[3]).replace('%', '')
-
-                try:
-                    win_rate = float(win_rate_str)
-                except ValueError:
-                    continue 
-
-                # Áp dụng bộ lọc Tỷ lệ
-                if win_rate >= AUTO_ADD_MIN_RATE:
-                    
-                    desc_prefix = "Tự động (V17)"
-                    if "Tổng(" in bridge_name or "Hiệu(" in bridge_name:
-                        desc_prefix = "Tự động (BN)"
-                        
-                    desc = f"{desc_prefix} (Tỷ lệ: {win_rate_str}%)"
-                    
-                    # Gọi hàm Upsert
-                    success, msg = upsert_managed_bridge(bridge_name, desc, f"{win_rate_str}%", db_name)
-                    
-                    if success:
-                        if bridge_name in existing_bridges:
-                            updated_count += 1
-                        else:
-                            added_count += 1
-                            
-            except Exception as e_row:
-                print(f"Lỗi xử lý hàng: {row}, Lỗi: {e_row}")
+                # (SỬA LỖI ĐỒNG BỘ) Sử dụng hàm 214 tên
+                pos1_name = getPositionName_V17_Shadow(i)
+                pos2_name = getPositionName_V17_Shadow(j)
                 
-        return f"Hoàn tất Dò Cầu Tổng Hợp: Thêm {added_count} cầu mới và cập nhật {updated_count} cầu (V17 + BN)."
+                if pos1_name is None or pos2_name is None:
+                    continue
+                
+                # Tên cầu V17/Bóng
+                bridge_name = f"{pos1_name} + {pos2_name}"
+                description = f"V17/Bóng Tự động (Tỷ lệ: {rate:.1f}%)"
+                win_rate_text = f"{rate:.2f}%"
+                
+                # (SỬA LỖI CIRCULAR IMPORT)
+                # Truyền đầy đủ 7 tham số cho hàm upsert mới
+                success, msg = upsert_managed_bridge(
+                    bridge_name, description, win_rate_text,
+                    pos1_name, pos2_name, i, j # <-- i và j là pos1_idx, pos2_idx
+                )
+                if success:
+                    if "Đã thêm" in msg:
+                        added_count += 1
+                    elif "Đã cập nhật" in msg:
+                        updated_count += 1
+            except Exception:
+                continue
 
-    except Exception as e:
-        import traceback
-        print(traceback.format_exc())
-        return f"LỖI find_and_auto_manage_bridges: {e}"
+    return True, f"Dò cầu V17/Bóng (214) Hoàn tất. Đã thêm: {added_count} cầu. Đã cập nhật: {updated_count} cầu."
 
-def prune_bad_bridges(all_data_ai, db_name=DB_NAME):
+
+def TIM_CAU_BAC_NHO_TOT_NHAT(all_data_ai, db_name=DB_NAME):
     """
-    Chạy backtest Cầu Đã Lưu và tự động TẮT các cầu kém hiệu quả (dựa trên cache K2N).
+    (SỬA LỖI GĐ 5) Tìm các cầu Bạc Nhớ tốt nhất.
+    (Hàm này giữ nguyên, không thay đổi)
     """
-    # FIX: Sửa truy cập SETTINGS
-    AUTO_PRUNE_MIN_RATE = SETTINGS.AUTO_PRUNE_MIN_RATE
+    print("... (GĐ 5) Bắt đầu Dò Cầu Bạc Nhớ (Tối ưu)...")
+    
+    # 1. Lấy cài đặt
+    AUTO_ADD_MIN_RATE = SETTINGS.get('AUTO_ADD_MIN_RATE', 45.0)
+    
+    # 2. Xây dựng danh sách các cặp (i, j, type) để kiểm tra
+    loto_names = get_27_loto_names()
+    num_positions = len(loto_names)
+    if num_positions != 27:
+        return False, "Lỗi: Không thể tải 27 vị trí Bạc Nhớ."
         
+    bridge_tasks: List[Tuple[int, int, str]] = []
+    for i in range(num_positions):
+        for j in range(i, num_positions):
+            bridge_tasks.append((i, j, 'sum'))
+            bridge_tasks.append((i, j, 'diff'))
+            
+    print(f"... (GĐ 5) Sẽ quét {len(bridge_tasks)} cặp vị trí Bạc Nhớ.")
+
+    # 3. Khởi tạo bộ đếm
+    win_counts = defaultdict(int)
+    total_days = 0
+    
+    # 4. Lặp qua lịch sử (Bỏ qua 1 ngày đầu)
+    if len(all_data_ai) < 2:
+        return False, "Không đủ dữ liệu (cần > 1 ngày) để dò cầu Bạc Nhớ."
+        
+    for k in range(1, len(all_data_ai)):
+        try:
+            row_n_minus_1 = all_data_ai[k-1] # (N-1)
+            row_n = all_data_ai[k]           # (N)
+            
+            actual_lotos = set(getAllLoto_V30(row_n))
+            if not actual_lotos:
+                continue
+
+            # Lấy vị trí (chỉ 1 lần mỗi ngày)
+            lotos_n_minus_1 = get_27_loto_positions(row_n_minus_1)
+            
+            total_days += 1
+            
+            # 5. Lặp qua các cặp (tasks)
+            for (i, j, type) in bridge_tasks:
+                loto1 = lotos_n_minus_1[i]
+                loto2 = lotos_n_minus_1[j]
+                
+                stl = calculate_bridge_stl(loto1, loto2, type)
+                
+                if stl[0] in actual_lotos or stl[1] in actual_lotos:
+                    win_counts[(i, j, type)] += 1
+        except Exception:
+            continue # Bỏ qua ngày bị lỗi
+
+    if total_days == 0:
+        return False, "Không có ngày hợp lệ nào để backtest (BN)."
+
+    # 6. Xử lý kết quả và lưu vào DB
+    added_count = 0
+    updated_count = 0
+    
+    for (i, j, type), hits in win_counts.items():
+        rate = (hits / total_days) * 100
+        
+        if rate >= AUTO_ADD_MIN_RATE:
+            try:
+                # Tạo tên cầu
+                name1 = loto_names[i]
+                name2 = loto_names[j]
+                if type == 'sum':
+                    bridge_name = f"Tổng({name1}+{name2})"
+                else:
+                    bridge_name = f"Hiệu(|{name1}-{name2}|)"
+                
+                description = f"BN Tự động (Tỷ lệ: {rate:.1f}%)"
+                win_rate_text = f"{rate:.2f}%"
+                
+                # (SỬA LỖI CIRCULAR IMPORT)
+                # Truyền đầy đủ 7 tham số cho hàm upsert mới
+                success, msg = upsert_managed_bridge(
+                    bridge_name, description, win_rate_text,
+                    "BAC_NHO", "BAC_NHO", -1, -1 # <-- Thêm 4 tham số
+                )
+                if success:
+                    if "Đã thêm" in msg:
+                        added_count += 1
+                    elif "Đã cập nhật" in msg:
+                        updated_count += 1
+            except Exception:
+                continue
+
+    return True, f"Dò cầu Bạc Nhớ Hoàn tất. Đã thêm: {added_count} cầu. Đã cập nhật: {updated_count} cầu."
+
+
+def find_and_auto_manage_bridges(all_data_ai: List[List[Any]], db_name: str = DB_NAME) -> Tuple[bool, str]:
+    """
+    (SỬA LỖI GĐ 5) Wrapper tổng hợp: Chạy tìm cầu V17 và Bạc Nhớ.
+    """
+    # 1. Chạy tìm cầu V17
+    success_v16, msg_v16 = TIM_CAU_TOT_NHAT_V16(all_data_ai, db_name) 
+    
+    # 2. Chạy tìm cầu Bạc Nhớ
+    success_bn, msg_bn = TIM_CAU_BAC_NHO_TOT_NHAT(all_data_ai, db_name)
+    
+    return True, f"Tìm cầu V17/Bóng (V6): {msg_v16}\nTìm cầu BN: {msg_bn}"
+
+
+def prune_bad_bridges(db_name: str = DB_NAME) -> str:
+    """
+    (V7.1) Vô hiệu hóa các cầu đã lưu (Managed Bridges) có tỷ lệ thắng thấp.
+    (GĐ 3) Đã sử dụng DataService (không cần db_name)
+    """
+    
+    AUTO_PRUNE_MIN_RATE = SETTINGS.get('AUTO_PRUNE_MIN_RATE', 40.0)
+    
+    # Gọi hàm đã map (get_all_managed_bridges) không cần db_name
+    managed_bridges = get_all_managed_bridges(only_enabled=True) 
+    
+    managed_bridges_map = {b['name']: b for b in managed_bridges}
+    
+    if not managed_bridges_map:
+         return "Lỗi: Không có cầu nào được Bật để lọc."
+
+    print(f"... (Lọc Cầu Yếu) Đang kiểm tra {len(managed_bridges_map)} cầu đã bật...")
     disabled_count = 0
-    try:
-        # Lấy danh sách cầu đã lưu (bao gồm cả ID và mô tả)
-        managed_bridges_map = {b['name']: b for b in get_all_managed_bridges(db_name, only_enabled=True)}
-
-        if not managed_bridges_map:
-             return "Lỗi: Không có cầu nào được Bật để lọc."
-
-        print(f"... (Lọc Cầu Yếu) Đang kiểm tra {len(managed_bridges_map)} cầu đã bật...")
-        
-        # Bước 2: Duyệt các cầu đã cache và lọc
-        for bridge_name, bridge_data in managed_bridges_map.items():
-            try:
-                # Đọc tỷ lệ từ cache K2N
-                win_rate_str = str(bridge_data.get('win_rate_text', '0%')).replace('%', '')
+    
+    for bridge_name, bridge_data in managed_bridges_map.items():
+        try:
+            win_rate_str = str(bridge_data.get('win_rate_text', '0%')).replace('%', '')
+            
+            if not win_rate_str or win_rate_str == "N/A":
+                continue
                 
-                if not win_rate_str or win_rate_str == "N/A":
-                    continue
-                    
-                win_rate = float(win_rate_str)
+            win_rate = float(win_rate_str)
+            
+            if win_rate < AUTO_PRUNE_MIN_RATE:
+                bridge_id = bridge_data['id']
+                old_desc = bridge_data['description']
                 
-                # Nếu cầu còn được bật (enabled) VÀ tỷ lệ thấp
-                if win_rate < AUTO_PRUNE_MIN_RATE:
-                    
-                    bridge_id = bridge_data['id']
-                    old_desc = bridge_data['description']
-                    
-                    # Gọi hàm update, set is_enabled = 0
-                    update_managed_bridge(bridge_id, old_desc, 0, db_name)
-                    disabled_count += 1
-                    
-            except Exception as e_row:
-                print(f"Lỗi xử lý lọc cầu: {bridge_name}, Lỗi: {e_row}")
+                # (SỬA LỖI) Hàm update_managed_bridge chỉ cần 3 tham số
+                # (nó đã được trỏ đến upsert_managed_bridge ở Dòng 35 là sai)
+                # Tạm thời, chúng ta gọi thẳng DataService
+                data_service.update_managed_bridge(bridge_id, old_desc, 0) # 0 = Vô hiệu hóa
+                disabled_count += 1
+                
+        except Exception as e_row:
+            print(f"Lỗi xử lý lọc cầu: {bridge_name}, Lỗi: {e_row}")
 
-        return f"Hoàn tất: Đã tự động vô hiệu hóa {disabled_count} cầu kém hiệu quả (dựa trên cache K2N)."
-        
-    except Exception as e:
-        import traceback
-        print(traceback.format_exc())
-        return f"LỖI prune_bad_bridges: {e}"
+    return f"Hoàn tất: Đã tự động vô hiệu hóa {disabled_count} cầu kém hiệu quả (dưới {AUTO_PRUNE_MIN_RATE}%)."

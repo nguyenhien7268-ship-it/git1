@@ -1,6 +1,6 @@
 """
 ==================================================================================
-LOTTERY SERVICE API (BỘ ĐIỀU PHỐI) - (V7.2 MP & MLOps & Caching UPGRADE)
+LOTTERY SERVICE API (BỘ ĐIỀU PHỐI) - (V7.2 MP & MLOps & Caching UPGRADE - GĐ 5 REF)
 ==================================================================================
 """
 import os 
@@ -9,33 +9,49 @@ from collections import defaultdict, Counter
 import multiprocessing 
 from multiprocessing import Process, Queue
 from multiprocessing.queues import Empty # Cần cho việc quản lý Queue an toàn
+import pandas as pd # Cần cho BridgeContext
 
-# 1. (FIX A) Từ logic.db_manager: GIỮ CÁC HÀM CRUD CẦN THIẾT
+# ==================================================================================
+# (GĐ 5) IMPORT BRIDGE MANAGER VÀ CÁC CẤU TRÚC BRIDGE
+# ==================================================================================
 try:
-    from logic.db_manager import (
-        DB_NAME,
-        setup_database,
-        get_all_kys_from_db,
-        get_results_by_ky,
-        add_managed_bridge,
-        update_managed_bridge,
-        delete_managed_bridge,
-        update_bridge_win_rate_batch,
-        upsert_managed_bridge,
-        update_bridge_k2n_cache_batch
-    )
+    from logic.bridges.base_bridge import BridgeContext, BridgeResult
+    from logic.bridges.bridge_manager_core import BridgeManager
+    bridge_manager = BridgeManager.get_instance()
+    print(">>> (V7.0 - GĐ 5) Tải BridgeManager và BridgeContext thành công.")
 except ImportError as e:
-    print(f"LỖI NGHIÊM TRỌNG: Không thể import logic.db_manager: {e}")
+    print(f"LỖI: Không thể import BridgeManager/Context trong lottery_service.py: {e}")
+    class DummyBridgeManager:
+        def run_all_bridges(self, context): return []
+    bridge_manager = DummyBridgeManager()
 
-# (MỚI V7.0) 1.1. TỪ LOGIC.DATA_REPOSITORY (Tải dữ liệu lớn)
+
+# ==================================================================================
+# (GĐ 1) THAY THẾ DB_MANAGER VÀ DATA_REPOSITORY BẰNG DATASERVICE
+# ==================================================================================
 try:
-    from logic.data_repository import (
-        load_data_ai_from_db, 
-        get_all_managed_bridges, 
-    )
-    print(">>> (V7.0) Tải logic.data_repository (Tải dữ liệu) thành công.")
+    from logic.data_service import DataService
+    # Khởi tạo DataService Singleton
+    data_service = DataService.get_instance()
+    
+    # Lấy các hàm đã được tích hợp/wrapped từ DataService
+    load_data_ai_from_db = data_service.load_data_ai_from_db
+    get_all_managed_bridges = data_service.get_all_managed_bridges
+    
+    # Vẫn cần DB_NAME và setup_database cho các hàm chưa refactor (như data_parser)
+    from logic.db_manager import DB_NAME
+    from logic.db_manager import setup_database 
+    
+    print(">>> (V7.0 - GĐ 1) Tải logic.data_service (Trung tâm) thành công.")
 except ImportError as e:
-    print(f"LỖI NGHIÊM TRỌNG: Không thể import logic.data_repository: {e}")
+    print(f"LỖI NGHIÊM TRỌNG: Không thể import logic.data_service: {e}")
+    # Fallback
+    def load_data_ai_from_db(): return None, f"Lỗi: Không tìm thấy DataService: {e}"
+    def get_all_managed_bridges(only_enabled=False): return []
+    data_service = None
+    DB_NAME = 'data/xo_so_prizes_all_logic.db'
+    def setup_database(): return None, None
+# ==================================================================================
 
 
 # 2. Từ logic.data_parser
@@ -48,12 +64,12 @@ try:
 except ImportError as e:
     print(f"LỖI NGHIÊM TRỌNG: Không thể import logic.data_parser: {e}")
 
-# 3. Từ logic.bridges_classic
+# 3. Từ logic.bridges_classic (Chỉ cần hàm thống kê nếu có, không cần hàm cầu)
 try:
     from logic.bridges.bridges_classic import ( # ĐÃ SỬA
         getAllLoto_V30,
         calculate_loto_stats,
-        ALL_15_BRIDGE_FUNCTIONS_V5 
+        # ALL_15_BRIDGE_FUNCTIONS_V5 # ĐÃ XÓA
     )
 except ImportError as e:
     print(f"LỖI NGHIÊM TRỌNG: Không thể import logic.bridges.bridges_classic: {e}") # ĐÃ SỬA
@@ -127,15 +143,20 @@ except ImportError as e:
 
 
 # ==========================================================================
-# (MỚI V7.0) 0. IMPORTS VÀ LOGIC TÍNH FEATURE (Tách biệt khỏi ml_model.py)
+# (MỚI V7.0 GĐ 5) HÀM TÍNH FEATURE MỚI DÙNG BRIDGE MANAGER
 # ==========================================================================
 try:
-    # Import các hàm cầu để tính features
-    from logic.bridges.bridges_v16 import getAllPositions_V17_Shadow, taoSTL_V30_Bong # ĐÃ SỬA
-    from logic.bridges.bridges_memory import get_27_loto_positions, calculate_bridge_stl, get_27_loto_names # ĐÃ SỬA
+    # (GĐ 5) XÓA CÁC IMPORT CẦU CŨ KHÔNG CẦN THIẾT
     from logic.config_manager import SETTINGS # Vẫn cần SETTINGS
+    # XÓA: from logic.bridges.bridges_v16 import getAllPositions_V17_Shadow, taoSTL_V30_Bong
+    # XÓA: from logic.bridges.bridges_memory import get_27_loto_positions, calculate_bridge_stl, get_27_loto_names
 except ImportError as e:
     print(f"LỖI NGHIÊM TRỌNG: Không thể import logic cầu/repo: {e}")
+    # Cần định nghĩa lại các hàm hỗ trợ cơ bản đã bị xóa/thay đổi
+    def _parse_win_rate_text(win_rate_text): return 0.0
+    def _standardize_pair(stl_list): return None
+    # End Fallback
+
 def _parse_win_rate_text(win_rate_text):
     """(V7.0 G2) Parses '55.10%' to 55.10 or 0.0 if invalid."""
     if not win_rate_text:
@@ -148,36 +169,31 @@ def _parse_win_rate_text(win_rate_text):
 
 def _standardize_pair(stl_list):
     """Helper: ['30', '01'] -> '01-30'. (Di chuyển từ ml_model.py)"""
+    # Hàm này không còn được dùng trong logic _get_daily_bridge_predictions mới. Giữ lại cho tương thích.
     if not stl_list or len(stl_list) != 2: return None
     return "-".join(sorted(stl_list))
 
 def _get_daily_bridge_predictions(all_data_ai):
     """
-    (V7.0 - Tách biệt logic & Thêm Q-Features) 
-    Lặp qua CSDL để lấy dự đoán N1 của TẤT CẢ các cầu cho TẤT CẢ các ngày. 
+    (V7.0 GĐ 5 - TÁI CẤU TRÚC) 
+    Lặp qua CSDL để lấy dự đoán N1 của TẤT CẢ các cầu cho TẤT CẢ các ngày bằng BridgeManager. 
     Tính toán cả Feature Counts và Q-Features.
     """
-    print("... (V7.0 G2 Feature Extraction) Bước 1: Tính toán dự đoán cầu cho toàn bộ lịch sử...")
+    print("... (V7.0 GĐ 5 Feature Extraction) Bước 1: Tính toán dự đoán cầu cho toàn bộ lịch sử bằng BridgeManager...")
     
     # ĐỊNH DẠNG MỚI: { 'Kỳ 123': { 'loto_01': {'v5_count': 1, 'q_avg_win_rate': 55.1, ...}, 'loto_02': {...} } }
     daily_predictions_by_loto = defaultdict(lambda: defaultdict(lambda: defaultdict(float)))
     
-    # Lấy managed_bridges từ Data Repository (chứa cả Q-Features)
-    managed_bridges = get_all_managed_bridges(DB_NAME, only_enabled=True)
+    # Lấy managed_bridges từ DataService (chứa cả Q-Features)
+    managed_bridges = get_all_managed_bridges(only_enabled=True) 
     
-    # Xử lý Q-Features trên managed_bridges MỘT LẦN (Đã chấp nhận đơn giản hóa cho Backtest)
+    # Xử lý Q-Features trên managed_bridges MỘT LẦN 
+    managed_bridges_map = {}
     for bridge in managed_bridges:
         bridge['win_rate_float'] = _parse_win_rate_text(bridge.get('win_rate_text'))
-        # Giá trị mặc định nếu không có dữ liệu
         bridge['k2n_risk'] = bridge.get('max_lose_streak_k2n', 999) 
-        bridge['current_streak_int'] = bridge.get('current_streak', -999) 
-    
-    memory_bridges = [] 
-    loto_names = get_27_loto_names()
-    for i in range(27):
-        for j in range(i, 27):
-            memory_bridges.append((i, j, 'sum', f"Tổng({loto_names[i]}+{loto_names[j]})"))
-            memory_bridges.append((i, j, 'diff', f"Hiệu(|{loto_names[i]}-{loto_names[j]}|)"))
+        bridge['current_streak_int'] = bridge.get('current_streak', -999)
+        managed_bridges_map[bridge['name']] = bridge
 
     # Lặp qua toàn bộ CSDL
     for k in range(1, len(all_data_ai)):
@@ -186,90 +202,59 @@ def _get_daily_bridge_predictions(all_data_ai):
         current_ky = str(current_row[0])
         
         if k % 100 == 0:
-            print(f"... (V7.0 G2 Feature Extraction) Bước 1: Đã xử lý {k}/{len(all_data_ai)} ngày (dự đoán cầu)")
+            print(f"... (V7.0 GĐ 5 Feature Extraction) Bước 1: Đã xử lý {k}/{len(all_data_ai)} ngày (dự đoán cầu)")
 
-        # Map tạm thời cho kỳ hiện tại: { '01-10': ['C1', 'V17_A'] }
-        temp_bridge_preds = defaultdict(list)
-
-        # 1. 15 Cầu Cổ Điển
-        for i, bridge_func in enumerate(ALL_15_BRIDGE_FUNCTIONS_V5):
-            try:
-                stl = bridge_func(prev_row)
-                pair_key = _standardize_pair(stl)
-                if pair_key:
-                    temp_bridge_preds[pair_key].append(f'C{i+1}')
-            except Exception:
-                pass
-
-        # 2. Cầu Đã Lưu (V17)
-        prev_positions_v17 = getAllPositions_V17_Shadow(prev_row)
-        for bridge in managed_bridges:
-            try:
-                if bridge["pos1_idx"] == -1: continue 
-                idx1, idx2 = bridge["pos1_idx"], bridge["pos2_idx"]
-                a, b = prev_positions_v17[idx1], prev_positions_v17[idx2]
-                if a is None or b is None: continue
-                stl = taoSTL_V30_Bong(a, b)
-                pair_key = _standardize_pair(stl)
-                if pair_key:
-                    temp_bridge_preds[pair_key].append(bridge['name'])
-            except Exception:
-                pass
-                
-        # 3. Cầu Bạc Nhớ (756 cầu)
-        prev_positions_mem = get_27_loto_positions(prev_row)
-        for idx1, idx2, alg_type, alg_name in memory_bridges:
-            try:
-                loto1, loto2 = prev_positions_mem[idx1], prev_positions_mem[idx2]
-                stl = calculate_bridge_stl(loto1, loto2, alg_type)
-                pair_key = _standardize_pair(stl)
-                if pair_key:
-                    temp_bridge_preds[pair_key].append(alg_name)
-            except Exception:
-                pass
+        # 1. TẠO CONTEXT VÀ CHẠY BRIDGE MANAGER
+        # Chuyển List[List] về DataFrame
+        context_df = pd.DataFrame([prev_row], columns=[f'Col_{j}' for j in range(len(prev_row))])
+        context = BridgeContext(historical_data=context_df)
         
-        # 4. CHUYỂN ĐỔI: TỪ CẶP (PAIR) SANG LOTO (FEATURE COUNT & Q-FEATURES)
-        loto_to_pairs = defaultdict(list)
-        for pair_key in temp_bridge_preds.keys():
-            loto1, loto2 = pair_key.split('-')
-            loto_to_pairs[loto1].append(pair_key)
-            loto_to_pairs[loto2].append(pair_key)
+        # Chạy TẤT CẢ các cầu thông qua BridgeManager
+        all_bridge_results: List[BridgeResult] = bridge_manager.run_all_bridges(context)
+        
+        # 2. CHUYỂN ĐỔI: TỪ BRIDGE RESULT SANG LOTO (FEATURE COUNT & Q-FEATURES)
+        
+        # Map tạm thời: { 'loto_01': ['Classic_C1', 'V17_A', ...] }
+        loto_to_bridge_names = defaultdict(list)
+        
+        # Phân loại Bridge Type cho Feature Counting
+        for result in all_bridge_results:
+            bridge_id = result.bridge_id
+            
+            for pred_loto in result.predictions:
+                if len(pred_loto) == 2 and pred_loto.isdigit(): # Chỉ xử lý lô hợp lệ
+                    loto_to_bridge_names[pred_loto].append(bridge_id)
 
+        
+        # 3. TÍNH FEATURE COUNTS VÀ Q-FEATURES
         for loto in [str(i).zfill(2) for i in range(100)]:
             f_classic_votes = 0
             f_v17_votes = 0
             f_memory_votes = 0
             
-            # Khởi tạo danh sách cho Q-Features
             q_win_rates = []
             q_k2n_risks = []
             q_current_streaks = []
 
-            pairs_for_this_loto = loto_to_pairs.get(loto, [])
+            # Lấy tất cả các bridge dự đoán lô này
+            all_bridges_for_loto = loto_to_bridge_names.get(loto, [])
             
-            if pairs_for_this_loto:
-                all_bridges_for_loto = []
-                for pair in pairs_for_this_loto:
-                    for bridge_name in temp_bridge_preds[pair]:
-                        all_bridges_for_loto.append(bridge_name)
+            for bridge_name in all_bridges_for_loto:
+                # Phân loại và đếm Feature Votes dựa trên tên cầu (Bridge ID)
+                if bridge_name.startswith('Classic_C'):
+                    f_classic_votes += 1
+                elif bridge_name.startswith('Tổng(') or bridge_name.startswith('Hiệu('):
+                    f_memory_votes += 1
+                elif bridge_name in managed_bridges_map: # Cầu V17/Shadow
+                    f_v17_votes += 1
+                    
+                    # LẤY Q-FEATURES TỪ MAP ĐÃ CHUẨN BỊ TRƯỚC VÒNG LẶP NGÀY
+                    q_data = managed_bridges_map.get(bridge_name)
+                    if q_data:
+                        q_win_rates.append(q_data['win_rate_float'])
+                        q_k2n_risks.append(q_data['k2n_risk'])
+                        q_current_streaks.append(q_data['current_streak_int'])
 
-                        # TÍNH Q-FEATURES: CHỈ CHO CẦU ĐÃ LƯU (ManagedBridge)
-                        if not (bridge_name.startswith('C') or bridge_name.startswith('Tổng') or bridge_name.startswith('Hiệu')):
-                            # Đây là Managed Bridge (V17/Shadow)
-                            found_bridge = next((b for b in managed_bridges if b['name'] == bridge_name), None)
-                            if found_bridge:
-                                q_win_rates.append(found_bridge['win_rate_float'])
-                                q_k2n_risks.append(found_bridge['k2n_risk'])
-                                q_current_streaks.append(found_bridge['current_streak_int'])
-
-                bridge_counts = Counter(all_bridges_for_loto)
-                for bridge_name, count in bridge_counts.items():
-                    if bridge_name.startswith('C'):
-                        f_classic_votes += count
-                    elif bridge_name.startswith('Tổng') or bridge_name.startswith('Hiệu'):
-                        f_memory_votes += count
-                    else: # Cầu V17/Shadow
-                        f_v17_votes += count
             
             # LƯU VÀO ĐỊNH DẠNG MỚI (features) - Feature Counts
             daily_predictions_by_loto[current_ky][loto]['v5_count'] = f_classic_votes
@@ -284,10 +269,11 @@ def _get_daily_bridge_predictions(all_data_ai):
             else:
                 # Giá trị mặc định khi không có cầu Managed Bridge nào dự đoán
                 daily_predictions_by_loto[current_ky][loto]['q_avg_win_rate'] = 0.0
-                daily_predictions_by_loto[current_ky][loto]['q_min_k2n_risk'] = 999.0 # Dùng 999.0 để biểu thị rủi ro RẤT CAO
-                daily_predictions_by_loto[current_ky][loto]['q_max_curr_streak'] = -999.0 # Dùng -999.0 để biểu thị chuỗi streak RẤT THẤP
+                daily_predictions_by_loto[current_ky][loto]['q_min_k2n_risk'] = 999.0 
+                daily_predictions_by_loto[current_ky][loto]['q_max_curr_streak'] = -999.0 
                 
     return daily_predictions_by_loto
+
 
 # ==========================================================================
 # (MỚI V7.2 MP) HÀM MỤC TIÊU CHO TIẾN TRÌNH
@@ -349,16 +335,15 @@ def _generate_cache_process_target(all_data_ai, result_queue):
 def run_ai_training_multiprocessing():
     """
     (V7.2 MP) Wrapper chạy Huấn luyện AI trên tiến trình riêng (Process)
-    để tận dụng đa lõi CPU, giải quyết vấn đề GIL.
-    Trả về Process và Queue để AppController quản lý kết quả.
+    (GĐ 1) Đã chuyển sang dùng load_data_ai_from_db từ DataService
     """
-    all_data_ai, msg = load_data_ai_from_db()
+    all_data_ai, msg = load_data_ai_from_db() # Đã được map tới DataService
     if all_data_ai is None:
         return None, None, False, msg
         
     result_queue = Queue()
     process = Process(
-        target=_train_ai_process_target, 
+        target=_train_ai_process_target, # <<< ĐÃ SỬA LỖI (thay : bằng =)
         args=(all_data_ai, result_queue)
     )
     process.start()
@@ -371,8 +356,9 @@ run_ai_training_threaded = run_ai_training_multiprocessing
 def run_optimization_cache_generation():
     """
     (V7.2 Caching) Wrapper chạy tác vụ tạo Cache (rất nặng) trong tiến trình riêng.
+    (GĐ 1) Đã chuyển sang dùng load_data_ai_from_db từ DataService
     """
-    all_data_ai, msg = load_data_ai_from_db()
+    all_data_ai, msg = load_data_ai_from_db() # Đã được map tới DataService
     if all_data_ai is None:
         return None, None, False, msg
         
@@ -387,8 +373,9 @@ def run_optimization_cache_generation():
 def run_ai_prediction_for_dashboard():
     """
     (V7.0) Hàm mới thay thế cho việc gọi trực tiếp get_ai_predictions
+    (GĐ 1) Đã chuyển sang dùng load_data_ai_from_db từ DataService
     """
-    all_data_ai, msg = load_data_ai_from_db()
+    all_data_ai, msg = load_data_ai_from_db() # Đã được map tới DataService
     if all_data_ai is None or len(all_data_ai) < 2:
         return None, msg
         
@@ -434,11 +421,13 @@ def run_model_evaluation():
 # CÁC HÀM HỖ TRỢ CŨ (Đảm bảo chữ ký/logic đúng)
 # ==========================================================================
 
-def get_all_managed_bridges_wrapper(db_name=DB_NAME, only_enabled=False):
+def get_all_managed_bridges_wrapper(db_name=None, only_enabled=False): # (THAY ĐỔI GĐ 1) Bỏ qua db_name
     """
     Wrapper (Giữ lại hàm này cho tương thích)
+    (GĐ 1) Đã chuyển hướng để gọi DataService.
     """
-    return get_all_managed_bridges(db_name, only_enabled)
+    # (THAY ĐỔI GĐ 1) Gọi hàm đã map (không cần db_name)
+    return get_all_managed_bridges(only_enabled=only_enabled)
 
 print("Lottery Service API (lottery_service.py) đã tải thành công (V7.2 MP & MLOps & Caching).")
 
@@ -449,12 +438,21 @@ print("Lottery Service API (lottery_service.py) đã tải thành công (V7.2 MP
 def run_and_update_from_text(raw_data):
     """
     (V7.1) Thực hiện Nạp và Thêm data kỳ mới từ text.
+    (GĐ 1) Sửa đổi để sử dụng kết nối CSDL trung tâm từ DataService.
     """
     conn = None
     try:
-        conn, cursor = setup_database()
+        # (THAY ĐỔI GĐ 1) Sử dụng DataService để lấy kết nối (conn)
+        conn = data_service.get_db_connection() # Lấy kết nối đang hoạt động
+        if not conn:
+            return False, "Lỗi nghiêm trọng: Không thể lấy kết nối CSDL từ DataService."
+            
+        cursor = conn.cursor()
+        
         total_keys_added = parse_and_APPEND_data_TEXT(raw_data, conn, cursor)
-        conn.close()
+        
+        # (THAY ĐỔI GĐ 1) Không cần conn.close() vì DataService quản lý, nhưng PHẢI commit
+        conn.commit() 
         
         if total_keys_added > 0:
             return True, f"Đã thêm thành công {total_keys_added} kỳ mới."
@@ -462,6 +460,11 @@ def run_and_update_from_text(raw_data):
             return False, "Không có kỳ nào được thêm (có thể do trùng lặp hoặc định dạng sai)."
             
     except Exception as e:
-        if conn: conn.close()
+        # (THAY ĐỔI GĐ 1) Nếu có lỗi, rollback
+        if conn: 
+            try:
+                conn.rollback()
+            except Exception:
+                pass # Kết nối có thể đã chết
         import traceback
         return False, f"Lỗi nghiêm trọng khi thêm data kỳ mới: {e}\n{traceback.format_exc()}"

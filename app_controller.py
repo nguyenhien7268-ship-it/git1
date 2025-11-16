@@ -1,12 +1,14 @@
-# Tên file: code1/app_controller.py
-#
-# (NỘI DUNG THAY THẾ TOÀN BỘ - V7.3.1 - SỬA LỖI THIẾU HÀM TINH CHỈNH THAM SỐ)
-#
+# TÊN FILE: app_controller.py
+# NỘI DUNG THAY THẾ TOÀN BỘ (HOÀN TRẢ VỀ .GET())
+# (SỬA LỖI THEO YÊU CẦU: Thêm cột "Dự Đoán Kế Tiếp" vào Backtest N1)
+
 import traceback
 import time
 import json
 import itertools
 import os 
+import pandas as pd
+from typing import List, Dict, Any, Tuple, Optional, Callable
 
 import multiprocessing 
 from multiprocessing import Process, Queue
@@ -14,6 +16,14 @@ from multiprocessing.queues import Empty
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import tkinter as tk 
+from tkinter import messagebox
+
+# (FIX LỖI MP) Thêm import DataService
+try:
+    from logic.data_service import DataService
+except ImportError:
+    print("LỖI: Controller không tìm thấy 'logic/data_service.py'.")
+    pass 
 
 try:
     from lottery_service import *
@@ -30,9 +40,61 @@ except ImportError:
         'AUTO_ADD_MIN_RATE': 50.0, 'AUTO_PRUNE_MIN_RATE': 40.0,
         'K2N_RISK_START_THRESHOLD': 4, 'K2N_RISK_PENALTY_PER_FRAME': 0.5,
         'get_all_settings': lambda: {},
-        'get': lambda k, d: d,
+        'get': lambda k, d: d, # (SỬA LỖI) Thêm .get()
         'update_setting': lambda k, v: (False, "SETTINGS object not initialized")
     })
+
+# Import các hàm Backtest/Analytics cần thiết cho Controller
+try:
+    # (SỬA LỖI GĐ 4) Các hàm này đã được refactor/lỗi thời
+    # Chúng ta import các Wrapper GĐ 4 mới
+    from logic.backtester import (
+        run_and_update_all_bridge_rates,
+        run_and_update_all_bridge_K2N_cache,
+        
+        # (SỬA LỖI GĐ 4) Các hàm V6 cũ (đã bị xóa/làm rỗng)
+        # Giữ lại import nếu các tác vụ cũ (Menu Backtest) vẫn gọi chúng
+        BACKTEST_MANAGED_BRIDGES_K2N, TONGHOP_TOP_CAU_RATE_V5,
+        TONGHOP_TOP_CAU_N1_V5, BACKTEST_15_CAU_K2N_V30_AI_V8,
+        BACKTEST_MEMORY_BRIDGES, 
+        BACKTEST_CUSTOM_CAU_V16,
+        BACKTEST_MANAGED_BRIDGES_N1
+    )
+    from logic.dashboard_analytics import (
+        get_loto_gan_stats, get_loto_stats_last_n_days,
+        get_prediction_consensus, get_high_win_rate_predictions,
+        get_top_memory_bridge_predictions, get_historical_dashboard_data,
+        
+        # (SỬA LỖI GĐ 4) Import hàm tạo cache cho Tối ưu hóa
+        generate_full_optimization_cache,
+    )
+    from logic.bridges.bridge_manager_core import (
+        find_and_auto_manage_bridges, prune_bad_bridges,
+        TIM_CAU_TOT_NHAT_V16
+    )
+    # (SỬA LỖI NAMEERROR) Thêm import cho cả 2 hàm tra cứu DB
+    from logic.db_manager import get_all_kys_from_db, get_results_by_ky
+except ImportError as e:
+    print(f"CẢNH BÁO: Lỗi import module logic trong controller: {e}")
+    # Fallback cho các hàm nếu lỗi
+    def BACKTEST_MANAGED_BRIDGES_K2N(*args): return {}, "Lỗi import"
+    def TONGHOP_TOP_CAU_RATE_V5(*args): return {}, "Lỗi import"
+    def find_and_auto_manage_bridges(*args): return False, "Lỗi import"
+    def prune_bad_bridges(*args): return "Lỗi import"
+    # Fallback cho hàm bị lỗi
+    def get_all_kys_from_db(*args): 
+        print("LỖI: Không thể import 'get_all_kys_from_db'.")
+        return []
+    def get_results_by_ky(*args):
+        print("LỖI: Không thể import 'get_results_by_ky'.")
+        return None
+    # (SỬA LỖI GĐ 4) Thêm Fallback
+    def run_and_update_all_bridge_rates(*args): return {}, "Lỗi Import GĐ 4"
+    def run_and_update_all_bridge_K2N_cache(*args): return {}, "Lỗi Import GĐ 4"
+    def generate_full_optimization_cache(*args): return False, "Lỗi Import GĐ 4"
+    def BACKTEST_MEMORY_BRIDGES(*args): return {}
+    def BACKTEST_CUSTOM_CAU_V16(*args): return {}
+    def BACKTEST_MANAGED_BRIDGES_N1(*args): return {}
 
 # ===================================================================
 # (V7.2 MP) HÀM HỖ TRỢ VÀ HÀM MỤC TIÊU CHO TỐI ƯU HÓA (Đa tiến trình)
@@ -86,7 +148,17 @@ def _run_single_config_test(job_payload):
         # ======================================================
         
         from logic.dashboard_analytics import get_historical_dashboard_data
-        from logic.bridges.bridges_classic import getAllLoto_V30
+        
+        # (SỬA LỖI GĐ 4) Import hàm tiện ích từ DataService
+        # (Hàm này phải được DataService cung cấp)
+        try:
+            from logic.data_service import DataService
+            # (SỬA LỖI GĐ 4) Hàm tiện ích nằm trong file bridge, không phải dataservice
+            from logic.bridges.bridges_classic import getAllLoto_V30
+        except Exception:
+            # Fallback nếu DataService lỗi trong worker
+            def getAllLoto_V30(r): return []
+            
         
         total_hits = 0
         days_tested = 0
@@ -135,7 +207,7 @@ def _run_single_config_test(job_payload):
         return ("error", error_msg, str(config), "{}")
 
 
-def _strategy_optimization_process_target(result_queue, all_data_ai, strategy, days_to_test, param_ranges, original_settings_backup):
+def _strategy_optimization_process_target(result_queue: multiprocessing.Queue, all_data_ai: List[List[Any]], strategy: str, days_to_test: int, param_ranges: Dict[str, Tuple[float, float, float]], original_settings_backup: Dict[str, Any]):
     
     def log_to_queue(message):
         result_queue.put(('log', message))
@@ -173,7 +245,11 @@ def _strategy_optimization_process_target(result_queue, all_data_ai, strategy, d
         num_workers = max(1, (os.cpu_count() or 4) - 1)
         log_to_queue(f"Khởi chạy {num_workers} tiến trình con để xử lý {total_combos} jobs (nhanh)...")
 
-        with ProcessPoolExecutor(max_workers=num_workers) as executor:
+        # (FIX LỖI MP) THÊM initializer VÀO ProcessPoolExecutor
+        with ProcessPoolExecutor(
+            max_workers=num_workers,
+            initializer=DataService.initialize_for_worker # <--- FIX LỖI BROKEN PROCESS POOL
+        ) as executor:
             future_to_job = {executor.submit(_run_single_config_test, job): job for job in jobs}
             
             for future in as_completed(future_to_job):
@@ -196,7 +272,8 @@ def _strategy_optimization_process_target(result_queue, all_data_ai, strategy, d
         try:
             from logic.config_manager import SETTINGS
             for key, value in original_settings_backup.items():
-                setattr(SETTINGS, key, value)
+                if hasattr(SETTINGS, key):
+                    setattr(SETTINGS, key, value)
             log_to_queue("Đã khôi phục cài đặt (trong bộ nhớ process).")
         except Exception as e_cfg:
             log_to_queue(f"Lỗi khôi phục settings: {e_cfg}")
@@ -234,7 +311,13 @@ class AppController:
     # ===================================================================
 
     def load_data_ai_from_db_controller(self):
-        rows_of_lists, message = load_data_ai_from_db(self.db_name) 
+        # (SỬA LỖI GĐ 1) Gọi DataService (Singleton) thay vì hàm V6
+        try:
+            rows_of_lists, message = DataService.get_instance().load_data_ai_from_db() 
+        except Exception as e:
+             rows_of_lists = None
+             message = f"Lỗi nghiêm trọng khi gọi DataService: {e}"
+             
         if rows_of_lists is None:
             self.logger.log(message)
             self.all_data_ai = None 
@@ -249,18 +332,54 @@ class AppController:
     # ===================================================================
 
     def task_run_parsing(self, input_file):
-        """(SỬA V7.3.1) Thêm cờ auto_retrain=True cho MLOps"""
+        """(SỬA LỖI WINERROR 32 Lần 3 - Xóa dữ liệu, không xóa file)"""
         conn = None 
         try:
             with open(input_file, 'r', encoding='utf-8-sig') as f:
                 raw_data = f.read()
             self.logger.log(f"Đã đọc tệp tin '{input_file}' thành công.")
             
-            if os.path.exists(DB_NAME):
-                os.remove(DB_NAME)
-                self.logger.log(f"Đã xóa database cũ: {DB_NAME}")
-
+            # =======================================================
+            # (SỬA LỖI WINERROR 32)
+            # KHÔNG XÓA FILE (os.remove)
+            # Thay vào đó, chúng ta sẽ KẾT NỐI VỚI FILE
+            # và XÓA TẤT CẢ DỮ LIỆU BÊN TRONG NÓ.
+            # =======================================================
+            self.logger.log("... (GĐ 1) Đang kết nối CSDL để xóa dữ liệu cũ...")
+            
+            # Bước 1: Kết nối (an toàn, thread này sẽ tự tạo conn)
+            # (Chúng ta KHÔNG dùng DataService, mà dùng hàm gốc
+            # từ lottery_service.py)
             conn, cursor = setup_database()
+            if not conn:
+                raise Exception("Không thể kết nối CSDL để xóa.")
+                
+            # Bước 2: Xóa dữ liệu (DROP tables)
+            # (db_manager.py's setup_database sẽ tạo lại chúng)
+            try:
+                self.logger.log("... Đang xóa DuLieu_AI...")
+                cursor.execute("DROP TABLE IF EXISTS DuLieu_AI;")
+                self.logger.log("... Đang xóa ManagedBridges...")
+                cursor.execute("DROP TABLE IF EXISTS ManagedBridges;")
+                self.logger.log("... Đang xóa AI_Data_Cache...")
+                cursor.execute("DROP TABLE IF EXISTS AI_Data_Cache;")
+                # (Thêm bất kỳ bảng nào khác nếu có)
+                conn.commit()
+                self.logger.log("... Đã xóa thành công bảng (tables) cũ.")
+            except Exception as e_drop:
+                 self.logger.log(f"Lỗi khi xóa bảng (tables): {e_drop}")
+                 # Vẫn tiếp tục, vì setup_database sẽ tạo lại (CREATE IF NOT EXISTS)
+            
+            # Bước 3: Đóng kết nối này lại
+            conn.close()
+            conn = None # Đặt lại
+            
+            self.logger.log("... Đang tạo lại CSDL và chèn dữ liệu...")
+            
+            # Bước 4: Chạy lại setup_database (để TẠO LẠI bảng)
+            # và chèn dữ liệu
+            conn, cursor = setup_database()
+
             total_records_ai = parse_and_insert_data(raw_data, conn, cursor)
             
             if total_records_ai == 0:
@@ -268,12 +387,20 @@ class AppController:
             else:
                 self.logger.log(f"Phân tích và chèn dữ liệu hoàn tất.")
                 self.logger.log(f"- Đã chèn {total_records_ai} hàng A:I (backtest).")
-                self.logger.log(f"- Đã xóa mọi Cầu Đã Lưu (do nạp lại).")
+                self.logger.log(f"- Đã tạo lại bảng ManagedBridges (trống).")
                 self.logger.log(">>> Sẵn sàng cho Chức Năng Soi Cầu.")
-                self.root_after(0, self.app.run_decision_dashboard) 
                 
-                # (SỬA V7.3.1) Tự động hóa AI khi nạp file LỚN
-                self.root_after(1500, self._check_model_drift_after_update, True) # auto_retrain = True
+                # (SỬA LỖI WINERROR 32)
+                # Chúng ta phải đóng kết nối CSDL của thread này
+                # TRƯỚC KHI cố gắng chạy dashboard (nơi DataService
+                # của Main Thread sẽ truy cập lại)
+                if conn:
+                    conn.close()
+                    conn = None # Rất quan trọng
+                
+                # Yêu cầu Main Thread chạy dashboard
+                self.root_after(0, self.app.run_decision_dashboard) 
+                self.root_after(1500, self._check_model_drift_after_update, True)
 
         except Exception as e:
             self.logger.log(f"LỖI trong Bước 1 (Xóa Hết): {e}")
@@ -281,7 +408,7 @@ class AppController:
         finally:
             if conn:
                 conn.close()
-                self.logger.log("Đã đóng kết nối database.")
+                self.logger.log("Đã đóng kết nối database (cuối cùng).")
 
     def task_run_parsing_append(self, input_file):
         """(SỬA V7.3.1) Thêm cờ auto_retrain=True cho MLOps"""
@@ -365,70 +492,193 @@ class AppController:
             self.logger.log("Đã hoàn tất tác vụ thêm từ text.")
 
     def task_run_backtest(self, mode, title):
+        """ (FIX GĐ 4.1) Sửa lỗi V6 lỗi thời."""
         toan_bo_A_I = self.load_data_ai_from_db_controller() 
         if not toan_bo_A_I:
             return
         
-        ky_bat_dau_kiem_tra = 2
-        ky_ket_thuc_kiem_tra = len(toan_bo_A_I) + (ky_bat_dau_kiem_tra - 1)
-        self.logger.log(f"Đang chạy backtest trên {len(toan_bo_A_I)} hàng dữ liệu...")
+        self.logger.log(f"Đang chạy backtest V6 (Cổ điển) trên {len(toan_bo_A_I)} hàng dữ liệu...")
 
-        func_to_call = BACKTEST_MANAGED_BRIDGES_N1 if mode == 'N1' else (lambda a, b, c: BACKTEST_MANAGED_BRIDGES_K2N(a, b, c, history=True))
-        results_data = func_to_call(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra)
+        # (FIX GĐ 4.1) Các hàm V6 này đã lỗi thời.
+        # Trả về một List (với tiêu đề) để UI không bị crash (KeyError: 0).
+        results_data = [
+            ["Tên Cầu", "Tỷ lệ", "Ghi chú"],
+            ["LỖI", "N/A", "Chức năng Backtest V6 này đã lỗi thời (GĐ 4) và bị vô hiệu hóa."]
+        ]
         
-        self.logger.log(f"Backtest hoàn tất. Đang mở cửa sổ kết quả...")
+        self.logger.log("CẢNH BÁO: Chức năng Backtest V6 (Cổ điển) đã lỗi thời và bị vô hiệu hóa.")
         self.root_after(0, self.app.show_backtest_results, title, results_data) 
 
     def task_run_custom_backtest(self, mode, title, custom_bridge_name):
+        """ (FIX GĐ 4.1) Sửa lỗi V6 lỗi thời."""
         allData = self.load_data_ai_from_db_controller() 
         if not allData:
             return
-        
-        ky_bat_dau_kiem_tra = 2
-        ky_ket_thuc_kiem_tra = len(allData) + (ky_bat_dau_kiem_tra - 1)
-        
-        if ("Tổng(" in custom_bridge_name or "Hiệu(" in custom_bridge_name) and mode == 'K2N':
-             self.logger.log("Lỗi: Cầu Bạc Nhớ chỉ hỗ trợ Backtest N1. Đang chạy N1...")
-             mode = 'N1'
-             title = f"Test Cầu N1: {custom_bridge_name}"
 
-        func_to_call = BACKTEST_CUSTOM_CAU_V16
-        if "Tổng(" in custom_bridge_name or "Hiệu(" in custom_bridge_name:
-            self.logger.log("Lỗi: Chức năng test cầu Bạc Nhớ tùy chỉnh chưa được hỗ trợ.")
-            return 
-            
-        self.logger.log(f"Đã dịch: {custom_bridge_name}. Đang test...")
-        results = func_to_call(
-            allData, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra,
-            custom_bridge_name, mode
-        )
-        self.root_after(0, self.app.show_backtest_results, title, results) 
+        # (FIX GĐ 4.1) Các hàm V6 này đã lỗi thời.
+        # Trả về một List (với tiêu đề) để UI không bị crash (KeyError: 0).
+        results_data = [
+            ["Tên Cầu", "Tỷ lệ", "Ghi chú"],
+            ["LỖI", "N/A", "Chức năng Backtest V6 Tùy chỉnh này đã lỗi thời (GĐ 4) và bị vô hiệu hóa."]
+        ]
+        
+        self.logger.log("CẢNH BÁO: Chức năng Backtest V6 Tùy chỉnh đã lỗi thời và bị vô hiệu hóa.")
+        self.root_after(0, self.app.show_backtest_results, title, results_data) 
 
     def task_run_backtest_managed_n1(self, title):
+        """ (FIX GĐ 4.1) Tái cấu trúc để gọi BridgeManager (N1).
+            (SỬA LỖI THEO YÊU CẦU) Thêm cột "Dự Đoán Kế Tiếp".
+        """
         toan_bo_A_I = self.load_data_ai_from_db_controller() 
         if not toan_bo_A_I:
             return
         
-        ky_bat_dau_kiem_tra = 2
-        ky_ket_thuc_kiem_tra = len(toan_bo_A_I) + (ky_bat_dau_kiem_tra - 1)
-
-        results_data = BACKTEST_MANAGED_BRIDGES_N1(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra)
+        self.logger.log(f"Đang chạy backtest GĐ 4 (N1) trên {len(toan_bo_A_I)} hàng dữ liệu...")
         
-        self.logger.log(f"Backtest Cầu Đã Lưu N1 hoàn tất. Đang mở cửa sổ kết quả...")
-        self.root_after(0, self.app.show_backtest_results, title, results_data) 
+        # (GĐ 1) Tải danh sách cầu
+        managed_bridges_list = DataService.get_instance().get_all_managed_bridges(only_enabled=True)
+        if not managed_bridges_list:
+            self.logger.log("Lỗi: Không tìm thấy Cầu Đã Lưu nào để chạy backtest N1.")
+            return
+
+        # ===================================================================
+        # (SỬA LỖI THEO YÊU CẦU) TÍNH TOÁN 2 BƯỚC
+        # ===================================================================
+
+        # 1. Chạy N1 (Tỷ lệ) trước (như cũ)
+        n1_results_dict, message_n1 = run_and_update_all_bridge_rates(
+            toan_bo_A_I, 
+            managed_bridges_list, 
+            write_to_db=False 
+        )
+        self.logger.log(f"(Backtest N1) {message_n1}")
+
+        # 2. Chạy K2N (Cache) để lấy "Dự Đoán Kế Tiếp" (Giống K2N backtest)
+        #    (Chúng ta cần cập nhật list cầu với tỷ lệ N1 mới trước)
+        managed_bridges_updated = []
+        for bridge_data in managed_bridges_list:
+            bridge_name = bridge_data['name']
+            if bridge_name in n1_results_dict:
+                # Cập nhật win_rate_text từ kết quả N1 MỚI NHẤT
+                bridge_data['win_rate_text'] = n1_results_dict[bridge_name].get('win_rate_text', '0.00%')
+            managed_bridges_updated.append(bridge_data)
+        
+        k2n_results_dict, message_k2n = run_and_update_all_bridge_K2N_cache(
+            toan_bo_A_I, 
+            managed_bridges_updated, # <--- Truyền danh sách đã cập nhật N1
+            write_to_db=False 
+        )
+        self.logger.log(f"(Backtest N1 - Lấy dự đoán) {message_k2n}")
+        
+        # ===================================================================
+        # (SỬA LỖI HIỂN THỊ N1)
+        # Sửa lại Header và Dữ liệu
+        # ===================================================================
+        headers = ["Tên Cầu", "Dự Đoán Kế Tiếp", "Tỷ lệ N1", "Thắng/Tổng"] # <-- THÊM CỘT MỚI
+        results_list_for_ui = [headers]
+        
+        # Sắp xếp theo Tỷ lệ N1 giảm dần (lấy từ n1_results_dict)
+        try:
+            sorted_results = sorted(
+                n1_results_dict.items(), # <-- Sắp xếp dict N1
+                key=lambda item: float(str(item[1].get('win_rate_text', '0%')).replace('%', '')),
+                reverse=True
+            )
+        except Exception:
+             sorted_results = list(n1_results_dict.items()) # Fallback
+        
+        for bridge_name, n1_data in sorted_results:
+            # Lấy dữ liệu dự đoán từ k2n_results_dict
+            k2n_data = k2n_results_dict.get(bridge_name, {})
+            
+            results_list_for_ui.append([
+                bridge_name,
+                k2n_data.get('next_prediction_stl', 'N/A'), # <-- DỮ LIỆU MỚI
+                n1_data.get('win_rate_text', 'N/A'),
+                f"{n1_data.get('total_wins', 0)}/{n1_data.get('total_days', 0)}"
+            ])
+        # ===================================================================
+
+        self.logger.log(f"Backtest Cầu Đã Lưu N1 (GĐ 4) hoàn tất. Đang mở cửa sổ kết quả...")
+        self.root_after(0, self.app.show_backtest_results, title, results_list_for_ui)
 
     def task_run_backtest_managed_k2n(self, title):
+        """ (FIX GĐ 4.1) Tái cấu trúc để gọi BridgeManager (K2N) và CHUYỂN ĐỔI kết quả."""
         toan_bo_A_I = self.load_data_ai_from_db_controller() 
         if not toan_bo_A_I:
             return
-        
-        ky_bat_dau_kiem_tra = 2
-        ky_ket_thuc_kiem_tra = len(toan_bo_A_I) + (ky_bat_dau_kiem_tra - 1)
 
-        results_data = BACKTEST_MANAGED_BRIDGES_K2N(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra, history=True)
+        self.logger.log(f"Đang chạy backtest GĐ 4 (K2N) trên {len(toan_bo_A_I)} hàng dữ liệu...")
         
-        self.logger.log(f"Backtest Cầu Đã Lưu K2N hoàn tất. Đang mở cửa sổ kết quả...")
-        self.root_after(0, self.app.show_backtest_results, title, results_data) 
+        # (GĐ 1) Tải danh sách cầu
+        managed_bridges_list = DataService.get_instance().get_all_managed_bridges(only_enabled=True)
+        if not managed_bridges_list:
+            self.logger.log("Lỗi: Không tìm thấy Cầu Đã Lưu nào để chạy backtest K2N.")
+            return
+
+        # ===================================================================
+        # (SỬA LỖI HIỂN THỊ K2N)
+        # 1. Chạy N1 và *lấy* kết quả (n1_results_dict)
+        # 2. *Hợp nhất* (merge) kết quả N1 vào danh sách cầu (managed_bridges)
+        # 3. Chạy K2N với danh sách cầu đã được cập nhật tỷ lệ N1
+        # ===================================================================
+        
+        # 1. Chạy N1 (Tỷ lệ) trước (nhưng không cập nhật DB, chỉ để lấy tỷ lệ)
+        n1_results_dict, _ = run_and_update_all_bridge_rates(
+            toan_bo_A_I, 
+            managed_bridges_list, 
+            write_to_db=False 
+        )
+        
+        # 2. Hợp nhất N1 vào danh sách cầu
+        # (Tải lại danh sách cầu (đã có Tỷ lệ N1 mới))
+        # (SỬA LỖI) Không tải lại từ DB, mà cập nhật thủ công
+        managed_bridges_updated = []
+        for bridge_data in managed_bridges_list:
+            bridge_name = bridge_data['name']
+            if bridge_name in n1_results_dict:
+                # Cập nhật win_rate_text từ kết quả N1 MỚI NHẤT
+                bridge_data['win_rate_text'] = n1_results_dict[bridge_name].get('win_rate_text', '0.00%')
+            managed_bridges_updated.append(bridge_data)
+
+        # 3. Gọi hàm cache mới (chỉ đọc, không ghi DB)
+        #    truyền vào danh sách cầu đã được cập nhật N1
+        results_dict, message = run_and_update_all_bridge_K2N_cache(
+            toan_bo_A_I, 
+            managed_bridges_updated, # <--- Truyền danh sách đã cập nhật
+            write_to_db=False 
+        )
+        self.logger.log(f"(Backtest K2N) {message}")
+        
+        # (FIX GĐ 4.1) Chuyển đổi DICT (mới) sang LIST (cũ) mà UI Results Viewer yêu cầu
+        headers = ["Tên Cầu", "STL Kế tiếp", "Chuỗi K2N", "Gãy Max K2N", "Tỷ lệ N1 (tham khảo)"]
+        results_list_for_ui = [headers]
+        
+        # Sắp xếp theo Chuỗi K2N giảm dần (giống Dashboard)
+        try:
+            sorted_results = sorted(
+                results_dict.items(), 
+                key=lambda item: (
+                    int(str(item[1].get('current_streak', 0)).split(' ')[0]), 
+                    -int(item[1].get('max_lose_streak_k2n', 0))
+                ), 
+                reverse=True
+            )
+        except Exception:
+             sorted_results = list(results_dict.items()) # Fallback
+        
+        for bridge_name, data in sorted_results:
+            results_list_for_ui.append([
+                bridge_name,
+                data.get('next_prediction_stl', 'N/A'),
+                f"{data.get('current_streak', 0)} ngày",
+                data.get('max_lose_streak_k2n', 0),
+                data.get('win_rate_text', 'N/A') # <--- Giờ sẽ hiển thị đúng
+            ])
+        # ===================================================================
+
+        self.logger.log(f"Backtest Cầu Đã Lưu K2N (GĐ 4) hoàn tất. Đang mở cửa sổ kết quả...")
+        self.root_after(0, self.app.show_backtest_results, title, results_list_for_ui) 
 
     def task_run_decision_dashboard(self, title):
         all_data_ai = self.load_data_ai_from_db_controller() 
@@ -458,18 +708,44 @@ class AppController:
         self.logger.log(f"... (1/5) Đang thống kê Loto Về Nhiều ({n_days_stats} ngày)...")
         stats_n_day = get_loto_stats_last_n_days(all_data_ai, n=n_days_stats)
         
-        self.logger.log("... (2/5) Đang chạy hàm Cập nhật K2N Cache (tối ưu)...")
-        pending_k2n_data, cache_message = run_and_update_all_bridge_K2N_cache(all_data_ai, self.db_name)
+        # ===================================================================
+        # (SỬA LỖI GĐ 4) Tái cấu trúc quy trình chạy N1 và K2N
+        # ===================================================================
+        
+        # (GĐ 1) Tải danh sách cầu từ DataService (Singleton)
+        managed_bridges_list = DataService.get_instance().get_all_managed_bridges(only_enabled=True)
+
+        self.logger.log("... (2/5) Đang chạy Backtest N1 (Cập nhật Tỷ lệ)...")
+        # (GĐ 4) Chạy N1 (Tỷ lệ) trước
+        total_results_dict, message_n1 = run_and_update_all_bridge_rates(
+            all_data_ai, 
+            managed_bridges_list, 
+            write_to_db=True # Cập nhật DB
+        )
+        self.logger.log(f"... (Backtest N1) {message_n1}")
+        
+        # (GĐ 1) Tải lại danh sách cầu (đã có Tỷ lệ N1 mới)
+        managed_bridges_updated = DataService.get_instance().get_all_managed_bridges(only_enabled=True)
+
+        self.logger.log("... (3/5) Đang chạy hàm Cập nhật K2N Cache (tối ưu)...")
+        # (GĐ 4) Chạy K2N (Cache) sau, sử dụng danh sách cầu đã cập nhật N1
+        pending_k2n_data, cache_message = run_and_update_all_bridge_K2N_cache(
+            all_data_ai, 
+            managed_bridges_updated,
+            write_to_db=True # Cập nhật DB
+        )
         self.logger.log(f"... (Cache K2N) {cache_message}")
         
-        self.logger.log("... (3/5) Đang đọc Consensus và Cầu Tỷ lệ Cao từ cache...")
+        # ===================================================================
+        
+        self.logger.log("... (4/5) Đang đọc Consensus và Cầu Tỷ lệ Cao từ cache...")
         consensus = get_prediction_consensus()
         high_win = get_high_win_rate_predictions(threshold=high_win_thresh)
 
-        self.logger.log(f"... (4/5) Đang tìm Lô Gan (trên {n_days_gan} kỳ)...")
+        self.logger.log(f"... (5/5) Đang tìm Lô Gan (trên {n_days_gan} kỳ)...")
         gan_stats = get_loto_gan_stats(all_data_ai, n_days=n_days_gan)
         
-        self.logger.log("... (5/5) Đang chạy dự đoán AI (V7.0)...")
+        self.logger.log("... (6/5) Đang chạy dự đoán AI (V7.0)...") # Sửa 5/5 -> 6/5
         ai_predictions, ai_message = run_ai_prediction_for_dashboard()
         self.logger.log(f"... (AI) {ai_message}")
 
@@ -501,7 +777,36 @@ class AppController:
         if not all_data_ai:
             return 
 
-        _, message = run_and_update_all_bridge_K2N_cache(all_data_ai, self.db_name)
+        # ===================================================================
+        # (SỬA LỖI HIỂN THỊ K2N)
+        # Sửa lại logic giống hệt task_run_backtest_managed_k2n
+        # ===================================================================
+        
+        # (GĐ 1) Tải danh sách cầu
+        managed_bridges_list = DataService.get_instance().get_all_managed_bridges(only_enabled=True)
+
+        # 1. Chạy N1 (Tỷ lệ) trước (nhưng không cập nhật DB, chỉ để lấy tỷ lệ)
+        n1_results_dict, _ = run_and_update_all_bridge_rates(
+            all_data_ai, 
+            managed_bridges_list, 
+            write_to_db=False # Không cần ghi DB khi chỉ làm mới cache
+        )
+        
+        # 2. Hợp nhất N1 vào danh sách cầu
+        managed_bridges_updated = []
+        for bridge_data in managed_bridges_list:
+            bridge_name = bridge_data['name']
+            if bridge_name in n1_results_dict:
+                bridge_data['win_rate_text'] = n1_results_dict[bridge_name].get('win_rate_text', '0.00%')
+            managed_bridges_updated.append(bridge_data)
+
+        # 3. (GĐ 4) Chạy K2N (Cache) sau, sử dụng danh sách cầu đã cập nhật N1
+        #    (Lần này write_to_db=True là mặc định)
+        _, message = run_and_update_all_bridge_K2N_cache(
+            all_data_ai, 
+            managed_bridges_updated
+        )
+        # ===================================================================
         
         self.logger.log(message)
         
@@ -517,7 +822,8 @@ class AppController:
         if not toan_bo_A_I:
             return
 
-        result_message = find_and_auto_manage_bridges(toan_bo_A_I, self.db_name)
+        # NOTE: DB_NAME đã được loại bỏ khỏi hàm này, nhưng giữ lại chữ ký ở đây
+        success, result_message = find_and_auto_manage_bridges(toan_bo_A_I, self.db_name)
         
         self.logger.log(f">>> {title} HOÀN TẤT:")
         self.logger.log(result_message)
@@ -531,7 +837,8 @@ class AppController:
         if not toan_bo_A_I:
             return
 
-        result_message = prune_bad_bridges(toan_bo_A_I, self.db_name)
+        # NOTE: DB_NAME đã được loại bỏ khỏi hàm này, nhưng giữ lại chữ ký ở đây
+        result_message = prune_bad_bridges(self.db_name)
         
         self.logger.log(f">>> {title} HOÀN TẤT:")
         self.logger.log(result_message)
@@ -578,16 +885,19 @@ class AppController:
         self.root_after(500, self._check_ai_training_status, process, queue, title)
         
     def task_run_backtest_memory(self, title):
+        """ (FIX GĐ 4.1) Sửa lỗi V6 lỗi thời."""
         toan_bo_A_I = self.load_data_ai_from_db_controller()
         if not toan_bo_A_I:
             return
         
-        ky_bat_dau_kiem_tra = 2
-        ky_ket_thuc_kiem_tra = len(toan_bo_A_I) + (ky_bat_dau_kiem_tra - 1)
+        # (FIX GĐ 4.1) Các hàm V6 này đã lỗi thời.
+        # Trả về một List (với tiêu đề) để UI không bị crash (KeyError: 0).
+        results_data = [
+            ["Tên Cầu", "Tỷ lệ", "Ghi chú"],
+            ["LỖI", "N/A", "Chức năng Backtest Cầu Bạc Nhớ (V6) đã lỗi thời (GĐ 4) và bị vô hiệu hóa."]
+        ]
         
-        results_data = BACKTEST_MEMORY_BRIDGES(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra)
-        
-        self.logger.log(f"Backtest Cầu Bạc Nhớ hoàn tất. Đang mở cửa sổ kết quả...")
+        self.logger.log("CẢNH BÁO: Chức năng Backtest Cầu Bạc Nhớ (V6) đã lỗi thời và bị vô hiệu hóa.")
         self.root_after(0, self.app.show_backtest_results, title, results_data)
         
     # ===================================================================
@@ -646,7 +956,14 @@ class AppController:
             except Exception as e:
                 optimizer_tab.log(f"Lỗi khi hủy tác vụ cache cũ: {e}")
         
-        process, queue, success, message = run_optimization_cache_generation()
+        # (SỬA LỖI GĐ 4)
+        # Hàm này cần (all_data_ai)
+        all_data_ai = self.load_data_ai_from_db_controller()
+        if not all_data_ai:
+             optimizer_tab.log("LỖI: Không thể tải dữ liệu A:I để tạo cache.")
+             return
+             
+        process, queue, success, message = run_optimization_cache_generation(all_data_ai)
         
         if not success:
             optimizer_tab.log(f"LỖI KHỞI CHẠY TIẾN TRÌNH: {message}")
@@ -941,7 +1258,7 @@ class AppController:
             else:
                  self.root_after(0, self.app._show_error_dialog, 
                                 "Thất bại", 
-                                f"Không có tham số nào được lưu.\nLỗi: {'; '.join(error_messages)}", 
+                                f"Không có tham số nào được lưu thành công.\nLỗi: {'; '.join(error_messages)}", 
                                 parent_widget)
 
         except Exception as e:
@@ -962,8 +1279,10 @@ class AppController:
         (Hàm này được ui_tuner.py gọi)
         """
         try:
-            # Sử dụng hàm get() an toàn của SETTINGS
+            # ===================================================================
+            # (SỬA LỖI KIẾN TRÚC) Hoàn trả về .get()
             return SETTINGS.get(key, None) 
+            # ===================================================================
         except Exception as e:
             self.logger.log(f"Lỗi khi get_current_setting_value cho {key}: {e}")
             return None
@@ -1011,7 +1330,8 @@ class AppController:
 
     def task_save_bridge(self, bridge_name, description, win_rate, parent_widget):
         try:
-            success, message = upsert_managed_bridge(bridge_name, description, win_rate) 
+            # (SỬA LỖI GĐ 1) Gọi DataService
+            success, message = DataService.get_instance().upsert_managed_bridge(bridge_name, description, win_rate) 
             
             if success:
                 self.logger.log(f"LƯU/CẬP NHẬT CẦU: {message}")
@@ -1036,7 +1356,8 @@ class AppController:
 
     def task_load_managed_bridges(self, bridge_manager_view):
         try:
-            bridges_data = get_all_managed_bridges() 
+            # (SỬA LỖI GĐ 1) Gọi DataService
+            bridges_data = DataService.get_instance().get_all_managed_bridges() 
             self.logger.log(f"Đã tải {len(bridges_data)} cầu từ DB.")
             self.root_after(0, bridge_manager_view.populate_bridge_list, bridges_data)
         except Exception as e:
@@ -1049,7 +1370,8 @@ class AppController:
 
     def task_add_managed_bridge(self, bridge_name, description, parent_widget):
         try:
-            success, message = add_managed_bridge(bridge_name, description, "Tự thêm")
+            # (SỬA LỖI GĐ 1) Gọi DataService
+            success, message = DataService.get_instance().add_managed_bridge(bridge_name, description, "Tự thêm")
             
             if success:
                 self.logger.log(f"THÊM CẦU THÀNH CÔNG: {message}")
@@ -1077,7 +1399,8 @@ class AppController:
 
     def task_update_managed_bridge(self, bridge_id, new_description, new_status, parent_widget):
         try:
-            success, message = update_managed_bridge(bridge_id, new_description, new_status)
+            # (SỬA LỖI GĐ 1) Gọi DataService
+            success, message = DataService.get_instance().update_managed_bridge(bridge_id, new_description, new_status)
             
             if success:
                 action = "Cập nhật mô tả" if new_description else "Bật/Tắt trạng thái"
@@ -1106,7 +1429,8 @@ class AppController:
 
     def task_delete_managed_bridge(self, bridge_id, parent_widget):
         try:
-            success, message = delete_managed_bridge(bridge_id)
+            # (SỬA LỖI GĐ 1) Gọi DataService
+            success, message = DataService.get_instance().delete_managed_bridge(bridge_id)
             
             if success:
                 self.logger.log(f"XÓA CẦU THÀNH CÔNG: {message}")
@@ -1134,7 +1458,8 @@ class AppController:
 
     def task_load_ky_list(self, lookup_view):
         try:
-            ky_data_list = get_all_kys_from_db() 
+            # (SỬA LỖI GĐ 1) Gọi DataService
+            ky_data_list = DataService.get_instance().get_all_kys_from_db() 
             self.root_after(0, lookup_view.populate_ky_list, ky_data_list)
         except Exception as e:
             self.logger.log(f"LỖI trong task_load_ky_list: {e}")
@@ -1143,9 +1468,12 @@ class AppController:
 
     def _format_ky_details(self, ma_so_ky, row):
         try:
+            # (SỬA LỖI TRA CỨU) Import hàm calculate_loto_stats từ file đúng
+            # (Nó đã được sửa trong logic/bridges/bridges_classic.py)
             from logic.bridges.bridges_classic import getAllLoto_V30, calculate_loto_stats # Import local
             
             loto_list = getAllLoto_V30(row)
+            # (SỬA LỖI TRA CỨU) Hàm này giờ đã đúng
             dau_stats, duoi_stats = calculate_loto_stats(loto_list)
 
             output = f"KẾT QUẢ KỲ: {ma_so_ky}\n"
@@ -1182,9 +1510,15 @@ class AppController:
             output += f"{'Đầu'.ljust(COL_DAU_W)} | {'Loto'.ljust(COL_LOTO_W)} | {'Đuôi'.ljust(COL_DUOI_W)} | {'Loto'.ljust(COL_LOTO_W)}\n" 
             output += f"{'-'*COL_DAU_W} | {'-'*COL_LOTO_W} | {'-'*COL_DUOI_W} | {'-'*COL_LOTO_W}\n"
             
+            # (FIX LỖI HIỂN THỊ ĐẦU/ĐUÔI)
+            # Lặp qua 10 dòng (0-9)
             for i in range(10):
+                # Lấy loto cho Đầu i
                 dau_val_str = ",".join(dau_stats.get(i, []))
+                # Lấy loto cho Đuôi i (thay vì Đuôi 0 cho dòng 0, Đuôi 1 cho dòng 1)
                 duoi_val_str = ",".join(duoi_stats.get(i, []))
+                
+                # In Đầu i và Đuôi i trên cùng một dòng
                 output += f"{str(i).ljust(COL_DAU_W)} | {dau_val_str.ljust(COL_LOTO_W)} | {str(i).ljust(COL_DUOI_W)} | {duoi_val_str.ljust(COL_LOTO_W)}\n"
             
             return output
@@ -1195,7 +1529,8 @@ class AppController:
 
     def task_load_ky_details(self, ma_so_ky, lookup_view):
         try:
-            row = get_results_by_ky(ma_so_ky)
+            # (SỬA LỖI GĐ 1) Gọi DataService
+            row = DataService.get_instance().get_results_by_ky(ma_so_ky)
             
             if not row:
                 output = f"Không tìm thấy dữ liệu chi tiết cho kỳ: {ma_so_ky}"
