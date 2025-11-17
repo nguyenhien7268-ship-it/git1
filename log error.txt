@@ -1,0 +1,179 @@
+.\app_controller.py:80:65: F821 undefined name 'e_import'
+.\app_controller.py:386:13: W503 line break before binary operator
+.\app_controller.py:408:13: W503 line break before binary operator
+.\app_controller.py:427:13: W503 line break before binary operator
+.\app_controller.py:635:17: W503 line break before binary operator
+.\app_controller.py:735:44: E226 missing whitespace around arithmetic operator
+.\app_controller.py:815:43: W292 no newline at end of file
+.\logic\ai_feature_extractor.py:115:61: E226 missing whitespace around arithmetic operator
+.\logic\ai_feature_extractor.py:174:29: W503 line break before binary operator
+.\logic\ai_feature_extractor.py:175:29: W503 line break before binary operator
+.\logic\ai_feature_extractor.py:232:1: F811 redefinition of unused 'run_ai_training_threaded' from line 38
+.\logic\ai_feature_extractor.py:262:1: F811 redefinition of unused 'run_ai_prediction_for_dashboard' from line 41
+.\logic\ai_feature_extractor.py:281:39: W292 no newline at end of file
+.\logic\analytics.py:150:36: E226 missing whitespace around arithmetic operator
+.\logic\analytics.py:416:18: W292 no newline at end of file
+.\logic\backtester.py:250:13: W503 line break before binary operator
+.\logic\backtester.py:251:13: W503 line break before binary operator
+.\logic\backtester.py:253:13: W503 line break before binary operator
+.\logic\backtester.py:677:17: W503 line break before binary operator
+.\logic\backtester.py:678:17: W503 line break before binary operator
+.\logic\backtester.py:679:17: W503 line break before binary operator
+.\logic\backtester.py:1077:13: W503 line break before binary operator
+.\logic\backtester.py:1078:13: W503 line break before binary operator
+.\logic\backtester.py:1079:13: W503 line break before binary operator
+.\logic\backtester.py:1080:13: W503 line break before binary operator
+.\logic\backtester.py:1081:13: W503 line break before binary operator
+.\logic\backtester.py:1315:84: W292 no newline at end of file
+.\logic\bridges\bridge_manager_core.py:39:62: W291 trailing whitespace
+.\logic\bridges\bridge_manager_core.py:87:32: E741 ambiguous variable name 'l'
+.\logic\bridges\bridge_manager_core.py:141:13: W503 line break before binary operator
+.\logic\bridges\bridge_manager_core.py:142:13: W503 line break before binary operator
+.\logic\bridges\bridge_manager_core.py:143:13: W503 line break before binary operator
+.\logic\bridges\bridge_manager_core.py:144:13: W503 line break before binary operator
+.\logic\bridges\bridge_manager_core.py:145:13: W503 line break before binary operator
+.\logic\bridges\bridge_manager_core.py:271:13: W503 line break before binary operator
+.\logic\bridges\bridge_manager_core.py:272:13: W503 line break before binary operator
+.\logic\bridges\bridge_manager_core.py:273:13: W503 line break before binary operator
+.\logic\bridges\bridge_manager_core.py:274:13: W503 line break before binary operator
+.\logic\bridges\bridge_manager_core.py:275:13: W503 line break before binary operator
+.\logic\bridges\bridge_manager_core.py:442:102: W292 no newline at end of file
+.\logic\bridges\bridges_classic.py:262:33: W292 no newline at end of file
+.\logic\dashboard_analytics.py:235:13: W503 line break before binary operator
+.\logic\dashboard_analytics.py:236:13: W503 line break before binary operator
+.\logic\dashboard_analytics.py:237:13: W503 line break before binary operator
+.\logic\dashboard_analytics.py:238:13: W503 line break before binary operator
+.\logic\dashboard_analytics.py:239:13: W503 line break before binary operator
+.\logic\dashboard_analytics.py:328:21: W503 line break before binary operator
+.\logic\dashboard_analytics.py:329:21: W503 line break before binary operator
+.\logic\dashboard_analytics.py:330:21: W503 line break before binary operator
+.\logic\dashboard_analytics.py:390:25: W503 line break before binary operator
+.\logic\dashboard_analytics.py:391:25: W503 line break before binary operator
+.\logic\dashboard_analytics.py:392:25: W503 line break before binary operator
+.\logic\dashboard_analytics.py:428:61: E226 missing whitespace around arithmetic operator
+.\logic\dashboard_analytics.py:675:32: E226 missing whitespace around arithmetic operator
+.\logic\dashboard_analytics.py:750:21: W503 line break before binary operator
+.\logic\dashboard_analytics.py:751:21: W503 line break before binary operator
+.\logic\dashboard_analytics.py:752:21: W503 line break before binary operator
+.\logic\dashboard_analytics.py:825:22: W292 no newline at end of file
+.\logic\data_parser.py:9:15: W291 trailing whitespace
+.\logic\data_parser.py:15:24: W291 trailing whitespace
+.\logic\data_parser.py:24:24: W291 trailing whitespace
+.\logic\data_parser.py:97:14: E111 indentation is not a multiple of 4
+.\logic\data_parser.py:97:14: E117 over-indented
+.\logic\data_parser.py:98:14: E111 indentation is not a multiple of 4
+.\logic\data_parser.py:102:15: E221 multiple spaces before operator
+.\logic\data_parser.py:103:15: E221 multiple spaces before operator
+.\logic\data_parser.py:104:15: E221 multiple spaces before operator
+.\logic\data_parser.py:105:15: E221 multiple spaces before operator
+.\logic\data_parser.py:106:15: E221 multiple spaces before operator
+.\logic\data_parser.py:107:15: E221 multiple spaces before operator
+.\logic\data_parser.py:108:15: E221 multiple spaces before operator
+.\logic\data_parser.py:112:16: E221 multiple spaces before operator
+.\logic\data_parser.py:113:16: E221 multiple spaces before operator
+.\logic\data_parser.py:114:16: E221 multiple spaces before operator
+.\logic\data_parser.py:115:16: E221 multiple spaces before operator
+.\logic\data_parser.py:116:16: E221 multiple spaces before operator
+.\logic\data_parser.py:117:16: E221 multiple spaces before operator
+.\logic\data_parser.py:118:16: E221 multiple spaces before operator
+.\logic\data_parser.py:165:50: W291 trailing whitespace
+.\logic\data_parser.py:197:26: W291 trailing whitespace
+.\logic\data_parser.py:198:49: W291 trailing whitespace
+.\logic\data_parser.py:256:26: W291 trailing whitespace
+.\logic\data_parser.py:257:49: W291 trailing whitespace
+.\logic\data_parser.py:289:37: W291 trailing whitespace
+.\logic\data_parser.py:305:74: W291 trailing whitespace
+.\logic\data_parser.py:324:26: E114 indentation is not a multiple of 4 (comment)
+.\logic\data_parser.py:324:26: E117 over-indented (comment)
+.\logic\data_parser.py:325:26: E111 indentation is not a multiple of 4
+.\logic\data_parser.py:325:26: E117 over-indented
+.\logic\data_parser.py:325:102: E226 missing whitespace around arithmetic operator
+.\logic\data_parser.py:325:107: W291 trailing whitespace
+.\logic\data_parser.py:338:73: W504 line break after binary operator
+.\logic\data_parser.py:338:76: W291 trailing whitespace
+.\logic\data_parser.py:339:79: W504 line break after binary operator
+.\logic\data_parser.py:339:82: W291 trailing whitespace
+.\logic\data_parser.py:340:25: E129 visually indented line with same indent as next logical line
+.\logic\data_parser.py:362:33: W291 trailing whitespace
+.\logic\data_parser.py:428:26: E114 indentation is not a multiple of 4 (comment)
+.\logic\data_parser.py:428:26: E117 over-indented (comment)
+.\logic\data_parser.py:429:26: E111 indentation is not a multiple of 4
+.\logic\data_parser.py:429:26: E117 over-indented
+.\logic\data_parser.py:429:102: E226 missing whitespace around arithmetic operator
+.\logic\data_parser.py:445:73: W504 line break after binary operator
+.\logic\data_parser.py:445:76: W291 trailing whitespace
+.\logic\data_parser.py:446:79: W504 line break after binary operator
+.\logic\data_parser.py:446:82: W291 trailing whitespace
+.\logic\data_parser.py:447:25: E129 visually indented line with same indent as next logical line
+.\logic\data_parser.py:565:18: E111 indentation is not a multiple of 4
+.\logic\data_parser.py:565:18: E117 over-indented
+.\logic\data_parser.py:569:14: E111 indentation is not a multiple of 4
+.\logic\data_parser.py:569:14: E117 over-indented
+.\logic\data_parser.py:610:90: W292 no newline at end of file
+.\logic\data_repository.py:32:28: W291 trailing whitespace
+.\logic\data_repository.py:136:22: W292 no newline at end of file
+.\logic\db_manager.py:270:52: W291 trailing whitespace
+.\logic\db_manager.py:271:44: W291 trailing whitespace
+.\logic\db_manager.py:272:31: W291 trailing whitespace
+.\logic\db_manager.py:282:43: W291 trailing whitespace
+.\logic\db_manager.py:319:30: W291 trailing whitespace
+.\logic\db_manager.py:320:31: W291 trailing whitespace
+.\logic\db_manager.py:321:32: W291 trailing whitespace
+.\logic\db_manager.py:360:30: W291 trailing whitespace
+.\logic\db_manager.py:378:25: W292 no newline at end of file
+.\logic\ml_model.py:146:17: W503 line break before binary operator
+.\logic\ml_model.py:147:17: W503 line break before binary operator
+.\logic\ml_model.py:152:17: W503 line break before binary operator
+.\logic\ml_model.py:153:17: W503 line break before binary operator
+.\logic\ml_model.py:233:80: E226 missing whitespace around arithmetic operator
+.\logic\ml_model.py:284:17: W503 line break before binary operator
+.\logic\ml_model.py:285:17: W503 line break before binary operator
+.\logic\ml_model.py:289:17: W503 line break before binary operator
+.\logic\ml_model.py:290:17: W503 line break before binary operator
+.\logic\ml_model.py:329:39: W292 no newline at end of file
+.\logic\utils.py:72:27: W292 no newline at end of file
+.\lottery_service.py:125:77: F821 undefined name 'e_ai'
+.\lottery_service.py:129:76: F821 undefined name 'e_ai'
+.\lottery_service.py:198:43: W292 no newline at end of file
+.\tests\test_basic.py:10:9: F401 'app_controller' imported but unused
+.\tests\test_basic.py:11:9: F401 'core_services' imported but unused
+.\tests\test_basic.py:12:9: F401 'main_app' imported but unused
+.\ui\ui_bridge_manager.py:85:32: E741 ambiguous variable name 'l'
+.\ui\ui_bridge_manager.py:139:13: W503 line break before binary operator
+.\ui\ui_bridge_manager.py:140:13: W503 line break before binary operator
+.\ui\ui_bridge_manager.py:141:13: W503 line break before binary operator
+.\ui\ui_bridge_manager.py:142:13: W503 line break before binary operator
+.\ui\ui_bridge_manager.py:143:13: W503 line break before binary operator
+.\ui\ui_bridge_manager.py:269:13: W503 line break before binary operator
+.\ui\ui_bridge_manager.py:270:13: W503 line break before binary operator
+.\ui\ui_bridge_manager.py:271:13: W503 line break before binary operator
+.\ui\ui_bridge_manager.py:272:13: W503 line break before binary operator
+.\ui\ui_bridge_manager.py:273:13: W503 line break before binary operator
+.\ui\ui_bridge_manager.py:440:102: W292 no newline at end of file
+.\ui\ui_dashboard.py:181:32: F541 f-string is missing placeholders
+.\ui\ui_dashboard.py:204:32: F541 f-string is missing placeholders
+.\ui\ui_lookup.py:28:30: E741 ambiguous variable name 'l'
+.\ui\ui_lookup.py:192:54: W291 trailing whitespace
+.\ui\ui_lookup.py:225:29: E226 missing whitespace around arithmetic operator
+.\ui\ui_lookup.py:225:47: E226 missing whitespace around arithmetic operator
+.\ui\ui_lookup.py:225:66: E226 missing whitespace around arithmetic operator
+.\ui\ui_lookup.py:225:85: E226 missing whitespace around arithmetic operator
+.\ui\ui_lookup.py:244:51: W292 no newline at end of file
+.\ui\ui_main_window.py:413:13: W503 line break before binary operator
+.\ui\ui_main_window.py:414:13: W503 line break before binary operator
+.\ui\ui_main_window.py:415:13: W503 line break before binary operator
+.\ui\ui_main_window.py:656:17: W503 line break before binary operator
+.\ui\ui_main_window.py:657:17: W503 line break before binary operator
+.\ui\ui_main_window.py:658:17: W503 line break before binary operator
+.\ui\ui_main_window.py:689:21: W503 line break before binary operator
+.\ui\ui_main_window.py:705:50: W292 no newline at end of file
+.\ui\ui_optimizer.py:309:29: W503 line break before binary operator
+.\ui\ui_optimizer.py:310:29: W503 line break before binary operator
+.\ui\ui_optimizer.py:337:22: F541 f-string is missing placeholders
+.\ui\ui_optimizer.py:340:22: F541 f-string is missing placeholders
+.\ui\ui_settings.py:53:13: W503 line break before binary operator
+.\ui\ui_settings.py:54:13: W503 line break before binary operator
+.\ui\ui_settings.py:243:43: W292 no newline at end of file
+.\ui\ui_tuner.py:25:13: W503 line break before binary operator
+.\ui\ui_tuner.py:26:13: W503 line break before binary operator
+.\ui\ui_tuner.py:206:22: F541 f-string is missing placeholders

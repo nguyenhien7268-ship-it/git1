@@ -1,279 +1,440 @@
-import tkinter as tk
-from tkinter import ttk, messagebox, simpledialog
+# Tên file: du-an-backup/logic/bridges/bridge_manager_core.py
+#
+# (NỘI DUNG THAY THẾ TOÀN BỘ - SỬA F401 VÀ F811)
+#
+# (SỬA F401) Xóa 'import sqlite3' không dùng
 
-# Import các hàm logic cần thiết
+# Import SETTINGS
 try:
-    from lottery_service import (
-        get_all_managed_bridges, 
-        add_managed_bridge, 
-        update_managed_bridge, 
-        delete_managed_bridge
+    from ..config_manager import SETTINGS  # ĐÃ SỬA (Lên 1 cấp)
+except ImportError:
+    try:
+        from config_manager import SETTINGS
+    # (SỬA F811) Chỉ định nghĩa fallback NẾU cả 2 import thất bại
+    except ImportError:
+        print(
+            "LỖI: bridge_manager_core.py không thể import SETTINGS. Sử dụng fallback."
+        )
+        SETTINGS = type(
+            "obj", (object,), {"AUTO_ADD_MIN_RATE": 50.0, "AUTO_PRUNE_MIN_RATE": 40.0}
+        )
+
+# Import DB functions (CRUD và Management)
+try:
+    # Import từ Repository
+    from ..data_repository import get_all_managed_bridges  # ĐÃ SỬA (Lên 1 cấp)
+    from ..db_manager import (  # ĐÃ SỬA (Lên 1 cấp)
+        DB_NAME,
+        update_managed_bridge,
+        upsert_managed_bridge,
     )
 except ImportError:
-    print("LỖI: ui_bridge_manager.py không thể import lottery_service.")
-    # Hàm giả
-    def get_all_managed_bridges(): return []
-    def add_managed_bridge(n, d, w): return False, "Lỗi"
-    def update_managed_bridge(i, d, s): return False, "Lỗi"
-    def delete_managed_bridge(i): return False, "Lỗi"
+    # Fallback cho DB/Repo
+    print(
+        "Lỗi: Không thể import db_manager/data_repository trong bridge_manager_core.py"
+    )
+    DB_NAME = "data/xo_so_prizes_all_logic.db"  # <--- ĐÃ SỬA
+
+    def upsert_managed_bridge(n, d, r, db, i1=None, i2=None): # Thêm i1, i2 cho khớp
+        return False, "Lỗi Import"
+
+    def update_managed_bridge(id, d, e, db):
+        return False, "Lỗi Import"
+
+    def get_all_managed_bridges(db, o):
+        return {}
 
 
-class BridgeManagerWindow:
-    """Quản lý cửa sổ Toplevel Quản lý Cầu."""
+# Import các hàm cầu (V17 và Bạc Nhớ)
+try:
+    from .bridges_v16 import (  # ĐÃ SỬA (Lên 1 cấp)
+        getAllPositions_V17_Shadow,
+        getPositionName_V17_Shadow,
+        taoSTL_V30_Bong,
+    )
+    from .bridges_memory import (  # ĐÃ SỬA (Lên 1 cấp)
+        calculate_bridge_stl,
+        get_27_loto_names,
+        get_27_loto_positions,
+    )
+    from .bridges_classic import (  # ĐÃ SỬA (Lên 1 cấp)
+        checkHitSet_V30_K2N,
+        getAllLoto_V30,
+    )
+except ImportError:
+    print("Lỗi: Không thể import các hàm cầu trong bridge_manager_core.py")
 
-    def __init__(self, app):
-        self.app = app
-        self.root = app.root
-        self.all_bridges_cache = [] # Cache
-        
-        if hasattr(self.app, 'bridge_manager_window') and self.app.bridge_manager_window and self.app.bridge_manager_window.winfo_exists():
-            self.app.bridge_manager_window.lift()
-            return
-            
-        self.app.update_output("Đang mở cửa sổ Quản lý Cầu...")
-        
-        self.window = tk.Toplevel(self.root)
-        self.app.bridge_manager_window = self.window # Gán lại vào app chính
-        self.window.title("Quản lý Cầu Đã Lưu (Cache K2N)")
-        self.window.geometry("1000x500") # (MỚI GĐ 4) Tăng chiều rộng
+    def getAllPositions_V17_Shadow(r):
+        return []
 
-        manager_frame = ttk.Frame(self.window, padding="10")
-        manager_frame.pack(expand=True, fill=tk.BOTH)
-        manager_frame.rowconfigure(0, weight=1)
-        manager_frame.columnconfigure(0, weight=3)
-        manager_frame.columnconfigure(1, weight=2)
+    def getPositionName_V17_Shadow(i):
+        return "Lỗi"
 
-        # --- Khung trái (Treeview) ---
-        tree_frame = ttk.Frame(manager_frame)
-        tree_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
-        tree_frame.rowconfigure(0, weight=1)
-        tree_frame.columnconfigure(0, weight=1)
+    def taoSTL_V30_Bong(a, b):
+        return ["00", "00"]
 
-        tree_scroll_y = ttk.Scrollbar(tree_frame, orient=tk.VERTICAL)
-        tree_scroll_y.pack(side=tk.RIGHT, fill=tk.Y)
-        
-        # (SỬA GĐ 4) Thêm cột 'max_lose'
-        cols = ('id', 'name', 'rate', 'streak', 'max_lose', 'next_pred', 'status')
-        self.tree = ttk.Treeview(tree_frame, 
-                                 columns=cols, 
-                                 show="headings", 
-                                 yscrollcommand=tree_scroll_y.set)
-        tree_scroll_y.config(command=self.tree.yview)
-        
-        self.tree.heading('id', text='ID')
-        self.tree.column('id', width=40, anchor=tk.W)
-        self.tree.heading('name', text='Tên Cầu')
-        self.tree.column('name', width=200, anchor=tk.W)
-        
-        self.tree.heading('rate', text='Tỷ lệ (K2N)')
-        self.tree.column('rate', width=80, anchor=tk.W)
-        self.tree.heading('streak', text='Chuỗi Thắng')
-        self.tree.column('streak', width=80, anchor=tk.W)
-        
-        # (MỚI GĐ 4) Thêm cột Chuỗi Thua Max
-        self.tree.heading('max_lose', text='Thua Max (K2N)')
-        self.tree.column('max_lose', width=90, anchor=tk.W)
-        
-        self.tree.heading('next_pred', text='Dự đoán')
-        self.tree.column('next_pred', width=100, anchor=tk.W)
-        self.tree.heading('status', text='Trạng thái')
-        self.tree.column('status', width=80, anchor=tk.W)
-        
-        self.tree.pack(expand=True, fill=tk.BOTH)
-        
-        self.tree.tag_configure('disabled', foreground='gray')
-        self.tree.tag_configure('enabled', foreground='black')
-        self.tree.tag_configure('pending_n2', background='#FFFFE0') 
-        self.tree.tag_configure('high_risk', foreground='red') # (MỚI GĐ 4)
-        
-        # Gán treeview vào app chính để hàm _save_bridge... có thể gọi
-        self.app.bridge_manager_tree = self.tree
+    def calculate_bridge_stl(l1, l2, t):
+        return ["00", "00"]
 
-        # --- Khung phải (Edit/Add) ---
-        edit_frame = ttk.Labelframe(manager_frame, text="Chi tiết", padding="10")
-        edit_frame.grid(row=0, column=1, sticky="nsew")
-        edit_frame.columnconfigure(1, weight=1)
+    def get_27_loto_names():
+        return []
 
-        ttk.Label(edit_frame, text="Tên Cầu:").grid(row=0, column=0, sticky="nw", padx=5, pady=5)
-        self.name_entry = ttk.Entry(edit_frame)
-        self.name_entry.grid(row=0, column=1, sticky="ew", padx=5, pady=5)
-        
-        ttk.Label(edit_frame, text="Mô tả:").grid(row=1, column=0, sticky="nw", padx=5, pady=5)
-        self.desc_entry = ttk.Entry(edit_frame)
-        self.desc_entry.grid(row=1, column=1, sticky="ew", padx=5, pady=5)
-        
-        self.status_label = ttk.Label(edit_frame, text="Trạng thái: N/A", font=('TkDefaultFont', 9, 'bold'))
-        self.status_label.grid(row=2, column=0, columnspan=2, sticky="w", padx=5, pady=10)
+    def get_27_loto_positions(r):
+        return []
 
-        # Frame cho các nút
-        button_frame_edit = ttk.Frame(edit_frame)
-        button_frame_edit.grid(row=3, column=0, columnspan=2, sticky="ew", pady=10)
-        button_frame_edit.columnconfigure(0, weight=1)
-        button_frame_edit.columnconfigure(1, weight=1)
-        
-        add_button = ttk.Button(button_frame_edit, text="Thêm Cầu Mới", 
-                                command=self.add_new_bridge)
-        add_button.grid(row=0, column=0, sticky="ew", padx=2)
-        
-        update_button = ttk.Button(button_frame_edit, text="Cập nhật Mô tả", 
-                                   command=self.update_selected_bridge)
-        update_button.grid(row=0, column=1, sticky="ew", padx=2)
+    def checkHitSet_V30_K2N(p, l):
+        return "Lỗi"
 
-        toggle_button = ttk.Button(button_frame_edit, text="Bật / Tắt Cầu", 
-                                   command=self.toggle_bridge_status)
-        toggle_button.grid(row=1, column=0, sticky="ew", padx=2, pady=5)
-        
-        delete_button = ttk.Button(button_frame_edit, text="XÓA Cầu Đã Chọn", 
-                                   command=self.delete_selected_bridge)
-        delete_button.grid(row=1, column=1, sticky="ew", padx=2, pady=5)
-        
-        update_rates_button = ttk.Button(edit_frame, text="Cập nhật Cache K2N Toàn bộ Cầu", 
-                                         command=self.run_update_all_k2n_cache)
-        update_rates_button.grid(row=4, column=0, columnspan=2, sticky="ew", padx=5, pady=(15, 5))
+    def getAllLoto_V30(r):
+        return []
 
 
-        # --- Logic cho cửa sổ Quản lý ---
-        self.tree.bind("<<TreeviewSelect>>", self.on_bridge_select)
-        self.refresh_bridge_list()
-        
-    def refresh_bridge_list(self):
-        """(SỬA GĐ 4) Tải lại dữ liệu cho Treeview Quản lý Cầu (cache K2N + Max Lose)."""
-        if not self.tree: return
-        for item in self.tree.get_children():
-            self.tree.delete(item)
-        
-        self.all_bridges_cache = get_all_managed_bridges()
-        for bridge in self.all_bridges_cache:
-            status_text = "Đang Bật" if bridge['is_enabled'] == 1 else "Đã Tắt"
-            tag = 'enabled' if bridge['is_enabled'] == 1 else 'disabled'
-            
-            # (SỬA GĐ 4) Lấy dữ liệu cache
-            rate = bridge.get('win_rate_text') or "N/A"
-            streak = bridge.get('current_streak') or 0
-            max_lose = bridge.get('max_lose_streak_k2n') or 0 # (MỚI GĐ 4)
-            prediction = bridge.get('next_prediction_stl') or "N/A"
-            
-            tags = [tag]
-            if "N2" in str(prediction):
-                tags.append('pending_n2')
-            if max_lose >= 5: # (MỚI GĐ 4) Cảnh báo rủi ro
-                tags.append('high_risk')
-            
-            self.tree.insert("", tk.END, values=(
-                bridge['id'],
-                bridge['name'],
-                rate,
-                f"{streak} thắng", # (SỬA GĐ 4) Rõ nghĩa hơn
-                f"{max_lose} thua", # (MỚI GĐ 4)
-                prediction,
-                status_text
-            ), tags=tuple(tags))
-            
-        self.app.update_output(f"Đã làm mới danh sách Quản lý Cầu (tìm thấy {len(self.all_bridges_cache)} cầu).")
-        
-    def get_selected_bridge_info(self):
-        """Helper: Lấy id và dữ liệu của cầu đang chọn."""
-        if not self.tree: return None, None
-        selected_item = self.tree.focus()
-        if not selected_item:
-            messagebox.showwarning("Chưa chọn", "Vui lòng chọn một cầu từ danh sách.", parent=self.window)
-            return None, None
-        
-        item = self.tree.item(selected_item)
-        bridge_id = item['values'][0]
-        
-        for bridge_data in self.all_bridges_cache:
-            if bridge_data['id'] == bridge_id:
-                return bridge_id, bridge_data
-        return None, None
+# ===================================================================================
+# I. HÀM DÒ CẦU (ĐÃ DI CHUYỂN TỪ BACKTESTER V7.0)
+# ===================================================================================
 
-    def add_new_bridge(self):
-        """Logic nút 'Thêm Cầu Mới' (Thủ công)."""
-        bridge_name = self.name_entry.get().strip()
-        description = self.desc_entry.get().strip()
-        if not bridge_name:
-            messagebox.showwarning("Thiếu tên", "Tên cầu không được để trống.", parent=self.window)
-            return
-            
-        success, message = add_managed_bridge(bridge_name, description, "Tự thêm")
-        if success:
-            self.app.update_output(message)
-            self.refresh_bridge_list()
-            self.name_entry.config(state=tk.NORMAL)
-            self.name_entry.delete(0, tk.END)
-            self.desc_entry.delete(0, tk.END)
-        else:
-            self.app.update_output(f"LỖI: {message}")
-            messagebox.showerror("Lỗi", message, parent=self.window)
 
-    def update_selected_bridge(self):
-        """Logic nút 'Cập nhật Mô tả'."""
-        bridge_id, bridge_data = self.get_selected_bridge_info()
-        if not bridge_id: return
-        
-        new_description = self.desc_entry.get().strip()
-        success, message = update_managed_bridge(bridge_id, new_description, bridge_data['is_enabled'])
-        if success:
-            self.app.update_output(f"Đã cập nhật mô tả cho cầu ID {bridge_id}.")
-            self.refresh_bridge_list()
-        else:
-            self.app.update_output(f"LỖI: {message}")
-            messagebox.showerror("Lỗi", message, parent=self.window)
+def TIM_CAU_TOT_NHAT_V16(
+    toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra, db_name=DB_NAME
+):
+    """
+    (V7.0) Hàm dò cầu V17 (Shadow)
+    """
+    print("Bắt đầu Dò Cầu Tốt Nhất V17 (Shadow)...")
 
-    def toggle_bridge_status(self):
-        """Logic nút 'Bật / Tắt Cầu'."""
-        bridge_id, bridge_data = self.get_selected_bridge_info()
-        if not bridge_id: return
-        
-        new_status = 0 if bridge_data['is_enabled'] == 1 else 1
-        success, message = update_managed_bridge(bridge_id, bridge_data['description'], new_status)
-        if success:
-            self.app.update_output(f"Đã {'BẬT' if new_status==1 else 'TẮT'} cầu ID {bridge_id}.")
-            self.refresh_bridge_list()
-        else:
-            self.app.update_output(f"LỖI: {message}")
-            messagebox.showerror("Lỗi", message, parent=self.window)
+    allData, finalEndRow, startCheckRow, offset = (
+        toan_bo_A_I,
+        ky_ket_thuc_kiem_tra,
+        ky_bat_dau_kiem_tra + 1,
+        ky_bat_dau_kiem_tra,
+    )
 
-    def delete_selected_bridge(self):
-        """Logic nút 'XÓA Cầu'."""
-        bridge_id, bridge_data = self.get_selected_bridge_info()
-        if not bridge_id: return
-        
-        if not messagebox.askyesno("Xác nhận Xóa", 
-                                   f"Bạn có chắc chắn muốn XÓA vĩnh viễn cầu:\n{bridge_data['name']}\n\nThao tác này không thể hoàn tác.",
-                                   parent=self.window):
-            return
-            
-        success, message = delete_managed_bridge(bridge_id)
-        if success:
-            self.app.update_output(f"Đã XÓA cầu ID {bridge_id}.")
-            self.refresh_bridge_list()
-        else:
-            self.app.update_output(f"LỖI: {message}")
-            messagebox.showerror("Lỗi", message, parent=self.window)
+    headers = ["STT", "Cầu (V17 Shadow)", "Vị Trí", "Tỷ Lệ %", "Chuỗi"]
+    results = [headers]
 
-    def on_bridge_select(self, event):
-        """(SỬA GĐ 4) Khi chọn cầu trong Treeview."""
-        selected_item = self.tree.focus()
-        if not selected_item: return
-        item = self.tree.item(selected_item)
-        values = item['values']
-        
-        bridge_id, bridge_data = self.get_selected_bridge_info()
-        if not bridge_data:
-            return
+    positions_shadow = getAllPositions_V17_Shadow(allData[0])
+    num_positions_shadow = len(positions_shadow)
 
-        self.name_entry.config(state=tk.NORMAL)
-        self.name_entry.delete(0, tk.END)
-        self.name_entry.insert(0, values[1]) # Tên Cầu
-        self.name_entry.config(state=tk.DISABLED)
-        
-        self.desc_entry.delete(0, tk.END)
-        self.desc_entry.insert(0, bridge_data.get('description', '')) 
-        
-        self.status_label.config(text=f"Trạng thái: {values[6]}") # (SỬA GĐ 4) Index 6 (Status)
-        
-    # (SỬA LỖI) GỌI ĐÚNG TÊN HÀM
-    def run_update_all_k2n_cache(self):
-        """Gọi hàm chạy K2N cache đa luồng từ app chính."""
-        self.app.run_update_all_bridge_K2N_cache_from_main()
+    if num_positions_shadow == 0:
+        return [["LỖI:", "Không thể lấy Vị Trí V17 Shadow."]]
+
+    algorithms = []
+    for i in range(num_positions_shadow):
+        for j in range(i, num_positions_shadow):
+            algorithms.append((i, j))
+
+    num_algorithms = len(algorithms)
+    print(
+        f"Đã tạo {num_algorithms} thuật toán V17. Bắt đầu tiền xử lý {len(allData)} hàng..."
+    )
+
+    processedData = []
+    for k in range(startCheckRow, finalEndRow + 1):
+        prevRow_idx, actualRow_idx = k - 1 - offset, k - offset
+        if actualRow_idx >= len(allData) or prevRow_idx < 0:
+            continue
+        prevRow, actualRow = allData[prevRow_idx], allData[actualRow_idx]
+        if (
+            not prevRow
+            or not actualRow
+            or not actualRow[0]
+            or str(actualRow[0]).strip() == ""
+            or len(actualRow) < 10
+            or not actualRow[9]
+        ):
+            continue
+
+        processedData.append(
+            {
+                "prevPositions": getAllPositions_V17_Shadow(prevRow),
+                "actualLotoSet": set(getAllLoto_V30(actualRow)),
+            }
+        )
+
+    print("Tiền xử lý hoàn tất. Bắt đầu dò cầu...")
+
+    totalTestDays = len(processedData)
+    if totalTestDays == 0:
+        return [["LỖI:", "Không có dữ liệu hợp lệ để backtest."]]
+
+    AUTO_ADD_MIN_RATE = SETTINGS.AUTO_ADD_MIN_RATE
+    bridges_to_add = []
+
+    for j in range(num_algorithms):
+        alg = algorithms[j]
+        idx1, idx2 = alg[0], alg[1]
+        win_count, current_streak, max_streak = 0, 0, 0
+
+        for dayData in processedData:
+            prevPositions = dayData["prevPositions"]
+            actualLotoSet = dayData["actualLotoSet"]
+            a, b = prevPositions[idx1], prevPositions[idx2]
+            if a is None or b is None:
+                current_streak = 0
+                continue
+
+            pred_stl = taoSTL_V30_Bong(a, b)
+            check_result = checkHitSet_V30_K2N(pred_stl, actualLotoSet)
+
+            if "✅" in check_result:
+                win_count += 1
+                current_streak += 1
+            else:
+                current_streak = 0
+            max_streak = max(max_streak, current_streak)
+
+        if totalTestDays > 0:
+            rate = (win_count / totalTestDays) * 100
+            if rate >= AUTO_ADD_MIN_RATE:
+                pos1_name = getPositionName_V17_Shadow(idx1)
+                pos2_name = getPositionName_V17_Shadow(idx2)
+                bridge_name = f"{pos1_name}+{pos2_name}"
+                rate_str = f"{rate:.2f}%"
+
+                results.append(
+                    [
+                        len(results),
+                        bridge_name,
+                        f"{pos1_name} + {pos2_name}",
+                        rate_str,
+                        f"{current_streak} (Max {max_streak})",
+                    ]
+                )
+                bridges_to_add.append(
+                    (bridge_name, bridge_name, rate_str, db_name, idx1, idx2)
+                )
+
+    if bridges_to_add:
+        print(f"Dò cầu V17: Tự động thêm/cập nhật {len(bridges_to_add)} cầu...")
+        try:
+            # Dùng list comprehension
+            [
+                upsert_managed_bridge(n, d, r, db, i1, i2)
+                for n, d, r, db, i1, i2 in bridges_to_add
+            ]
+        except Exception as e_db:
+            print(f"Lỗi khi batch update cầu V17: {e_db}")
+
+    print("Hoàn tất Dò Cầu Tốt Nhất V17.")
+    return results
+
+
+# ===================================================================================
+# II. HÀM DÒ CẦU BẠC NHỚ (ĐÃ DI CHUYỂN TỪ BACKTESTER V7.0)
+# ===================================================================================
+
+
+def TIM_CAU_BAC_NHO_TOT_NHAT(
+    toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra, db_name=DB_NAME
+):
+    """
+    (V7.0) Hàm dò cầu Bạc Nhớ
+    """
+    print("Bắt đầu Dò Cầu Bạc Nhớ Tốt Nhất (756 cầu)...")
+
+    allData, finalEndRow, startCheckRow, offset = (
+        toan_bo_A_I,
+        ky_ket_thuc_kiem_tra,
+        ky_bat_dau_kiem_tra + 1,
+        ky_bat_dau_kiem_tra,
+    )
+
+    loto_names = get_27_loto_names()
+    num_positions = len(loto_names)
+
+    algorithms = []
+    headers = ["STT", "Cầu (Bạc Nhớ)", "Vị Trí", "Tỷ Lệ %", "Chuỗi"]
+
+    for i in range(num_positions):
+        for j in range(i, num_positions):
+            name_sum = f"Tổng({loto_names[i]} + {loto_names[j]})"
+            algorithms.append((i, j, "sum", name_sum))
+            name_diff = f"Hiệu(|{loto_names[i]} - {loto_names[j]}|)"
+            algorithms.append((i, j, "diff", name_diff))
+
+    num_algorithms = len(algorithms)
+    results = [headers]
+    print(
+        f"Đã tạo {num_algorithms} thuật toán Bạc Nhớ. Bắt đầu tiền xử lý {len(allData)} hàng..."
+    )
+
+    processedData = []
+    for k in range(startCheckRow, finalEndRow + 1):
+        prevRow_idx, actualRow_idx = k - 1 - offset, k - offset
+        if actualRow_idx >= len(allData) or prevRow_idx < 0:
+            continue
+        prevRow, actualRow = allData[prevRow_idx], allData[actualRow_idx]
+        if (
+            not prevRow
+            or not actualRow
+            or not actualRow[0]
+            or str(actualRow[0]).strip() == ""
+            or len(actualRow) < 10
+            or not actualRow[9]
+        ):
+            continue
+
+        processedData.append(
+            {
+                "prevLotos": get_27_loto_positions(prevRow),
+                "actualLotoSet": set(getAllLoto_V30(actualRow)),
+            }
+        )
+
+    print("Tiền xử lý hoàn tất. Bắt đầu dò cầu...")
+
+    totalTestDays = len(processedData)
+    if totalTestDays == 0:
+        return [["LỖI:", "Không có dữ liệu hợp lệ để backtest."]]
+
+    AUTO_ADD_MIN_RATE = SETTINGS.AUTO_ADD_MIN_RATE
+    bridges_to_add = []
+
+    for j in range(num_algorithms):
+        alg = algorithms[j]
+        idx1, idx2, alg_type, alg_name = alg[0], alg[1], alg[2], alg[3]
+        win_count, current_streak, max_streak = 0, 0, 0
+
+        for dayData in processedData:
+            prevLotos = dayData["prevLotos"]
+            actualLotoSet = dayData["actualLotoSet"]
+            loto1, loto2 = prevLotos[idx1], prevLotos[idx2]
+            pred_stl = calculate_bridge_stl(loto1, loto2, alg_type)
+            check_result = checkHitSet_V30_K2N(pred_stl, actualLotoSet)
+
+            if "✅" in check_result:
+                win_count += 1
+                current_streak += 1
+            else:
+                current_streak = 0
+            max_streak = max(max_streak, current_streak)
+
+        if totalTestDays > 0:
+            rate = (win_count / totalTestDays) * 100
+            if rate >= AUTO_ADD_MIN_RATE:
+                rate_str = f"{rate:.2f}%"
+                results.append(
+                    [
+                        len(results),
+                        alg_name,
+                        f"{loto_names[idx1]} + {loto_names[idx2]}",
+                        rate_str,
+                        f"{current_streak} (Max {max_streak})",
+                    ]
+                )
+                # Bạc nhớ (V17) có pos1_idx = -1
+                bridges_to_add.append(
+                    (alg_name, alg_name, rate_str, db_name, -1, -1)
+                )
+
+    if bridges_to_add:
+        print(f"Dò cầu Bạc Nhớ: Tự động thêm/cập nhật {len(bridges_to_add)} cầu...")
+        try:
+            # Dùng list comprehension
+            [
+                upsert_managed_bridge(n, d, r, db, i1, i2)
+                for n, d, r, db, i1, i2 in bridges_to_add
+            ]
+        except Exception as e_db:
+            print(f"Lỗi khi batch update cầu Bạc Nhớ: {e_db}")
+
+    print("Hoàn tất Dò Cầu Bạc Nhớ.")
+    return results
+
+
+# ===================================================================================
+# III. HÀM QUẢN LÝ TỰ ĐỘNG (ĐÃ DI CHUYỂN TỪ BACKTESTER V7.0)
+# ===================================================================================
+
+
+def find_and_auto_manage_bridges(all_data_ai, db_name=DB_NAME):
+    """
+    (V7.0) Wrapper: Chạy cả 2 hàm dò cầu (V17 + Bạc Nhớ) và cập nhật DB.
+    """
+    try:
+        if not all_data_ai:
+            return "Lỗi: Không có dữ liệu A:I để dò cầu."
+
+        ky_bat_dau = 2
+        ky_ket_thuc = len(all_data_ai) + (ky_bat_dau - 1)
+
+        print("... (Auto Find) Bắt đầu dò Cầu V17 (Shadow)...")
+        results_v17 = TIM_CAU_TOT_NHAT_V16(
+            all_data_ai, ky_bat_dau, ky_ket_thuc, db_name
+        )
+        count_v17 = len(results_v17) - 1 if results_v17 and len(results_v17) > 1 else 0
+
+        print("... (Auto Find) Bắt đầu dò Cầu Bạc Nhớ...")
+        results_memory = TIM_CAU_BAC_NHO_TOT_NHAT(
+            all_data_ai, ky_bat_dau, ky_ket_thuc, db_name
+        )
+        count_memory = (
+            len(results_memory) - 1 if results_memory and len(results_memory) > 1 else 0
+        )
+
+        return f"Dò cầu hoàn tất. Tự động thêm/cập nhật {count_v17} cầu V17 và {count_memory} cầu Bạc Nhớ."
+
+    except Exception as e:
+        return f"Lỗi nghiêm trọng trong find_and_auto_manage_bridges: {e}"
+
+
+def prune_bad_bridges(all_data_ai, db_name=DB_NAME):
+    """
+    (V7.0) Tự động TẮT (disable) các cầu có tỷ lệ K2N thấp (đã cache).
+    """
+    try:
+        # (V7.1) Đã chuyển sang .config_manager
+        AUTO_PRUNE_MIN_RATE = SETTINGS.AUTO_PRUNE_MIN_RATE
+    except Exception as e_cfg:
+        print(f"Lỗi đọc config: {e_cfg}. Dùng AUTO_PRUNE_MIN_RATE=40.0")
+        AUTO_PRUNE_MIN_RATE = 40.0
+
+    disabled_count = 0
+
+    # Bước 1: Lấy danh sách các cầu đang Bật (enabled)
+    try:
+        # (V7.1) Đã chuyển sang .data_repository
+        managed_bridges_list = get_all_managed_bridges(db_name, only_enabled=True)
+        if not managed_bridges_list:
+            return "Lỗi: Không có cầu nào được Bật để lọc."
+
+        # Chuyển sang map/dict để dễ tra cứu
+        managed_bridges_map = {b["name"]: b for b in managed_bridges_list}
+
+    except Exception as e_db:
+        return f"Lỗi DB khi tải Cầu Đã Lưu: {e_db}"
+
+    if not managed_bridges_map:
+        return "Lỗi: Không có cầu nào được Bật để lọc."
+
+    print(
+        f"... (Lọc Cầu Yếu) Đang kiểm tra {len(managed_bridges_map)} cầu đã bật..."
+    )
+
+    # Bước 2: Duyệt các cầu đã cache và lọc
+    for bridge_name, bridge_data in managed_bridges_map.items():
+        try:
+            # Đọc tỷ lệ từ cache K2N
+            win_rate_str = str(bridge_data.get("win_rate_text", "0%")).replace(
+                "%", ""
+            )
+
+            if not win_rate_str or win_rate_str == "N/A":
+                continue
+
+            win_rate = float(win_rate_str)
+
+            # Nếu cầu còn được bật (enabled) VÀ tỷ lệ thấp
+            if win_rate < AUTO_PRUNE_MIN_RATE:
+
+                bridge_id = bridge_data["id"]
+                old_desc = bridge_data["description"]
+
+                # Gọi hàm update, set is_enabled = 0
+                update_managed_bridge(bridge_id, old_desc, 0, db_name)
+                disabled_count += 1
+
+        except Exception as e_row:
+            print(f"Lỗi xử lý lọc cầu: {bridge_name}, Lỗi: {e_row}")
+
+    return f"Lọc cầu hoàn tất. Đã TẮT {disabled_count} cầu yếu (Tỷ lệ K2N < {AUTO_PRUNE_MIN_RATE}%)."

@@ -1,0 +1,96 @@
+Kế hoạch sửa lỗi Flake8 (Theo file log)
+Kế hoạch của chúng ta là bạn sẽ cung cấp cho tôi nội dung của từng file hoặc nhóm file theo thứ tự dưới đây. Tôi sẽ sửa và cung cấp lại nội dung đã dọn dẹp.
+
+Nhóm 1: Lỗi Nghiêm trọng F821 (Undefined Name)
+Đây là những lỗi nghiêm trọng nhất (biến không xác định) có thể gây crash chương trình.
+
+
+app_controller.py: 
+
+Lỗi F821: Biến e (dòng 79) và v_step (dòng 627, 629, 631, 636) bị sử dụng khi chưa được định nghĩa (có thể do lỗi scope).
+
+(File này cũng có nhiều lỗi E226, W503, W292 - Tôi sẽ sửa tất cả cùng lúc).
+
+
+lottery_service.py: 
+
+Lỗi F821: Biến e (dòng 122, 125) bị sử dụng khi chưa được định nghĩa.
+
+
+ui/ui_settings.py: 
+
+Lỗi F821: traceback (dòng 234) được gọi mà chưa import.
+
+Nhóm 2: Lỗi Nghiêm trọng F811, F401 (Import/Redefinition)
+
+logic/ai_feature_extractor.py: 
+
+Lỗi F811: Định nghĩa lại (redefinition) các hàm đã được import (dòng 232, 262).
+
+
+tests/test_basic.py: 
+
+Lỗi F401: import các module app_controller, core_services, main_app nhưng không sử dụng.
+
+Nhóm 3: Lỗi F541 (f-string rỗng)
+Đây là các lỗi sử dụng f"" cho các chuỗi không có biến, gây lãng phí.
+
+
+ui/ui_dashboard.py:  (Lỗi tại dòng 181, 204)
+
+
+ui/ui_optimizer.py:  (Lỗi tại dòng 337, 340)
+
+
+ui/ui_tuner.py:  (Lỗi tại dòng 206)
+
+Nhóm 4: Lỗi Cú pháp (E11x, E22x, E741)
+Đây là các lỗi về thụt lề, khoảng trắng và tên biến không rõ ràng.
+
+
+logic/data_parser.py: 
+
+Lỗi E111/E117/E129: Thụt lề sai nghiêm trọng ở nhiều dòng (ví dụ: 97, 324, 325, 429).
+
+Lỗi E221/E226: Thiếu hoặc thừa khoảng trắng quanh toán tử.
+
+
+ui/ui_lookup.py: 
+
+Lỗi E741: Dùng tên biến không rõ ràng l (dòng 28).
+
+Lỗi E226: Thiếu khoảng trắng quanh toán tử (dòng 225).
+
+
+logic/bridges/bridge_manager_core.py: 
+
+Lỗi E741: Dùng tên biến không rõ ràng l (dòng 87).
+
+
+ui/ui_bridge_manager.py: 
+
+Lỗi E741: Dùng tên biến không rõ ràng l (dòng 85).
+
+(File này bạn đã gửi ở Turn 12, nhưng nội dung là của bridge_manager_core.py. Nếu bạn muốn tôi sửa file UI, vui lòng gửi lại nội dung file UI chính xác).
+
+
+logic/dashboard_analytics.py & logic/ml_model.py: 
+
+Lỗi E226: Thiếu khoảng trắng quanh toán tử.
+
+Nhóm 5: Dọn dẹp Cảnh báo (W...) và File còn lại
+Các file còn lại chủ yếu bị lỗi W291 (khoảng trắng thừa cuối dòng), W292 (thiếu dòng mới cuối file) và W503 (ngắt dòng sai).
+
+logic/backtester.py
+
+logic/bridges/bridges_classic.py
+
+logic/data_repository.py
+
+logic/db_manager.py
+
+logic/utils.py
+
+ui/ui_main_window.py
+
+(Và các file khác trong Nhóm 2, 3, 4)
