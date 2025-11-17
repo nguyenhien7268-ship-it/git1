@@ -1,0 +1,99 @@
+.\app_controller.py:78:65: F821 undefined name 'e_import'
+.\app_controller.py:381:13: W503 line break before binary operator
+.\app_controller.py:403:13: W503 line break before binary operator
+.\app_controller.py:422:13: W503 line break before binary operator
+.\app_controller.py:627:17: W503 line break before binary operator
+.\app_controller.py:727:44: E226 missing whitespace around arithmetic operator
+.\logic\ai_feature_extractor.py:108:61: E226 missing whitespace around arithmetic operator
+.\logic\ai_feature_extractor.py:167:29: W503 line break before binary operator
+.\logic\ai_feature_extractor.py:168:29: W503 line break before binary operator
+.\logic\analytics.py:150:36: E226 missing whitespace around arithmetic operator
+.\logic\backtester.py:244:13: W503 line break before binary operator
+.\logic\backtester.py:245:13: W503 line break before binary operator
+.\logic\backtester.py:246:13: W503 line break before binary operator
+.\logic\backtester.py:670:17: W503 line break before binary operator
+.\logic\backtester.py:671:17: W503 line break before binary operator
+.\logic\backtester.py:672:17: W503 line break before binary operator
+.\logic\backtester.py:1070:13: W503 line break before binary operator
+.\logic\backtester.py:1071:13: W503 line break before binary operator
+.\logic\backtester.py:1072:13: W503 line break before binary operator
+.\logic\backtester.py:1073:13: W503 line break before binary operator
+.\logic\backtester.py:1074:13: W503 line break before binary operator
+.\logic\bridges\bridge_manager_core.py:162:13: W503 line break before binary operator
+.\logic\bridges\bridge_manager_core.py:163:13: W503 line break before binary operator
+.\logic\bridges\bridge_manager_core.py:164:13: W503 line break before binary operator
+.\logic\bridges\bridge_manager_core.py:165:13: W503 line break before binary operator
+.\logic\bridges\bridge_manager_core.py:166:13: W503 line break before binary operator
+.\logic\bridges\bridge_manager_core.py:292:13: W503 line break before binary operator
+.\logic\bridges\bridge_manager_core.py:293:13: W503 line break before binary operator
+.\logic\bridges\bridge_manager_core.py:294:13: W503 line break before binary operator
+.\logic\bridges\bridge_manager_core.py:295:13: W503 line break before binary operator
+.\logic\bridges\bridge_manager_core.py:296:13: W503 line break before binary operator
+.\logic\dashboard_analytics.py:230:13: W503 line break before binary operator
+.\logic\dashboard_analytics.py:231:13: W503 line break before binary operator
+.\logic\dashboard_analytics.py:232:13: W503 line break before binary operator
+.\logic\dashboard_analytics.py:233:13: W503 line break before binary operator
+.\logic\dashboard_analytics.py:234:13: W503 line break before binary operator
+.\logic\dashboard_analytics.py:323:21: W503 line break before binary operator
+.\logic\dashboard_analytics.py:324:21: W503 line break before binary operator
+.\logic\dashboard_analytics.py:325:21: W503 line break before binary operator
+.\logic\dashboard_analytics.py:385:25: W503 line break before binary operator
+.\logic\dashboard_analytics.py:386:25: W503 line break before binary operator
+.\logic\dashboard_analytics.py:387:25: W503 line break before binary operator
+.\logic\dashboard_analytics.py:423:61: E226 missing whitespace around arithmetic operator
+.\logic\dashboard_analytics.py:670:32: E226 missing whitespace around arithmetic operator
+.\logic\dashboard_analytics.py:750:21: W503 line break before binary operator
+.\logic\dashboard_analytics.py:751:21: W503 line break before binary operator
+.\logic\dashboard_analytics.py:752:21: W503 line break before binary operator
+.\logic\data_parser.py:212:26: W291 trailing whitespace
+.\logic\data_parser.py:213:49: W291 trailing whitespace
+.\logic\data_parser.py:278:26: W291 trailing whitespace
+.\logic\data_parser.py:279:49: W291 trailing whitespace
+.\logic\data_parser.py:372:25: W503 line break before binary operator
+.\logic\data_parser.py:373:25: W503 line break before binary operator
+.\logic\data_parser.py:374:25: W503 line break before binary operator
+.\logic\data_parser.py:375:25: W503 line break before binary operator
+.\logic\data_parser.py:499:25: W503 line break before binary operator
+.\logic\data_parser.py:500:25: W503 line break before binary operator
+.\logic\data_parser.py:501:25: W503 line break before binary operator
+.\logic\data_parser.py:502:25: W503 line break before binary operator
+.\logic\data_parser.py:632:47: E203 whitespace before ':'
+.\logic\db_manager.py:267:52: W291 trailing whitespace
+.\logic\db_manager.py:268:44: W291 trailing whitespace
+.\logic\db_manager.py:269:31: W291 trailing whitespace
+.\logic\db_manager.py:279:43: W291 trailing whitespace
+.\logic\db_manager.py:316:30: W291 trailing whitespace
+.\logic\db_manager.py:317:31: W291 trailing whitespace
+.\logic\db_manager.py:318:32: W291 trailing whitespace
+.\logic\db_manager.py:357:30: W291 trailing whitespace
+.\logic\ml_model.py:141:17: W503 line break before binary operator
+.\logic\ml_model.py:142:17: W503 line break before binary operator
+.\logic\ml_model.py:146:17: W503 line break before binary operator
+.\logic\ml_model.py:147:17: W503 line break before binary operator
+.\logic\ml_model.py:277:17: W503 line break before binary operator
+.\logic\ml_model.py:278:17: W503 line break before binary operator
+.\logic\ml_model.py:282:17: W503 line break before binary operator
+.\logic\ml_model.py:283:17: W503 line break before binary operator
+.\lottery_service.py:126:77: F821 undefined name 'e_ai'
+.\lottery_service.py:129:76: F821 undefined name 'e_ai'
+.\ui\ui_bridge_manager.py:6:1: F401 'tkinter.simpledialog' imported but unused
+.\ui\ui_bridge_manager.py:43:13: W503 line break before binary operator
+.\ui\ui_bridge_manager.py:44:13: W503 line break before binary operator
+.\ui\ui_lookup.py:222:29: E226 missing whitespace around arithmetic operator
+.\ui\ui_lookup.py:222:47: E226 missing whitespace around arithmetic operator
+.\ui\ui_lookup.py:222:66: E226 missing whitespace around arithmetic operator
+.\ui\ui_lookup.py:222:85: E226 missing whitespace around arithmetic operator
+.\ui\ui_main_window.py:410:13: W503 line break before binary operator
+.\ui\ui_main_window.py:411:13: W503 line break before binary operator
+.\ui\ui_main_window.py:412:13: W503 line break before binary operator
+.\ui\ui_main_window.py:653:17: W503 line break before binary operator
+.\ui\ui_main_window.py:654:17: W503 line break before binary operator
+.\ui\ui_main_window.py:655:17: W503 line break before binary operator
+.\ui\ui_main_window.py:686:21: W503 line break before binary operator
+.\ui\ui_optimizer.py:311:29: W503 line break before binary operator
+.\ui\ui_optimizer.py:312:29: W503 line break before binary operator
+.\ui\ui_optimizer.py:342:22: F541 f-string is missing placeholders
+.\ui\ui_settings.py:53:13: W503 line break before binary operator
+.\ui\ui_settings.py:54:13: W503 line break before binary operator
+.\ui\ui_tuner.py:29:13: W503 line break before binary operator
+.\ui\ui_tuner.py:30:13: W503 line break before binary operator

@@ -1,12 +1,7 @@
-# Tên file: du-an-backup/logic/backtester.py
+# Tên file: git3/logic/backtester.py
 #
-# (NỘI DUNG THAY THẾ TOÀN BỘ - SỬA LỖI 'int' object has no attribute 'isdigit' (V4))
+# (NỘI DUNG THAY THẾ TOÀN BỘ - ĐÃ KHẮC PHỤC LỖI W503)
 #
-# (SỬA F401) Xóa 'import sqlite3' không dùng
-
-# (V7.1) Chỉ giữ lại import Counter cho tiện ích chung
-# (SỬA F401) Xóa 'from collections import Counter' không dùng
-
 # (V7.1) Chỉ giữ lại import config_manager
 try:
     from .config_manager import SETTINGS
@@ -73,7 +68,7 @@ except ImportError:
     def getAllLoto_V30(r):
         return []
 
-    # (SỬA E741) Đổi tên 'l' thành 'loto_set'
+    # Đổi tên 'l' thành 'loto_set'
     def checkHitSet_V30_K2N(p, loto_set):
         return "Lỗi"
 
@@ -140,10 +135,9 @@ def _validate_backtest_params(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem
     except ValueError:
         return None, None, None, None, [["LỖI:", "Kỳ BĐ/KT phải là số."]]
     if not (startRow > 1 and startRow <= endRow):
-        # (SỬA F541) Xóa f-string không cần thiết
         return None, None, None, None, [["LỖI:", "Kỳ BĐ/KT không hợp lệ."]]
     allData = toan_bo_A_I
-    finalEndRow = min(endRow, (len(allData) + startRow - 1))
+    finalEndRow = min(endRow, len(allData) + startRow - 1)
     startCheckRow = startRow + 1
     if startCheckRow > finalEndRow:
         return None, None, None, None, [["LỖI:", "Dữ liệu không đủ để chạy."]]
@@ -233,8 +227,8 @@ def TONGHOP_TOP_CAU_CORE_V5(
             return [["LỖI: 'lastDataRowForPrediction' không hợp lệ."]]
 
         lastKy = lastDataRowForPrediction[0]
-        
-        # (SỬA LỖI V4) Xử lý 'int' object
+
+        # Xử lý 'int' object
         try:
             ky_int = int(lastKy)
             nextKy = f"Kỳ {ky_int + 1}"
@@ -249,7 +243,6 @@ def TONGHOP_TOP_CAU_CORE_V5(
             if "Tỷ Lệ %" not in str(row[0])
             and "HOÀN THÀNH" not in str(row[0])
             and not str(row[0]).startswith("Kỳ")
-            # (SỬA E713) 'not ... in' được đổi thành '... not in'
             and "(Dự đoán N1)" not in str(row)
         ]
 
@@ -336,7 +329,7 @@ def TONGHOP_TOP_CAU_CORE_V5(
         return [[f"LỖI: {e}"]]
 
 
-# (SỬA E731) Chuyển lambda thành def
+# Chuyển lambda thành def
 def _scoreByStreak(rate, streak):
     return (streak * 1000) + (rate * 100)
 
@@ -347,7 +340,7 @@ def TONGHOP_TOP_CAU_N1_V5(fullBacktestN1Range, lastDataRowForPrediction, topN=3)
     )
 
 
-# (SỬA E731) Chuyển lambda thành def
+# Chuyển lambda thành def
 def _scoreByRate(rate, streak):
     return (rate * 1000) + (streak * 100)
 
@@ -427,7 +420,7 @@ def BACKTEST_15_CAU_K2N_V30_AI_V8(
 
         try:
             for j in range(15):
-                check_result = "" # (Sửa V4) Khởi tạo
+                check_result = ""  # (Sửa V4) Khởi tạo
                 cell_output = ""
                 if in_frame[j]:
                     pred = prediction_in_frame[j]
@@ -500,7 +493,7 @@ def BACKTEST_15_CAU_K2N_V30_AI_V8(
         results.append(["LỖI DỰ ĐOÁN", "Không có dữ liệu hàng cuối."])
         return results
 
-    # (SỬA LỖI V4) Xử lý 'int' object has no attribute 'isdigit'
+    # Xử lý 'int' object has no attribute 'isdigit'
     # (Lỗi 1)
     try:
         ky_int = int(last_data_row_for_prediction[0])
@@ -508,7 +501,7 @@ def BACKTEST_15_CAU_K2N_V30_AI_V8(
     except (ValueError, TypeError):
         finalRowK = f"Kỳ {last_data_row_for_prediction[0]} (Next)"
     # (Kết thúc sửa lỗi)
-    
+
     finalRow, openFrames = [finalRowK], 0
     for j in range(15):
         if in_frame[j]:
@@ -612,7 +605,7 @@ def BACKTEST_15_CAU_N1_V31_AI_V8(
         results.append(["LỖI DỰ ĐOÁN", "Không có dữ liệu hàng cuối."])
         return results
 
-    # (SỬA LỖI V4) Xử lý 'int' object has no attribute 'isdigit'
+    # Xử lý 'int' object has no attribute 'isdigit'
     # (Lỗi 2)
     try:
         ky_int = int(last_data_row_for_prediction[0])
@@ -636,7 +629,7 @@ def BACKTEST_15_CAU_N1_V31_AI_V8(
     return results
 
 
-# (V7.1) XÓA: TIM_CAU_TOT_NHAT_V16 (Đã chuyển sang bridge_manager_core.py)
+# XÓA: TIM_CAU_TOT_NHAT_V16 (Đã chuyển sang bridge_manager_core.py)
 
 
 def BACKTEST_CUSTOM_CAU_V16(
@@ -736,7 +729,7 @@ def BACKTEST_CUSTOM_CAU_V16(
             results.insert(1, ["Tỷ Lệ %", f"{rate:.2f}% ({win_count}/{totalTestDays})"])
 
         if mode == "K2N":
-            # (SỬA LỖI V4) Xử lý 'int' object has no attribute 'isdigit'
+            # Xử lý 'int' object has no attribute 'isdigit'
             # (Lỗi 3)
             try:
                 ky_int = int(allData[finalEndRow - offset][0])
@@ -756,8 +749,8 @@ def BACKTEST_CUSTOM_CAU_V16(
         return [["LỖI:", str(e)]]
 
 
-# (V7.1) XÓA: BACKTEST_MANAGED_BRIDGES_N1 (Đã giữ lại hàm dưới)
-# (V7.1) XÓA: BACKTEST_MANAGED_BRIDGES_K2N (Đã giữ lại hàm dưới)
+# XÓA: BACKTEST_MANAGED_BRIDGES_N1 (Đã giữ lại hàm dưới)
+# XÓA: BACKTEST_MANAGED_BRIDGES_K2N (Đã giữ lại hàm dưới)
 
 
 def BACKTEST_MANAGED_BRIDGES_N1(
@@ -833,8 +826,8 @@ def BACKTEST_MANAGED_BRIDGES_N1(
 
     try:
         last_data_row = allData[finalEndRow - offset]
-        
-        # (SỬA LỖI V4) Xử lý 'int' object has no attribute 'isdigit'
+
+        # Xử lý 'int' object has no attribute 'isdigit'
         # (Lỗi 4)
         try:
             ky_int = int(last_data_row[0])
@@ -842,7 +835,7 @@ def BACKTEST_MANAGED_BRIDGES_N1(
         except (ValueError, TypeError):
             finalRowK = f"Kỳ {last_data_row[0]} (Next)"
         # (Kết thúc sửa lỗi)
-        
+
         finalRow = [finalRowK]
 
         last_positions = getAllPositions_V17_Shadow(last_data_row)
@@ -998,7 +991,7 @@ def BACKTEST_MANAGED_BRIDGES_K2N(
     try:
         last_data_row = allData[finalEndRow - offset]
 
-        # (SỬA LỖI V4) Xử lý 'int' object has no attribute 'isdigit'
+        # Xử lý 'int' object has no attribute 'isdigit'
         # (Lỗi 5)
         try:
             ky_int = int(last_data_row[0])
@@ -1006,7 +999,7 @@ def BACKTEST_MANAGED_BRIDGES_K2N(
         except (ValueError, TypeError):
             finalRowK = f"Kỳ {last_data_row[0]} (Next)"
         # (Kết thúc sửa lỗi)
-        
+
         finalRow = [finalRowK]
 
         last_positions = getAllPositions_V17_Shadow(last_data_row)
@@ -1136,8 +1129,8 @@ def BACKTEST_MEMORY_BRIDGES(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_t
 
     try:
         last_data_row = allData[finalEndRow - offset]
-        
-        # (SỬA LỖI V4) Xử lý 'int' object has no attribute 'isdigit'
+
+        # Xử lý 'int' object has no attribute 'isdigit'
         # (Lỗi 6)
         try:
             ky_int = int(last_data_row[0])
@@ -1145,7 +1138,7 @@ def BACKTEST_MEMORY_BRIDGES(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_t
         except (ValueError, TypeError):
             finalRowK = f"Kỳ {last_data_row[0]} (Next)"
         # (Kết thúc sửa lỗi)
-        
+
         finalRow = [finalRowK]
         last_lotos = get_27_loto_positions(last_data_row)
 
@@ -1167,9 +1160,16 @@ def BACKTEST_MEMORY_BRIDGES(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_t
     return results
 
 
-# ===================================================================================
-# IV. HÀM CẬP NHẬT CACHE/TỶ LỆ (V7.1)
-# ===================================================================================
+# XÓA: find_and_auto_manage_bridges (Đã chuyển sang bridge_manager_core.py)
+# XÓA: prune_bad_bridges (Đã chuyển sang bridge_manager_core.py)
+
+# XÓA: Các hàm analytics (get_loto_stats_last_n_days, get_prediction_consensus, get_high_win_rate_predictions, get_top_scored_pairs, get_loto_gan_stats)
+# ĐÃ CHUYỂN SANG dashboard_analytics.py
+
+# XÓA: TIM_CAU_BAC_NHO_TOT_NHAT (Đã chuyển sang bridge_manager_core.py)
+# XÓA: get_top_memory_bridge_predictions (Đã chuyển sang dashboard_analytics.py)
+
+# XÓA: get_historical_dashboard_data (Đã chuyển sang dashboard_analytics.py)
 
 
 def run_and_update_all_bridge_rates(all_data_ai, db_name=DB_NAME):
@@ -1301,15 +1301,3 @@ def run_and_update_all_bridge_K2N_cache(
 
         print(traceback.format_exc())
         return {}, f"Lỗi nghiêm trọng trong run_and_update_all_bridge_K2N_cache: {e}"
-
-
-# (V7.1) XÓA: find_and_auto_manage_bridges (Đã chuyển sang bridge_manager_core.py)
-# (V7.1) XÓA: prune_bad_bridges (Đã chuyển sang bridge_manager_core.py)
-
-# (V7.1) XÓA: Các hàm analytics (get_loto_stats_last_n_days, get_prediction_consensus, get_high_win_rate_predictions, get_top_scored_pairs, get_loto_gan_stats)
-# (V7.1) ĐÃ CHUYỂN SANG dashboard_analytics.py
-
-# (V7.1) XÓA: TIM_CAU_BAC_NHO_TOT_NHAT (Đã chuyển sang bridge_manager_core.py)
-# (V7.1) XÓA: get_top_memory_bridge_predictions (Đã chuyển sang dashboard_analytics.py)
-
-# (V7.1) XÓA: get_historical_dashboard_data (Đã chuyển sang dashboard_analytics.py)

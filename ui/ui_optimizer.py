@@ -1,3 +1,7 @@
+# Tên file: git3/ui/ui_optimizer.py
+#
+# (NỘI DUNG THAY THẾ TOÀN BỘ - SỬA F541, W503)
+#
 import tkinter as tk
 import traceback
 from tkinter import messagebox, ttk
@@ -273,7 +277,6 @@ class OptimizerTab(ttk.Frame):
             days_to_test = int(self.days_to_test_var.get())
 
             if days_to_test <= 0:
-                # (SỬA LỖI) parent=self
                 messagebox.showerror(
                     "Lỗi", "Số ngày kiểm thử phải lớn hơn 0.", parent=self
                 )
@@ -288,7 +291,6 @@ class OptimizerTab(ttk.Frame):
                     val_step = float(step_var.get())
 
                     if val_step <= 0 or val_from > val_to:
-                        # (SỬA LỖI) parent=self
                         messagebox.showerror(
                             "Lỗi Giá trị",
                             f"Khoảng giá trị cho '{key}' không hợp lệ.",
@@ -322,7 +324,6 @@ class OptimizerTab(ttk.Frame):
                     param_ranges[key] = (val_from, val_to, val_step)
 
             if not param_ranges:
-                # (SỬA LỖI) parent=self
                 messagebox.showwarning(
                     "Chưa chọn",
                     "Vui lòng chọn ít nhất một tham số để tối ưu hóa.",
@@ -334,12 +335,14 @@ class OptimizerTab(ttk.Frame):
             self.clear_log()
             self.clear_results_tree()
             self.apply_button.config(state=tk.DISABLED)
-            self.log(f"--- BẮT ĐẦU TỐI ƯU HÓA CHIẾN LƯỢC ---")
+            # Sửa F541: Xóa tiền tố 'f' không cần thiết
+            self.log("--- BẮT ĐẦU TỐI ƯU HÓA CHIẾN LƯỢC ---")
             self.log(f"Chiến lược: {strategy}")
             self.log(f"Số ngày kiểm thử: {days_to_test} ngày (tính từ ngày gần nhất)")
             self.log(f"Các tham số kiểm thử:")
             for key, (f, t, s) in param_ranges.items():
                 self.log(f" - {key}: Từ {f} đến {t} (bước {s})")
+            # Sửa F541: Xóa tiền tố 'f' không cần thiết
             self.log("CẢNH BÁO: Tác vụ này rất nặng và sẽ mất nhiều thời gian...")
 
             # 4. Tắt nút
@@ -351,14 +354,12 @@ class OptimizerTab(ttk.Frame):
             )
 
         except ValueError:
-            # (SỬA LỖI) parent=self
             messagebox.showerror(
                 "Lỗi Giá trị",
                 "Giá trị 'Số ngày', 'Từ', 'Đến', 'Bước nhảy' phải là số.",
                 parent=self,
             )
         except Exception as e:
-            # (SỬA LỖI) parent=self
             messagebox.showerror("Lỗi", f"Lỗi không xác định: {e}", parent=self)
             self.log(traceback.format_exc())
 

@@ -1,10 +1,10 @@
-# Tên file: du-an-backup/ui/ui_settings.py
+# Tên file: git3/ui/ui_settings.py
 #
-# (NỘI DUNG THAY THẾ TOÀN BỘ - SỬA LỖI FLAKE8 F821, W292)
+# (NỘI DUNG THAY THẾ TOÀN BỘ - SỬA W503)
 #
 import tkinter as tk
+import traceback
 from tkinter import messagebox, ttk
-import traceback  # (SỬA F821) Import traceback
 
 # (MỚI GĐ 8) Import SETTINGS từ file config_manager
 try:
@@ -205,7 +205,7 @@ class SettingsWindow:
 
     def save_all_settings(self):
         """Lặp qua tất cả các ô Entry và lưu cài đặt."""
-        self.app.logger.log("Đang lưu cài đặt...")  # (SỬA)
+        self.app.logger.log("Đang lưu cài đặt...")
         try:
             any_errors = False
             for key, entry_var in self.entries.items():
@@ -216,7 +216,7 @@ class SettingsWindow:
 
                 if not success:
                     any_errors = True
-                    self.app.logger.log(f"LỖI: {message}")  # (SỬA)
+                    self.app.logger.log(f"LỖI: {message}")
 
             if any_errors:
                 messagebox.showerror(
@@ -225,7 +225,7 @@ class SettingsWindow:
                     parent=self.window,
                 )
             else:
-                self.app.logger.log("Đã lưu tất cả cài đặt vào config.json.")  # (SỬA)
+                self.app.logger.log("Đã lưu tất cả cài đặt vào config.json.")
                 messagebox.showinfo(
                     "Thành công",
                     "Đã lưu tất cả cài đặt thành công!",
@@ -237,7 +237,4 @@ class SettingsWindow:
             messagebox.showerror(
                 "Lỗi Nghiêm Trọng", f"Không thể lưu cài đặt: {e}", parent=self.window
             )
-            # (SỬA F821) Đã import traceback
             self.app.logger.log(traceback.format_exc())
-
-# (SỬA W292) Thêm một dòng mới ở cuối file

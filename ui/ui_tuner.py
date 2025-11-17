@@ -1,3 +1,7 @@
+# Tên file: git3/ui/ui_tuner.py
+#
+# (NỘI DUNG THAY THẾ TOÀN BỘ - SỬA F541, W503)
+#
 import tkinter as tk
 import traceback
 from tkinter import messagebox, ttk
@@ -203,7 +207,8 @@ class TunerWindow:
 
             # 3. Xóa log cũ và chuẩn bị
             self.clear_log()
-            self.log(f"--- BẮT ĐẦU KIỂM THỬ THAM SỐ ---")
+            # Sửa F541: Xóa tiền tố 'f' không cần thiết
+            self.log("--- BẮT ĐẦU KIỂM THỬ THAM SỐ ---")
             self.log(f"Tham số: {selected_name} ({param_key})")
             self.log(
                 f"Khoảng kiểm thử: Từ {val_from} đến {val_to}, bước nhảy {val_step}"

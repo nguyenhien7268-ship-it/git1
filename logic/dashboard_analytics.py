@@ -1,10 +1,8 @@
-# Tên file: du-an-backup/logic/dashboard_analytics.py
+# Tên file: git3/logic/dashboard_analytics.py
 #
-# (NỘI DUNG THAY THẾ TOÀN BỘ - SỬA F401, F811, E741, E226, F841)
+# (NỘI DUNG THAY THẾ TOÀN BỘ - SỬA W503, E226)
 #
-# (SỬA F401) Xóa 'import math' không dùng
-# (SỬA F401) Xóa 'import sqlite3' không dùng
-from collections import Counter  # (SỬA F401) Xóa 'defaultdict' không dùng
+from collections import Counter
 
 # Import SETTINGS
 try:
@@ -12,7 +10,7 @@ try:
 except ImportError:
     try:
         from config_manager import SETTINGS
-    # (SỬA F811) Chỉ định nghĩa fallback NẾU import thất bại
+    # Chỉ định nghĩa fallback NẾU import thất bại
     except ImportError:
         print(
             "LỖI: dashboard_analytics.py không thể import SETTINGS. Sử dụng fallback."
@@ -40,19 +38,16 @@ try:
         _parse_k2n_results,
     )
     from .bridges.bridges_classic import (
-        ALL_15_BRIDGE_FUNCTIONS_V5,  # ĐÃ SỬA
+        ALL_15_BRIDGE_FUNCTIONS_V5,
         checkHitSet_V30_K2N,
         getAllLoto_V30,
     )
     from .bridges.bridges_memory import (
-        calculate_bridge_stl,  # ĐÃ SỬA
+        calculate_bridge_stl,
         get_27_loto_names,
         get_27_loto_positions,
     )
-    from .bridges.bridges_v16 import (
-        getAllPositions_V17_Shadow,  # ĐÃ SỬA
-        taoSTL_V30_Bong,
-    )
+    from .bridges.bridges_v16 import getAllPositions_V17_Shadow, taoSTL_V30_Bong
     from .data_repository import get_all_managed_bridges
     from .db_manager import DB_NAME
 
@@ -64,7 +59,7 @@ except ImportError:
     def getAllLoto_V30(r):
         return []
 
-    # (SỬA E741) Đổi 'l' thành 'loto_set'
+    # Đổi 'l' thành 'loto_set'
     def checkHitSet_V30_K2N(p, loto_set):
         return "Lỗi"
 
@@ -580,7 +575,7 @@ def get_top_scored_pairs(
                 ai_score_contribution = max_prob * ai_score_weight
                 scores[pair_key]["score"] += ai_score_contribution
 
-                # (SỬA E226) Thêm khoảng trắng
+                # Sửa E226
                 scores[pair_key]["reasons"].append(
                     f"AI: +{ai_score_contribution:.2f} ({max_prob * 100.0:.1f}%)"
                 )
@@ -614,7 +609,7 @@ def get_top_scored_pairs(
                     scores[stl_pair]["score"] += ai_score_contribution
 
                     # Sửa V7.1: Luôn hiển thị xác suất
-                    # (SỬA E226) Thêm khoảng trắng
+                    # Sửa E226
                     scores[stl_pair]["reasons"].append(
                         f"AI SẠCH: +{ai_score_contribution:.2f} ({max_prob * 100.0:.1f}%)"
                     )
@@ -722,16 +717,21 @@ def get_high_win_simulation(data_slice, last_row, threshold):
     # 1. Chạy K2N Cache Mô phỏng (Cầu Đã Lưu)
     cache_list, _ = _parse_k2n_results(
         BACKTEST_MANAGED_BRIDGES_K2N(
-            # (SỬA E226) Thêm khoảng trắng
-            data_slice, 2, len(data_slice) + 1, DB_NAME, history=False
+            data_slice,
+            2,
+            len(data_slice) + 1,
+            DB_NAME,
+            history=False,
         )
     )
 
     # Chạy 15 cầu cổ điển
     cache_list_15, _ = _parse_k2n_results(
         BACKTEST_15_CAU_K2N_V30_AI_V8(
-            # (SỬA E226) Thêm khoảng trắng
-            data_slice, 2, len(data_slice) + 1, history=False
+            data_slice,
+            2,
+            len(data_slice) + 1,
+            history=False,
         )
     )
     cache_list.extend(cache_list_15)
@@ -776,7 +776,6 @@ def get_historical_dashboard_data(all_data_ai, day_index, temp_settings):
         return None
 
     last_row = data_slice[-1]
-    # (SỬA F841) Xóa biến 'prev_row' không dùng
     # prev_row = data_slice[-2]
 
     # 2. Lấy các giá trị cài đặt tạm thời
@@ -792,8 +791,10 @@ def get_historical_dashboard_data(all_data_ai, day_index, temp_settings):
     # (2) Cache K2N (để lấy pending - cần dict pending_k2n)
     _, pending_k2n_data = _parse_k2n_results(
         BACKTEST_15_CAU_K2N_V30_AI_V8(
-            # (SỬA E226) Thêm khoảng trắng
-            data_slice, 2, len(data_slice) + 1, history=False
+            data_slice,
+            2,
+            len(data_slice) + 1,
+            history=False,
         )
     )
 

@@ -1,8 +1,7 @@
-# Tên file: du-an-backup/logic/db_manager.py
+# Tên file: git3/logic/db_manager.py
 #
-# (NỘI DUNG THAY THẾ TOÀN BỘ - SỬA F401, W291)
+# (NỘI DUNG THAY THẾ TOÀN BỘ - SỬA W291)
 #
-# (SỬA F401) Xóa 'import re' không dùng
 import sqlite3
 
 # ĐÃ SỬA: Cập nhật đường dẫn DB mới sau khi di chuyển file sang thư mục 'data/'
@@ -26,9 +25,7 @@ try:
 except ImportError:
     # Fallback cho trường hợp chạy độc lập (nếu có)
     try:
-        from logic.bridges.bridges_v16 import (
-            get_index_from_name_V16,
-        )
+        from logic.bridges.bridges_v16 import get_index_from_name_V16
     except ImportError:
         print("LỖI: db_manager.py không thể import get_index_from_name_V16.")
 
@@ -362,17 +359,13 @@ def update_bridge_win_rate_batch(rate_data_list, db_name=DB_NAME):
             is_enabled = 1
         WHERE name = ?
         """
-        # (SỬA W291) Xóa khoảng trắng thừa
         cursor.executemany(sql_update, rate_data_list)
         updated_count = cursor.rowcount
         conn.commit()
-        # (SỬA W291) Xóa khoảng trắng thừa
         return True, f"Đã cập nhật Tỷ Lệ N1 cho {updated_count} cầu (BN)."
 
     except Exception as e:
-        # (SỬA W291) Xóa khoảng trắng thừa
         return False, f"Lỗi SQL khi cập nhật Tỷ Lệ N1 (BN): {e}"
     finally:
         if conn:
-            # (SỬA W291) Xóa khoảng trắng thừa
             conn.close()

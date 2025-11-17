@@ -1,41 +1,41 @@
-# Tên file: du-an-backup/app_controller.py
+# Tên file: git3/app_controller.py
 #
-# (NỘI DUNG THAY THẾ TOÀN BỘ - SỬA LỖI SyntaxError: unmatched '}' VÀ F821)
+# (NỘI DUNG THAY THẾ TOÀN BỘ - ĐÃ KHẮC PHỤC LỖI W503, E226)
 #
 import itertools
 import json
+import os
 import time
+import tkinter as tk
 import traceback
-import os  # (SỬA F405) Import os
-import tkinter as tk  # (SỬA F405) Import tkinter
 
-# (SỬA F403/F405) Import tường minh các hàm cần thiết từ lottery_service
+# Import tường minh các hàm cần thiết từ lottery_service
 try:
     from lottery_service import (
-        load_data_ai_from_db,
-        setup_database,
-        parse_and_insert_data,
-        parse_and_APPEND_data,
-        BACKTEST_MANAGED_BRIDGES_N1,
-        BACKTEST_MANAGED_BRIDGES_K2N,
         BACKTEST_CUSTOM_CAU_V16,
-        get_loto_stats_last_n_days,
-        run_and_update_all_bridge_K2N_cache,
-        get_prediction_consensus,
+        BACKTEST_MANAGED_BRIDGES_K2N,
+        BACKTEST_MANAGED_BRIDGES_N1,
+        BACKTEST_MEMORY_BRIDGES,
+        TIM_CAU_BAC_NHO_TOT_NHAT,
+        TIM_CAU_TOT_NHAT_V16,
+        find_and_auto_manage_bridges,
+        get_all_managed_bridges,
         get_high_win_rate_predictions,
+        get_historical_dashboard_data,
         get_loto_gan_stats,
-        run_ai_prediction_for_dashboard,
+        get_loto_stats_last_n_days,
+        get_prediction_consensus,
         get_top_memory_bridge_predictions,
         get_top_scored_pairs,
-        find_and_auto_manage_bridges,
-        prune_bad_bridges,
-        run_ai_training_threaded,
-        BACKTEST_MEMORY_BRIDGES,
-        TIM_CAU_TOT_NHAT_V16,
-        TIM_CAU_BAC_NHO_TOT_NHAT,
-        get_all_managed_bridges,
         getAllLoto_V30,
-        get_historical_dashboard_data,
+        load_data_ai_from_db,
+        parse_and_APPEND_data,
+        parse_and_insert_data,
+        prune_bad_bridges,
+        run_ai_prediction_for_dashboard,
+        run_ai_training_threaded,
+        run_and_update_all_bridge_K2N_cache,
+        setup_database,
     )
 except ImportError as e:
     print(f"LỖI NGHIÊM TRỌNG: Controller không tìm thấy 'lottery_service.py': {e}")
@@ -65,18 +65,16 @@ except ImportError as e:
 
 # ===================================================================
 # (PHỤC HỒI) Import hàm bị thiếu trực tiếp từ logic.data_parser
-# Khối này là BẮT BUỘC. Lỗi 'NameError' xảy ra do đã xóa mất nó.
 # ===================================================================
 try:
     from logic.data_parser import run_and_update_from_text
-except ImportError as e_import:  # (SỬA F821) Đổi tên biến 'e'
+except ImportError as e_import:
     print(
         f"LỖI NGHIÊM TRỌNG: app_controller không tìm thấy logic.data_parser.run_and_update_from_text: {e_import}"
     )
 
     # Tạo hàm giả để tránh crash ngay lập tức
     def run_and_update_from_text(raw_data):
-        # (SỬA F821) Sử dụng biến 'e_import' đã được định nghĩa
         return False, f"Lỗi: Không tìm thấy data_parser: {e_import}"
 
 
@@ -301,15 +299,13 @@ class AppController:
             high_win_thresh = SETTINGS.HIGH_WIN_THRESHOLD
         except Exception as e:
             self.logger.log(
-                # (SỬA F821) Thêm {e} vào log
                 f"Cảnh báo: Không thể tải config: {e}. Sử dụng giá trị mặc định."
             )
             n_days_stats = 7
             n_days_gan = 15
             high_win_thresh = 47.0
 
-        # (SỬA LỖI V3) Xử lý 'int' object has no attribute 'isdigit'
-        # last_row[0] (MaSoKy) là kiểu INTEGER từ CSDL V6.
+        # Xử lý 'int' object has no attribute 'isdigit'
         try:
             # Thử chuyển ky sang số nguyên
             ky_int = int(last_row[0])
@@ -317,7 +313,6 @@ class AppController:
         except (ValueError, TypeError):
             # Nếu không phải số (hoặc là None, v.v.)
             next_ky = f"Kỳ {last_row[0]} (Next)"
-        # (Kết thúc sửa lỗi)
 
         self.logger.log(
             f"... (1/5) Đang thống kê Loto Về Nhiều ({n_days_stats} ngày)..."
@@ -479,18 +474,15 @@ class AppController:
                     yield start
                     return
                 n = start
-                # (SỬA F821) Đổi v_step thành step
                 while n < (stop + (step * 0.5)):
                     yield n
-                    n += step  # (SỬA F821) Đổi v_step thành step
+                    n += step
 
-            # (SỬA F821) Thêm 'v_step' làm tham số (mặc dù nó giống 'step'
-            # nhưng hàm gọi (line 625) đang truyền nó vào)
             def test_gan_days(p_key, v_from, v_to, v_step):
                 log_to_tuner(f"--- Bắt đầu kiểm thử: {p_key} ---")
                 for i in float_range(v_from, v_to, v_step):
                     n = int(i)
-                    if n <= 0:  # (SỬA F821) Lỗi logic ở đây, 'n' đã được định nghĩa
+                    if n <= 0:
                         continue
                     gan_stats = get_loto_gan_stats(all_data_ai, n_days=n)
                     log_to_tuner(
@@ -678,7 +670,7 @@ class AppController:
             static_keys = [k for k in original_settings.keys() if k not in config_keys]
 
             for key in config_keys:
-                v_from, v_to, v_step = param_ranges[key]  # (SỬA E226) Thêm khoảng trắng
+                v_from, v_to, v_step = param_ranges[key]
                 if isinstance(original_settings[key], int):
                     param_lists.append(
                         [
@@ -749,7 +741,6 @@ class AppController:
                     days_tested += 1
 
                     actual_row = all_data_ai[actual_index]
-                    # (SỬA E226) Thêm khoảng trắng
                     actual_loto_set = set(getAllLoto_V30(actual_row))
 
                     top_scores = get_historical_dashboard_data(
@@ -786,7 +777,6 @@ class AppController:
                 results_list.append(
                     (rate, hits_str, params_str_display, config_str_json)
                 )
-                # (SỬA E226) Thêm khoảng trắng
                 log_to_optimizer(f"-> Kết quả: {hits_str} ({rate * 100:.1f}%)")
 
             log_to_optimizer("Đang sắp xếp kết quả...")
@@ -810,6 +800,3 @@ class AppController:
                 pass
         finally:
             self.root_after(0, optimizer_tab.run_button.config, {"state": tk.NORMAL})
-# (SỬA LỖI SYNTAX) Xóa bỏ dấu '}' thừa ở đây
-
-# (SỬA W292) Thêm một dòng mới ở cuối file

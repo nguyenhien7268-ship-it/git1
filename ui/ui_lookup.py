@@ -1,6 +1,6 @@
-# Tên file: du-an-backup/ui/ui_lookup.py
+# Tên file: git3/ui/ui_lookup.py
 #
-# (NỘI DUNG THAY THẾ TOÀN BỘ - SỬA LỖI 'tuple index out of range')
+# (NỘI DUNG THAY THẾ TOÀN BỘ - SỬA E741, E226)
 #
 import tkinter as tk
 from tkinter import ttk
@@ -25,7 +25,8 @@ except ImportError:
     def getAllLoto_V30(r):
         return []
 
-    def calculate_loto_stats(l):
+    # Sửa E741: đổi l thành loto_list
+    def calculate_loto_stats(loto_list):
         return {}, {}
 
 
@@ -39,9 +40,6 @@ class LookupWindow(ttk.Frame):  # (SỬA) Kế thừa từ ttk.Frame
         self.app = app
         self.root = app.root
         self.all_ky_data_list = []  # Dữ liệu cache
-
-        # (XÓA) Không cần tạo Toplevel
-        # self.window = tk.Toplevel(self.root) ...
 
         # (SỬA) Gắn PanedWindow vào self (Frame chính)
         paned_window = ttk.PanedWindow(self, orient=tk.HORIZONTAL)
@@ -143,10 +141,9 @@ class LookupWindow(ttk.Frame):  # (SỬA) Kế thừa từ ttk.Frame
             return
 
         for ky in self.all_ky_data_list:
-            # (SỬA LỖI V4) Lỗi 'tuple index out of range'
             # CSDL V6 (db_manager) chỉ trả về 2 cột: ky[0] (Kỳ) và ky[1] (Ngày)
             display_text = f"{ky[0]}   ({ky[1]})"
-            
+
             if search_term in display_text.lower():
                 self.list_box.insert(tk.END, display_text)
 
@@ -169,8 +166,8 @@ class LookupWindow(ttk.Frame):  # (SỬA) Kế thừa từ ttk.Frame
                     f"Không tìm thấy dữ liệu chi tiết cho kỳ: {ma_so_ky}"
                 )
                 return
-            
-            # (SỬA LỖI V4) logic get_results_by_ky (V6) trả về 38 cột (results_A_I)
+
+            # logic get_results_by_ky (V6) trả về 38 cột (results_A_I)
             # Cột 0=id, 1=ky, 2=date, 3-10=giải, 11-37=lô
             if len(row) < 38:
                 self.update_detail_text(
@@ -188,8 +185,8 @@ class LookupWindow(ttk.Frame):  # (SỬA) Kế thừa từ ttk.Frame
 
             for i in range(len(giai_ten)):
                 giai_name = giai_ten[i].ljust(LABEL_WIDTH)
-                # (SỬA V4) Dữ liệu giải bắt đầu từ index 3 (gdb)
-                giai_data_str = str(row[i + 3] or "") 
+                # Dữ liệu giải bắt đầu từ index 3 (gdb)
+                giai_data_str = str(row[i + 3] or "")
                 numbers = [n.strip() for n in giai_data_str.split(",") if n.strip()]
                 num_count = len(numbers)
 
@@ -227,11 +224,12 @@ class LookupWindow(ttk.Frame):  # (SỬA) Kế thừa từ ttk.Frame
             for i in range(10):
                 dau_val_str = ",".join(dau_stats[i])
                 duoi_val_str = ",".join(duoi_stats[i])
+                # Sửa E226: Thêm khoảng trắng
                 output += f"{str(i).ljust(COL_DAU_W)} | {dau_val_str.ljust(COL_LOTO_W)} | {str(i).ljust(COL_DUOI_W)} | {duoi_val_str.ljust(COL_LOTO_W)}\n"
 
             self.update_detail_text(output)
         except Exception as e:
-            self.app.logger.log(f"Lỗi on_ky_selected: {e}")  # (SỬA)
+            self.app.logger.log(f"Lỗi on_ky_selected: {e}")
             self.update_detail_text(f"Lỗi: {e}")
 
     def update_detail_text(self, message):

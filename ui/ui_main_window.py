@@ -10,10 +10,7 @@ from tkinter import filedialog, messagebox, simpledialog, ttk
 
 # (GIỮ NGUYÊN)
 try:
-    from lottery_service import (
-        DB_NAME,
-        upsert_managed_bridge
-    )
+    from lottery_service import DB_NAME, upsert_managed_bridge
 except ImportError:
     print(
         "LỖI NGHIÊM TRỌNG: Không tìm thấy file 'lottery_service.py' hoặc gói '/logic'."
@@ -594,7 +591,7 @@ class DataAnalysisApp:
             self.logger.log(f"LỖI NGHIÊM TRỌNG khi mở BridgeManager: {e}")
             messagebox.showerror("Lỗi Import", f"Không thể tải ui_bridge_manager: {e}")
             return
-            
+
         self.bridge_manager_window_instance = BridgeManagerWindow(self)
 
     def show_settings_window(self):

@@ -1,12 +1,10 @@
-# Tên file: du-an-backup/logic/ai_feature_extractor.py
+# Tên file: git3/logic/ai_feature_extractor.py
 #
-# (NỘI DUNG THAY THẾ TOÀN BỘ - SỬA W292)
+# (NỘI DUNG THAY THẾ TOÀN BỘ - SỬA E226, W503)
 #
 import threading
 import traceback
 from collections import Counter, defaultdict
-
-# (SỬA F401) Xóa 'import os' không dùng
 
 # (SỬA LỖI) Sử dụng import TƯƠNG ĐỐI (dấu . ở trước)
 try:
@@ -21,7 +19,6 @@ try:
     from .bridges.bridges_v16 import getAllPositions_V17_Shadow, taoSTL_V30_Bong
 
     # 4. Config
-    # (SỬA F401) Xóa 'SETTINGS' không được sử dụng
     from .data_repository import get_all_managed_bridges, load_data_ai_from_db
     from .db_manager import DB_NAME
 
@@ -31,15 +28,11 @@ try:
 except ImportError as e:
     print(f"LỖI NGHIÊM TRỌNG: ai_feature_extractor.py không thể import: {e}")
 
-    # (SỬA F821) Gán lỗi vào một biến để các hàm giả có thể truy cập
+    # Gán lỗi vào một biến để các hàm giả có thể truy cập
     _IMPORT_ERROR_MSG = f"Lỗi Import: {e}"
 
-    # Tạo hàm giả để tránh lỗi ở tầng cao hơn
-    def run_ai_training_threaded(callback=None):
-        return False, _IMPORT_ERROR_MSG  # (SỬA F821)
-
-    def run_ai_prediction_for_dashboard():
-        return None, _IMPORT_ERROR_MSG  # (SỬA F821)
+    # Không định nghĩa lại hàm ở đây, để logic chính chạy
+    pass
 
 
 # ==========================================================================
@@ -99,7 +92,7 @@ def _get_daily_bridge_predictions(all_data_ai):
         current_row = all_data_ai[k]
         current_ky = str(current_row[0])
 
-        if k % 100 == 0:  # (LỖI E226 ĐÃ ĐƯỢC SỬA Ở BƯỚC TRƯỚC)
+        if k % 100 == 0:
             print(
                 f"... (V7.0 G2 Feature Extraction) Bước 1: Đã xử lý {k}/{len(all_data_ai)} ngày (dự đoán cầu)"
             )
@@ -184,6 +177,7 @@ def _get_daily_bridge_predictions(all_data_ai):
                             )
                             if found_bridge:
                                 q_win_rates.append(found_bridge["win_rate_float"])
+                                # Sửa E226
                                 q_k2n_risks.append(found_bridge["k2n_risk"])
                                 q_current_streaks.append(
                                     found_bridge["current_streak_int"]
@@ -277,5 +271,3 @@ def run_ai_prediction_for_dashboard():
         return None, f"Lỗi tính toán features dự đoán: {e}\n{traceback.format_exc()}"
 
     return get_ai_predictions(all_data_ai, bridge_predictions_for_today)
-
-# (SỬA W292) Thêm dòng mới ở cuối file

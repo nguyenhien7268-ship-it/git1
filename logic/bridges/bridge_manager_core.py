@@ -1,17 +1,41 @@
-# Tên file: du-an-backup/logic/bridges/bridge_manager_core.py
+# Tên file: git3/logic/bridges/bridge_manager_core.py
 #
-# (NỘI DUNG THAY THẾ TOÀN BỘ - SỬA LỖI IMPORT TƯƠNG ĐỐI)
+# (NỘI DUNG THAY THẾ TOÀN BỘ - SỬA W503)
 #
-# (SỬA F401) Xóa 'import sqlite3' không dùng
+
+import os
+
+# =========================================================================
+# PATH FIX: Tự động thêm thư mục gốc (git1 - Sao chép/) vào sys.path
+import sys
+
+try:
+    # Lấy đường dẫn thư mục hiện tại (logic/bridges)
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    # Đi lên 2 cấp để lấy thư mục gốc (git1 - Sao chép/)
+    project_root = os.path.dirname(os.path.dirname(current_dir))
+
+    # Thêm thư mục gốc vào sys.path NẾU nó chưa có
+    if project_root not in sys.path:
+        sys.path.insert(0, project_root)
+        print(f"[PATH FIX] Đã thêm {project_root} vào sys.path")
+    else:
+        print(f"[PATH FIX] {project_root} đã có trong sys.path")
+except Exception as e_path:
+    print(f"[PATH FIX] LỖI: Không thể thêm đường dẫn gốc: {e_path}")
+# =========================================================================
+
 
 # Import SETTINGS
 try:
-    # (SỬA) Quay lại Import Tương đối (vì đã có __init__.py)
-    from ..config_manager import SETTINGS
-except ImportError:
+    # Dùng import tuyệt đối (từ gốc logic)
+    from logic.config_manager import SETTINGS
+
+    print("[IMPORT V4] Đã import thành công: SETTINGS")
+except ImportError as e:
+    print(f"[IMPORT V4] LỖI IMPORT SETTINGS: {e}")
     try:
         from config_manager import SETTINGS
-    # (SỬA F811) Chỉ định nghĩa fallback NẾU cả 2 import thất bại
     except ImportError:
         print(
             "LỖI: bridge_manager_core.py không thể import SETTINGS. Sử dụng fallback."
@@ -22,21 +46,17 @@ except ImportError:
 
 # Import DB functions (CRUD và Management)
 try:
-    # (SỬA) Quay lại Import Tương đối
-    from ..data_repository import get_all_managed_bridges
-    from ..db_manager import (
-        DB_NAME,
-        update_managed_bridge,
-        upsert_managed_bridge,
-    )
-except ImportError:
+    # Dùng import tuyệt đối (từ gốc logic)
+    from logic.data_repository import get_all_managed_bridges
+    from logic.db_manager import DB_NAME, update_managed_bridge, upsert_managed_bridge
+
+    print("[IMPORT V4] Đã import thành công: data_repository, db_manager")
+except ImportError as e:
     # Fallback cho DB/Repo
-    print(
-        "Lỗi: Không thể import db_manager/data_repository trong bridge_manager_core.py"
-    )
+    print(f"[IMPORT V4] LỖI IMPORT DB/REPO: {e}")
     DB_NAME = "data/xo_so_prizes_all_logic.db"
 
-    def upsert_managed_bridge(n, d, r, db, i1=None, i2=None): 
+    def upsert_managed_bridge(n, d, r, db, i1=None, i2=None):
         return False, "Lỗi Import"
 
     def update_managed_bridge(id, d, e, db):
@@ -48,23 +68,24 @@ except ImportError:
 
 # Import các hàm cầu (V17 và Bạc Nhớ)
 try:
-    # (SỬA) Quay lại Import Tương đối
-    from .bridges_v16 import (
-        getAllPositions_V17_Shadow,
-        getPositionName_V17_Shadow,
-        taoSTL_V30_Bong,
-    )
-    from .bridges_memory import (
+    # Dùng import tuyệt đối (từ gốc logic.bridges)
+    from logic.bridges.bridges_classic import checkHitSet_V30_K2N, getAllLoto_V30
+    from logic.bridges.bridges_memory import (
         calculate_bridge_stl,
         get_27_loto_names,
         get_27_loto_positions,
     )
-    from .bridges_classic import (
-        checkHitSet_V30_K2N,
-        getAllLoto_V30,
+    from logic.bridges.bridges_v16 import (
+        getAllPositions_V17_Shadow,
+        getPositionName_V17_Shadow,
+        taoSTL_V30_Bong,
     )
-except ImportError:
-    print("Lỗi: Không thể import các hàm cầu trong bridge_manager_core.py")
+
+    print(
+        "[IMPORT V4] Đã import thành công: các hàm cầu (bridges_v16, memory, classic)"
+    )
+except ImportError as e:
+    print(f"[IMPORT V4] LỖI IMPORT HÀM CẦU: {e}")
 
     def getAllPositions_V17_Shadow(r):
         return []
@@ -84,7 +105,7 @@ except ImportError:
     def get_27_loto_positions(r):
         return []
 
-    def checkHitSet_V30_K2N(p, l):
+    def checkHitSet_V30_K2N(p, loto_set):
         return "Lỗi"
 
     def getAllLoto_V30(r):
@@ -325,9 +346,7 @@ def TIM_CAU_BAC_NHO_TOT_NHAT(
                     ]
                 )
                 # Bạc nhớ (V17) có pos1_idx = -1
-                bridges_to_add.append(
-                    (alg_name, alg_name, rate_str, db_name, -1, -1)
-                )
+                bridges_to_add.append((alg_name, alg_name, rate_str, db_name, -1, -1))
 
     if bridges_to_add:
         print(f"Dò cầu Bạc Nhớ: Tự động thêm/cập nhật {len(bridges_to_add)} cầu...")
@@ -409,17 +428,13 @@ def prune_bad_bridges(all_data_ai, db_name=DB_NAME):
     if not managed_bridges_map:
         return "Lỗi: Không có cầu nào được Bật để lọc."
 
-    print(
-        f"... (Lọc Cầu Yếu) Đang kiểm tra {len(managed_bridges_map)} cầu đã bật..."
-    )
+    print(f"... (Lọc Cầu Yếu) Đang kiểm tra {len(managed_bridges_map)} cầu đã bật...")
 
     # Bước 2: Duyệt các cầu đã cache và lọc
     for bridge_name, bridge_data in managed_bridges_map.items():
         try:
             # Đọc tỷ lệ từ cache K2N
-            win_rate_str = str(bridge_data.get("win_rate_text", "0%")).replace(
-                "%", ""
-            )
+            win_rate_str = str(bridge_data.get("win_rate_text", "0%")).replace("%", "")
 
             if not win_rate_str or win_rate_str == "N/A":
                 continue

@@ -1,6 +1,6 @@
-# Tên file: du-an-backup/logic/analytics.py
+# Tên file: git3/logic/analytics.py
 #
-# (NỘI DUNG THAY THẾ TOÀN BỘ - SỬA E741)
+# (NỘI DUNG THAY THẾ TOÀN BỘ - SỬA E226)
 #
 from collections import Counter
 
@@ -39,7 +39,7 @@ except ImportError:
         def getAllLoto_V30(r):
             return []
 
-        # (SỬA E741) Đổi tên 'l' thành 'loto_set' cho rõ nghĩa
+        # Đổi tên 'l' thành 'loto_set' cho rõ nghĩa
         def checkHitSet_V30_K2N(p, loto_set):
             return "Lỗi"
 

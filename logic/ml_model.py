@@ -1,20 +1,15 @@
-# Tên file: du-an-backup/logic/ml_model.py
+# Tên file: git3/logic/ml_model.py
 #
-# (NỘI DUNG THAY THẾ TOÀN BỘ - SỬA LỖI NameError 'X')
+# (NỘI DUNG THAY THẾ TOÀN BỘ - SỬA W503)
 #
 import os
-import traceback  # (SỬA F821) Import traceback
-# (SỬA F401) Xóa Counter, defaultdict
+import traceback
+
 import joblib
 import numpy as np
-# (SỬA F401) Xóa 'import pandas as pd'
-import xgboost as xgb  # <--- ĐÃ THAY THẾ RandomForestClassifier
+import xgboost as xgb
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
-
-# Logic features are now prepared externally by lottery_service.py
-
-# (SỬA F401) Xóa import SETTINGS không dùng
 
 # ĐÃ SỬA: Cập nhật đường dẫn mới cho file mô hình và scaler
 MODEL_FILE_PATH = "logic/ml_model_files/loto_model.joblib"
@@ -124,6 +119,7 @@ def _create_ai_dataset(all_data_ai, daily_bridge_predictions_map):
             # === FEATURES (X) ===
             # (Dựa trên dữ liệu của K(n-1))
 
+            # SỬA LỖI NAMERROR TẠI ĐÂY: Dùng bridge_features_for_actual_ky
             loto_features = bridge_features_for_actual_ky.get(loto, {})
 
             # --- FEATURE SET 1: GAN (F1) ---
@@ -140,13 +136,11 @@ def _create_ai_dataset(all_data_ai, daily_bridge_predictions_map):
             features.append(loto_features.get("memory_count", 0))
 
             # --- FEATURE SET 3: TỔNG HỢP VOTE (F5 -> F6) ---
-            # F5: Tổng số vote (F2+F3+F4)
             features.append(
                 loto_features.get("v5_count", 0)
                 + loto_features.get("v17_count", 0)
                 + loto_features.get("memory_count", 0)
             )
-            # F6: Số loại cầu vote (0-3)
             f6 = (
                 (1 if loto_features.get("v5_count", 0) > 0 else 0)
                 + (1 if loto_features.get("v17_count", 0) > 0 else 0)
@@ -214,8 +208,7 @@ def train_ai_model(all_data_ai, daily_bridge_predictions_map):
             n_estimators=150,  # Tăng số cây
             learning_rate=0.05,
             max_depth=4,
-            scale_pos_weight=scale_pos_weight,  # Cân bằng lớp
-            use_label_encoder=False,
+            scale_pos_weight=scale_pos_weight,
             random_state=42,
         )
 
@@ -230,13 +223,15 @@ def train_ai_model(all_data_ai, daily_bridge_predictions_map):
 
         # 6. Đánh giá (Tùy chọn)
         accuracy = model.score(X_test, y_test)
-        msg = f"Huấn luyện AI (V7.0) thành công! Độ chính xác (Test): {accuracy*100:.2f}%"
+        msg = f"Huấn luyện AI (V7.0) thành công! Độ chính xác (Test): {accuracy * 100:.2f}%"
         print(f"... (AI Train) {msg}")
         return True, msg
 
     except Exception as e:
-        # (SỬA F821) Thêm traceback.format_exc()
-        return False, f"Lỗi nghiêm trọng khi Huấn luyện AI: {e}\n{traceback.format_exc()}"
+        return (
+            False,
+            f"Lỗi nghiêm trọng khi Huấn luyện AI: {e}\n{traceback.format_exc()}",
+        )
 
 
 def get_ai_predictions(all_data_ai, bridge_predictions_for_today):
@@ -245,9 +240,7 @@ def get_ai_predictions(all_data_ai, bridge_predictions_for_today):
     """
     try:
         # 1. Tải mô hình và Scaler
-        if not os.path.exists(MODEL_FILE_PATH) or not os.path.exists(
-            SCALER_FILE_PATH
-        ):
+        if not os.path.exists(MODEL_FILE_PATH) or not os.path.exists(SCALER_FILE_PATH):
             return (
                 None,
                 "Lỗi AI: Không tìm thấy file 'loto_model.joblib' hoặc 'ai_scaler.joblib'. Vui lòng Huấn luyện AI.",
@@ -301,7 +294,7 @@ def get_ai_predictions(all_data_ai, bridge_predictions_for_today):
             # F9: Chuỗi Thắng/Thua hiện tại tối đa (Max Current Streak)
             features.append(loto_features.get("q_max_curr_streak", -999.0))
 
-            # (SỬA LỖI V3) Thêm hàng features này vào X_new
+            # Thêm hàng features này vào X_new
             X_new.append(features)
 
         X_new_scaled = scaler.transform(np.array(X_new))
@@ -323,7 +316,4 @@ def get_ai_predictions(all_data_ai, bridge_predictions_for_today):
         return results, "Dự đoán AI (V7.0) thành công."
 
     except Exception as e:
-        # (SỬA F821) Thêm traceback.format_exc()
         return None, f"Lỗi nghiêm trọng khi Dự đoán AI: {e}\n{traceback.format_exc()}"
-
-# (SỬA W292) Thêm dòng mới ở cuối file

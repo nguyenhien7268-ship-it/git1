@@ -1,6 +1,6 @@
-# Tên file: du-an-backup/ui/ui_dashboard.py
+# Tên file: git3/ui/ui_dashboard.py
 #
-# (NỘI DUNG THAY THẾ TOÀN BỘ - GĐ 4: TÍCH HỢP BIỂU ĐỒ)
+# (NỘI DUNG THAY THẾ TOÀN BỘ - SỬA F541)
 #
 import datetime
 import tkinter as tk
@@ -177,8 +177,9 @@ class DashboardWindow(ttk.Frame):
         self.fig.tight_layout(pad=0.5)
 
     def _create_hot_loto_ui(self, parent_frame):
+        # (SỬA F541) Xóa tiền tố 'f'
         self.hot_loto_frame = ttk.Labelframe(
-            parent_frame, text=f"🔥 Loto Về Nhiều (7 ngày)"
+            parent_frame, text="🔥 Loto Về Nhiều (7 ngày)"
         )
         tree_frame = ttk.Frame(self.hot_loto_frame)
         tree_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
@@ -200,8 +201,9 @@ class DashboardWindow(ttk.Frame):
         self.hot_loto_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
     def _create_gan_loto_ui(self, parent_frame):
+        # (SỬA F541) Xóa tiền tố 'f'
         self.gan_loto_frame = ttk.Labelframe(
-            parent_frame, text=f"🧊 Lô Gan (Trên 15 ngày)"
+            parent_frame, text="🧊 Lô Gan (Trên 15 ngày)"
         )
         tree_frame = ttk.Frame(self.gan_loto_frame)
         tree_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)

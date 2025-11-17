@@ -2,7 +2,6 @@
 #
 # (NỘI DUNG THAY THẾ TOÀN BỘ - SỬA F401, F811, W291, F841)
 #
-# (SỬA F401/F811) Xóa 'import os' không dùng ở global
 import sqlite3
 
 # (BỔ SUNG) Thêm datetime để xử lý ngày tháng
@@ -29,7 +28,7 @@ def load_data_ai_from_db(db_name=DB_NAME):
             """
         SELECT MaSoKy, Col_A_Ky, Col_B_GDB, Col_C_G1, Col_D_G2, Col_E_G3, Col_F_G4, Col_G_G5, Col_H_G6, Col_I_G7
         FROM DuLieu_AI
-        ORDER BY MaSoKy ASC 
+        ORDER BY MaSoKy ASC
         """
         )
         # (SỬA W291) Xóa khoảng trắng thừa
@@ -66,10 +65,10 @@ def get_all_managed_bridges(db_name=DB_NAME, only_enabled=False):
 
         cursor.execute(sql_query)
         rows = cursor.fetchall()
-        
+
         # Chuyển đổi [sqlite3.Row] thành [dict]
         dict_rows = [dict(row) for row in rows]
-        
+
         return dict_rows
 
     except Exception:  # (SỬA F841) Đổi 'except Exception as e' thành 'except Exception'
@@ -89,11 +88,11 @@ def get_latest_ky_date(conn):
         # (SỬA W291) Xóa khoảng trắng thừa
         cursor.execute("SELECT ky, date FROM results_A_I ORDER BY ky DESC LIMIT 1")
         latest = cursor.fetchone()
-        
+
         if latest:
             latest_ky_str = str(latest[0]).strip()
             date_str = str(latest[1]).strip()
-            
+
             # (SỬA W291) Xóa khoảng trắng thừa
             # Thử 1: Định dạng chuẩn dd/mm/YYYY
             try:
