@@ -3,9 +3,9 @@
 ## 📊 Tổng Quan Tiến Độ
 
 **Ngày bắt đầu:** 17/11/2025  
-**Giai đoạn hiện tại:** Week 1 - Quick Wins (Day 3)  
-**Trạng thái:** 🚧 In Progress  
-**Last Update:** 17/11/2025 22:50
+**Giai đoạn hiện tại:** Week 2 - Day 1 (Testing Expansion)  
+**Trạng thái:** 🚧 In Progress - **27% Coverage**  
+**Last Update:** 17/11/2025 23:00
 
 ---
 
@@ -37,17 +37,22 @@
 - `tests/unit/test_data_repository.py` (9 tests)
 - `tests/unit/test_config_manager.py` (12 tests)
 - `tests/unit/test_dashboard_analytics.py` (10 tests)
+- `tests/unit/test_ml_model.py` (17 tests)
+- `tests/unit/test_backtester.py` (20 tests)
+- `tests/unit/test_ai_feature_extractor.py` (25 tests)
+- `tests/unit/test_db_manager.py` (23 tests) 🆕
 
 **Statistics:**
-- **Test count:** 2 → 44 → 61 → 82 → **107 tests** (+5,250%)
-- **Test coverage:** <1% → 11% → 14% → 17% → **24%** (+23%)
-- **All tests passing:** 107/107 ✅
+- **Test count:** 2 → 44 → 61 → 82 → 107 → **130 tests** (+6,400%)
+- **Test coverage:** <1% → 11% → 14% → 17% → 24% → **27%** (+2,600%)
+- **All tests passing:** 130/130 ✅
 
 **Coverage breakdown:**
-- `logic/bridges/bridges_memory.py`: 88% 🆕 ⬆
+- `logic/bridges/bridges_memory.py`: 88%
 - `logic/cache_manager.py`: 81%
 - `logic/data_repository.py`: 62%
-- `logic/ai_feature_extractor.py`: 60% 🆕 ⬆ (was 0%)
+- `logic/ai_feature_extractor.py`: 60%
+- `logic/db_manager.py`: **52%** 🆕 ⬆ (was 9%)
 - `logic/ml_model.py`: 52%
 - `logic/config_manager.py`: 51%
 - `logic/bridges/bridges_v16.py`: 42% 🆕 ⬆
