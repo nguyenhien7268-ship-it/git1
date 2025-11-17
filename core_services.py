@@ -3,11 +3,13 @@
 # (NỘI DUNG TỆP MỚI)
 #
 import threading
-import traceback
 import tkinter as tk
+import traceback
+
 
 class Logger:
     """Quản lý việc log ra UI an toàn từ nhiều luồng."""
+
     def __init__(self, text_widget, root):
         self.widget = text_widget
         self.root = root
@@ -22,7 +24,7 @@ class Logger:
             self.root.update_idletasks()
         except Exception:
             # Bỏ qua nếu UI đã bị hủy
-            pass 
+            pass
 
     def log(self, message):
         """Ghi log. Tự động kiểm tra luồng."""
@@ -32,13 +34,15 @@ class Logger:
             # Nếu từ luồng khác, gọi an toàn qua root.after()
             self.root.after(0, self._safe_log, message)
 
+
 class TaskManager:
     """Quản lý việc chạy tác vụ đa luồng và Bật/Tắt nút."""
+
     def __init__(self, logger, all_buttons_list, root):
         self.logger = logger
         self.all_buttons = all_buttons_list
         self.root = root
-        self.optimizer_apply_button = None # Nút đặc biệt
+        self.optimizer_apply_button = None  # Nút đặc biệt
 
     def set_buttons_state(self, state):
         """Bật/Tắt tất cả các nút."""
@@ -48,7 +52,7 @@ class TaskManager:
             if button == self.optimizer_apply_button and state == tk.NORMAL:
                 # Nút "Áp dụng" sẽ được bật riêng khi có kết quả
                 continue
-            
+
             button.config(state=state)
         self.root.update_idletasks()
 

@@ -3,3 +3,8 @@ __pycache__/
 build/
 dist/
 *.spec
+
+# ignore local config and env files
+/config.json
+.env
+.env.local
