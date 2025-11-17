@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - main                  # <-- Chạy khi push lên nhánh main
-      - sua-loi-tu-9ba36d2  # <-- Chạy khi push lên nhánh này
+      - Sua-loi-tu-9ba36d2  # <-- Chạy khi push lên nhánh này
   pull_request:
     branches:
       - main                  # <-- Vẫn chạy khi có pull request vào main
