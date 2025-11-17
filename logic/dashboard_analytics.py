@@ -1,6 +1,7 @@
 import sqlite3
 from collections import Counter, defaultdict
 import math
+from functools import lru_cache
 
 # Import SETTINGS
 try:
@@ -14,6 +15,19 @@ except ImportError:
         'AI_PROB_THRESHOLD': 45.0, 
         'AI_SCORE_WEIGHT': 0.2
     })
+
+# Import cache manager
+try:
+    from .cache_manager import disk_cache
+except ImportError:
+    try:
+        from cache_manager import disk_cache
+    except ImportError:
+        # Fallback: no-op decorator
+        def disk_cache(ttl_hours=24):
+            def decorator(func):
+                return func
+            return decorator
 
 # Import Bridge/DB Logic và Helpers
 try:
