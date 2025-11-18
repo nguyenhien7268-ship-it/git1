@@ -290,9 +290,9 @@ def upsert_managed_bridge(
         cursor.execute(
             """
             UPDATE ManagedBridges
-            SET description = ?, win_rate_text = ?, 
-                pos1_idx = ?, pos2_idx = ?, 
-                is_enabled = 1 
+            SET description = ?, win_rate_text = ?,
+                pos1_idx = ?, pos2_idx = ?,
+                is_enabled = 1
             WHERE name = ?
             """,
             (description, win_rate, pos1_idx, pos2_idx, bridge_name),
@@ -302,7 +302,7 @@ def upsert_managed_bridge(
         if cursor.rowcount == 0:
             cursor.execute(
                 """
-                INSERT INTO ManagedBridges 
+                INSERT INTO ManagedBridges
                 (name, description, win_rate_text, pos1_idx, pos2_idx, is_enabled)
                 VALUES (?, ?, ?, ?, ?, 1)
                 """,
@@ -339,9 +339,9 @@ def update_bridge_k2n_cache_batch(cache_data_list, db_name=DB_NAME):
 
         # (SỬA GĐ 4) Thêm cột max_lose_streak_k2n
         sql_update = """
-        UPDATE ManagedBridges 
-        SET win_rate_text = ?, 
-            current_streak = ?, 
+        UPDATE ManagedBridges
+        SET win_rate_text = ?,
+            current_streak = ?,
             next_prediction_stl = ?,
             max_lose_streak_k2n = ?
         WHERE name = ?
@@ -380,7 +380,7 @@ def update_bridge_win_rate_batch(rate_data_list, db_name=DB_NAME):
 
         # Chỉ cập nhật win_rate_text và BẬT cầu lên
         sql_update = """
-        UPDATE ManagedBridges 
+        UPDATE ManagedBridges
         SET win_rate_text = ?,
             is_enabled = 1
         WHERE name = ?

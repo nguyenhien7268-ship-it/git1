@@ -1,6 +1,5 @@
 # tests/test_db_manager.py
 # Unit tests for database manager module
-import pytest
 
 
 def test_setup_database_creates_all_tables(temp_db):

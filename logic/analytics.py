@@ -147,7 +147,7 @@ def get_prediction_consensus(last_row, db_name=DB_NAME):
                 if not pair_key:
                     continue
 
-                source_name = f"C{i+1}"
+                source_name = f"C{i + 1}"
                 if pair_key not in prediction_sources:
                     prediction_sources[pair_key] = []
                 prediction_sources[pair_key].append(source_name)

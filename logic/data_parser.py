@@ -209,8 +209,8 @@ def _insert_data_batch(cursor, data_list):
 
     query_DuLieu_AI = """
     INSERT OR IGNORE INTO DuLieu_AI (
-        MaSoKy, Col_A_Ky, 
-        Col_B_GDB, Col_C_G1, Col_D_G2, Col_E_G3, 
+        MaSoKy, Col_A_Ky,
+        Col_B_GDB, Col_C_G1, Col_D_G2, Col_E_G3,
         Col_F_G4, Col_G_G5, Col_H_G6, Col_I_G7
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """
@@ -275,8 +275,8 @@ def _insert_data_batch_APPEND(cursor, data_list):
 
     query_DuLieu_AI = """
     INSERT OR IGNORE INTO DuLieu_AI (
-        MaSoKy, Col_A_Ky, 
-        Col_B_GDB, Col_C_G1, Col_D_G2, Col_E_G3, 
+        MaSoKy, Col_A_Ky,
+        Col_B_GDB, Col_C_G1, Col_D_G2, Col_E_G3,
         Col_F_G4, Col_G_G5, Col_H_G6, Col_I_G7
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """
@@ -629,7 +629,7 @@ def parse_and_APPEND_data_TEXT(raw_data, conn, cursor):
         )
 
         if giai_match and current_ky_str:
-            giai_data = line[giai_match.end(0) :].strip()
+            giai_data = line[giai_match.end(0):].strip()
             giai_keyword = giai_match.group(1).upper()
 
             # Nếu là GĐB/ĐB/Đặc Biệt -> Phải là giải đầu tiên (reset)

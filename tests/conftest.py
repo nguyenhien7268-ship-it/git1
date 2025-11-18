@@ -1,7 +1,6 @@
 # tests/conftest.py
 # Pytest fixtures for test suite
 import os
-import sqlite3
 import sys
 import tempfile
 

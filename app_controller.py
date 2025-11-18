@@ -725,7 +725,7 @@ class AppController:
 
             for i, config in enumerate(combinations):
                 log_to_optimizer(
-                    f"--- Đang kiểm thử [{i+1}/{total_combos}]: {config} ---"
+                    f"--- Đang kiểm thử [{i + 1}/{total_combos}]: {config} ---"
                 )
 
                 for key, value in config.items():
