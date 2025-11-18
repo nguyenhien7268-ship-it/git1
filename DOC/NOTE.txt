@@ -1,0 +1,74 @@
+pip install pandas matplotlib seaborn scikit-learn joblib
+
+ git config --global user.email "nguyenhien7268@gmail.com"
+
+  git config --global user.name "Jason"
+
+Sau khi đã cài đặt Git và Git LFS, bạn cần thực hiện 2 bước sau để Git nhận diện được LFS và tải file lớn về:
+
+Khởi tạo Git LFS: Bạn cần chạy lệnh này trong terminal (chỉ cần chạy một lần cho hệ thống):
+
+Bash
+
+git lfs install
+Clone code: Khi bạn clone dự án của mình về, Git LFS sẽ tự động nhận diện file .gitattributes trong kho chứa và tải các file lớn (.joblib, .db) về đúng cách.
+
+Bash
+
+git clone -b ten-nhanh-backup https://github.com/nguyenhien7268-ship-it/git1 du-an-backup
+git clone [URL_GitHub_của_bạn]
+https://github.com/nguyenhien7268-ship-it/git1
+
+
+git add .
+
+git commit -m "Fix: UD FIX ALL ERROR"
+
+git pull origin Sua-loi-tu-9ba36d2
+
+Bước	Lệnh	Mục đích
+
+	git add .
+
+	git commit -m "update thu vien"
+
+	git push origin main	
+
+----------------sql
+BEGIN TRANSACTION;
+
+-- 1. Xóa dữ liệu liên quan khỏi bảng DuLieu_A1
+-- (Dùng subquery để tìm tất cả MaSoKy có ngày 14-11)
+DELETE FROM DuLieu_AI
+WHERE MaSoKy IN (SELECT MaSoKy FROM KyQuay WHERE NgayThang = '14-11');
+
+-- 2. Xóa dữ liệu chính khỏi bảng KyQuay
+DELETE FROM KyQuay 
+WHERE NgayThang = '14-11';
+
+-- Xác nhận và lưu lại các thay đổi
+COMMIT;
+
+-- HOẶC, nếu có lỗi, hãy dùng lệnh này để hoàn tác mọi thứ:
+-- ROLLBACK;
+
+------------------------------------------------------
+
+
+
+
+xem qua hệ thống, kiểm tra và xác nhận rằng bạn đã nắm được toàn bộ hệ thống chương trình và nhận được đủ các file như mô tả 
+
+thống nhất quy trình làm việc như sau:
+
+Quy trình xem xét file: Trước khi thực hiện bất kỳ thay đổi phức tạp nào, tôi sẽ luôn đọc và phân tích toàn bộ nội dung của các file gốc liên quan mà bạn chỉ định. Việc này để đảm bảo tôi hiểu rõ logic và bối cảnh của code, giúp cho việc chỉnh sửa được chính xác.
+
+Quy trình sửa file: Khi bạn yêu cầu sửa đổi một file, tôi sẽ cung cấp toàn bộ nội dung mới của file đó sau khi đã chỉnh sửa.
+
+Cách thực hiện: Bạn chỉ cần sao chép (copy) toàn bộ nội dung mới mà tôi cung cấp và dán (paste) đè lên, thay thế hoàn toàn nội dung trong file gốc tương ứng của bạn.
+
+------------------------------------------------------
+flake8 .
+TIẾP TỤC sửa lỗi khi chạy flake8 .
+
+chia giai đoạn để sửa và có bước kiểm tra kết quả để tránh lỗi phát sinh

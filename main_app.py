@@ -1,8 +1,9 @@
-import tkinter as tk
 import os
 
 # Đảm bảo thư mục logic và ui được thêm vào
 import sys
+import tkinter as tk
+
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 
 try:
@@ -21,5 +22,6 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"LỖI KHÔNG XÁC ĐỊNH KHI CHẠY APP: {e}")
         import traceback
+
         print(traceback.format_exc())
         input("Nhấn Enter để thoát...")
