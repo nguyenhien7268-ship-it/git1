@@ -90,9 +90,13 @@ def parse_k2n_results(results_data):
                 bridge_name
             ))
 
-            # Lưu pending
+            # Lưu pending với đầy đủ thông tin
             if pending_text and pending_text.strip() != "":
-                pending_k2n_dict[bridge_name] = pending_text
+                pending_k2n_dict[bridge_name] = {
+                    "stl": pending_text,
+                    "streak": current_streak,
+                    "max_lose": max_lose_streak
+                }
 
     except Exception as e:
         print(f"Lỗi parse_k2n_results: {e}")
