@@ -181,10 +181,17 @@ def run_and_update_all_bridge_rates(all_data_ai, db_name=DB_NAME):
 def run_and_update_all_bridge_K2N_cache(
     all_data_ai, db_name=DB_NAME, data_slice=None, write_to_db=True
 ):
-    """Cập nhật Cache K2N cho Cầu Cổ Điển và Cầu Đã Lưu"""
+    """Cập nhật Cache K2N cho Cầu Cổ Điển và Cầu Đã Lưu
+    
+    Returns:
+        tuple: (all_pending_dict, cache_count, message)
+            - all_pending_dict: Dictionary of pending K2N predictions
+            - cache_count: Number of cache entries written
+            - message: Status message
+    """
     try:
         if not all_data_ai:
-            return 0, 0, "Không có dữ liệu A:I để chạy backtest."
+            return {}, 0, "Không có dữ liệu A:I để chạy backtest."
 
         ky_bat_dau = 2
         ky_ket_thuc = len(all_data_ai) + (ky_bat_dau - 1)
@@ -195,7 +202,7 @@ def run_and_update_all_bridge_K2N_cache(
         )
 
         if not results_k2n_classic or len(results_k2n_classic) < 4:
-            return 0, 0, "Backtest K2N cổ điển không trả về kết quả đầy đủ."
+            return {}, 0, "Backtest K2N cổ điển không trả về kết quả đầy đủ."
 
         cache_classic, pending_classic = _parse_k2n_results(results_k2n_classic)
 
@@ -213,19 +220,19 @@ def run_and_update_all_bridge_K2N_cache(
         all_pending = {**pending_classic, **pending_managed}
 
         if not all_cache_data:
-            return 0, 0, "Không trích xuất được dữ liệu cache K2N."
+            return {}, 0, "Không trích xuất được dữ liệu cache K2N."
 
         if write_to_db:
             success, message = update_bridge_k2n_cache_batch(all_cache_data, db_name)
             if success:
-                return len(all_cache_data), len(all_pending), message
+                return all_pending, len(all_cache_data), message
             else:
-                return 0, 0, message
+                return {}, 0, message
         else:
-            return len(all_cache_data), len(all_pending), "Không ghi vào DB (chế độ xem trước)."
+            return all_pending, len(all_cache_data), "Không ghi vào DB (chế độ xem trước)."
 
     except Exception as e:
-        return 0, 0, f"Lỗi nghiêm trọng trong run_and_update_all_bridge_K2N_cache: {e}"
+        return {}, 0, f"Lỗi nghiêm trọng trong run_and_update_all_bridge_K2N_cache: {e}"
 
 
 # Export all functions for backward compatibility

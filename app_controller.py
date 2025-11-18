@@ -315,7 +315,7 @@ class AppController:
         stats_n_day = get_loto_stats_last_n_days(all_data_ai, n=n_days_stats)
 
         self.logger.log("... (2/5) Đang chạy hàm Cập nhật K2N Cache (tối ưu)...")
-        pending_k2n_data, cache_message = run_and_update_all_bridge_K2N_cache(
+        pending_k2n_data, _, cache_message = run_and_update_all_bridge_K2N_cache(
             all_data_ai, self.db_name
         )
         self.logger.log(f"... (Cache K2N) {cache_message}")
@@ -367,7 +367,7 @@ class AppController:
         if not all_data_ai:
             return
 
-        _, message = run_and_update_all_bridge_K2N_cache(all_data_ai, self.db_name)
+        _, _, message = run_and_update_all_bridge_K2N_cache(all_data_ai, self.db_name)
 
         self.logger.log(message)
 
@@ -569,7 +569,7 @@ class AppController:
             def test_k2n_risk_logic(p_key, v_from, v_to, v_step):
                 log_to_tuner(f"--- Bắt đầu kiểm thử: {p_key} ---")
                 log_to_tuner("... (Chạy Cache K2N một lần để lấy dữ liệu nền)...")
-                pending_k2n, _ = run_and_update_all_bridge_K2N_cache(
+                pending_k2n, _, _ = run_and_update_all_bridge_K2N_cache(
                     all_data_ai, self.db_name
                 )
                 stats_n_day = get_loto_stats_last_n_days(all_data_ai)
