@@ -208,7 +208,7 @@ def run_and_update_all_bridge_K2N_cache(
 
         # Backtest K2N managed
         results_k2n_managed = BACKTEST_MANAGED_BRIDGES_K2N(
-            all_data_ai, ky_bat_dau, ky_ket_thuc, db_name, data_slice=data_slice
+            all_data_ai, ky_bat_dau, ky_ket_thuc, db_name, history=False
         )
 
         if not results_k2n_managed or len(results_k2n_managed) < 4:
