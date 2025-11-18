@@ -12,21 +12,13 @@ except ImportError:
         print(
             "LỖI: backtester.py không thể import config_manager. Sử dụng giá trị mặc định."
         )
-        SETTINGS = type(
-            "obj",
-            (object,),
-            {
-                "STATS_DAYS": 7,
-                "GAN_DAYS": 15,
-                "HIGH_WIN_THRESHOLD": 47.0,
-                "AUTO_ADD_MIN_RATE": 50.0,
-                "AUTO_PRUNE_MIN_RATE": 40.0,
-                "K2N_RISK_START_THRESHOLD": 4,
-                "K2N_RISK_PENALTY_PER_FRAME": 0.5,
-                "AI_PROB_THRESHOLD": 45.0,
-                "AI_SCORE_WEIGHT": 0.2,
-            },
-        )
+        # Use centralized constants
+        try:
+            from .constants import DEFAULT_SETTINGS
+        except ImportError:
+            from constants import DEFAULT_SETTINGS
+        
+        SETTINGS = type("obj", (object,), DEFAULT_SETTINGS)
 
 
 # (V7.1) Giữ lại các Import Cần Thiết cho Backtest

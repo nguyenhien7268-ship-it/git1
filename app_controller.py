@@ -47,21 +47,15 @@ try:
     from logic.config_manager import SETTINGS
 except ImportError as e:
     print(f"LỖI: Controller không thể import logic.config_manager: {e}")
-    SETTINGS = type(
-        "obj",
-        (object,),
-        {
-            "STATS_DAYS": 7,
-            "GAN_DAYS": 15,
-            "HIGH_WIN_THRESHOLD": 47.0,
-            "AUTO_ADD_MIN_RATE": 50.0,
-            "AUTO_PRUNE_MIN_RATE": 40.0,
-            "K2N_RISK_START_THRESHOLD": 4,
-            "K2N_RISK_PENALTY_PER_FRAME": 0.5,
-            "get_all_settings": lambda: {},
-            "get": lambda k, d: d,
-        },
-    )
+    # Use centralized constants
+    from logic.constants import DEFAULT_SETTINGS
+    
+    settings_dict = DEFAULT_SETTINGS.copy()
+    settings_dict.update({
+        "get_all_settings": lambda: {},
+        "get": lambda k, d: d,
+    })
+    SETTINGS = type("obj", (object,), settings_dict)
 
 # ===================================================================
 # (PHỤC HỒI) Import hàm bị thiếu trực tiếp từ logic.data_parser
