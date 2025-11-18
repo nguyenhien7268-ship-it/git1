@@ -35,8 +35,9 @@ try:
     from .backtester import (
         BACKTEST_15_CAU_K2N_V30_AI_V8,
         BACKTEST_MANAGED_BRIDGES_K2N,
-        _parse_k2n_results,
     )
+    # Import parse function from backtester_helpers.py
+    from .backtester_helpers import parse_k2n_results as _parse_k2n_results
     from .bridges.bridges_classic import (
         ALL_15_BRIDGE_FUNCTIONS_V5,
         checkHitSet_V30_K2N,
@@ -420,7 +421,7 @@ def get_pending_k2n_bridges(last_row, prev_row):
                 stl = bridge_func(prev_row)
                 check_result = checkHitSet_V30_K2N(stl, actualLotoSet)
                 if "❌" in check_result:
-                    pending_bridges.append({"name": f"Cầu {i+1}", "stl": stl})
+                    pending_bridges.append({"name": f"Cầu {i + 1}", "stl": stl})
             except Exception:
                 pass
 
@@ -667,7 +668,7 @@ def get_consensus_simulation(data_slice, last_row):
             pair_key = _standardize_pair(stl)
             if not pair_key:
                 continue
-            source_name = f"C{i+1}"
+            source_name = f"C{i + 1}"
             if pair_key not in prediction_sources:
                 prediction_sources[pair_key] = []
             prediction_sources[pair_key].append(source_name)

@@ -47,21 +47,15 @@ try:
     from logic.config_manager import SETTINGS
 except ImportError as e:
     print(f"LỖI: Controller không thể import logic.config_manager: {e}")
-    SETTINGS = type(
-        "obj",
-        (object,),
-        {
-            "STATS_DAYS": 7,
-            "GAN_DAYS": 15,
-            "HIGH_WIN_THRESHOLD": 47.0,
-            "AUTO_ADD_MIN_RATE": 50.0,
-            "AUTO_PRUNE_MIN_RATE": 40.0,
-            "K2N_RISK_START_THRESHOLD": 4,
-            "K2N_RISK_PENALTY_PER_FRAME": 0.5,
-            "get_all_settings": lambda: {},
-            "get": lambda k, d: d,
-        },
-    )
+    # Use centralized constants
+    from logic.constants import DEFAULT_SETTINGS
+    
+    settings_dict = DEFAULT_SETTINGS.copy()
+    settings_dict.update({
+        "get_all_settings": lambda: {},
+        "get": lambda k, d: d,
+    })
+    SETTINGS = type("obj", (object,), settings_dict)
 
 # ===================================================================
 # (PHỤC HỒI) Import hàm bị thiếu trực tiếp từ logic.data_parser
@@ -69,13 +63,14 @@ except ImportError as e:
 try:
     from logic.data_parser import run_and_update_from_text
 except ImportError as e_import:
+    error_msg = str(e_import)
     print(
-        f"LỖI NGHIÊM TRỌNG: app_controller không tìm thấy logic.data_parser.run_and_update_from_text: {e_import}"
+        f"LỖI NGHIÊM TRỌNG: app_controller không tìm thấy logic.data_parser.run_and_update_from_text: {error_msg}"
     )
 
     # Tạo hàm giả để tránh crash ngay lập tức
     def run_and_update_from_text(raw_data):
-        return False, f"Lỗi: Không tìm thấy data_parser: {e_import}"
+        return False, "Lỗi: Không tìm thấy module logic.data_parser"
 
 
 class AppController:
@@ -320,7 +315,7 @@ class AppController:
         stats_n_day = get_loto_stats_last_n_days(all_data_ai, n=n_days_stats)
 
         self.logger.log("... (2/5) Đang chạy hàm Cập nhật K2N Cache (tối ưu)...")
-        pending_k2n_data, cache_message = run_and_update_all_bridge_K2N_cache(
+        pending_k2n_data, _, cache_message = run_and_update_all_bridge_K2N_cache(
             all_data_ai, self.db_name
         )
         self.logger.log(f"... (Cache K2N) {cache_message}")
@@ -372,7 +367,7 @@ class AppController:
         if not all_data_ai:
             return
 
-        _, message = run_and_update_all_bridge_K2N_cache(all_data_ai, self.db_name)
+        _, _, message = run_and_update_all_bridge_K2N_cache(all_data_ai, self.db_name)
 
         self.logger.log(message)
 
@@ -574,7 +569,7 @@ class AppController:
             def test_k2n_risk_logic(p_key, v_from, v_to, v_step):
                 log_to_tuner(f"--- Bắt đầu kiểm thử: {p_key} ---")
                 log_to_tuner("... (Chạy Cache K2N một lần để lấy dữ liệu nền)...")
-                pending_k2n, _ = run_and_update_all_bridge_K2N_cache(
+                pending_k2n, _, _ = run_and_update_all_bridge_K2N_cache(
                     all_data_ai, self.db_name
                 )
                 stats_n_day = get_loto_stats_last_n_days(all_data_ai)
@@ -724,7 +719,7 @@ class AppController:
 
             for i, config in enumerate(combinations):
                 log_to_optimizer(
-                    f"--- Đang kiểm thử [{i+1}/{total_combos}]: {config} ---"
+                    f"--- Đang kiểm thử [{i + 1}/{total_combos}]: {config} ---"
                 )
 
                 for key, value in config.items():

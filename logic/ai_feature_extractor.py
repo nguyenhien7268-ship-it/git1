@@ -105,7 +105,7 @@ def _get_daily_bridge_predictions(all_data_ai):
                 stl = bridge_func(prev_row)
                 pair_key = _standardize_pair(stl)
                 if pair_key:
-                    temp_bridge_preds[pair_key].append(f"C{i+1}")
+                    temp_bridge_preds[pair_key].append(f"C{i + 1}")
             except Exception:
                 pass
 

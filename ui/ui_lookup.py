@@ -219,7 +219,7 @@ class LookupWindow(ttk.Frame):  # (SỬA) Kế thừa từ ttk.Frame
             output += "-" * 46 + "\n"
             COL_DAU_W, COL_LOTO_W, COL_DUOI_W = 3, 12, 4
             output += f"{'Đầu'.ljust(COL_DAU_W)} | {'Loto'.ljust(COL_LOTO_W)} | {'Đuôi'.ljust(COL_DUOI_W)} | {'Loto'.ljust(COL_LOTO_W)}\n"
-            output += f"{'-'*COL_DAU_W} | {'-'*COL_LOTO_W} | {'-'*COL_DUOI_W} | {'-'*COL_LOTO_W}\n"
+            output += f"{'-' * COL_DAU_W} | {'-' * COL_LOTO_W} | {'-' * COL_DUOI_W} | {'-' * COL_LOTO_W}\n"
 
             for i in range(10):
                 dau_val_str = ",".join(dau_stats[i])

@@ -346,6 +346,10 @@ class DataAnalysisApp:
         if self.update_text_area:
             self.update_text_area.delete("1.0", tk.END)
 
+    def update_output(self, msg):
+        """Cập nhật output log. Được gọi từ các cửa sổ phụ."""
+        self.logger.log(msg)
+
     # --- (GIỮ NGUYÊN TOÀN BỘ CÁC HÀM CÒN LẠI) ---
 
     def browse_file(self):

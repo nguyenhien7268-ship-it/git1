@@ -10,6 +10,14 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 
 def test_import_main_app():
+    """Test importing main modules (skip if tkinter not available)"""
+    pytest = __import__("pytest")
+    try:
+        # Try to import tkinter first
+        import tkinter  # noqa: F401
+    except ImportError:
+        pytest.skip("tkinter not available in this environment")
+
     try:
         # Giữ lại import để kiểm tra đường dẫn, nhưng chỉ import thư viện
         import app_controller

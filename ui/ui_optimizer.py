@@ -339,7 +339,7 @@ class OptimizerTab(ttk.Frame):
             self.log("--- BẮT ĐẦU TỐI ƯU HÓA CHIẾN LƯỢC ---")
             self.log(f"Chiến lược: {strategy}")
             self.log(f"Số ngày kiểm thử: {days_to_test} ngày (tính từ ngày gần nhất)")
-            self.log(f"Các tham số kiểm thử:")
+            self.log("Các tham số kiểm thử:")
             for key, (f, t, s) in param_ranges.items():
                 self.log(f" - {key}: Từ {f} đến {t} (bước {s})")
             # Sửa F541: Xóa tiền tố 'f' không cần thiết
