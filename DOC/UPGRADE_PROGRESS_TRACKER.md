@@ -109,24 +109,26 @@ Breakdown:
   - 85 tests passing
 
 ##### Day 3-5: Core Tests 🔄
-- **Status:** In Progress (40% done)
+- **Status:** In Progress (70% done)
 - **Completed:**
   - ✅ test_db_manager.py (7 tests)
   - ✅ test_config_manager.py (4 tests)
   - ✅ test_constants.py (4 tests)
   - ✅ test_validators.py (12 tests)
-  - ✅ test_backtester.py (28 tests) - NEW
-  - ✅ test_ml_model.py (25 tests) - NEW
-  - ✅ test_data_parser.py (28 tests) - NEW
+  - ✅ test_backtester.py (28 tests)
+  - ✅ test_ml_model.py (25 tests)
+  - ✅ test_data_parser.py (28 tests)
+  - ✅ test_backtester_functional.py (44 tests) - NEW
+  - ✅ test_integration.py (30 tests) - NEW
 - **Remaining:**
-  - [ ] Functional tests for backtester_core.py (15 tests)
-  - [ ] Integration tests (10 tests)
   - [ ] Performance benchmarks (5 tests)
+  - [ ] Additional functional tests (10 tests)
 
 **Coverage Progress:**
 ```
 Day 0: 5%  [█░░░░░░░░░░░░░░░░░░░] Target: 60%
 Day 3: 11% [██░░░░░░░░░░░░░░░░░░] Target: 60%
+Day 4: 13% [███░░░░░░░░░░░░░░░░░] Target: 60%
 Goal:  60% [████████████░░░░░░░░] Phase 1 Target
 ```
 
@@ -241,7 +243,8 @@ Goal:  60% [████████████░░░░░░░░] Phase 
 | Date | Coverage | Tests | Change |
 |------|----------|-------|--------|
 | 2025-11-17 | 5% | 29 | Baseline |
-| 2025-11-18 | 11% | 85 | +6% (+56 tests) |
+| 2025-11-18 AM | 11% | 85 | +6% (+56 tests) |
+| 2025-11-18 PM | 13% | 133 | +2% (+48 tests) |
 | Target | 60% | ~200 | Phase 1 Goal |
 | Final | 80% | ~300 | End Goal |
 
@@ -250,8 +253,8 @@ Goal:  60% [████████████░░░░░░░░] Phase 
 | Metric | Current | Target | Status |
 |--------|---------|--------|--------|
 | Flake8 Errors | 0 | 0 | ✅ |
-| Test Count | 85 | 200 | 🔄 43% |
-| Coverage | 11% | 80% | 🔄 14% |
+| Test Count | 133 | 200 | 🔄 67% |
+| Coverage | 13% | 80% | 🔄 16% |
 | Max File Size | 581 LOC | 500 LOC | ⚠️ 1 file over |
 | CI/CD | Partial | Full | 🔄 70% |
 
@@ -324,8 +327,8 @@ Goal:  60% [████████████░░░░░░░░] Phase 
 ### Week 1 Checkpoint (Current Week)
 - **Date:** 2025-11-18
 - **Status:** In Progress
-- **Completed:** 40% of Week 1 goals
-- **Next:** Continue test writing
+- **Completed:** 70% of Week 1 goals
+- **Next:** Performance benchmarks, reach 20% coverage
 - **Blockers:** None
 
 ### Week 2 Checkpoint (Upcoming)
