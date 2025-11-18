@@ -62,9 +62,33 @@ def parse_k2n_results(results_data):
             win_streak_text = str(streaks[j]) if j < len(streaks) else "0"
             pending_text = str(pending[j]) if j < len(pending) else ""
 
-            # Tạo cache_text
-            cache_text = f"{win_rate_text};{win_streak_text}"
-            cache_data_list.append((cache_text, bridge_name))
+            # Parse current_streak and max_lose_streak from win_streak_text
+            # Format: "5" or "5 / 3" (win_streak / max_lose_streak)
+            current_streak = 0
+            max_lose_streak = 0
+            if "/" in win_streak_text:
+                parts = win_streak_text.split("/")
+                try:
+                    current_streak = int(parts[0].strip())
+                    max_lose_streak = int(parts[1].strip()) if len(parts) > 1 else 0
+                except (ValueError, IndexError):
+                    current_streak = 0
+                    max_lose_streak = 0
+            else:
+                try:
+                    current_streak = int(win_streak_text.strip())
+                except ValueError:
+                    current_streak = 0
+
+            # Append tuple with all 5 fields needed for SQL UPDATE
+            # (win_rate_text, current_streak, next_prediction_stl, max_lose_streak_k2n, bridge_name)
+            cache_data_list.append((
+                win_rate_text,
+                current_streak,
+                pending_text if pending_text.strip() else "",
+                max_lose_streak,
+                bridge_name
+            ))
 
             # Lưu pending
             if pending_text and pending_text.strip() != "":
