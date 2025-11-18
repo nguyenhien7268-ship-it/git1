@@ -94,6 +94,32 @@ def setup_database(db_name=DB_NAME):
     except sqlite3.OperationalError:
         pass  # Cột đã tồn tại
 
+    # (PERFORMANCE OPTIMIZATION) Tạo indexes để tăng tốc queries 10-100x
+    print("Đang tạo database indexes...")
+    
+    # Index cho results_A_I.ky (tra cứu thường xuyên nhất)
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_results_ky ON results_A_I(ky)"
+    )
+    
+    # Index cho DuLieu_AI.MaSoKy (cho range queries)
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_dulieu_masoky ON DuLieu_AI(MaSoKy)"
+    )
+    
+    # Index cho ManagedBridges.is_enabled (lọc cầu active)
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_bridges_enabled ON ManagedBridges(is_enabled)"
+    )
+    
+    # Composite index cho query kết hợp enabled + win_rate
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_bridges_enabled_rate "
+        "ON ManagedBridges(is_enabled, win_rate_text)"
+    )
+    
+    print("✅ Database indexes đã được tạo thành công")
+
     conn.commit()
     return conn, cursor
 
