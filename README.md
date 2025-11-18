@@ -2,6 +2,10 @@ Markdown
 
 # Xổ Số Data Analysis System (XS-DAS)
 
+[![CI Pipeline](https://github.com/nguyenhien7268-ship-it/git1/actions/workflows/ci.yml/badge.svg)](https://github.com/nguyenhien7268-ship-it/git1/actions/workflows/ci.yml)
+[![Code Quality](https://img.shields.io/badge/flake8-passing-brightgreen)](https://github.com/nguyenhien7268-ship-it/git1)
+[![Tests](https://img.shields.io/badge/tests-12%20passing-brightgreen)](https://github.com/nguyenhien7268-ship-it/git1)
+
 ## 🎯 Giới Thiệu
 
 Đây là Hệ thống Phân tích Dữ liệu Xổ Số (XS-DAS), được thiết kế để tự động backtest, phân tích chuyên sâu các chiến lược dò cầu, quản lý chiến lược và đưa ra dự đoán dựa trên AI. Hệ thống cung cấp các công cụ trực quan để tinh chỉnh và tối ưu hóa tham số.
