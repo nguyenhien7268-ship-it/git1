@@ -119,14 +119,15 @@ try:
 
     print(">>> (V7.3) Tải logic.ai_feature_extractor (AI Wrappers) thành công.")
 except ImportError as e_ai:
-    print(f"LỖI NGHIÊM TRỌNG: Không thể import logic.ai_feature_extractor (AI): {e_ai}")
+    error_msg = str(e_ai)
+    print(f"LỖI NGHIÊM TRỌNG: Không thể import logic.ai_feature_extractor (AI): {error_msg}")
 
     # Giả lập hàm nếu lỗi
     def run_ai_training_threaded(callback=None):
-        return False, f"Lỗi: Không tìm thấy ai_feature_extractor.py: {e_ai}"
+        return False, "Lỗi: Không tìm thấy module ai_feature_extractor"
 
     def run_ai_prediction_for_dashboard():
-        return None, f"Lỗi: Không tìm thấy ai_feature_extractor.py: {e_ai}"
+        return None, "Lỗi: Không tìm thấy module ai_feature_extractor"
 
 
 # Thêm __all__ để đánh dấu các hàm này là 'được sử dụng' (để export)

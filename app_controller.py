@@ -69,13 +69,14 @@ except ImportError as e:
 try:
     from logic.data_parser import run_and_update_from_text
 except ImportError as e_import:
+    error_msg = str(e_import)
     print(
-        f"LỖI NGHIÊM TRỌNG: app_controller không tìm thấy logic.data_parser.run_and_update_from_text: {e_import}"
+        f"LỖI NGHIÊM TRỌNG: app_controller không tìm thấy logic.data_parser.run_and_update_from_text: {error_msg}"
     )
 
     # Tạo hàm giả để tránh crash ngay lập tức
     def run_and_update_from_text(raw_data):
-        return False, f"Lỗi: Không tìm thấy data_parser: {e_import}"
+        return False, "Lỗi: Không tìm thấy module logic.data_parser"
 
 
 class AppController:

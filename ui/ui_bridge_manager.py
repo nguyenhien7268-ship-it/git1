@@ -3,7 +3,7 @@
 # (NỘI DUNG THAY THẾ TOÀN BỘ - SỬA F401, W503)
 #
 import tkinter as tk
-from tkinter import messagebox, simpledialog, ttk
+from tkinter import messagebox, ttk
 
 # Import các hàm logic cần thiết
 try:
