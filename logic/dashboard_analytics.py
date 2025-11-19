@@ -557,28 +557,42 @@ def get_top_scored_pairs(
             except ImportError:
                 db_name_param = "xo_so_prizes_all_logic.db"
             
+            print(f"\n=== DEBUG PHONG ĐỘ ===")
+            print(f"DB name: {db_name_param}")
             managed_bridges = get_all_managed_bridges(db_name=db_name_param)
+            print(f"Tổng số cầu đã lưu: {len(managed_bridges)}")
             
             recent_form_count = 0
+            enabled_count = 0
+            has_prediction_count = 0
+            valid_prediction_count = 0
+            enough_wins_count = 0
+            
             for bridge in managed_bridges:
                 if not bridge.get("is_enabled"):
                     continue
+                enabled_count += 1
                     
                 recent_wins = bridge.get("recent_win_count_10", 0)
                 prediction_stl_str = bridge.get("next_prediction_stl", "")
                 
-                # Skip bridges without predictions or with invalid format
-                if not prediction_stl_str or "," not in prediction_stl_str:
+                if not prediction_stl_str:
+                    continue
+                has_prediction_count += 1
+                
+                if "," not in prediction_stl_str:
                     continue
                 
                 # Skip bridges with N2 or error annotations
                 if "N2" in prediction_stl_str or "LỖI" in prediction_stl_str:
                     continue
+                valid_prediction_count += 1
                 
                 stl = prediction_stl_str.split(",")
                 pair_key = _standardize_pair(stl)
                 
                 if pair_key and recent_wins >= SETTINGS.RECENT_FORM_MIN_LOW:
+                    enough_wins_count += 1
                     if pair_key not in scores:
                         scores[pair_key] = {
                             "score": 0.0,
@@ -600,9 +614,14 @@ def get_top_scored_pairs(
                         scores[pair_key]["score"] += bonus
                         scores[pair_key]["reasons"].append(f"Phong độ ({recent_wins}/10)")
                         recent_form_count += 1
+                        print(f"  ✓ {pair_key}: {recent_wins}/10 wins -> +{bonus} điểm")
             
-            if recent_form_count > 0:
-                print(f"Đã thêm điểm phong độ cho {recent_form_count} cặp số")
+            print(f"Cầu được bật: {enabled_count}")
+            print(f"Cầu có dự đoán: {has_prediction_count}")
+            print(f"Dự đoán hợp lệ (không N2/LỖI): {valid_prediction_count}")
+            print(f"Cầu đủ điều kiện (≥{SETTINGS.RECENT_FORM_MIN_LOW} wins): {enough_wins_count}")
+            print(f"Đã thêm điểm phong độ cho {recent_form_count} cặp số")
+            print(f"=== KẾT THÚC DEBUG ===\n")
         except Exception as e:
             import traceback
             print(f"Lỗi tính điểm phong độ: {e}")
