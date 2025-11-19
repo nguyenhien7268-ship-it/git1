@@ -23,7 +23,9 @@ class ResultsViewerWindow:
         headers = results_data[0]
         num_cols = len(headers)
 
-        self.tree = ttk.Treeview(frame, columns=headers, show="headings")
+        # Use stable column IDs instead of raw header strings (helps with special chars and many columns)
+        col_ids = [f"c{i}" for i in range(num_cols)]
+        self.tree = ttk.Treeview(frame, columns=col_ids, show="headings")
 
         yscroll = ttk.Scrollbar(frame, orient=tk.VERTICAL, command=self.tree.yview)
         yscroll.pack(side=tk.RIGHT, fill=tk.Y)
@@ -50,14 +52,15 @@ class ResultsViewerWindow:
 
         self.tree.configure(yscrollcommand=yscroll.set, xscrollcommand=xscroll.set)
 
-        for col in headers:
-            self.tree.heading(col, text=col)
-            if col == headers[0]:
-                self.tree.column(col, width=150, anchor=tk.W)
-            elif "Chuỗi K2N" in col:
-                self.tree.column(col, width=150, anchor=tk.W)
+        # define headings & column widths
+        for i, h in enumerate(headers):
+            col_id = col_ids[i]
+            self.tree.heading(col_id, text=h)
+            if i == 0:
+                self.tree.column(col_id, width=150, anchor=tk.W)
             else:
-                self.tree.column(col, width=120, anchor=tk.W)
+                # nếu có quá nhiều cột, set width nhỏ để tránh tree quá rộng
+                self.tree.column(col_id, width=120, minwidth=60, anchor=tk.W)
 
         self.context_menu = tk.Menu(self.window, tearoff=0)
         self.show_save_button = show_save_button
@@ -80,7 +83,7 @@ class ResultsViewerWindow:
 
         for i, row in enumerate(results_data[1:]):
             if len(row) < num_cols:
-                row.extend([""] * (num_cols - len(row)))
+                row = list(row) + [""] * (num_cols - len(row))
             elif len(row) > num_cols:
                 row = row[:num_cols]
 
@@ -92,10 +95,11 @@ class ResultsViewerWindow:
             elif i == 0 and "Hạng" in str(row[0]):
                 tags_to_apply = ("header_row",)
             elif i == 2 and (
-                str(row[0]).startswith("Kỳ") or str(row[0]).startswith("(Chờ Kỳ)")
+                str(row[0]).startswith("Kỳ") or str(row[0]).startswith("(Chờđ Kỳ")
             ):
                 tags_to_apply = ("final_row",)
 
+            # insert by values order (matches col_ids)
             self.tree.insert("", tk.END, values=row, tags=tags_to_apply)
 
         self.tree.pack(expand=True, fill=tk.BOTH)
@@ -138,7 +142,7 @@ class ResultsViewerWindow:
             if self.show_save_button:
                 self.context_menu.add_separator()
                 self.context_menu.add_command(
-                    label="Lưu cầu này...", command=self.save_selected_bridge
+                    label="Lưu cẩu này...", command=self.save_selected_bridge
                 )
 
             self.context_menu.tk_popup(event.x_root, event.y_root)
