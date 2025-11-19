@@ -101,10 +101,12 @@ def parse_k2n_results(results_data):
 
             # Append tuple with all 6 fields needed for SQL UPDATE
             # (win_rate_text, current_streak, next_prediction_stl, max_lose_streak_k2n, recent_win_count_10, bridge_name)
+            # Use the same clean STL extraction as for pending_k2n_dict
+            clean_stl = pending_text.split("(")[0].strip() if "(" in pending_text else pending_text.strip()
             cache_data_list.append((
                 win_rate_text,
                 current_streak,
-                pending_text if pending_text.strip() else "",
+                clean_stl if clean_stl else "",
                 max_lose_streak,
                 recent_win_count,
                 bridge_name
