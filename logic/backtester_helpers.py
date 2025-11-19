@@ -112,8 +112,10 @@ def parse_k2n_results(results_data):
 
             # Lưu pending với đầy đủ thông tin
             if pending_text and pending_text.strip() != "":
+                # Extract just the STL numbers from format like "12,34 (Khung mới N1)" or "12,34 (Đang chờ N2)"
+                stl_only = pending_text.split("(")[0].strip() if "(" in pending_text else pending_text.strip()
                 pending_k2n_dict[bridge_name] = {
-                    "stl": pending_text,
+                    "stl": stl_only,
                     "streak": current_streak,
                     "max_lose": max_lose_streak
                 }
