@@ -63,20 +63,26 @@ def parse_k2n_results(results_data):
             pending_text = str(pending[j]) if j < len(pending) else ""
 
             # Parse current_streak and max_lose_streak from win_streak_text
-            # Format: "5" or "5 / 3" (win_streak / max_lose_streak)
+            # Format: "5" or "5 / 3" or "5 thắng / 3 thua" (win_streak / max_lose_streak)
             current_streak = 0
             max_lose_streak = 0
             if "/" in win_streak_text:
                 parts = win_streak_text.split("/")
                 try:
-                    current_streak = int(parts[0].strip())
-                    max_lose_streak = int(parts[1].strip()) if len(parts) > 1 else 0
+                    # Remove Vietnamese words like "thắng", "thua" and extract numbers
+                    part0 = parts[0].strip().replace("thắng", "").replace("thua", "").strip()
+                    current_streak = int(part0)
+                    if len(parts) > 1:
+                        part1 = parts[1].strip().replace("thắng", "").replace("thua", "").strip()
+                        max_lose_streak = int(part1)
                 except (ValueError, IndexError):
                     current_streak = 0
                     max_lose_streak = 0
             else:
                 try:
-                    current_streak = int(win_streak_text.strip())
+                    # Handle single number or number with Vietnamese words
+                    cleaned = win_streak_text.strip().replace("thắng", "").replace("thua", "").strip()
+                    current_streak = int(cleaned)
                 except ValueError:
                     current_streak = 0
 
