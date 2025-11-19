@@ -14,14 +14,8 @@ except ImportError:
     try:
         from config_manager import SETTINGS
     except ImportError:
-        SETTINGS = type(
-            "obj",
-            (object,),
-            {
-                "STATS_DAYS": 7,
-                "HIGH_WIN_THRESHOLD": 47.0,
-            },
-        )
+        from ..constants import DEFAULT_SETTINGS
+        SETTINGS = type("obj", (object,), DEFAULT_SETTINGS)
 
 # Import from other dashboard modules
 try:
@@ -173,9 +167,10 @@ def get_historical_dashboard_data(all_data_ai, day_index, temp_settings):
     # prev_row = data_slice[-2]
 
     # 2. Lấy các giá trị cài đặt tạm thời
-    n_days_stats = int(temp_settings.get("STATS_DAYS", 7))
-    n_days_gan = int(temp_settings.get("GAN_DAYS", 15))
-    high_win_thresh = float(temp_settings.get("HIGH_WIN_THRESHOLD", 47.0))
+    from ..constants import DEFAULT_SETTINGS
+    n_days_stats = int(temp_settings.get("STATS_DAYS", DEFAULT_SETTINGS["STATS_DAYS"]))
+    n_days_gan = int(temp_settings.get("GAN_DAYS", DEFAULT_SETTINGS["GAN_DAYS"]))
+    high_win_thresh = float(temp_settings.get("HIGH_WIN_THRESHOLD", DEFAULT_SETTINGS["HIGH_WIN_THRESHOLD"]))
 
     # 3. Chạy 7 hệ thống (phiên bản mô phỏng)
 

@@ -14,14 +14,8 @@ except ImportError:
     try:
         from config_manager import SETTINGS
     except ImportError:
-        SETTINGS = type(
-            "obj",
-            (object,),
-            {
-                "STATS_DAYS": 7,
-                "GAN_DAYS": 15,
-            },
-        )
+        from ..constants import DEFAULT_SETTINGS
+        SETTINGS = type("obj", (object,), DEFAULT_SETTINGS)
 
 try:
     from ..bridges.bridges_classic import getAllLoto_V30

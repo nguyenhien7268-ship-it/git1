@@ -15,13 +15,8 @@ except ImportError:
     try:
         from config_manager import SETTINGS
     except ImportError:
-        SETTINGS = type(
-            "obj",
-            (object,),
-            {
-                "HIGH_WIN_THRESHOLD": 47.0,
-            },
-        )
+        from ..constants import DEFAULT_SETTINGS
+        SETTINGS = type("obj", (object,), DEFAULT_SETTINGS)
 
 try:
     from ..backtester import (
@@ -63,7 +58,7 @@ except ImportError:
         return []
     def BACKTEST_15_CAU_K2N_V30_AI_V8(a, b, c, d):
         return []
-    DB_NAME = "xo_so_prizes_all_logic.db"
+    from ..constants import DB_PATH as DB_NAME
     def get_all_managed_bridges(d, o):
         return []
     ALL_15_BRIDGE_FUNCTIONS_V5 = []

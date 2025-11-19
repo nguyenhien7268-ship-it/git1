@@ -20,7 +20,10 @@ except ImportError:
 try:
     from ..db_manager import DB_NAME
 except ImportError:
-    DB_NAME = "data/xo_so_prizes_all_logic.db"
+    try:
+        from ..constants import DB_PATH as DB_NAME
+    except ImportError:
+        DB_NAME = "data/xo_so_prizes_all_logic.db"
 
 try:
     from ..data_repository import get_all_managed_bridges

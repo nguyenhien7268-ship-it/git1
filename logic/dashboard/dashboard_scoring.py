@@ -13,15 +13,8 @@ except ImportError:
     try:
         from config_manager import SETTINGS
     except ImportError:
-        SETTINGS = type(
-            "obj",
-            (object,),
-            {
-                "K2N_RISK_START_THRESHOLD": 4,
-                "K2N_RISK_PENALTY_PER_FRAME": 0.5,
-                "AI_SCORE_WEIGHT": 0.2,
-            },
-        )
+        from ..constants import DEFAULT_SETTINGS
+        SETTINGS = type("obj", (object,), DEFAULT_SETTINGS)
 
 try:
     from .dashboard_stats import get_loto_stats_last_n_days
