@@ -45,8 +45,53 @@ def get_top_scored_pairs(
     ai_predictions=None,
 ):
     """
-    (V7.1) Tính toán, chấm điểm và xếp hạng các cặp số.
-    Hoàn thiện việc sử dụng Trọng số AI liên tục (loại bỏ kiểm tra ngưỡng cứng).
+    Get Top Scored Pairs (V7.1) - Advanced Scoring System
+    
+    Calculates, scores, and ranks lottery number pairs using weighted scoring algorithm.
+    Combines multiple prediction sources with AI predictions for optimal results.
+    
+    Args:
+        stats (dict): Basic statistics from recent draws
+        consensus (dict): Consensus predictions from multiple bridges
+        high_win (dict): High win rate predictions
+        pending_k2n (dict): Pending K2N predictions (not yet hit)
+        gan_stats (dict): Gan (miss streak) statistics for each number
+        top_memory_bridges (list): Top predictions from memory bridges
+        ai_predictions (dict, optional): AI model predictions with probabilities.
+                                        Defaults to None.
+    
+    Returns:
+        list: Sorted list of scored pairs. Each entry contains:
+            - pair: Lottery number pair (e.g., "01-23")
+            - score: Total weighted score
+            - ai_prob: AI prediction probability (if available)
+            - sources: List of prediction sources
+            - win_rate: Historical win rate
+            - k2n_risk: K2N risk assessment
+            - gan_days: Days since last appearance
+            
+        Empty list if no valid predictions found.
+    
+    Example:
+        >>> scored_pairs = get_top_scored_pairs(
+        ...     stats, consensus, high_win, pending_k2n,
+        ...     gan_stats, top_bridges, ai_predictions
+        ... )
+        >>> for pair in scored_pairs[:10]:
+        ...     print(f"{pair['pair']}: {pair['score']:.2f}")
+    
+    Scoring Algorithm:
+        - Base score from prediction sources (consensus, high_win, etc.)
+        - K2N risk penalty for high-risk predictions
+        - AI score contribution: max_prob * AI_SCORE_WEIGHT
+        - Continuous weighted scoring (no hard thresholds)
+        - Higher scores indicate better predictions
+    
+    Note:
+        - V7.1 uses continuous AI weighting (removed hard thresholds)
+        - K2N risk increases penalty for long miss streaks
+        - AI predictions are optional but recommended
+        - Scores are normalized and weighted by configuration
     """
     try:
         scores = {}

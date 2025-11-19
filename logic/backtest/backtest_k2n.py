@@ -67,7 +67,40 @@ from ..backtester_helpers import validate_backtest_params as _validate_backtest_
 def BACKTEST_15_CAU_K2N_V30_AI_V8(
     toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra, history=True
 ):
-    """Backtest 15 Cầu Cổ Điển K2N"""
+    """
+    Backtest 15 Cầu Cổ Điển K2N (Khung 2 Ngày)
+    
+    Performs backtest analysis for 15 classic bridges using K2N (2-day frame) mode.
+    Each prediction is tested against results from the next 2 draws.
+    
+    Args:
+        toan_bo_A_I (list): Complete historical data list, each row is a draw record
+                            Format: [ky, date, prize_data, ...]
+        ky_bat_dau_kiem_tra (str): Starting draw ID for backtest (e.g., "20200101")
+        ky_ket_thuc_kiem_tra (str): Ending draw ID for backtest (e.g., "20201231")
+        history (bool, optional): If True, include full history in results. 
+                                 Defaults to True.
+    
+    Returns:
+        list: Backtest results table with columns:
+            - Kỳ (Cột A): Draw ID
+            - Cầu 1-15: Results for each of 15 classic bridges
+            - Hit statistics (Về, Chưa về, K2N Risk)
+            - Overall performance metrics
+            
+        Or dict with 'error' key if validation fails.
+    
+    Example:
+        >>> results = BACKTEST_15_CAU_K2N_V30_AI_V8(
+        ...     all_data, "20200101", "20200110", history=True
+        ... )
+        >>> print(f"Total draws tested: {len(results)-1}")
+    
+    Note:
+        - K2N mode tests each prediction against next 2 draws
+        - Returns "Về" if hit within 2 draws, "K2N-1" or "K2N-2" if not
+        - Includes risk assessment for each prediction
+    """
     allData, finalEndRow, startCheckRow, offset, error = _validate_backtest_params(
         toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra
     )
@@ -239,7 +272,42 @@ def BACKTEST_MANAGED_BRIDGES_K2N(
     db_name=DB_NAME,
     history=True,
 ):
-    """Backtest K2N cho Cầu Đã Lưu (V17 Shadow)"""
+    """
+    Backtest K2N cho Cầu Đã Lưu (Managed Bridges K2N Mode)
+    
+    Performs K2N mode backtest for user-managed custom bridges stored in database.
+    Tests each bridge's predictions against results from next 2 draws using V17 Shadow algorithm.
+    
+    Args:
+        toan_bo_A_I (list): Complete historical data list, each row is a draw record
+        ky_bat_dau_kiem_tra (str): Starting draw ID for backtest
+        ky_ket_thuc_kiem_tra (str): Ending draw ID for backtest
+        db_name (str, optional): Path to SQLite database containing managed bridges.
+                                Defaults to DB_NAME from constants.
+        history (bool, optional): If True, include full history in results. Defaults to True.
+    
+    Returns:
+        list: Backtest results table with columns:
+            - Kỳ: Draw ID
+            - One column per managed bridge with hit status
+            - Statistics: Về (hit), K2N-1/K2N-2 (miss), risk metrics
+            
+        Or dict with 'error' key if validation fails or no bridges found.
+    
+    Example:
+        >>> results = BACKTEST_MANAGED_BRIDGES_K2N(
+        ...     all_data, "20200101", "20200110",
+        ...     db_name="data/xo_so_prizes_all_logic.db"
+        ... )
+        >>> if not isinstance(results, dict):
+        ...     print(f"Bridges tested: {len(results[0])-1}")
+    
+    Note:
+        - Retrieves managed bridges from database table
+        - Uses V17 Shadow algorithm for position calculation
+        - K2N mode: Tests against next 2 draws
+        - Returns error dict if database connection fails or no bridges found
+    """
     try:
         # (V7.1) Dùng get_all_managed_bridges từ Repository
         bridges_to_test = get_all_managed_bridges(db_name, only_enabled=True)

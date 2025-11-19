@@ -62,7 +62,41 @@ except ImportError:
     ALL_15_BRIDGE_FUNCTIONS_V5 = []
 
 def get_top_memory_bridge_predictions(all_data_ai, last_row, top_n=5):
-    """Chạy backtest N1 756 cầu bạc nhớ ngầm và trả về dự đoán của TOP N cầu tốt nhất."""
+    """
+    Get Top Memory Bridge Predictions
+    
+    Runs N1 backtest for 756 implicit memory bridges and returns predictions
+    from the top N best-performing bridges based on historical win rates.
+    
+    Args:
+        all_data_ai (list): Complete historical data list for backtest analysis
+        last_row (dict): Most recent draw data to generate predictions from
+        top_n (int, optional): Number of top bridges to return. Defaults to 5.
+    
+    Returns:
+        list: List of predictions from top N bridges. Each prediction contains:
+            - Bridge identifier (position pair)
+            - Predicted lottery numbers
+            - Historical win rate
+            - Algorithm type used
+            
+        Empty list if validation fails or insufficient data.
+    
+    Example:
+        >>> last_draw = {"ky": "20240101", "date": "01/01/2024", ...}
+        >>> predictions = get_top_memory_bridge_predictions(
+        ...     all_data, last_draw, top_n=5
+        ... )
+        >>> for pred in predictions:
+        ...     print(f"Bridge: {pred['bridge']}, Numbers: {pred['numbers']}")
+    
+    Note:
+        - Tests 756 memory bridges (27x27 position combinations)
+        - Uses sum/xuoi/nguoc algorithms for each position pair
+        - Selects bridges with highest historical win rates
+        - Memory bridges are implicit (not explicitly stored)
+        - Requires at least 2 historical draws
+    """
     print("... (BTH) Bắt đầu chạy backtest 756 cầu Bạc Nhớ ngầm...")
 
     def _validate_data(data):

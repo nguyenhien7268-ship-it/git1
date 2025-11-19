@@ -64,7 +64,40 @@ from ..backtester_helpers import validate_backtest_params as _validate_backtest_
 def BACKTEST_15_CAU_N1_V31_AI_V8(
     toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra
 ):
-    """Backtest 15 Cầu Lô N1"""
+    """
+    Backtest 15 Cầu Lô N1 (N1 Mode for 15 Classic Bridges)
+    
+    Performs backtest analysis for 15 classic lottery bridges using N1 mode.
+    Each prediction is tested against the immediate next draw only.
+    
+    Args:
+        toan_bo_A_I (list): Complete historical data list, each row is a draw record
+                            Format: [ky, date, prize_data, ...]
+        ky_bat_dau_kiem_tra (str): Starting draw ID for backtest (e.g., "20200101")
+        ky_ket_thuc_kiem_tra (str): Ending draw ID for backtest (e.g., "20201231")
+    
+    Returns:
+        list: Backtest results table with columns:
+            - Kỳ (Cột A): Draw ID
+            - Cầu 1-15: Results for each of 15 classic bridges
+            - Hit status: "Về" (hit) or "Chưa về" (miss)
+            - Win rates and performance statistics
+            
+        Or dict with 'error' key if validation fails.
+    
+    Example:
+        >>> results = BACKTEST_15_CAU_N1_V31_AI_V8(
+        ...     all_data, "20200101", "20200110"
+        ... )
+        >>> if not isinstance(results, dict):
+        ...     print(f"Total predictions: {len(results)-1}")
+    
+    Note:
+        - N1 mode: Tests each prediction against next draw only
+        - Returns "Về" if prediction hits in next draw, "Chưa về" otherwise
+        - Includes win rate calculation for each bridge
+        - 15 classic bridges cover common lottery patterns
+    """
     # ... (giữ nguyên logic backtest 15 cầu N1) ...
     allData, finalEndRow, startCheckRow, offset, error = _validate_backtest_params(
         toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra

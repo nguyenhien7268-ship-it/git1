@@ -171,7 +171,58 @@ def _create_ai_dataset(all_data_ai, daily_bridge_predictions_map):
 
 def train_ai_model(all_data_ai, daily_bridge_predictions_map):
     """
-    (V7.0) API: Huấn luyện, chuẩn hóa (scale), và lưu mô hình AI.
+    Train AI Model (V7.0) - XGBoost Classifier with Feature Engineering
+    
+    Trains, scales, and saves the AI prediction model using XGBoost algorithm.
+    Incorporates Q-Features (quality features) for improved accuracy.
+    
+    Args:
+        all_data_ai (list): Complete historical lottery data for training.
+                           Must contain at least MIN_DATA_TO_TRAIN (50) draws.
+        daily_bridge_predictions_map (dict): Daily bridge predictions history.
+                                            Format: {ky: [bridge_predictions]}
+    
+    Returns:
+        tuple: (success, message)
+            - success (bool): True if training completed successfully
+            - message (str): Success message or error description
+    
+    Example:
+        >>> success, msg = train_ai_model(all_data, bridge_predictions)
+        >>> if success:
+        ...     print(f"Model trained: {msg}")
+        ... else:
+        ...     print(f"Training failed: {msg}")
+    
+    Model Features:
+        - Base Features: Bridge predictions, occurrence counts
+        - Q-Features (Quality Features):
+            * q_avg_win_rate: Average historical win rate
+            * q_min_k2n_risk: Minimum K2N risk score
+            * q_current_lose_streak: Current consecutive miss count
+        - Total: 20+ features per prediction
+    
+    Training Process:
+        1. Create dataset with features (X) and labels (y)
+        2. Standardize features using StandardScaler
+        3. Split data: 80% train, 20% test (stratified)
+        4. Train XGBoost classifier
+        5. Evaluate on test set
+        6. Save model and scaler to disk
+    
+    Model Parameters:
+        - Objective: multi:softprob (multiclass probability)
+        - Max Depth: From config (default: 6)
+        - N Estimators: From config (default: 100)
+        - Learning Rate: From config (default: 0.1)
+        - Random State: 42 (reproducible)
+    
+    Note:
+        - Requires at least 50 historical draws
+        - Uses XGBoost for better performance vs RandomForest
+        - Q-Features significantly improve accuracy
+        - Model saved to: logic/ml_model_files/loto_model.joblib
+        - Scaler saved to: logic/ml_model_files/ai_scaler.joblib
     """
     try:
         if not all_data_ai or len(all_data_ai) < MIN_DATA_TO_TRAIN:
@@ -236,7 +287,55 @@ def train_ai_model(all_data_ai, daily_bridge_predictions_map):
 
 def get_ai_predictions(all_data_ai, bridge_predictions_for_today):
     """
-    (V7.0) API: Tải mô hình đã lưu và dự đoán 100 loto cho ngày mai.
+    Get AI Predictions (V7.0) - Predict Lottery Numbers Using Trained Model
+    
+    Loads the trained AI model and predicts probabilities for all 100 lottery numbers
+    for the next draw based on current bridge predictions and historical patterns.
+    
+    Args:
+        all_data_ai (list): Complete historical lottery data for feature extraction
+        bridge_predictions_for_today (list): Current bridge predictions to evaluate.
+                                            Format: list of predicted pairs
+    
+    Returns:
+        tuple: (predictions_dict, message)
+            - predictions_dict (dict): Probability predictions for each number pair.
+                                      Format: {pair: probability, ...}
+                                      None if prediction fails.
+            - message (str): Success message or error description
+    
+    Example:
+        >>> today_predictions = ["01-23", "05-67", "12-89"]
+        >>> ai_preds, msg = get_ai_predictions(all_data, today_predictions)
+        >>> if ai_preds:
+        ...     sorted_preds = sorted(ai_preds.items(), 
+        ...                          key=lambda x: x[1], reverse=True)
+        ...     print(f"Top prediction: {sorted_preds[0]}")
+    
+    Prediction Process:
+        1. Load saved model and scaler from disk
+        2. Calculate current gan (miss) statistics (F1 feature)
+        3. Extract features for each predicted pair:
+           - Bridge prediction count
+           - Historical gan (miss) days
+           - Q-Features (win rate, K2N risk, lose streak)
+        4. Standardize features using saved scaler
+        5. Predict probabilities using XGBoost model
+        6. Return probability map for all predictions
+    
+    Features Used:
+        - F0: Number of bridges predicting this pair
+        - F1: Current gan (days since last appearance)
+        - Q-Features: avg_win_rate, min_k2n_risk, current_lose_streak
+        - Total: 20+ features per prediction
+    
+    Note:
+        - Requires trained model files to exist
+        - Model file: logic/ml_model_files/loto_model.joblib
+        - Scaler file: logic/ml_model_files/ai_scaler.joblib
+        - Returns probabilities for all 100 possible lottery numbers
+        - Higher probability indicates better prediction confidence
+        - Uses XGBoost classifier with Q-Features for accuracy
     """
     try:
         # 1. Tải mô hình và Scaler
