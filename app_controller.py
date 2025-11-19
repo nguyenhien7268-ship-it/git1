@@ -12,6 +12,8 @@ import traceback
 # Import tường minh các hàm cần thiết từ lottery_service
 try:
     from lottery_service import (
+        BACKTEST_15_CAU_K2N_V30_AI_V8,
+        BACKTEST_15_CAU_N1_V31_AI_V8,
         BACKTEST_CUSTOM_CAU_V16,
         BACKTEST_MANAGED_BRIDGES_K2N,
         BACKTEST_MANAGED_BRIDGES_N1,
@@ -207,11 +209,22 @@ class AppController:
         ky_ket_thuc_kiem_tra = len(toan_bo_A_I) + (ky_bat_dau_kiem_tra - 1)
         self.logger.log(f"Đang chạy backtest trên {len(toan_bo_A_I)} hàng dữ liệu...")
 
-        func_to_call = (
-            BACKTEST_MANAGED_BRIDGES_N1
-            if mode == "N1"
-            else (lambda a, b, c: BACKTEST_MANAGED_BRIDGES_K2N(a, b, c, history=True))
-        )
+        # LOGIC MỚI: Phân loại dựa trên Title
+        func_to_call = None
+        
+        if "15" in title:
+            # Xử lý cho 15 Cầu Cổ Điển
+            if mode == "N1":
+                func_to_call = BACKTEST_15_CAU_N1_V31_AI_V8
+            else:
+                func_to_call = BACKTEST_15_CAU_K2N_V30_AI_V8
+        else:
+            # Xử lý mặc định cho Cầu Đã Lưu (Managed Bridges)
+            if mode == "N1":
+                func_to_call = BACKTEST_MANAGED_BRIDGES_N1
+            else:
+                func_to_call = lambda a, b, c: BACKTEST_MANAGED_BRIDGES_K2N(a, b, c, history=True)
+        
         results_data = func_to_call(
             toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra
         )
