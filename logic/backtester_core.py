@@ -834,7 +834,7 @@ def BACKTEST_MEMORY_BRIDGES(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_t
 
     for dayData in processedData:
         if dayData["error"]:
-            data_rows.append([dayData["soKy"], "Lỗi dữ liệu hàng"])
+            data_rows.append([dayData["soKy"], "Lỗi dữ liệu hàng"] + [""] * num_algorithms)
             continue
 
         actualSoKy = dayData["soKy"]
