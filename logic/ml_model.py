@@ -148,7 +148,7 @@ def _create_ai_dataset(all_data_ai, daily_bridge_predictions_map):
             )
             features.append(f6)
 
-            # --- FEATURE SET 4: CHẤT LƯỢNG (Q) FEATURES (F7 -> F9) ---
+            # --- FEATURE SET 4: CHẤT LƯỢNG (Q) FEATURES (F7 -> F14) ---
             # F7: Tỷ lệ thắng trung bình (Managed Bridges)
             features.append(loto_features.get("q_avg_win_rate", 0.0))
 
@@ -157,6 +157,22 @@ def _create_ai_dataset(all_data_ai, daily_bridge_predictions_map):
 
             # F9: Chuỗi Thắng/Thua hiện tại tối đa (Max Current Streak)
             features.append(loto_features.get("q_max_curr_streak", -999.0))
+            
+            # NEW Q-FEATURES (Phase 1 - Accuracy Improvements)
+            # F10: Standard deviation of win rates (consistency)
+            features.append(loto_features.get("q_std_win_rate", 0.0))
+            
+            # F11: Bridge diversity (unique bridge count)
+            features.append(loto_features.get("q_bridge_diversity", 0))
+            
+            # F12: Consensus strength (agreement ratio)
+            features.append(loto_features.get("q_consensus_strength", 0.0))
+            
+            # F13: Recent performance (7-day win rate)
+            features.append(loto_features.get("q_recent_performance", 0.0))
+            
+            # F14: Pattern stability (variance-based)
+            features.append(loto_features.get("q_pattern_stability", 0.0))
 
             # Thêm hàng features này vào X
             X.append(features)
@@ -248,17 +264,36 @@ def train_ai_model(all_data_ai, daily_bridge_predictions_map):
             X_scaled, y, test_size=0.2, random_state=42, stratify=y
         )
 
-        # 4. Huấn luyện (XGBoost)
+        # 4. Huấn luyện (XGBoost) - Now using config from constants.py
         print("... (AI Train) Bắt đầu huấn luyện mô hình XGBoost...")
-        # (V7.0) Tinh chỉnh XGBoost
+        
+        # Load hyperparameters from config (with fallbacks)
+        try:
+            from .config_manager import get_setting
+            max_depth = int(get_setting("AI_MAX_DEPTH", 6))
+            n_estimators = int(get_setting("AI_N_ESTIMATORS", 200))
+            learning_rate = float(get_setting("AI_LEARNING_RATE", 0.05))
+            objective = get_setting("AI_OBJECTIVE", "binary:logistic")
+        except Exception:
+            # Fallback to constants if config_manager fails
+            from .constants import DEFAULT_SETTINGS
+            max_depth = DEFAULT_SETTINGS.get("AI_MAX_DEPTH", 6)
+            n_estimators = DEFAULT_SETTINGS.get("AI_N_ESTIMATORS", 200)
+            learning_rate = DEFAULT_SETTINGS.get("AI_LEARNING_RATE", 0.05)
+            objective = DEFAULT_SETTINGS.get("AI_OBJECTIVE", "binary:logistic")
+        
         # Cân bằng trọng số lớp (vì lớp 1 (trúng) ít hơn lớp 0 (trượt))
-        scale_pos_weight = (len(y) - sum(y)) / sum(y)
+        scale_pos_weight = (len(y) - sum(y)) / sum(y) if sum(y) > 0 else 1.0
+        
+        print(f"... (AI Train) Hyperparameters: max_depth={max_depth}, "
+              f"n_estimators={n_estimators}, learning_rate={learning_rate}")
+        
         model = xgb.XGBClassifier(
-            objective="binary:logistic",
+            objective=objective,
             eval_metric="logloss",
-            n_estimators=150,  # Tăng số cây
-            learning_rate=0.05,
-            max_depth=4,
+            n_estimators=n_estimators,
+            learning_rate=learning_rate,
+            max_depth=max_depth,
             scale_pos_weight=scale_pos_weight,
             random_state=42,
         )
