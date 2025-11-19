@@ -208,39 +208,44 @@ def BACKTEST_15_CAU_K2N_V30_AI_V8(
     if history:
         data_rows.reverse()
 
+    # Always insert rate, streak, and recent_form rows for consistent structure
+    rate_row, total_wins = ["Tỷ Lệ %"], 0
     if totalTestDays > 0:
-        rate_row, total_wins = ["Tỷ Lệ %"], 0
         for count in win_counts:
             rate = (count / totalTestDays) * 100
             rate_row.append(f"{rate:.2f}%")
             total_wins += count
         rate_row.append(f"TB: {(total_wins / totalTestDays):.2f}")
-        results.insert(1, rate_row)
+    else:
+        for _ in range(15):
+            rate_row.append("0.00%")
+        rate_row.append("TB: 0.00")
+    results.insert(1, rate_row)
 
-        streak_row = ["Chuỗi Thắng / Thua Max"]
-        for i in range(15):
-            streak_row.append(
-                f"{current_streak_k2n[i]} thắng / {max_lose_streak_k2n[i]} thua"
-            )
-        streak_row.append("---")
-        results.insert(2, streak_row)
+    streak_row = ["Chuỗi Thắng / Thua Max"]
+    for i in range(15):
+        streak_row.append(
+            f"{current_streak_k2n[i]} thắng / {max_lose_streak_k2n[i]} thua"
+        )
+    streak_row.append("---")
+    results.insert(2, streak_row)
 
-        # Calculate recent win count (last 10 periods)
-        recent_win_row = ["Phong Độ 10 Kỳ"]
-        for i in range(15):
-            # Count wins in last 10 data rows (most recent periods)
-            recent_wins = 0
-            periods_to_check = min(10, len(data_rows))
-            for row_idx in range(periods_to_check):
-                if row_idx < len(data_rows):
-                    row = data_rows[row_idx]
-                    if i + 1 < len(row):
-                        cell_value = str(row[i + 1])
-                        if "✅" in cell_value:
-                            recent_wins += 1
-            recent_win_row.append(f"{recent_wins}/10")
-        recent_win_row.append("---")
-        results.insert(3, recent_win_row)
+    # Calculate recent win count (last 10 periods)
+    recent_win_row = ["Phong Độ 10 Kỳ"]
+    for i in range(15):
+        # Count wins in last 10 data rows (most recent periods)
+        recent_wins = 0
+        periods_to_check = min(10, len(data_rows))
+        for row_idx in range(periods_to_check):
+            if row_idx < len(data_rows):
+                row = data_rows[row_idx]
+                if i + 1 < len(row):
+                    cell_value = str(row[i + 1])
+                    if "✅" in cell_value:
+                        recent_wins += 1
+        recent_win_row.append(f"{recent_wins}/10")
+    recent_win_row.append("---")
+    results.insert(3, recent_win_row)
 
     try:
         last_data_row_for_prediction = allData[finalEndRow - offset]
@@ -729,35 +734,39 @@ def BACKTEST_MANAGED_BRIDGES_K2N(
     if history:
         data_rows.reverse()
 
+    # Always insert rate, streak, and recent_form rows for consistent structure
+    rate_row = ["Tỷ Lệ %"]
     if totalTestDays > 0:
-        rate_row = ["Tỷ Lệ %"]
         for count in win_counts:
             rate = (count / totalTestDays) * 100
             rate_row.append(f"{rate:.2f}%")
-        results.insert(1, rate_row)
+    else:
+        for _ in range(num_bridges):
+            rate_row.append("0.00%")
+    results.insert(1, rate_row)
 
-        streak_row = ["Chuỗi Thắng / Thua Max"]
-        for i in range(num_bridges):
-            streak_row.append(
-                f"{current_streak_k2n[i]} thắng / {max_lose_streak_k2n[i]} thua"
-            )
-        results.insert(2, streak_row)
+    streak_row = ["Chuỗi Thắng / Thua Max"]
+    for i in range(num_bridges):
+        streak_row.append(
+            f"{current_streak_k2n[i]} thắng / {max_lose_streak_k2n[i]} thua"
+        )
+    results.insert(2, streak_row)
 
-        # Calculate recent win count (last 10 periods)
-        recent_win_row = ["Phong Độ 10 Kỳ"]
-        for i in range(num_bridges):
-            # Count wins in last 10 data rows (most recent periods)
-            recent_wins = 0
-            periods_to_check = min(10, len(data_rows))
-            for row_idx in range(periods_to_check):
-                if row_idx < len(data_rows):
-                    row = data_rows[row_idx]
-                    if i + 1 < len(row):
-                        cell_value = str(row[i + 1])
-                        if "✅" in cell_value:
-                            recent_wins += 1
-            recent_win_row.append(f"{recent_wins}/10")
-        results.insert(3, recent_win_row)
+    # Calculate recent win count (last 10 periods)
+    recent_win_row = ["Phong Độ 10 Kỳ"]
+    for i in range(num_bridges):
+        # Count wins in last 10 data rows (most recent periods)
+        recent_wins = 0
+        periods_to_check = min(10, len(data_rows))
+        for row_idx in range(periods_to_check):
+            if row_idx < len(data_rows):
+                row = data_rows[row_idx]
+                if i + 1 < len(row):
+                    cell_value = str(row[i + 1])
+                    if "✅" in cell_value:
+                        recent_wins += 1
+        recent_win_row.append(f"{recent_wins}/10")
+    results.insert(3, recent_win_row)
 
     try:
         last_data_row = allData[finalEndRow - offset]
