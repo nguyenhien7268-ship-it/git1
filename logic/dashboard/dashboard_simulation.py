@@ -5,8 +5,6 @@ Contains simulation functions extracted from dashboard_analytics.py
 Functions: get_consensus_simulation, get_high_win_simulation, get_historical_dashboard_data
 """
 
-from collections import Counter
-
 # Import SETTINGS
 try:
     from ..config_manager import SETTINGS
@@ -22,8 +20,10 @@ try:
     from .dashboard_predictions import (
         get_prediction_consensus,
         get_high_win_rate_predictions,
+        get_top_memory_bridge_predictions,
     )
-    from .dashboard_stats import get_loto_stats_last_n_days
+    from .dashboard_stats import get_loto_stats_last_n_days, get_loto_gan_stats
+    from .dashboard_scoring import get_top_scored_pairs
 except ImportError:
     def get_prediction_consensus(last_row=None, db_name=None):
         return []
@@ -31,12 +31,42 @@ except ImportError:
         return []
     def get_loto_stats_last_n_days(all_data_ai, n=None):
         return []
+    def get_loto_gan_stats(all_data_ai, n_days=None):
+        return []
+    def get_top_memory_bridge_predictions(all_data_ai, last_row, top_n=5):
+        return []
+    def get_top_scored_pairs(*args, **kwargs):
+        return []
 
 try:
-    from ..bridges.bridges_classic import getAllLoto_V30
+    from ..backtester import (
+        BACKTEST_15_CAU_K2N_V30_AI_V8,
+        BACKTEST_MANAGED_BRIDGES_K2N,
+    )
+    from ..backtester_helpers import parse_k2n_results as _parse_k2n_results
+    from ..bridges.bridges_classic import getAllLoto_V30, checkHitSet_V30_K2N, ALL_15_BRIDGE_FUNCTIONS_V5
+    from ..bridges.bridges_v16 import getAllPositions_V17_Shadow, taoSTL_V30_Bong
+    from ..data_repository import get_all_managed_bridges
+    from ..db_manager import DB_NAME
 except ImportError:
     def getAllLoto_V30(r):
         return []
+    def checkHitSet_V30_K2N(p, loto_set):
+        return "Lỗi"
+    def getAllPositions_V17_Shadow(r):
+        return []
+    def taoSTL_V30_Bong(a, b):
+        return ["00", "00"]
+    def _parse_k2n_results(r):
+        return [], {}
+    def BACKTEST_MANAGED_BRIDGES_K2N(a, b, c, d, e):
+        return []
+    def BACKTEST_15_CAU_K2N_V30_AI_V8(a, b, c, d):
+        return []
+    def get_all_managed_bridges(d, o):
+        return []
+    DB_NAME = "data/xo_so_prizes_all_logic.db"
+    ALL_15_BRIDGE_FUNCTIONS_V5 = []
 
 def get_consensus_simulation(data_slice, last_row):
     """Bản sao của get_prediction_consensus (chạy N1 trong bộ nhớ)."""

@@ -25,10 +25,14 @@ except ImportError:
 try:
     from ..bridges.bridges_classic import (
         getAllLoto_V30,
+        checkHitSet_V30_K2N,
     )
 except ImportError:
     def getAllLoto_V30(r):
         return []
+    
+    def checkHitSet_V30_K2N(p, loto_set):
+        return "Lỗi"
 
 try:
     from ..bridges.bridges_v16 import (

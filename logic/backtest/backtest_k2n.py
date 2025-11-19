@@ -48,12 +48,16 @@ except ImportError:
 
 try:
     from ..bridges.bridges_v16 import (
-        getPositionName_V16,
-        taoSTL_V30_Bong,
-    )
+    getPositionName_V16,
+    getAllPositions_V17_Shadow,
+    taoSTL_V30_Bong,
+)
 except ImportError:
     def getPositionName_V16(i):
         return "Lỗi"
+    
+    def getAllPositions_V17_Shadow(r):
+        return []
     
     def taoSTL_V30_Bong(a, b):
         return ["00", "00"]
@@ -395,5 +399,3 @@ def BACKTEST_MANAGED_BRIDGES_K2N(
         results.append(["LỖI DỰ ĐOÁN"])
 
     return results
-
-

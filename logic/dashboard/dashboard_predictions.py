@@ -6,8 +6,6 @@ Functions: get_top_memory_bridge_predictions, get_prediction_consensus,
            get_high_win_rate_predictions, get_pending_k2n_bridges
 """
 
-from collections import Counter
-
 # Import SETTINGS
 try:
     from ..config_manager import SETTINGS
@@ -322,5 +320,3 @@ def get_pending_k2n_bridges(last_row, prev_row):
 # ===================================================================================
 # III. HÀM CHẤM ĐIỂM CỐT LÕI (V7.1 - HOÀN THIỆN LOGIC TRỌNG SỐ)
 # ===================================================================================
-
-

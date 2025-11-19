@@ -4,8 +4,6 @@ dashboard_scoring.py - Scoring functions
 Contains the large get_top_scored_pairs function extracted from dashboard_analytics.py
 """
 
-from collections import Counter
-
 # Import SETTINGS
 try:
     from ..config_manager import SETTINGS
@@ -27,6 +25,15 @@ try:
 except ImportError:
     def getAllLoto_V30(r):
         return []
+
+
+def _standardize_pair(stl_list):
+    """Standardize a pair of lottery numbers to sorted format."""
+    if not stl_list or len(stl_list) != 2:
+        return None
+    sorted_pair = sorted(stl_list)
+    return f"{sorted_pair[0]}-{sorted_pair[1]}"
+
 
 def get_top_scored_pairs(
     stats,
@@ -221,5 +228,3 @@ def get_top_scored_pairs(
 # ===================================================================================
 # IV. HÀM MÔ PHỎNG LỊCH SỬ (V7.1 - CHUYỂN TỪ backtester.py)
 # ===================================================================================
-
-

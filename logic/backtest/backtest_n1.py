@@ -30,23 +30,31 @@ except ImportError:
 
 try:
     from ..bridges.bridges_classic import (
-        ALL_15_BRIDGE_FUNCTIONS_V5,
-        getAllLoto_V30,
-    )
+    ALL_15_BRIDGE_FUNCTIONS_V5,
+    getAllLoto_V30,
+    checkHitSet_V30_K2N,
+)
 except ImportError:
     ALL_15_BRIDGE_FUNCTIONS_V5 = []
     
     def getAllLoto_V30(r):
         return []
+    
+    def checkHitSet_V30_K2N(p, loto_set):
+        return "Lỗi"
 
 try:
     from ..bridges.bridges_v16 import (
-        getPositionName_V16,
-        taoSTL_V30_Bong,
-    )
+    getPositionName_V16,
+    getAllPositions_V17_Shadow,
+    taoSTL_V30_Bong,
+)
 except ImportError:
     def getPositionName_V16(i):
         return "Lỗi"
+    
+    def getAllPositions_V17_Shadow(r):
+        return []
     
     def taoSTL_V30_Bong(a, b):
         return ["00", "00"]
@@ -267,5 +275,3 @@ def BACKTEST_MANAGED_BRIDGES_N1(
         results.append(["LỖI DỰ ĐOÁN"])
 
     return results
-
-

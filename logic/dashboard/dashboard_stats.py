@@ -117,5 +117,3 @@ def get_loto_gan_stats(all_data_ai, n_days=None):
     except Exception as e:
         print(f"Lỗi get_loto_gan_stats: {e}")
         return []
-
-
