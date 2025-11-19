@@ -551,7 +551,15 @@ def get_top_scored_pairs(
 
         # Nguồn 6: Phong Độ Gần Đây (Recent Form Bonus)
         try:
-            managed_bridges = get_all_managed_bridges()
+            # Get managed bridges from the database (using db_name from imports)
+            try:
+                from .db_manager import DB_NAME as db_name_param
+            except ImportError:
+                db_name_param = "xo_so_prizes_all_logic.db"
+            
+            managed_bridges = get_all_managed_bridges(db_name=db_name_param)
+            
+            recent_form_count = 0
             for bridge in managed_bridges:
                 if not bridge.get("is_enabled"):
                     continue
@@ -559,7 +567,12 @@ def get_top_scored_pairs(
                 recent_wins = bridge.get("recent_win_count_10", 0)
                 prediction_stl_str = bridge.get("next_prediction_stl", "")
                 
+                # Skip bridges without predictions or with invalid format
                 if not prediction_stl_str or "," not in prediction_stl_str:
+                    continue
+                
+                # Skip bridges with N2 or error annotations
+                if "N2" in prediction_stl_str or "LỖI" in prediction_stl_str:
                     continue
                 
                 stl = prediction_stl_str.split(",")
@@ -586,8 +599,14 @@ def get_top_scored_pairs(
                     if bonus > 0:
                         scores[pair_key]["score"] += bonus
                         scores[pair_key]["reasons"].append(f"Phong độ ({recent_wins}/10)")
+                        recent_form_count += 1
+            
+            if recent_form_count > 0:
+                print(f"Đã thêm điểm phong độ cho {recent_form_count} cặp số")
         except Exception as e:
+            import traceback
             print(f"Lỗi tính điểm phong độ: {e}")
+            print(traceback.format_exc())
 
         # --- 4. Chấm điểm cộng và AI (Trọng số liên tục) ---
 
