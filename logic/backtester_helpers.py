@@ -33,10 +33,10 @@ def validate_backtest_params(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_
 
 def parse_k2n_results(results_data):
     """
-    Parse K2N backtest results (4 rows format).
+    Parse K2N backtest results (5 rows format).
     
     Args:
-        results_data: List of 4 rows [headers, rates, streaks, pending]
+        results_data: List of 5 rows [headers, rates, streaks, recent_form, pending]
         
     Returns:
         tuple: (cache_data_list, pending_k2n_dict)
@@ -44,7 +44,7 @@ def parse_k2n_results(results_data):
     cache_data_list = []
     pending_k2n_dict = {}
 
-    if not results_data or len(results_data) < 4:
+    if not results_data or len(results_data) < 5:
         print("Lỗi parse_k2n_results: Dữ liệu backtest K2N không hợp lệ.")
         return cache_data_list, pending_k2n_dict
 
@@ -52,7 +52,8 @@ def parse_k2n_results(results_data):
         headers = results_data[0]  # Hàng 0: Tên cầu
         rates = results_data[1]  # Hàng 1: Tỷ Lệ %
         streaks = results_data[2]  # Hàng 2: Chuỗi Thắng / Thua Max
-        pending = results_data[3]  # Hàng 3: Dự đoán
+        recent_form = results_data[3]  # Hàng 3: Phong Độ 10 Kỳ
+        pending = results_data[4]  # Hàng 4: Dự đoán
 
         num_bridges = len(headers) - 1  # Trừ cột "Kỳ"
 
@@ -60,6 +61,7 @@ def parse_k2n_results(results_data):
             bridge_name = str(headers[j]).split(" (")[0]  # Lấy tên gốc
             win_rate_text = str(rates[j]) if j < len(rates) else "0"
             win_streak_text = str(streaks[j]) if j < len(streaks) else "0"
+            recent_form_text = str(recent_form[j]) if j < len(recent_form) else "0/10"
             pending_text = str(pending[j]) if j < len(pending) else ""
 
             # Parse current_streak and max_lose_streak from win_streak_text
@@ -86,13 +88,25 @@ def parse_k2n_results(results_data):
                 except ValueError:
                     current_streak = 0
 
-            # Append tuple with all 5 fields needed for SQL UPDATE
-            # (win_rate_text, current_streak, next_prediction_stl, max_lose_streak_k2n, bridge_name)
+            # Parse recent_win_count from recent_form_text
+            # Format: "7/10" or just "7"
+            recent_win_count = 0
+            try:
+                if "/" in recent_form_text:
+                    recent_win_count = int(recent_form_text.split("/")[0].strip())
+                else:
+                    recent_win_count = int(recent_form_text.strip())
+            except (ValueError, IndexError):
+                recent_win_count = 0
+
+            # Append tuple with all 6 fields needed for SQL UPDATE
+            # (win_rate_text, current_streak, next_prediction_stl, max_lose_streak_k2n, recent_win_count_10, bridge_name)
             cache_data_list.append((
                 win_rate_text,
                 current_streak,
                 pending_text if pending_text.strip() else "",
                 max_lose_streak,
+                recent_win_count,
                 bridge_name
             ))
 

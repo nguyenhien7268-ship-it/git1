@@ -81,7 +81,8 @@ def setup_database(db_name=DB_NAME):
         next_prediction_stl TEXT DEFAULT 'N/A',
         pos1_idx INTEGER,
         pos2_idx INTEGER,
-        max_lose_streak_k2n INTEGER DEFAULT 0
+        max_lose_streak_k2n INTEGER DEFAULT 0,
+        recent_win_count_10 INTEGER DEFAULT 0
     )"""
     )
 
@@ -91,6 +92,15 @@ def setup_database(db_name=DB_NAME):
             "ALTER TABLE ManagedBridges ADD COLUMN max_lose_streak_k2n INTEGER DEFAULT 0"
         )
         print("Đã cập nhật bảng ManagedBridges (thêm cột max_lose_streak_k2n).")
+    except sqlite3.OperationalError:
+        pass  # Cột đã tồn tại
+
+    # (CẬP NHẬT) Cập nhật cấu trúc bảng nếu thiếu cột recent_win_count_10
+    try:
+        cursor.execute(
+            "ALTER TABLE ManagedBridges ADD COLUMN recent_win_count_10 INTEGER DEFAULT 0"
+        )
+        print("Đã cập nhật bảng ManagedBridges (thêm cột recent_win_count_10).")
     except sqlite3.OperationalError:
         pass  # Cột đã tồn tại
 
@@ -327,9 +337,9 @@ def upsert_managed_bridge(
 
 def update_bridge_k2n_cache_batch(cache_data_list, db_name=DB_NAME):
     """
-    (CẬP NHẬT GĐ 4) Cập nhật hàng loạt dữ liệu cache K2N (Thêm max_lose_streak).
+    (CẬP NHẬT) Cập nhật hàng loạt dữ liệu cache K2N (Thêm max_lose_streak và recent_win_count_10).
     cache_data_list: list các tuple:
-    [(win_rate, streak, prediction, max_lose_streak, bridge_name), ...]
+    [(win_rate, streak, prediction, max_lose_streak, recent_win_count_10, bridge_name), ...]
     """
     updated_count = 0
     conn = None
@@ -337,13 +347,14 @@ def update_bridge_k2n_cache_batch(cache_data_list, db_name=DB_NAME):
         conn = sqlite3.connect(db_name)
         cursor = conn.cursor()
 
-        # (SỬA GĐ 4) Thêm cột max_lose_streak_k2n
+        # (SỬA) Thêm cột max_lose_streak_k2n và recent_win_count_10
         sql_update = """
         UPDATE ManagedBridges
         SET win_rate_text = ?,
             current_streak = ?,
             next_prediction_stl = ?,
-            max_lose_streak_k2n = ?
+            max_lose_streak_k2n = ?,
+            recent_win_count_10 = ?
         WHERE name = ?
         """
 

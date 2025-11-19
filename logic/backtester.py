@@ -204,7 +204,7 @@ def run_and_update_all_bridge_K2N_cache(
             all_data_ai, ky_bat_dau, ky_ket_thuc, history=False
         )
 
-        if not results_k2n_classic or len(results_k2n_classic) < 4:
+        if not results_k2n_classic or len(results_k2n_classic) < 5:
             return {}, 0, "Backtest K2N cổ điển không trả về kết quả đầy đủ."
 
         cache_classic, pending_classic = _parse_k2n_results(results_k2n_classic)
@@ -214,7 +214,7 @@ def run_and_update_all_bridge_K2N_cache(
             all_data_ai, ky_bat_dau, ky_ket_thuc, db_name, history=False
         )
 
-        if not results_k2n_managed or len(results_k2n_managed) < 4:
+        if not results_k2n_managed or len(results_k2n_managed) < 5:
             cache_managed, pending_managed = [], {}
         else:
             cache_managed, pending_managed = _parse_k2n_results(results_k2n_managed)

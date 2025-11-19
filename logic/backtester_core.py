@@ -225,6 +225,23 @@ def BACKTEST_15_CAU_K2N_V30_AI_V8(
         streak_row.append("---")
         results.insert(2, streak_row)
 
+        # Calculate recent win count (last 10 periods)
+        recent_win_row = ["Phong Độ 10 Kỳ"]
+        for i in range(15):
+            # Count wins in last 10 data rows (most recent periods)
+            recent_wins = 0
+            periods_to_check = min(10, len(data_rows))
+            for row_idx in range(periods_to_check):
+                if row_idx < len(data_rows):
+                    row = data_rows[row_idx]
+                    if i + 1 < len(row):
+                        cell_value = str(row[i + 1])
+                        if "✅" in cell_value:
+                            recent_wins += 1
+            recent_win_row.append(f"{recent_wins}/10")
+        recent_win_row.append("---")
+        results.insert(3, recent_win_row)
+
     try:
         last_data_row_for_prediction = allData[finalEndRow - offset]
     except IndexError:
@@ -253,7 +270,7 @@ def BACKTEST_15_CAU_K2N_V30_AI_V8(
                 finalRow.append("LỖI PREDICT")
     finalRow.append(f"{openFrames} khung mở" if openFrames > 0 else "0")
 
-    results.insert(3, finalRow)
+    results.insert(4, finalRow)
 
     if history:
         results.extend(data_rows)
@@ -726,6 +743,22 @@ def BACKTEST_MANAGED_BRIDGES_K2N(
             )
         results.insert(2, streak_row)
 
+        # Calculate recent win count (last 10 periods)
+        recent_win_row = ["Phong Độ 10 Kỳ"]
+        for i in range(num_bridges):
+            # Count wins in last 10 data rows (most recent periods)
+            recent_wins = 0
+            periods_to_check = min(10, len(data_rows))
+            for row_idx in range(periods_to_check):
+                if row_idx < len(data_rows):
+                    row = data_rows[row_idx]
+                    if i + 1 < len(row):
+                        cell_value = str(row[i + 1])
+                        if "✅" in cell_value:
+                            recent_wins += 1
+            recent_win_row.append(f"{recent_wins}/10")
+        results.insert(3, recent_win_row)
+
     try:
         last_data_row = allData[finalEndRow - offset]
 
@@ -754,7 +787,7 @@ def BACKTEST_MANAGED_BRIDGES_K2N(
                 pred = taoSTL_V30_Bong(a, b)
                 finalRow.append(f"{','.join(pred)} (Khung mới N1)")
 
-        results.insert(3, finalRow)
+        results.insert(4, finalRow)
 
         if history:
             results.extend(data_rows)

@@ -549,6 +549,46 @@ def get_top_scored_pairs(
                 scores[pair_key]["score"] += 1.5
                 scores[pair_key]["reasons"].append(f"BN ({bridge['rate']})")
 
+        # Nguồn 6: Phong Độ Gần Đây (Recent Form Bonus)
+        try:
+            managed_bridges = get_all_managed_bridges()
+            for bridge in managed_bridges:
+                if not bridge.get("is_enabled"):
+                    continue
+                    
+                recent_wins = bridge.get("recent_win_count_10", 0)
+                prediction_stl_str = bridge.get("next_prediction_stl", "")
+                
+                if not prediction_stl_str or "," not in prediction_stl_str:
+                    continue
+                
+                stl = prediction_stl_str.split(",")
+                pair_key = _standardize_pair(stl)
+                
+                if pair_key and recent_wins >= SETTINGS.RECENT_FORM_MIN_LOW:
+                    if pair_key not in scores:
+                        scores[pair_key] = {
+                            "score": 0.0,
+                            "reasons": [],
+                            "is_gan": False,
+                            "gan_days": 0,
+                        }
+                    
+                    # Determine bonus based on recent wins
+                    bonus = 0.0
+                    if recent_wins >= SETTINGS.RECENT_FORM_MIN_HIGH:
+                        bonus = SETTINGS.RECENT_FORM_BONUS_HIGH
+                    elif recent_wins >= SETTINGS.RECENT_FORM_MIN_MED:
+                        bonus = SETTINGS.RECENT_FORM_BONUS_MED
+                    elif recent_wins >= SETTINGS.RECENT_FORM_MIN_LOW:
+                        bonus = SETTINGS.RECENT_FORM_BONUS_LOW
+                    
+                    if bonus > 0:
+                        scores[pair_key]["score"] += bonus
+                        scores[pair_key]["reasons"].append(f"Phong độ ({recent_wins}/10)")
+        except Exception as e:
+            print(f"Lỗi tính điểm phong độ: {e}")
+
         # --- 4. Chấm điểm cộng và AI (Trọng số liên tục) ---
 
         for pair_key in list(scores.keys()):
