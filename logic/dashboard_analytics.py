@@ -574,6 +574,15 @@ def get_top_scored_pairs(
                 enabled_count += 1
                     
                 recent_wins = bridge.get("recent_win_count_10", 0)
+                # Convert to int to ensure proper comparison
+                if isinstance(recent_wins, str):
+                    try:
+                        recent_wins = int(recent_wins)
+                    except (ValueError, TypeError):
+                        recent_wins = 0
+                elif recent_wins is None:
+                    recent_wins = 0
+                
                 prediction_stl_str = bridge.get("next_prediction_stl", "")
                 
                 if not prediction_stl_str:
@@ -587,6 +596,10 @@ def get_top_scored_pairs(
                 if "N2" in prediction_stl_str or "LỖI" in prediction_stl_str:
                     continue
                 valid_prediction_count += 1
+                
+                # Debug: Print first 3 valid bridges to see their recent_wins values
+                if valid_prediction_count <= 3:
+                    print(f"  [DEBUG] Cầu '{bridge.get('name', 'N/A')}': recent_win_count_10={recent_wins} (type: {type(recent_wins).__name__}), prediction={prediction_stl_str[:20]}")
                 
                 stl = prediction_stl_str.split(",")
                 pair_key = _standardize_pair(stl)
