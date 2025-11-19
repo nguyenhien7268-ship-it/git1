@@ -73,25 +73,22 @@ except ImportError:
 try:
     from .bridges.bridges_memory import (
         calculate_bridge_stl,
-        checkHitBridge_V28,
-        getAllBridges_Memory_FAST,
         get_27_loto_names,
         get_27_loto_positions,
     )
 except ImportError:
-    def getAllBridges_Memory_FAST(r):
-        return []
+    print("Lỗi: Không thể import bridges_memory trong backtester_core.py")
 
-    def checkHitBridge_V28(b, loto_set):
-        return "Lỗi"
-
-    def calculate_bridge_stl(b):
-        return "Lỗi"
+    def calculate_bridge_stl(loto_str_1, loto_str_2, algorithm_type):
+        """Fallback function for calculate_bridge_stl"""
+        return ["00", "00"]
 
     def get_27_loto_names():
+        """Fallback function for get_27_loto_names"""
         return []
 
     def get_27_loto_positions(r):
+        """Fallback function for get_27_loto_positions"""
         return []
 
 # Import helper functions
