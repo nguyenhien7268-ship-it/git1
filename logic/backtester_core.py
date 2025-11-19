@@ -631,9 +631,23 @@ def BACKTEST_MANAGED_BRIDGES_K2N(
         # (V7.1) Dùng get_all_managed_bridges từ Repository
         bridges_to_test = get_all_managed_bridges(db_name, only_enabled=True)
     except Exception as e:
-        return [["LỖI:", f"Không thể tải danh sách cầu: {e}"]]
+        # Return valid 5-row structure even on error
+        return [
+            ["Kỳ (Cột A)"],
+            ["Tỷ Lệ %"],
+            ["Chuỗi Thắng / Thua Max"],
+            ["Phong Độ 10 Kỳ"],
+            ["LỖI:", f"Không thể tải danh sách cầu: {e}"]
+        ]
     if not bridges_to_test:
-        return [["LỖI:", "Không có cầu nào được Bật trong 'Quản lý Cầu'."]]
+        # Return valid 5-row structure when no bridges enabled
+        return [
+            ["Kỳ (Cột A)"],
+            ["Tỷ Lệ %"],
+            ["Chuỗi Thắng / Thua Max"],
+            ["Phong Độ 10 Kỳ"],
+            ["Thông báo", "Không có cầu nào được Bật trong 'Quản lý Cầu'."]
+        ]
 
     allData, finalEndRow, startCheckRow, offset, error = _validate_backtest_params(
         toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra
