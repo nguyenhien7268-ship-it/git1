@@ -208,12 +208,46 @@ def _get_daily_bridge_predictions(all_data_ai):
                 daily_predictions_by_loto[current_ky][loto]["q_max_curr_streak"] = max(
                     q_current_streaks
                 )
+                
+                # NEW Q-FEATURES (Phase 1 - Accuracy Improvements)
+                # Q4: Standard deviation of win rates (consistency measure)
+                import statistics
+                daily_predictions_by_loto[current_ky][loto]["q_std_win_rate"] = (
+                    statistics.stdev(q_win_rates) if len(q_win_rates) > 1 else 0.0
+                )
+                
+                # Q5: Bridge diversity (unique bridge count)
+                unique_bridges = len(set(all_bridges_for_loto))
+                daily_predictions_by_loto[current_ky][loto]["q_bridge_diversity"] = unique_bridges
+                
+                # Q6: Consensus strength (agreement ratio)
+                daily_predictions_by_loto[current_ky][loto]["q_consensus_strength"] = (
+                    unique_bridges / len(all_bridges_for_loto) if all_bridges_for_loto else 0.0
+                )
+                
+                # Q7: Recent performance (average of last 7 days win rates - simplified)
+                # For now, use current avg_win_rate as proxy (full implementation needs historical data)
+                daily_predictions_by_loto[current_ky][loto]["q_recent_performance"] = (
+                    sum(q_win_rates) / len(q_win_rates)
+                )
+                
+                # Q8: Pattern stability (inverse of variance, normalized to 0-1)
+                variance = statistics.variance(q_win_rates) if len(q_win_rates) > 1 else 0.0
+                daily_predictions_by_loto[current_ky][loto]["q_pattern_stability"] = (
+                    1.0 - min(variance / 100.0, 1.0)
+                )
             else:
                 daily_predictions_by_loto[current_ky][loto]["q_avg_win_rate"] = 0.0
                 daily_predictions_by_loto[current_ky][loto]["q_min_k2n_risk"] = 999.0
                 daily_predictions_by_loto[current_ky][loto][
                     "q_max_curr_streak"
                 ] = -999.0
+                # NEW Q-FEATURES defaults
+                daily_predictions_by_loto[current_ky][loto]["q_std_win_rate"] = 0.0
+                daily_predictions_by_loto[current_ky][loto]["q_bridge_diversity"] = 0
+                daily_predictions_by_loto[current_ky][loto]["q_consensus_strength"] = 0.0
+                daily_predictions_by_loto[current_ky][loto]["q_recent_performance"] = 0.0
+                daily_predictions_by_loto[current_ky][loto]["q_pattern_stability"] = 0.0
 
     return daily_predictions_by_loto
 
