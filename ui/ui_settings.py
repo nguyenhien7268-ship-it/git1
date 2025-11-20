@@ -154,6 +154,46 @@ class SettingsWindow:
                     ),
                 ],
             ),
+            (
+                "Chấm Điểm Phong Độ",
+                [
+                    (
+                        "RECENT_FORM_PERIODS",
+                        "Số kỳ xét phong độ",
+                        "Xét phong độ trong X kỳ gần nhất (ví dụ: 10).",
+                    ),
+                    (
+                        "RECENT_FORM_MIN_HIGH",
+                        "Ngưỡng phong độ rất cao",
+                        "Số lần ăn tối thiểu cho phong độ rất cao (ví dụ: 8).",
+                    ),
+                    (
+                        "RECENT_FORM_BONUS_HIGH",
+                        "Điểm thưởng phong độ rất cao",
+                        "Điểm cộng cho phong độ rất cao (ví dụ: 3.0).",
+                    ),
+                    (
+                        "RECENT_FORM_MIN_MED",
+                        "Ngưỡng phong độ tốt",
+                        "Số lần ăn tối thiểu cho phong độ tốt (ví dụ: 6).",
+                    ),
+                    (
+                        "RECENT_FORM_BONUS_MED",
+                        "Điểm thưởng phong độ tốt",
+                        "Điểm cộng cho phong độ tốt (ví dụ: 2.0).",
+                    ),
+                    (
+                        "RECENT_FORM_MIN_LOW",
+                        "Ngưỡng phong độ ổn",
+                        "Số lần ăn tối thiểu cho phong độ ổn (ví dụ: 5).",
+                    ),
+                    (
+                        "RECENT_FORM_BONUS_LOW",
+                        "Điểm thưởng phong độ ổn",
+                        "Điểm cộng cho phong độ ổn (ví dụ: 1.0).",
+                    ),
+                ],
+            ),
         ]
 
         # --- Tạo các ô nhập liệu ---
