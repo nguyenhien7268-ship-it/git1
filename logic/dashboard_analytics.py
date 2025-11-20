@@ -1,6 +1,6 @@
 # Tên file: git3/logic/dashboard_analytics.py
 #
-# (NỘI DUNG THAY THẾ TOÀN BỘ - SỬA W503, E226)
+# (NỘI DUNG THAY THẾ TOÀN BỘ - ĐÃ GOM NHÓM PHONG ĐỘ VÀ RỦI RO K2N)
 #
 from collections import Counter
 
@@ -22,10 +22,16 @@ except ImportError:
                 "STATS_DAYS": 7,
                 "GAN_DAYS": 15,
                 "HIGH_WIN_THRESHOLD": 47.0,
-                "K2N_RISK_START_THRESHOLD": 4,
-                "K2N_RISK_PENALTY_PER_FRAME": 0.5,
+                "K2N_RISK_START_THRESHOLD": 6,
+                "K2N_RISK_PENALTY_PER_FRAME": 1.0,
                 "AI_PROB_THRESHOLD": 45.0,
                 "AI_SCORE_WEIGHT": 0.2,
+                "RECENT_FORM_MIN_LOW": 5,
+                "RECENT_FORM_MIN_MED": 7,
+                "RECENT_FORM_MIN_HIGH": 9,
+                "RECENT_FORM_BONUS_LOW": 0.5,
+                "RECENT_FORM_BONUS_MED": 1.0,
+                "RECENT_FORM_BONUS_HIGH": 1.5,
             },
         )
 
@@ -104,7 +110,7 @@ def get_loto_stats_last_n_days(all_data_ai, n=None):
     try:
         # FIX: Sửa truy cập SETTINGS
         if n is None:
-            n = SETTINGS.STATS_DAYS
+            n = getattr(SETTINGS, "STATS_DAYS", 7)
 
         if not all_data_ai or len(all_data_ai) == 0:
             return []
@@ -146,7 +152,7 @@ def get_loto_gan_stats(all_data_ai, n_days=None):
     try:
         # FIX: Sửa truy cập SETTINGS
         if n_days is None:
-            n_days = SETTINGS.GAN_DAYS
+            n_days = getattr(SETTINGS, "GAN_DAYS", 15)
 
         if not all_data_ai or len(all_data_ai) < n_days:
             return []
@@ -307,7 +313,6 @@ def _standardize_pair(stl_list):
 
 def get_prediction_consensus(last_row=None, db_name=DB_NAME):
     """Lấy dự đoán từ "15 Cầu" (cache) và "Cầu Đã Lưu" (cache) để đếm vote THEO CẶP."""
-    # FIX: Đặt last_row=None để tương thích với cách gọi cũ (vị trí đầu tiên) và mới
     try:
         prediction_sources = {}
         managed_bridges = get_all_managed_bridges(db_name, only_enabled=True)
@@ -359,11 +364,10 @@ def get_prediction_consensus(last_row=None, db_name=DB_NAME):
 
 def get_high_win_rate_predictions(last_row=None, threshold=None, db_name=DB_NAME):
     """Lấy dự đoán từ Cầu Đã Lưu CÓ TỶ LỆ CAO (dựa trên cache K2N)."""
-    # FIX: Đặt last_row=None để tương thích với cách gọi cũ (vị trí đầu tiên)
     try:
         # FIX: Sửa truy cập SETTINGS
         if threshold is None:
-            threshold = SETTINGS.HIGH_WIN_THRESHOLD
+            threshold = getattr(SETTINGS, "HIGH_WIN_THRESHOLD", 47.0)
 
         high_win_bridges = []
         managed_bridges = get_all_managed_bridges(db_name, only_enabled=True)
@@ -452,7 +456,7 @@ def get_pending_k2n_bridges(last_row, prev_row):
 
 
 # ===================================================================================
-# III. HÀM CHẤM ĐIỂM CỐT LÕI (V7.1 - HOÀN THIỆN LOGIC TRỌNG SỐ)
+# III. HÀM CHẤM ĐIỂM CỐT LÕI (V7.5 - GOM NHÓM PHONG ĐỘ & RỦI RO)
 # ===================================================================================
 
 
@@ -466,30 +470,29 @@ def get_top_scored_pairs(
     ai_predictions=None,
 ):
     """
-    (V7.1) Tính toán, chấm điểm và xếp hạng các cặp số.
-    Hoàn thiện việc sử dụng Trọng số AI liên tục (loại bỏ kiểm tra ngưỡng cứng).
+    (V7.5) Tính toán, chấm điểm và xếp hạng các cặp số.
+    Đã thêm logic GOM NHÓM cho cả K2N RISK và RECENT FORM.
     """
     try:
         scores = {}
 
-        # FIX: Sửa truy cập SETTINGS
-        K2N_RISK_START_THRESHOLD = SETTINGS.K2N_RISK_START_THRESHOLD
-        K2N_RISK_PENALTY_PER_FRAME = SETTINGS.K2N_RISK_PENALTY_PER_FRAME
-        # ai_prob_threshold = SETTINGS.AI_PROB_THRESHOLD # Đã loại bỏ việc dùng ngưỡng này cho logic
-        ai_score_weight = SETTINGS.AI_SCORE_WEIGHT
+        K2N_RISK_START_THRESHOLD = getattr(SETTINGS, "K2N_RISK_START_THRESHOLD", 6)
+        K2N_RISK_PENALTY_FIXED = getattr(SETTINGS, "K2N_RISK_PENALTY_PER_FRAME", 1.0)
+        
+        ai_score_weight = getattr(SETTINGS, "AI_SCORE_WEIGHT", 0.2)
 
         loto_prob_map = {}
         if ai_predictions:
             for pred in ai_predictions:
                 loto_prob_map[pred["loto"]] = (
                     pred["probability"] / 100.0
-                )  # Chuẩn hóa 0-1
+                )
 
         # Helper maps
         top_hot_lotos = {loto for loto, count, days in stats if count > 0}
         gan_map = {loto: days for loto, days in gan_stats}
 
-        # --- 3. Chấm điểm từ 4 nguồn chính (Điểm truyền thống) ---
+        # --- 3. Chấm điểm từ 4 nguồn chính ---
 
         # Nguồn 2: Consensus
         for pair_key, count, _ in consensus:
@@ -517,23 +520,35 @@ def get_top_scored_pairs(
                 scores[pair_key]["score"] += 2.0
                 scores[pair_key]["reasons"].append(f"Cao ({bridge['rate']})")
 
-        # Nguồn 4: Cầu K2N Đang Chờ (Trừ điểm rủi ro K2N)
+        # Nguồn 4: Cầu K2N Đang Chờ (GOM NHÓM)
+        k2n_risks = {}
         for bridge_name, data in pending_k2n.items():
             pair_key = _standardize_pair(data["stl"].split(","))
-            if pair_key and data["max_lose"] >= K2N_RISK_START_THRESHOLD:
-                if pair_key not in scores:
-                    scores[pair_key] = {
-                        "score": 0.0,
-                        "reasons": [],
-                        "is_gan": False,
-                        "gan_days": 0,
-                    }
+            if pair_key and data.get("max_lose", 0) >= K2N_RISK_START_THRESHOLD:
+                if pair_key not in k2n_risks:
+                    k2n_risks[pair_key] = {"count": 0, "total_penalty": 0.0}
+                
+                k2n_risks[pair_key]["count"] += 1
+                k2n_risks[pair_key]["total_penalty"] += K2N_RISK_PENALTY_FIXED
 
-                penalty = (
-                    data["max_lose"] - K2N_RISK_START_THRESHOLD + 1
-                ) * K2N_RISK_PENALTY_PER_FRAME
-                scores[pair_key]["score"] -= penalty
-                scores[pair_key]["reasons"].append(f"Rủi ro K2N (-{penalty})")
+        for pair_key, info in k2n_risks.items():
+             if pair_key not in scores:
+                scores[pair_key] = {
+                    "score": 0.0,
+                    "reasons": [],
+                    "is_gan": False,
+                    "gan_days": 0,
+                }
+             
+             total_pen = info["total_penalty"]
+             count = info["count"]
+             
+             scores[pair_key]["score"] -= total_pen
+             
+             if count > 1:
+                 scores[pair_key]["reasons"].append(f"Rủi ro K2N (x{count}) -{total_pen:.1f}")
+             else:
+                 scores[pair_key]["reasons"].append(f"Rủi ro K2N (-{total_pen:.1f})")
 
         # Nguồn 5: Cầu Bạc Nhớ (Top N)
         for bridge in top_memory_bridges:
@@ -549,32 +564,30 @@ def get_top_scored_pairs(
                 scores[pair_key]["score"] += 1.5
                 scores[pair_key]["reasons"].append(f"BN ({bridge['rate']})")
 
-        # Nguồn 6: Phong Độ Gần Đây (Recent Form Bonus)
+        # Nguồn 6: Phong Độ Gần Đây (GOM NHÓM)
         try:
-            # Get managed bridges from the database (using db_name from imports)
             try:
                 from .db_manager import DB_NAME as db_name_param
             except ImportError:
                 db_name_param = "xo_so_prizes_all_logic.db"
             
-            print(f"\n=== DEBUG PHONG ĐỘ ===")
-            print(f"DB name: {db_name_param}")
             managed_bridges = get_all_managed_bridges(db_name=db_name_param)
-            print(f"Tổng số cầu đã lưu: {len(managed_bridges)}")
             
-            recent_form_count = 0
-            enabled_count = 0
-            has_prediction_count = 0
-            valid_prediction_count = 0
-            enough_wins_count = 0
+            RF_MIN_LOW = getattr(SETTINGS, "RECENT_FORM_MIN_LOW", 5)
+            RF_MIN_MED = getattr(SETTINGS, "RECENT_FORM_MIN_MED", 7)
+            RF_MIN_HIGH = getattr(SETTINGS, "RECENT_FORM_MIN_HIGH", 9)
             
+            RF_BONUS_LOW = getattr(SETTINGS, "RECENT_FORM_BONUS_LOW", 0.5)
+            RF_BONUS_MED = getattr(SETTINGS, "RECENT_FORM_BONUS_MED", 1.0)
+            RF_BONUS_HIGH = getattr(SETTINGS, "RECENT_FORM_BONUS_HIGH", 1.5)
+
+            recent_form_groups = {} # pair -> {count, total_bonus, best_wins}
+
             for bridge in managed_bridges:
                 if not bridge.get("is_enabled"):
                     continue
-                enabled_count += 1
                     
                 recent_wins = bridge.get("recent_win_count_10", 0)
-                # Convert to int to ensure proper comparison
                 if isinstance(recent_wins, str):
                     try:
                         recent_wins = int(recent_wins)
@@ -585,27 +598,13 @@ def get_top_scored_pairs(
                 
                 prediction_stl_str = bridge.get("next_prediction_stl", "")
                 
-                if not prediction_stl_str:
+                if not prediction_stl_str or "," not in prediction_stl_str or "N2" in prediction_stl_str or "LỖI" in prediction_stl_str:
                     continue
-                has_prediction_count += 1
-                
-                if "," not in prediction_stl_str:
-                    continue
-                
-                # Skip bridges with N2 or error annotations
-                if "N2" in prediction_stl_str or "LỖI" in prediction_stl_str:
-                    continue
-                valid_prediction_count += 1
-                
-                # Debug: Print first 3 valid bridges to see their recent_wins values
-                if valid_prediction_count <= 3:
-                    print(f"  [DEBUG] Cầu '{bridge.get('name', 'N/A')}': recent_win_count_10={recent_wins} (type: {type(recent_wins).__name__}), prediction={prediction_stl_str[:20]}")
                 
                 stl = prediction_stl_str.split(",")
                 pair_key = _standardize_pair(stl)
                 
-                if pair_key and recent_wins >= SETTINGS.RECENT_FORM_MIN_LOW:
-                    enough_wins_count += 1
+                if pair_key and recent_wins >= RF_MIN_LOW:
                     if pair_key not in scores:
                         scores[pair_key] = {
                             "score": 0.0,
@@ -614,31 +613,44 @@ def get_top_scored_pairs(
                             "gan_days": 0,
                         }
                     
-                    # Determine bonus based on recent wins
                     bonus = 0.0
-                    if recent_wins >= SETTINGS.RECENT_FORM_MIN_HIGH:
-                        bonus = SETTINGS.RECENT_FORM_BONUS_HIGH
-                    elif recent_wins >= SETTINGS.RECENT_FORM_MIN_MED:
-                        bonus = SETTINGS.RECENT_FORM_BONUS_MED
-                    elif recent_wins >= SETTINGS.RECENT_FORM_MIN_LOW:
-                        bonus = SETTINGS.RECENT_FORM_BONUS_LOW
+                    if recent_wins >= RF_MIN_HIGH:
+                        bonus = RF_BONUS_HIGH
+                    elif recent_wins >= RF_MIN_MED:
+                        bonus = RF_BONUS_MED
+                    elif recent_wins >= RF_MIN_LOW:
+                        bonus = RF_BONUS_LOW
                     
                     if bonus > 0:
-                        scores[pair_key]["score"] += bonus
-                        scores[pair_key]["reasons"].append(f"Phong độ ({recent_wins}/10)")
-                        recent_form_count += 1
-                        print(f"  ✓ {pair_key}: {recent_wins}/10 wins -> +{bonus} điểm")
-            
-            print(f"Cầu được bật: {enabled_count}")
-            print(f"Cầu có dự đoán: {has_prediction_count}")
-            print(f"Dự đoán hợp lệ (không N2/LỖI): {valid_prediction_count}")
-            print(f"Cầu đủ điều kiện (≥{SETTINGS.RECENT_FORM_MIN_LOW} wins): {enough_wins_count}")
-            print(f"Đã thêm điểm phong độ cho {recent_form_count} cặp số")
-            print(f"=== KẾT THÚC DEBUG ===\n")
+                        # Gom nhóm thông tin thay vì cộng trực tiếp vào list
+                        if pair_key not in recent_form_groups:
+                            recent_form_groups[pair_key] = {
+                                "count": 0, 
+                                "total_bonus": 0.0, 
+                                "best_wins": 0
+                            }
+                        
+                        group = recent_form_groups[pair_key]
+                        group["count"] += 1
+                        group["total_bonus"] += bonus
+                        if recent_wins > group["best_wins"]:
+                            group["best_wins"] = recent_wins
+
+            # Áp dụng dữ liệu đã gom vào bảng điểm
+            for pair_key, info in recent_form_groups.items():
+                total_bonus = info["total_bonus"]
+                count = info["count"]
+                best_wins = info["best_wins"]
+                
+                scores[pair_key]["score"] += total_bonus
+                
+                if count > 1:
+                    scores[pair_key]["reasons"].append(f"Phong độ (x{count}) +{total_bonus:.1f}")
+                else:
+                    scores[pair_key]["reasons"].append(f"Phong độ ({best_wins}/10) +{total_bonus:.1f}")
+
         except Exception as e:
-            import traceback
             print(f"Lỗi tính điểm phong độ: {e}")
-            print(traceback.format_exc())
 
         # --- 4. Chấm điểm cộng và AI (Trọng số liên tục) ---
 
@@ -658,7 +670,7 @@ def get_top_scored_pairs(
                 scores[pair_key]["is_gan"] = True
                 scores[pair_key]["gan_days"] = max_gan
 
-            # Nguồn 7: Chấm điểm AI (TRỌNG SỐ LIÊN TỤC) - Sửa V7.1: Luôn hiển thị xác suất
+            # Nguồn 7: Chấm điểm AI
             if loto_prob_map:
                 prob_1 = loto_prob_map.get(loto1, 0.0)
                 prob_2 = loto_prob_map.get(loto2, 0.0)
@@ -667,7 +679,6 @@ def get_top_scored_pairs(
                 ai_score_contribution = max_prob * ai_score_weight
                 scores[pair_key]["score"] += ai_score_contribution
 
-                # Sửa E226
                 scores[pair_key]["reasons"].append(
                     f"AI: +{ai_score_contribution:.2f} ({max_prob * 100.0:.1f}%)"
                 )
@@ -700,8 +711,6 @@ def get_top_scored_pairs(
 
                     scores[stl_pair]["score"] += ai_score_contribution
 
-                    # Sửa V7.1: Luôn hiển thị xác suất
-                    # Sửa E226
                     scores[stl_pair]["reasons"].append(
                         f"AI SẠCH: +{ai_score_contribution:.2f} ({max_prob * 100.0:.1f}%)"
                     )

@@ -1,6 +1,6 @@
 # Tên file: git3/ui/ui_dashboard.py
 #
-# (NỘI DUNG THAY THẾ TOÀN BỘ - LAYOUT 24 CỘT: PHONG ĐỘ TĂNG 50%)
+# (NỘI DUNG THAY THẾ TOÀN BỘ - THÊM POPUP CHI TIẾT KHI CLICK BẢNG ĐIỂM)
 #
 import datetime
 import tkinter as tk
@@ -56,12 +56,8 @@ class DashboardWindow(ttk.Frame):
         self.main_analysis_frame.grid(row=1, column=0, sticky="nsew", padx=10, pady=10)
 
         # ===================================================================
-        # CẤU HÌNH LAYOUT MỚI (LƯỚI 24 CỘT)
+        # CẤU HÌNH LAYOUT (LƯỚI 24 CỘT)
         # ===================================================================
-        # Sử dụng 24 cột để chia tỷ lệ chính xác hơn.
-        # Hàng 0: 2/3 (16 cột) - 1/3 (8 cột)
-        # Hàng 1: AI (5 cột) - Phong độ (9 cột ~37.5%) - Hot (5 cột) - Gan (5 cột)
-        # -------------------------------------------------------------------
         
         for i in range(24):
             self.main_analysis_frame.columnconfigure(i, weight=1)
@@ -75,7 +71,7 @@ class DashboardWindow(ttk.Frame):
         # TẠO CÁC BẢNG
         # ===================================================================
 
-        # --- HÀNG 0: KHU VỰC QUYẾT ĐỊNH (Chiếm 50% chiều cao) ---
+        # --- HÀNG 0: KHU VỰC QUYẾT ĐỊNH ---
 
         # 1. Bảng Chấm Điểm (Chiếm 16/24 cột = 2/3)
         self._create_top_scores_ui(self.main_analysis_frame)
@@ -85,13 +81,13 @@ class DashboardWindow(ttk.Frame):
         self._create_pending_k2n_ui(self.main_analysis_frame)
         self.pending_k2n_frame.grid(row=0, column=16, columnspan=8, sticky="nsew", padx=5, pady=5)
 
-        # --- HÀNG 1: KHU VỰC THAM KHẢO (Chiếm 50% chiều cao) ---
+        # --- HÀNG 1: KHU VỰC THAM KHẢO ---
 
         # 3. Dự đoán AI (5/24 cột)
         self._create_ai_predictions_ui(self.main_analysis_frame)
         self.ai_predictions_frame.grid(row=1, column=0, columnspan=5, sticky="nsew", padx=5, pady=5)
 
-        # 4. Cầu Thông 10 Kỳ (9/24 cột - Rộng nhất hàng dưới)
+        # 4. Cầu Thông 10 Kỳ (9/24 cột - Rộng nhất)
         self._create_recent_form_ui(self.main_analysis_frame)
         self.recent_form_frame.grid(row=1, column=5, columnspan=9, sticky="nsew", padx=5, pady=5)
 
@@ -109,10 +105,11 @@ class DashboardWindow(ttk.Frame):
 
     def _create_top_scores_ui(self, parent_frame):
         self.top_scores_frame = ttk.Labelframe(
-            parent_frame, text="🏆 Bảng Chấm Điểm Tổng Lực (V6.2 + AI)"
+            parent_frame, text="🏆 Bảng Chấm Điểm Tổng Lực (Double-click để xem chi tiết)"
         )
         tree_frame = ttk.Frame(self.top_scores_frame)
         tree_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
         cols = ("score", "pair", "gan", "reasons")
         self.scores_tree = ttk.Treeview(
             tree_frame, columns=cols, show="headings", height=10
@@ -122,22 +119,37 @@ class DashboardWindow(ttk.Frame):
         self.scores_tree.heading("gan", text="Gan")
         self.scores_tree.heading("reasons", text="Lý do (Tích hợp AI)")
         
-        self.scores_tree.column("score", width=50, anchor=tk.E)
-        self.scores_tree.column("pair", width=60, anchor=tk.CENTER)
-        self.scores_tree.column("gan", width=50, anchor=tk.CENTER)
-        self.scores_tree.column("reasons", width=400) 
+        self.scores_tree.column("score", width=50, minwidth=50, anchor=tk.E)
+        self.scores_tree.column("pair", width=60, minwidth=60, anchor=tk.CENTER)
+        self.scores_tree.column("gan", width=50, minwidth=50, anchor=tk.CENTER)
+        self.scores_tree.column("reasons", width=500, minwidth=300)
         
-        scrollbar = ttk.Scrollbar(
+        # Thanh cuộn Dọc
+        v_scrollbar = ttk.Scrollbar(
             tree_frame, orient=tk.VERTICAL, command=self.scores_tree.yview
         )
-        self.scores_tree.configure(yscrollcommand=scrollbar.set)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        v_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        # Thanh cuộn Ngang
+        h_scrollbar = ttk.Scrollbar(
+            tree_frame, orient=tk.HORIZONTAL, command=self.scores_tree.xview
+        )
+        h_scrollbar.pack(side=tk.BOTTOM, fill=tk.X)
+
+        self.scores_tree.configure(
+            yscrollcommand=v_scrollbar.set, 
+            xscrollcommand=h_scrollbar.set
+        )
         self.scores_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
         self.scores_tree.tag_configure("gan", foreground="red")
         self.scores_tree.tag_configure(
             "top1", background="#D5E8D4", font=("Arial", 10, "bold")
         )
         self.scores_tree.tag_configure("top3", background="#FFF2CC")
+        
+        # (MỚI) Bind sự kiện click
+        self.scores_tree.bind("<Double-1>", self.on_tree_double_click)
 
     def _create_ai_predictions_ui(self, parent_frame):
         self.ai_predictions_frame = ttk.Labelframe(
@@ -179,7 +191,6 @@ class DashboardWindow(ttk.Frame):
         self.recent_form_tree.heading("wins", text="Thắng")
         self.recent_form_tree.heading("prediction", text="Dự Đoán")
 
-        # Tăng độ rộng cột tên cầu vì bảng đã rộng hơn
         self.recent_form_tree.column("name", width=150, anchor=tk.W)
         self.recent_form_tree.column("wins", width=60, anchor=tk.CENTER)
         self.recent_form_tree.column("prediction", width=60, anchor=tk.CENTER)
@@ -390,8 +401,14 @@ class DashboardWindow(ttk.Frame):
             )
             return
         try:
+            # Lọc: Chỉ lấy cầu đang thực sự chờ N2 (is_n2 = True)
+            filtered_items = [
+                (name, data) for name, data in pending_k2n.items()
+                if data.get("is_n2", True)
+            ]
+
             sorted_k2n = sorted(
-                pending_k2n.items(),
+                filtered_items,
                 key=lambda item: (
                     int(str(item[1]["streak"]).split(" ")[0]),
                     -int(item[1].get("max_lose", 99)),
@@ -400,7 +417,14 @@ class DashboardWindow(ttk.Frame):
             )
         except Exception:
             sorted_k2n = list(pending_k2n.items())
+            
         risk_threshold = SETTINGS.K2N_RISK_START_THRESHOLD
+        
+        if not sorted_k2n:
+             self.k2n_tree.insert(
+                "", tk.END, values=("Không có cầu N2", "", "", "")
+            )
+             
         for bridge_name, data in sorted_k2n:
             stl, streak, max_lose = data["stl"], data["streak"], data.get("max_lose", 0)
             tags = ()
@@ -490,12 +514,38 @@ class DashboardWindow(ttk.Frame):
             values = item["values"]
             bridge_name = ""
 
+            # 1. Click vào Cầu K2N
             if event.widget == self.k2n_tree:
                 bridge_name = values[3]
+                if bridge_name:
+                    self.app.trigger_bridge_backtest(bridge_name)
+
+            # 2. Click vào Phong Độ Cầu
             elif event.widget == self.recent_form_tree:
                 bridge_name = values[0]
+                if bridge_name:
+                    self.app.trigger_bridge_backtest(bridge_name)
 
-            if bridge_name:
-                self.app.trigger_bridge_backtest(bridge_name)
+            # 3. (MỚI) Click vào Bảng Điểm -> Hiển thị Popup Chi tiết Lý do
+            elif event.widget == self.scores_tree:
+                # values = (Score, Pair, Gan, Reasons)
+                score = values[0]
+                pair = values[1]
+                gan_text = values[2]
+                reasons_raw = values[3]
+
+                # Format lại lý do: Xuống dòng mỗi khi gặp dấu phẩy
+                reasons_formatted = reasons_raw.replace(", ", "\n- ")
+                
+                info_text = (
+                    f"Cặp số: {pair}\n"
+                    f"Tổng điểm: {score}\n"
+                    f"Tình trạng Gan: {gan_text if gan_text else 'Không gan'}\n\n"
+                    f"=== CHI TIẾT LÝ DO ===\n"
+                    f"- {reasons_formatted}"
+                )
+                
+                messagebox.showinfo("Chi Tiết Đánh Giá", info_text, parent=self)
+
         except Exception as e:
             print(f"Lỗi double-click: {e}")

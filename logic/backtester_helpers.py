@@ -33,10 +33,10 @@ def validate_backtest_params(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_
 
 def parse_k2n_results(results_data):
     """
-    Parse K2N backtest results (5 rows format).
+    Parse K2N backtest results (Dynamic Row Detection).
     
     Args:
-        results_data: List of 5 rows [headers, rates, streaks, recent_form, pending]
+        results_data: List of rows from backtest result
         
     Returns:
         tuple: (cache_data_list, pending_k2n_dict)
@@ -44,34 +44,53 @@ def parse_k2n_results(results_data):
     cache_data_list = []
     pending_k2n_dict = {}
 
-    if not results_data or len(results_data) < 5:
+    if not results_data or len(results_data) < 2:
         print("Lỗi parse_k2n_results: Dữ liệu backtest K2N không hợp lệ.")
         return cache_data_list, pending_k2n_dict
 
     try:
-        headers = results_data[0]  # Hàng 0: Tên cầu
-        rates = results_data[1]  # Hàng 1: Tỷ Lệ %
-        streaks = results_data[2]  # Hàng 2: Chuỗi Thắng / Thua Max
-        recent_form = results_data[3]  # Hàng 3: Phong Độ 10 Kỳ
-        pending = results_data[4]  # Hàng 4: Dự đoán
+        # 1. Xác định các hàng dựa trên tiêu đề cột đầu tiên (Cột A)
+        headers = results_data[0]
+        
+        row_rates = None
+        row_streaks = None
+        row_recent = None
+        row_prediction = None
 
-        num_bridges = len(headers) - 1  # Trừ cột "Kỳ"
+        for row in results_data[1:]:
+            first_col = str(row[0]).strip()
+            if "Tỷ Lệ" in first_col:
+                row_rates = row
+            elif "Chuỗi" in first_col:
+                row_streaks = row
+            elif "Phong Độ" in first_col:
+                row_recent = row
+            elif "Kỳ" in first_col or "Next" in first_col:
+                row_prediction = row
+
+        # Nếu không tìm thấy, fallback về index cũ (nhưng rủi ro)
+        if not row_rates and len(results_data) > 1: row_rates = results_data[1]
+        if not row_streaks and len(results_data) > 2: row_streaks = results_data[2]
+        if not row_recent and len(results_data) > 3: row_recent = results_data[3]
+        if not row_prediction and len(results_data) > 4: row_prediction = results_data[4]
+
+        num_bridges = len(headers) - 1
 
         for j in range(1, num_bridges + 1):
-            bridge_name = str(headers[j]).split(" (")[0]  # Lấy tên gốc
-            win_rate_text = str(rates[j]) if j < len(rates) else "0"
-            win_streak_text = str(streaks[j]) if j < len(streaks) else "0"
-            recent_form_text = str(recent_form[j]) if j < len(recent_form) else "0/10"
-            pending_text = str(pending[j]) if j < len(pending) else ""
+            bridge_name = str(headers[j]).split(" (")[0]
 
-            # Parse current_streak and max_lose_streak from win_streak_text
-            # Format: "5" or "5 / 3" or "5 thắng / 3 thua" (win_streak / max_lose_streak)
+            # Lấy dữ liệu an toàn
+            win_rate_text = str(row_rates[j]) if row_rates and j < len(row_rates) else "0"
+            win_streak_text = str(row_streaks[j]) if row_streaks and j < len(row_streaks) else "0"
+            recent_form_text = str(row_recent[j]) if row_recent and j < len(row_recent) else "0/10"
+            pending_text = str(row_prediction[j]) if row_prediction and j < len(row_prediction) else ""
+
+            # Parse current_streak and max_lose_streak
             current_streak = 0
             max_lose_streak = 0
             if "/" in win_streak_text:
                 parts = win_streak_text.split("/")
                 try:
-                    # Remove Vietnamese words like "thắng", "thua" and extract numbers
                     part0 = parts[0].strip().replace("thắng", "").replace("thua", "").strip()
                     current_streak = int(part0)
                     if len(parts) > 1:
@@ -82,14 +101,12 @@ def parse_k2n_results(results_data):
                     max_lose_streak = 0
             else:
                 try:
-                    # Handle single number or number with Vietnamese words
                     cleaned = win_streak_text.strip().replace("thắng", "").replace("thua", "").strip()
                     current_streak = int(cleaned)
                 except ValueError:
                     current_streak = 0
 
-            # Parse recent_win_count from recent_form_text
-            # Format: "7/10" or just "7"
+            # Parse recent_win_count
             recent_win_count = 0
             try:
                 if "/" in recent_form_text:
@@ -99,10 +116,9 @@ def parse_k2n_results(results_data):
             except (ValueError, IndexError):
                 recent_win_count = 0
 
-            # Append tuple with all 6 fields needed for SQL UPDATE
-            # (win_rate_text, current_streak, next_prediction_stl, max_lose_streak_k2n, recent_win_count_10, bridge_name)
-            # Use the same clean STL extraction as for pending_k2n_dict
+            # Clean STL for Cache
             clean_stl = pending_text.split("(")[0].strip() if "(" in pending_text else pending_text.strip()
+            
             cache_data_list.append((
                 win_rate_text,
                 current_streak,
@@ -112,14 +128,18 @@ def parse_k2n_results(results_data):
                 bridge_name
             ))
 
-            # Lưu pending với đầy đủ thông tin
+            # Lưu pending với logic mới: Xác định rõ là N1 hay N2
             if pending_text and pending_text.strip() != "":
-                # Extract just the STL numbers from format like "12,34 (Khung mới N1)" or "12,34 (Đang chờ N2)"
-                stl_only = pending_text.split("(")[0].strip() if "(" in pending_text else pending_text.strip()
+                stl_only = clean_stl
+                
+                # Phát hiện trạng thái N2
+                is_n2 = "N2" in pending_text or "chờ" in pending_text.lower()
+                
                 pending_k2n_dict[bridge_name] = {
                     "stl": stl_only,
                     "streak": current_streak,
-                    "max_lose": max_lose_streak
+                    "max_lose": max_lose_streak,
+                    "is_n2": is_n2 # (MỚI) Cờ đánh dấu cầu đang chờ N2
                 }
 
     except Exception as e:
