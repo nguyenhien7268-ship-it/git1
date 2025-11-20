@@ -223,7 +223,7 @@ class SettingsWindow:
                 # Lấy giá trị hiện tại
                 val = current_settings.get(key, "")
                 entry_var = tk.StringVar(value=str(val))
-                
+
                 entry_widget = ttk.Entry(main_frame, textvariable=entry_var)
                 entry_widget.grid(
                     row=current_row, column=1, sticky="ew", padx=5, pady=3
@@ -243,9 +243,9 @@ class SettingsWindow:
         save_button.grid(
             row=current_row, column=0, columnspan=3, sticky="ew", padx=5, pady=(15, 5)
         )
-        
+
         current_row += 1
-        
+
         # --- Nút Nạp 756 Cầu Bạc Nhớ ---
         load_memory_button = ttk.Button(
             main_frame, text="Nạp 756 Cầu Bạc Nhớ", command=self.load_756_memory_bridges
@@ -302,41 +302,41 @@ class SettingsWindow:
             "- Bạn cần BẬT cầu thủ công trong 'Quản Lý Cầu'",
             parent=self.window
         )
-        
+
         if not response:
             return
-        
+
         # Tạo progress window
         progress_window = tk.Toplevel(self.window)
         progress_window.title("Đang nạp cầu...")
         progress_window.geometry("400x150")
         progress_window.transient(self.window)
         progress_window.grab_set()
-        
+
         # Progress label
         progress_label = ttk.Label(
-            progress_window, 
-            text="Đang chuẩn bị...", 
+            progress_window,
+            text="Đang chuẩn bị...",
             font=("TkDefaultFont", 10)
         )
         progress_label.pack(pady=(20, 10))
-        
+
         # Progress bar
         progress_bar = ttk.Progressbar(
-            progress_window, 
-            mode="determinate", 
+            progress_window,
+            mode="determinate",
             length=350
         )
         progress_bar.pack(pady=10, padx=25)
-        
+
         # Status label
         status_label = ttk.Label(
-            progress_window, 
-            text="0/756", 
+            progress_window,
+            text="0/756",
             font=("TkDefaultFont", 9)
         )
         status_label.pack(pady=5)
-        
+
         # Import the function
         try:
             from logic.bridges.bridge_manager_core import init_all_756_memory_bridges_to_db
@@ -348,7 +348,7 @@ class SettingsWindow:
             )
             progress_window.destroy()
             return
-        
+
         # Progress callback
         def update_progress(current, total, message):
             progress_bar["maximum"] = total
@@ -356,12 +356,12 @@ class SettingsWindow:
             progress_label["text"] = message
             status_label["text"] = f"{current}/{total}"
             progress_window.update()
-        
+
         # Run the import in a separate thread to keep UI responsive
         import threading
-        
+
         result_container = {}
-        
+
         def do_import():
             try:
                 success, message, added, skipped = init_all_756_memory_bridges_to_db(
@@ -375,19 +375,19 @@ class SettingsWindow:
                 result_container["success"] = False
                 result_container["message"] = f"Lỗi: {e}"
                 result_container["error"] = str(e)
-        
+
         # Start import thread
         import_thread = threading.Thread(target=do_import)
         import_thread.start()
-        
+
         # Wait for thread to complete
         while import_thread.is_alive():
             progress_window.update()
             import_thread.join(timeout=0.1)
-        
+
         # Close progress window
         progress_window.destroy()
-        
+
         # Show result
         if result_container.get("success"):
             self.app.logger.log(result_container["message"])
