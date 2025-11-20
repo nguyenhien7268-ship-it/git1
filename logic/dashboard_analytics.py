@@ -1,6 +1,6 @@
 # Tên file: git3/logic/dashboard_analytics.py
 #
-# (NỘI DUNG THAY THẾ TOÀN BỘ - ĐÃ GOM NHÓM PHONG ĐỘ VÀ RỦI RO K2N)
+# (NỘI DUNG THAY THẾ TOÀN BỘ - FIX LỖI UNPACK TUPLE TRONG get_high_win_simulation)
 #
 from collections import Counter
 
@@ -841,7 +841,7 @@ def get_high_win_simulation(data_slice, last_row, threshold):
         return []
 
     # 2. Lọc kết quả
-    for win_rate_text, _, next_prediction_stl, _, bridge_name in cache_list:
+    for win_rate_text, _, next_prediction_stl, _, _, bridge_name in cache_list:
         try:
             win_rate = float(str(win_rate_text).replace("%", ""))
 
