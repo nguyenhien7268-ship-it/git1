@@ -455,3 +455,105 @@ def prune_bad_bridges(all_data_ai, db_name=DB_NAME):
             print(f"Lỗi xử lý lọc cầu: {bridge_name}, Lỗi: {e_row}")
 
     return f"Lọc cầu hoàn tất. Đã TẮT {disabled_count} cầu yếu (Tỷ lệ K2N < {AUTO_PRUNE_MIN_RATE}%)."
+
+
+# ===================================================================================
+# IV. HÀM NẠP 756 CẦU BẠC NHỚ (GIAI ĐOẠN 2)
+# ===================================================================================
+
+
+def init_all_756_memory_bridges_to_db(db_name=DB_NAME, progress_callback=None):
+    """
+    Sinh 756 cầu Bạc Nhớ và lưu vào database:
+    - 378 cầu Tổng: Tổng(00+01), Tổng(00+02), ...
+    - 378 cầu Hiệu: Hiệu(00-01), Hiệu(00-02), ...
+    
+    Mỗi cầu có:
+    - bridge_name: "Tổng(00+01)" hoặc "Hiệu(00-01)" (format với 2 chữ số)
+    - pos1_idx: -1 (đánh dấu là Bạc Nhớ)
+    - pos2_idx: -1
+    - is_enabled: False (mặc định tắt)
+    
+    Args:
+        db_name: Tên database
+        progress_callback: Hàm callback để báo tiến độ, nhận (current, total, message)
+    
+    Returns:
+        tuple: (success: bool, message: str, added_count: int, skipped_count: int)
+    """
+    print("Bắt đầu nạp 756 cầu Bạc Nhớ vào database...")
+    
+    bridges_to_add = []
+    total_bridges = 0
+    
+    # Sinh tất cả các cầu Tổng và Hiệu
+    for i in range(27):  # 27 vị trí (00-26)
+        for j in range(i, 27):  # j >= i để tránh trùng lặp
+            # 1. Cầu Tổng
+            bridge_name_sum = f"Tổng({i:02d}+{j:02d})"
+            bridges_to_add.append(
+                (bridge_name_sum, bridge_name_sum, "N/A", db_name, -1, -1)
+            )
+            total_bridges += 1
+            
+            # 2. Cầu Hiệu
+            bridge_name_diff = f"Hiệu({i:02d}-{j:02d})"
+            bridges_to_add.append(
+                (bridge_name_diff, bridge_name_diff, "N/A", db_name, -1, -1)
+            )
+            total_bridges += 1
+    
+    print(f"Đã tạo danh sách {total_bridges} cầu Bạc Nhớ.")
+    
+    # Thêm từng cầu vào database
+    added_count = 0
+    skipped_count = 0
+    
+    for idx, (bridge_name, description, win_rate, db, pos1, pos2) in enumerate(bridges_to_add):
+        try:
+            # Gọi upsert_managed_bridge với is_enabled = 0 (tắt mặc định)
+            # Nếu cầu đã tồn tại, sẽ bỏ qua (không cập nhật)
+            import sqlite3
+            conn = sqlite3.connect(db_name)
+            cursor = conn.cursor()
+            
+            # Kiểm tra xem cầu đã tồn tại chưa
+            cursor.execute("SELECT id FROM ManagedBridges WHERE name = ?", (bridge_name,))
+            existing = cursor.fetchone()
+            
+            if existing:
+                skipped_count += 1
+            else:
+                # Thêm cầu mới với is_enabled = 0 (tắt)
+                cursor.execute(
+                    """
+                    INSERT INTO ManagedBridges 
+                    (name, description, win_rate_text, pos1_idx, pos2_idx, is_enabled)
+                    VALUES (?, ?, ?, ?, ?, 0)
+                    """,
+                    (bridge_name, description, win_rate, pos1, pos2)
+                )
+                conn.commit()
+                added_count += 1
+            
+            conn.close()
+            
+            # Gọi callback để báo tiến độ
+            if progress_callback and (idx + 1) % 50 == 0:
+                progress_callback(idx + 1, total_bridges, f"Đã xử lý {idx + 1}/{total_bridges} cầu...")
+                
+        except Exception as e:
+            print(f"Lỗi khi thêm cầu {bridge_name}: {e}")
+            skipped_count += 1
+    
+    # Báo tiến độ hoàn tất
+    if progress_callback:
+        progress_callback(total_bridges, total_bridges, "Hoàn tất!")
+    
+    success_msg = (
+        f"Đã nạp thành công {added_count} cầu Bạc Nhớ mới vào database.\n"
+        f"Bỏ qua {skipped_count} cầu đã tồn tại."
+    )
+    print(success_msg)
+    
+    return True, success_msg, added_count, skipped_count

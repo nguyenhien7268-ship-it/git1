@@ -243,6 +243,16 @@ class SettingsWindow:
         save_button.grid(
             row=current_row, column=0, columnspan=3, sticky="ew", padx=5, pady=(15, 5)
         )
+        
+        current_row += 1
+        
+        # --- Nút Nạp 756 Cầu Bạc Nhớ ---
+        load_memory_button = ttk.Button(
+            main_frame, text="Nạp 756 Cầu Bạc Nhớ", command=self.load_756_memory_bridges
+        )
+        load_memory_button.grid(
+            row=current_row, column=0, columnspan=3, sticky="ew", padx=5, pady=(5, 5)
+        )
 
     def save_all_settings(self):
         """Lặp qua tất cả các ô Entry và lưu cài đặt."""
@@ -279,3 +289,118 @@ class SettingsWindow:
                 "Lỗi Nghiêm Trọng", f"Không thể lưu cài đặt: {e}", parent=self.window
             )
             self.app.logger.log(traceback.format_exc())
+
+    def load_756_memory_bridges(self):
+        """Nạp 756 cầu Bạc Nhớ vào database với progress bar."""
+        # Hiển thị confirmation dialog
+        response = messagebox.askyesno(
+            "Xác nhận",
+            "Bạn có chắc muốn thêm 756 cầu Bạc Nhớ vào database?\n\n"
+            "Lưu ý:\n"
+            "- Cầu trùng sẽ được bỏ qua\n"
+            "- Cầu mới sẽ được thêm ở trạng thái TẮT\n"
+            "- Bạn cần BẬT cầu thủ công trong 'Quản Lý Cầu'",
+            parent=self.window
+        )
+        
+        if not response:
+            return
+        
+        # Tạo progress window
+        progress_window = tk.Toplevel(self.window)
+        progress_window.title("Đang nạp cầu...")
+        progress_window.geometry("400x150")
+        progress_window.transient(self.window)
+        progress_window.grab_set()
+        
+        # Progress label
+        progress_label = ttk.Label(
+            progress_window, 
+            text="Đang chuẩn bị...", 
+            font=("TkDefaultFont", 10)
+        )
+        progress_label.pack(pady=(20, 10))
+        
+        # Progress bar
+        progress_bar = ttk.Progressbar(
+            progress_window, 
+            mode="determinate", 
+            length=350
+        )
+        progress_bar.pack(pady=10, padx=25)
+        
+        # Status label
+        status_label = ttk.Label(
+            progress_window, 
+            text="0/756", 
+            font=("TkDefaultFont", 9)
+        )
+        status_label.pack(pady=5)
+        
+        # Import the function
+        try:
+            from logic.bridges.bridge_manager_core import init_all_756_memory_bridges_to_db
+        except ImportError as e:
+            messagebox.showerror(
+                "Lỗi Import",
+                f"Không thể import hàm nạp cầu: {e}",
+                parent=self.window
+            )
+            progress_window.destroy()
+            return
+        
+        # Progress callback
+        def update_progress(current, total, message):
+            progress_bar["maximum"] = total
+            progress_bar["value"] = current
+            progress_label["text"] = message
+            status_label["text"] = f"{current}/{total}"
+            progress_window.update()
+        
+        # Run the import in a separate thread to keep UI responsive
+        import threading
+        
+        result_container = {}
+        
+        def do_import():
+            try:
+                success, message, added, skipped = init_all_756_memory_bridges_to_db(
+                    progress_callback=update_progress
+                )
+                result_container["success"] = success
+                result_container["message"] = message
+                result_container["added"] = added
+                result_container["skipped"] = skipped
+            except Exception as e:
+                result_container["success"] = False
+                result_container["message"] = f"Lỗi: {e}"
+                result_container["error"] = str(e)
+        
+        # Start import thread
+        import_thread = threading.Thread(target=do_import)
+        import_thread.start()
+        
+        # Wait for thread to complete
+        while import_thread.is_alive():
+            progress_window.update()
+            import_thread.join(timeout=0.1)
+        
+        # Close progress window
+        progress_window.destroy()
+        
+        # Show result
+        if result_container.get("success"):
+            self.app.logger.log(result_container["message"])
+            messagebox.showinfo(
+                "Thành công",
+                result_container["message"],
+                parent=self.window
+            )
+        else:
+            error_msg = result_container.get("message", "Lỗi không xác định")
+            self.app.logger.log(f"LỖI: {error_msg}")
+            messagebox.showerror(
+                "Lỗi",
+                error_msg,
+                parent=self.window
+            )
