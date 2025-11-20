@@ -4,6 +4,7 @@
 #
 
 import os
+import sqlite3
 
 # =========================================================================
 # PATH FIX: Tự động thêm thư mục gốc (git1 - Sao chép/) vào sys.path
@@ -513,7 +514,6 @@ def init_all_756_memory_bridges_to_db(db_name=DB_NAME, progress_callback=None):
         try:
             # Gọi upsert_managed_bridge với is_enabled = 0 (tắt mặc định)
             # Nếu cầu đã tồn tại, sẽ bỏ qua (không cập nhật)
-            import sqlite3
             conn = sqlite3.connect(db_name)
             cursor = conn.cursor()
 

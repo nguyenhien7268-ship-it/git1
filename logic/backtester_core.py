@@ -94,6 +94,10 @@ except ImportError:
 # Import helper functions
 from .backtester_helpers import validate_backtest_params as _validate_backtest_params
 
+# Import re module for bridge name parsing
+import re
+
+
 def BACKTEST_15_CAU_K2N_V30_AI_V8(
     toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra, history=True
 ):
@@ -555,13 +559,13 @@ def BACKTEST_MANAGED_BRIDGES_N1(
         for bridge in bridges_to_test:
             try:
                 idx1, idx2 = bridge["pos1_idx"], bridge["pos2_idx"]
-                
+
                 # Check if this is a Memory Bridge (Cầu Bạc Nhớ)
                 if idx1 == -1 and idx2 == -1:
                     # Parse bridge name to extract positions and algorithm
                     bridge_name = bridge["name"]
                     try:
-                        import re
+
                         if "Tổng(" in bridge_name:
                             # Format: "Tổng(00+01)" or "Tổng(0+1)"
                             match = re.search(r'Tổng\((\d+)\+(\d+)\)', bridge_name)
@@ -595,7 +599,7 @@ def BACKTEST_MANAGED_BRIDGES_N1(
                         daily_results_row.append("Lỗi Vị Trí")
                         continue
                     pred = taoSTL_V30_Bong(a, b)
-                
+
                 check_result = checkHitSet_V30_K2N(pred, actualLotoSet)
                 daily_results_row.append(f"{','.join(pred)} {check_result}")
             except Exception as e:
@@ -637,12 +641,12 @@ def BACKTEST_MANAGED_BRIDGES_N1(
 
         for bridge in bridges_to_test:
             idx1, idx2 = bridge["pos1_idx"], bridge["pos2_idx"]
-            
+
             # Check if this is a Memory Bridge
             if idx1 == -1 and idx2 == -1:
                 bridge_name = bridge["name"]
                 try:
-                    import re
+
                     if "Tổng(" in bridge_name:
                         match = re.search(r'Tổng\((\d+)\+(\d+)\)', bridge_name)
                         if match:
@@ -674,7 +678,7 @@ def BACKTEST_MANAGED_BRIDGES_N1(
                     finalRow.append("Lỗi Vị Trí")
                     continue
                 pred = taoSTL_V30_Bong(a, b)
-            
+
             finalRow.append(f"{','.join(pred)} (Dự đoán N1)")
 
         results.insert(2, finalRow)
@@ -783,12 +787,12 @@ def BACKTEST_MANAGED_BRIDGES_K2N(
                     in_frame[j], prediction_in_frame[j] = False, None
                 else:
                     idx1, idx2 = bridge["pos1_idx"], bridge["pos2_idx"]
-                    
+
                     # Check if this is a Memory Bridge
                     if idx1 == -1 and idx2 == -1:
                         bridge_name = bridge["name"]
                         try:
-                            import re
+
                             if "Tổng(" in bridge_name:
                                 match = re.search(r'Tổng\((\d+)\+(\d+)\)', bridge_name)
                                 if match:
@@ -821,7 +825,7 @@ def BACKTEST_MANAGED_BRIDGES_K2N(
                             daily_results_row.append("Lỗi Vị Trí")
                             continue
                         pred = taoSTL_V30_Bong(a, b)
-                    
+
                     check_result = checkHitSet_V30_K2N(pred, actualLotoSet)
 
                     if "✅" in check_result:
@@ -903,12 +907,12 @@ def BACKTEST_MANAGED_BRIDGES_K2N(
                 finalRow.append(f"{','.join(prediction_in_frame[j])} (Đang chờ N2)")
             else:
                 idx1, idx2 = bridge["pos1_idx"], bridge["pos2_idx"]
-                
+
                 # Check if this is a Memory Bridge
                 if idx1 == -1 and idx2 == -1:
                     bridge_name = bridge["name"]
                     try:
-                        import re
+
                         if "Tổng(" in bridge_name:
                             match = re.search(r'Tổng\((\d+)\+(\d+)\)', bridge_name)
                             if match:
@@ -940,7 +944,7 @@ def BACKTEST_MANAGED_BRIDGES_K2N(
                         finalRow.append("Lỗi Vị Trí")
                         continue
                     pred = taoSTL_V30_Bong(a, b)
-                
+
                 finalRow.append(f"{','.join(pred)} (Khung mới N1)")
 
         results.insert(4, finalRow)

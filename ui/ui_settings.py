@@ -4,6 +4,7 @@
 #
 import tkinter as tk
 import traceback
+import threading
 from tkinter import messagebox, ttk
 
 # Import SETTINGS từ file config_manager
@@ -358,7 +359,6 @@ class SettingsWindow:
             progress_window.update()
 
         # Run the import in a separate thread to keep UI responsive
-        import threading
 
         result_container = {}
 
