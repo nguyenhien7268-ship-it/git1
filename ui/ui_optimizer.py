@@ -96,7 +96,7 @@ class OptimizerTab(ttk.Frame):
         # Lấy cài đặt mặc định
         current_settings = SETTINGS.get_all_settings() if SETTINGS else {}
 
-        # Danh sách tham số (ĐÃ CẬP NHẬT THÊM THAM SỐ AI)
+        # Danh sách tham số (ĐÃ CẬP NHẬT THÊM THAM SỐ AI VÀ RECENT_FORM)
         self.param_definitions = [
             ("GAN_DAYS", "Số ngày Lô Gan", current_settings.get("GAN_DAYS", 15), 1),
             (
@@ -143,6 +143,50 @@ class OptimizerTab(ttk.Frame):
                 0.1,
             ),
             # --- END NEW AI PARAMETERS ---
+            # --- START RECENT_FORM PARAMETERS ---
+            (
+                "RECENT_FORM_PERIODS",
+                "Số kỳ xét phong độ",
+                current_settings.get("RECENT_FORM_PERIODS", 10),
+                1,
+            ),
+            (
+                "RECENT_FORM_MIN_HIGH",
+                "Ngưỡng phong độ rất cao",
+                current_settings.get("RECENT_FORM_MIN_HIGH", 8),
+                1,
+            ),
+            (
+                "RECENT_FORM_BONUS_HIGH",
+                "Điểm thưởng phong độ rất cao",
+                current_settings.get("RECENT_FORM_BONUS_HIGH", 3.0),
+                0.5,
+            ),
+            (
+                "RECENT_FORM_MIN_MED",
+                "Ngưỡng phong độ tốt",
+                current_settings.get("RECENT_FORM_MIN_MED", 6),
+                1,
+            ),
+            (
+                "RECENT_FORM_BONUS_MED",
+                "Điểm thưởng phong độ tốt",
+                current_settings.get("RECENT_FORM_BONUS_MED", 2.0),
+                0.5,
+            ),
+            (
+                "RECENT_FORM_MIN_LOW",
+                "Ngưỡng phong độ ổn",
+                current_settings.get("RECENT_FORM_MIN_LOW", 5),
+                1,
+            ),
+            (
+                "RECENT_FORM_BONUS_LOW",
+                "Điểm thưởng phong độ ổn",
+                current_settings.get("RECENT_FORM_BONUS_LOW", 1.0),
+                0.5,
+            ),
+            # --- END RECENT_FORM PARAMETERS ---
         ]
 
         current_row = 1
@@ -298,12 +342,16 @@ class OptimizerTab(ttk.Frame):
                         )
                         return
 
-                    # Chuyển đổi tham số số nguyên sang int (ví dụ: MAX_DEPTH, N_ESTIMATORS)
+                    # Chuyển đổi tham số số nguyên sang int (ví dụ: MAX_DEPTH, N_ESTIMATORS, RECENT_FORM)
                     if key in [
                         "GAN_DAYS",
                         "K2N_RISK_START_THRESHOLD",
                         "AI_MAX_DEPTH",
                         "AI_N_ESTIMATORS",
+                        "RECENT_FORM_PERIODS",
+                        "RECENT_FORM_MIN_HIGH",
+                        "RECENT_FORM_MIN_MED",
+                        "RECENT_FORM_MIN_LOW",
                     ]:
                         # Kiểm tra nếu giá trị là số nguyên
                         if (

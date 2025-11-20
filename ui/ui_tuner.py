@@ -60,6 +60,13 @@ class TunerWindow:
             "AUTO_PRUNE_MIN_RATE": "Ngưỡng Lọc Cầu Yếu (%)",
             "K2N_RISK_START_THRESHOLD": "Ngưỡng phạt K2N (khung thua)",
             "K2N_RISK_PENALTY_PER_FRAME": "Điểm phạt K2N / khung",
+            "RECENT_FORM_PERIODS": "Số kỳ xét phong độ",
+            "RECENT_FORM_MIN_HIGH": "Ngưỡng phong độ rất cao",
+            "RECENT_FORM_BONUS_HIGH": "Điểm thưởng phong độ rất cao",
+            "RECENT_FORM_MIN_MED": "Ngưỡng phong độ tốt",
+            "RECENT_FORM_BONUS_MED": "Điểm thưởng phong độ tốt",
+            "RECENT_FORM_MIN_LOW": "Ngưỡng phong độ ổn",
+            "RECENT_FORM_BONUS_LOW": "Điểm thưởng phong độ ổn",
         }
 
         ttk.Label(settings_frame, text="Chọn tham số:").grid(
