@@ -1,6 +1,6 @@
 # Tên file: du-an-backup/ui/ui_main_window.py
 #
-# (NỘI DUNG THAY THẾ TOÀN BỘ - SỬA LỖI FLAKE8 F541, W292)
+# (NỘI DUNG THAY THẾ TOÀN BỘ - TỐI ƯU UX GIAO DIỆN CHÍNH)
 #
 import json
 import os
@@ -49,7 +49,6 @@ except ImportError:
     )
 
 # (SỬA LỖI CIRCULAR IMPORT)
-# Di chuyển import 'BridgeManagerWindow' vào BÊN TRONG hàm show_bridge_manager_window
 try:
     from ui.ui_dashboard import DashboardWindow
     from ui.ui_lookup import LookupWindow
@@ -65,7 +64,7 @@ except ImportError as e:
 class DataAnalysisApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Xổ Số Data Analysis (v7.2 - Giao diện Sắp xếp)")
+        self.root.title("Xổ Số Data Analysis (v7.5 - Giao diện Tối ưu)")
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(0, weight=1)
         self.root.geometry("1024x768")
@@ -86,14 +85,14 @@ class DataAnalysisApp:
             row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), padx=5, pady=5
         )
 
-        # --- (SỬA) THỨ TỰ KHỞI TẠO ĐÚNG ---
+        # --- KHỞI TẠO CÁC TAB ---
 
-        # 1. (SỬA) Tạo Khung Tab Log (nhưng chưa add)
+        # 1. Tạo Khung Tab Log
         self.tab_log_frame = ttk.Frame(self.notebook, padding="10")
         self.tab_log_frame.columnconfigure(0, weight=1)
         self.tab_log_frame.rowconfigure(0, weight=1)
 
-        # 2. (SỬA) Tạo Khung Output và self.output_text
+        # 2. Tạo Khung Output và self.output_text
         output_frame = ttk.Frame(self.tab_log_frame, padding="10")
         output_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
         output_frame.columnconfigure(0, weight=1)
@@ -113,29 +112,27 @@ class DataAnalysisApp:
         log_scrollbar.grid(row=1, column=1, sticky=(tk.N, tk.S))
         self.output_text.config(yscrollcommand=log_scrollbar.set, state=tk.DISABLED)
 
-        # 3. (SỬA) Khởi tạo Logger (NGAY SAU KHI CÓ output_text)
+        # 3. Khởi tạo Logger
         self.logger = Logger(self.output_text, self.root)
 
-        # 4. (SỬA) Khởi tạo các Tab còn lại (BÂY GIỜ CHÚNG CÓ THỂ DÙNG LOGGER)
+        # 4. Khởi tạo các Tab còn lại
         self.tab1_frame = ttk.Frame(self.notebook, padding="10")
         self.tab1_frame.columnconfigure(0, weight=1)
         self.tab1_frame.rowconfigure(0, weight=0)
         self.tab1_frame.rowconfigure(1, weight=1)
 
-        self.dashboard_tab = DashboardWindow(self)  # Logger đã tồn tại
-        self.lookup_tab = LookupWindow(self)  # Logger đã tồn tại (FIX LỖI)
+        self.dashboard_tab = DashboardWindow(self)
+        self.lookup_tab = LookupWindow(self)
         self.optimizer_tab = OptimizerTab(self.notebook, self)
 
-        # 5. (SỬA) ADD CÁC TAB VÀO NOTEBOOK (theo đúng thứ tự)
+        # 5. ADD CÁC TAB VÀO NOTEBOOK
         self.notebook.add(self.tab1_frame, text="⚙️ Điều Khiển")
         self.notebook.add(self.dashboard_tab, text="📊 Bảng Quyết Định")
         self.notebook.add(self.lookup_tab, text="🔍 Tra Cứu")
         self.notebook.add(self.optimizer_tab, text="🚀 Tối ưu Hóa")
-        self.notebook.add(
-            self.tab_log_frame, text="Log Hệ Thống"
-        )  # Add Tab Log vào cuối
+        self.notebook.add(self.tab_log_frame, text="Log Hệ Thống")
 
-        # --- TÁI CẤU TRÚC TAB "ĐIỀU KHIỂN" (Giữ nguyên) ---
+        # --- TÁI CẤU TRÚC TAB "ĐIỀU KHIỂN" ---
 
         # 1. Khung Chức Năng Chính (Hàng 0)
         predict_frame = ttk.Labelframe(
@@ -171,7 +168,7 @@ class DataAnalysisApp:
 
         # 4. Di chuyển các Khung (Frame) vào các Tab con
 
-        # Khung NẠP DỮ LIỆU
+        # --- TỐI ƯU HÓA GIAO DIỆN TAB NẠP DỮ LIỆU ---
         data_frame_tab.columnconfigure(0, weight=1)
         data_frame_tab.rowconfigure(0, weight=1)
         data_frame = ttk.Labelframe(
@@ -179,41 +176,56 @@ class DataAnalysisApp:
         )
         data_frame.grid(row=0, column=0, sticky="nsew")
         data_frame.columnconfigure(1, weight=1)
-        data_frame.rowconfigure(3, weight=1)
-        ttk.Label(data_frame, text="Input File (JSON/Text):").grid(
+        data_frame.rowconfigure(4, weight=1)  # Text box expand
+
+        # Phần 1: File Import
+        ttk.Label(data_frame, text="File Đầu Vào:").grid(
             row=0, column=0, sticky=tk.W, padx=5, pady=5
         )
         self.file_path_entry = ttk.Entry(data_frame, width=50)
         self.file_path_entry.grid(row=0, column=1, sticky="ew", padx=5, pady=5)
-        browse_button = ttk.Button(data_frame, text="Browse", command=self.browse_file)
+        browse_button = ttk.Button(data_frame, text="Chọn File...", command=self.browse_file)
         browse_button.grid(row=0, column=2, sticky=tk.W, padx=5, pady=5)
+
         self.parse_button = ttk.Button(
-            data_frame, text="Nạp File (Xóa Hết DB)", command=self.run_parsing
+            data_frame, text="Xóa Hết & Nạp Lại DB", command=self.run_parsing
         )
         self.parse_button.grid(row=1, column=0, sticky="ew", padx=5, pady=5)
+        
         self.parse_append_button = ttk.Button(
-            data_frame, text="Nạp File (Thêm/Append)", command=self.run_parsing_append
+            data_frame, text="Nạp Thêm Dữ Liệu (Append)", command=self.run_parsing_append
         )
         self.parse_append_button.grid(
             row=1, column=1, columnspan=2, sticky="ew", padx=5, pady=5
         )
-        ttk.Label(data_frame, text="Dán dữ liệu text (1 hoặc nhiều kỳ) vào đây:").grid(
-            row=2, column=0, columnspan=3, sticky=tk.W, padx=5, pady=5
-        )
-        self.update_text_area = tk.Text(data_frame, height=5, width=80)
-        self.update_text_area.grid(
-            row=3, column=0, columnspan=3, sticky="nsew", padx=5, pady=5
-        )
-        self.update_button = ttk.Button(
-            data_frame,
-            text="Thêm 1/Nhiều Kỳ Từ Text (Append)",
-            command=self.run_update_from_text,
-        )
-        self.update_button.grid(
-            row=4, column=0, columnspan=3, sticky="ew", padx=5, pady=5
+
+        # Đường phân cách
+        ttk.Separator(data_frame, orient='horizontal').grid(
+            row=2, column=0, columnspan=3, sticky="ew", pady=10
         )
 
-        # Khung QUẢN LÝ
+        # Phần 2: Manual Text Input (Giao diện tối ưu)
+        # Tạo frame chứa Label và Button trên cùng 1 hàng
+        manual_header_frame = ttk.Frame(data_frame)
+        manual_header_frame.grid(row=3, column=0, columnspan=3, sticky="ew", padx=5, pady=(0, 5))
+        
+        ttk.Label(manual_header_frame, text="Dán dữ liệu text (1 hoặc nhiều kỳ):", font=("Arial", 9, "bold")).pack(side=tk.LEFT)
+        
+        # Nút bấm nằm ngay bên phải (Action Button)
+        self.update_button = ttk.Button(
+            manual_header_frame,
+            text="⚡ Cập Nhật Ngay",
+            command=self.run_update_from_text,
+        )
+        self.update_button.pack(side=tk.RIGHT)
+
+        # Text area
+        self.update_text_area = tk.Text(data_frame, height=8, width=80) # Tăng chiều cao chút
+        self.update_text_area.grid(
+            row=4, column=0, columnspan=3, sticky="nsew", padx=5, pady=5
+        )
+
+        # --- Khung QUẢN LÝ ---
         manage_frame_tab.columnconfigure(0, weight=1)
         manage_frame_tab.rowconfigure(0, weight=1)
         manage_frame = ttk.Labelframe(
@@ -258,7 +270,7 @@ class DataAnalysisApp:
         )
         self.train_ai_button.grid(row=1, column=2, sticky="ew", padx=5, pady=5)
 
-        # Khung BACKTEST
+        # --- Khung BACKTEST ---
         backtest_frame_tab.columnconfigure(0, weight=1)
         backtest_frame_tab.rowconfigure(0, weight=1)
         v25_frame = ttk.Labelframe(
@@ -308,7 +320,7 @@ class DataAnalysisApp:
         )
         self.custom_bridge_entry = ttk.Entry(v25_frame)
 
-        # --- Danh sách nút tổng (Giữ nguyên) ---
+        # --- Danh sách nút tổng ---
         self.all_buttons = [
             self.parse_button,
             self.parse_append_button,
@@ -331,16 +343,16 @@ class DataAnalysisApp:
             self.optimizer_tab.apply_button,
         ]
 
-        # --- KHỞI TẠO CÁC DỊCH VỤ LÕI & CONTROLLER (Giữ nguyên) ---
+        # --- KHỞI TẠO CÁC DỊCH VỤ LÕI & CONTROLLER ---
         self.task_manager = TaskManager(self.logger, self.all_buttons, self.root)
         self.task_manager.optimizer_apply_button = self.optimizer_tab.apply_button
 
         self.controller = AppController(self)
         self.controller.logger = self.logger
 
-        self.logger.log("Hệ thống (GĐ 5.3: Đã sửa lỗi Logger) sẵn sàng.")
+        self.logger.log("Hệ thống sẵn sàng (UI Tối Ưu).")
 
-    # --- (MỚI) HÀM XÓA TEXT (Callback cho Controller) ---
+    # --- HÀM XÓA TEXT (Callback cho Controller) ---
     def clear_update_text_area(self):
         """Hàm này được gọi từ controller để xóa text box (an toàn)."""
         if self.update_text_area:
@@ -350,7 +362,7 @@ class DataAnalysisApp:
         """Cập nhật output log. Được gọi từ các cửa sổ phụ."""
         self.logger.log(msg)
 
-    # --- (GIỮ NGUYÊN TOÀN BỘ CÁC HÀM CÒN LẠI) ---
+    # --- CÁC HÀM LOGIC (GIỮ NGUYÊN) ---
 
     def browse_file(self):
         file_path = filedialog.askopenfilename(
@@ -381,7 +393,6 @@ class DataAnalysisApp:
         input_file = self.check_file_path()
         if not input_file:
             return
-        # (SỬA LỖI F541) Xóa f-string không cần thiết
         self.logger.log("\n--- Bắt đầu Bước 1 (Xóa Hết): Phân tích tệp tin ---")
         self.task_manager.run_task(self.controller.task_run_parsing, input_file)
 
@@ -389,7 +400,6 @@ class DataAnalysisApp:
         input_file = self.check_file_path()
         if not input_file:
             return
-        # (SỬA LỖI F541) Xóa f-string không cần thiết
         self.logger.log("\n--- Bắt đầu Bước 1 (Append): Thêm dữ liệu từ tệp tin ---")
         self.task_manager.run_task(self.controller.task_run_parsing_append, input_file)
 
@@ -398,7 +408,6 @@ class DataAnalysisApp:
         if not raw_data.strip():
             self.logger.log("LỖI: Không có dữ liệu text để cập nhật.")
             return
-        # (SỬA LỖI F541) Xóa f-string không cần thiết
         self.logger.log("\n--- Bắt đầu: Thêm Kỳ Mới Từ Text ---")
         self.task_manager.run_task(self.controller.task_run_update_from_text, raw_data)
 
@@ -588,7 +597,6 @@ class DataAnalysisApp:
         self.notebook.select(self.lookup_tab)
 
     def show_bridge_manager_window(self):
-        # (SỬA LỖI CIRCULAR IMPORT) Import tại thời điểm chạy
         try:
             from ui.ui_bridge_manager import BridgeManagerWindow
         except ImportError as e:
@@ -701,6 +709,3 @@ class DataAnalysisApp:
             messagebox.showerror(
                 "Lỗi", f"Lỗi _save_bridge_from_treeview: {e}", parent=tree.master
             )
-
-
-# (Khối __main__ đã được chuyển sang main_app.py)

@@ -73,25 +73,22 @@ except ImportError:
 try:
     from .bridges.bridges_memory import (
         calculate_bridge_stl,
-        checkHitBridge_V28,
-        getAllBridges_Memory_FAST,
         get_27_loto_names,
         get_27_loto_positions,
     )
 except ImportError:
-    def getAllBridges_Memory_FAST(r):
-        return []
+    print("Lỗi: Không thể import bridges_memory trong backtester_core.py")
 
-    def checkHitBridge_V28(b, loto_set):
-        return "Lỗi"
-
-    def calculate_bridge_stl(b):
-        return "Lỗi"
+    def calculate_bridge_stl(loto_str_1, loto_str_2, algorithm_type):
+        """Fallback function for calculate_bridge_stl"""
+        return ["00", "00"]
 
     def get_27_loto_names():
+        """Fallback function for get_27_loto_names"""
         return []
 
     def get_27_loto_positions(r):
+        """Fallback function for get_27_loto_positions"""
         return []
 
 # Import helper functions
@@ -150,8 +147,8 @@ def BACKTEST_15_CAU_K2N_V30_AI_V8(
             break
 
         if not prevRow or len(actualRow) < 10 or not actualRow[2] or not actualRow[9]:
-            if history:
-                data_rows.append([actualRow[0] or k, "Lỗi dữ liệu hàng"] + [""] * 15)
+            # [FIX] Luôn thêm vào data_rows để giữ cấu trúc, bất kể history=True/False
+            data_rows.append([actualRow[0] or k, "Lỗi dữ liệu hàng"] + [""] * 15)
             continue
 
         actualSoKy, actualLotoSet = actualRow[0] or k, set(getAllLoto_V30(actualRow))
@@ -167,14 +164,13 @@ def BACKTEST_15_CAU_K2N_V30_AI_V8(
                     pred = prediction_in_frame[j]
                     check_result = checkHitSet_V30_K2N(pred, actualLotoSet)
                     if "✅" in check_result:
-                        if history:
-                            cell_output = f"{','.join(pred)} ✅ (Ăn N2)"
+                        # [FIX] Luôn tạo string output để phục vụ đếm phong độ bên dưới
+                        cell_output = f"{','.join(pred)} ✅ (Ăn N2)"
                         win_counts[j] += 1
                         current_streak_k2n[j] += 1
                         current_lose_streak_k2n[j] = 0
                     else:
-                        if history:
-                            cell_output = f"{','.join(pred)} ❌ (Trượt K2N)"
+                        cell_output = f"{','.join(pred)} ❌ (Trượt K2N)"
                         current_streak_k2n[j] = 0
                         current_lose_streak_k2n[j] += 1
                         if current_lose_streak_k2n[j] > max_lose_streak_k2n[j]:
@@ -185,48 +181,68 @@ def BACKTEST_15_CAU_K2N_V30_AI_V8(
                     pred = cau_functions[j](prevRow)
                     check_result = checkHitSet_V30_K2N(pred, actualLotoSet)
                     if "✅" in check_result:
-                        if history:
-                            cell_output = f"{','.join(pred)} ✅ (Ăn N1)"
+                        cell_output = f"{','.join(pred)} ✅ (Ăn N1)"
                         win_counts[j] += 1
                         current_streak_k2n[j] += 1
                         current_lose_streak_k2n[j] = 0
                     else:
-                        if history:
-                            cell_output = f"{','.join(pred)} (Trượt N1...)"
+                        cell_output = f"{','.join(pred)} (Trượt N1...)"
                         in_frame[j], prediction_in_frame[j] = True, pred
 
-                if history:
-                    daily_results_row.append(cell_output)
-                    if "✅" in check_result:
-                        totalHits += 1
+                # [FIX] Luôn append kết quả chi tiết vào dòng
+                daily_results_row.append(cell_output)
+                if "✅" in check_result:
+                    totalHits += 1
 
-            if history:
-                daily_results_row.append(totalHits)
-                data_rows.append(daily_results_row)
+            # [FIX] Luôn thêm dòng vào data_rows (BỎ ĐIỀU KIỆN if history)
+            daily_results_row.append(totalHits)
+            data_rows.append(daily_results_row)
 
         except Exception as e:
-            if history:
-                data_rows.append([actualSoKy, f"Lỗi: {e}"] + [""] * 15)
+            # [FIX] Luôn append lỗi
+            data_rows.append([actualSoKy, f"Lỗi: {e}"] + [""] * 15)
 
-    if history:
-        data_rows.reverse()
+    # [FIX] Luôn đảo ngược danh sách để tính 10 kỳ gần nhất chính xác
+    data_rows.reverse()
 
+    # Always insert rate, streak, and recent_form rows for consistent structure
+    rate_row, total_wins = ["Tỷ Lệ %"], 0
     if totalTestDays > 0:
-        rate_row, total_wins = ["Tỷ Lệ %"], 0
         for count in win_counts:
             rate = (count / totalTestDays) * 100
             rate_row.append(f"{rate:.2f}%")
             total_wins += count
         rate_row.append(f"TB: {(total_wins / totalTestDays):.2f}")
-        results.insert(1, rate_row)
+    else:
+        for _ in range(15):
+            rate_row.append("0.00%")
+        rate_row.append("TB: 0.00")
+    results.insert(1, rate_row)
 
-        streak_row = ["Chuỗi Thắng / Thua Max"]
-        for i in range(15):
-            streak_row.append(
-                f"{current_streak_k2n[i]} thắng / {max_lose_streak_k2n[i]} thua"
-            )
-        streak_row.append("---")
-        results.insert(2, streak_row)
+    streak_row = ["Chuỗi Thắng / Thua Max"]
+    for i in range(15):
+        streak_row.append(
+            f"{current_streak_k2n[i]} thắng / {max_lose_streak_k2n[i]} thua"
+        )
+    streak_row.append("---")
+    results.insert(2, streak_row)
+
+    # Calculate recent win count (last 10 periods)
+    recent_win_row = ["Phong Độ 10 Kỳ"]
+    for i in range(15):
+        # Count wins in last 10 data rows (most recent periods)
+        recent_wins = 0
+        periods_to_check = min(10, len(data_rows))
+        for row_idx in range(periods_to_check):
+            if row_idx < len(data_rows):
+                row = data_rows[row_idx]
+                if i + 1 < len(row):
+                    cell_value = str(row[i + 1])
+                    if "✅" in cell_value:
+                        recent_wins += 1
+        recent_win_row.append(f"{recent_wins}/10")
+    recent_win_row.append("---")
+    results.insert(3, recent_win_row)
 
     try:
         last_data_row_for_prediction = allData[finalEndRow - offset]
@@ -256,7 +272,7 @@ def BACKTEST_15_CAU_K2N_V30_AI_V8(
                 finalRow.append("LỖI PREDICT")
     finalRow.append(f"{openFrames} khung mở" if openFrames > 0 else "0")
 
-    results.insert(3, finalRow)
+    results.insert(4, finalRow)
 
     if history:
         results.extend(data_rows)
@@ -612,9 +628,23 @@ def BACKTEST_MANAGED_BRIDGES_K2N(
         # (V7.1) Dùng get_all_managed_bridges từ Repository
         bridges_to_test = get_all_managed_bridges(db_name, only_enabled=True)
     except Exception as e:
-        return [["LỖI:", f"Không thể tải danh sách cầu: {e}"]]
+        # Return valid 5-row structure even on error
+        return [
+            ["Kỳ (Cột A)"],
+            ["Tỷ Lệ %"],
+            ["Chuỗi Thắng / Thua Max"],
+            ["Phong Độ 10 Kỳ"],
+            ["LỖI:", f"Không thể tải danh sách cầu: {e}"]
+        ]
     if not bridges_to_test:
-        return [["LỖI:", "Không có cầu nào được Bật trong 'Quản lý Cầu'."]]
+        # Return valid 5-row structure when no bridges enabled
+        return [
+            ["Kỳ (Cột A)"],
+            ["Tỷ Lệ %"],
+            ["Chuỗi Thắng / Thua Max"],
+            ["Phong Độ 10 Kỳ"],
+            ["Thông báo", "Không có cầu nào được Bật trong 'Quản lý Cầu'."]
+        ]
 
     allData, finalEndRow, startCheckRow, offset, error = _validate_backtest_params(
         toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra
@@ -649,8 +679,8 @@ def BACKTEST_MANAGED_BRIDGES_K2N(
             break
 
         if not prevRow or len(actualRow) < 10 or not actualRow[2] or not actualRow[9]:
-            if history:
-                data_rows.append([actualRow[0] or k, "Lỗi dữ liệu hàng"])
+            # [FIX] Luôn thêm vào data_rows, bất kể history=True/False
+            data_rows.append([actualRow[0] or k, "Lỗi dữ liệu hàng"])
             continue
 
         actualSoKy, actualLotoSet = actualRow[0] or k, set(getAllLoto_V30(actualRow))
@@ -666,14 +696,13 @@ def BACKTEST_MANAGED_BRIDGES_K2N(
                     pred = prediction_in_frame[j]
                     check_result = checkHitSet_V30_K2N(pred, actualLotoSet)
                     if "✅" in check_result:
-                        if history:
-                            cell_output = f"{','.join(pred)} ✅ (Ăn N2)"
+                        # [FIX] Luôn tạo text cho output
+                        cell_output = f"{','.join(pred)} ✅ (Ăn N2)"
                         win_counts[j] += 1
                         current_streak_k2n[j] += 1
                         current_lose_streak_k2n[j] = 0
                     else:
-                        if history:
-                            cell_output = f"{','.join(pred)} ❌ (Trượt K2N)"
+                        cell_output = f"{','.join(pred)} ❌ (Trượt K2N)"
                         current_streak_k2n[j] = 0
                         current_lose_streak_k2n[j] += 1
                         if current_lose_streak_k2n[j] > max_lose_streak_k2n[j]:
@@ -684,50 +713,69 @@ def BACKTEST_MANAGED_BRIDGES_K2N(
                     idx1, idx2 = bridge["pos1_idx"], bridge["pos2_idx"]
                     a, b = prevPositions[idx1], prevPositions[idx2]
                     if a is None or b is None:
-                        if history:
-                            daily_results_row.append("Lỗi Vị Trí")
+                        # [FIX] Luôn append vào daily_results_row
+                        daily_results_row.append("Lỗi Vị Trí")
                         continue
 
                     pred = taoSTL_V30_Bong(a, b)
                     check_result = checkHitSet_V30_K2N(pred, actualLotoSet)
 
                     if "✅" in check_result:
-                        if history:
-                            cell_output = f"{','.join(pred)} ✅ (Ăn N1)"
+                        cell_output = f"{','.join(pred)} ✅ (Ăn N1)"
                         win_counts[j] += 1
                         current_streak_k2n[j] += 1
                         current_lose_streak_k2n[j] = 0
                     else:
-                        if history:
-                            cell_output = f"{','.join(pred)} (Trượt N1...)"
+                        cell_output = f"{','.join(pred)} (Trượt N1...)"
                         in_frame[j], prediction_in_frame[j] = True, pred
 
-                if history:
-                    daily_results_row.append(cell_output)
+                # [FIX] Luôn append cell_output vào daily_results_row
+                daily_results_row.append(cell_output)
 
             except Exception as e:
-                if history:
-                    daily_results_row.append(f"Lỗi: {e}")
+                # [FIX] Luôn append lỗi
+                daily_results_row.append(f"Lỗi: {e}")
 
-        if history:
-            data_rows.append(daily_results_row)
+        # [FIX] Luôn thêm daily_results_row vào data_rows (BỎ điều kiện if history)
+        data_rows.append(daily_results_row)
 
-    if history:
-        data_rows.reverse()
+    # [FIX] Luôn đảo ngược data_rows để phục vụ tính toán 10 kỳ gần nhất
+    data_rows.reverse()
 
+    # Always insert rate, streak, and recent_form rows for consistent structure
+    rate_row = ["Tỷ Lệ %"]
     if totalTestDays > 0:
-        rate_row = ["Tỷ Lệ %"]
         for count in win_counts:
             rate = (count / totalTestDays) * 100
             rate_row.append(f"{rate:.2f}%")
-        results.insert(1, rate_row)
+    else:
+        for _ in range(num_bridges):
+            rate_row.append("0.00%")
+    results.insert(1, rate_row)
 
-        streak_row = ["Chuỗi Thắng / Thua Max"]
-        for i in range(num_bridges):
-            streak_row.append(
-                f"{current_streak_k2n[i]} thắng / {max_lose_streak_k2n[i]} thua"
-            )
-        results.insert(2, streak_row)
+    streak_row = ["Chuỗi Thắng / Thua Max"]
+    for i in range(num_bridges):
+        streak_row.append(
+            f"{current_streak_k2n[i]} thắng / {max_lose_streak_k2n[i]} thua"
+        )
+    results.insert(2, streak_row)
+
+    # Calculate recent win count (last 10 periods)
+    # [FIX] Vì data_rows giờ đã có dữ liệu (kể cả khi history=False), đoạn này sẽ tính đúng
+    recent_win_row = ["Phong Độ 10 Kỳ"]
+    for i in range(num_bridges):
+        # Count wins in last 10 data rows (most recent periods)
+        recent_wins = 0
+        periods_to_check = min(10, len(data_rows))
+        for row_idx in range(periods_to_check):
+            if row_idx < len(data_rows):
+                row = data_rows[row_idx]
+                if i + 1 < len(row):
+                    cell_value = str(row[i + 1])
+                    if "✅" in cell_value:
+                        recent_wins += 1
+        recent_win_row.append(f"{recent_wins}/10")
+    results.insert(3, recent_win_row)
 
     try:
         last_data_row = allData[finalEndRow - offset]
@@ -757,7 +805,7 @@ def BACKTEST_MANAGED_BRIDGES_K2N(
                 pred = taoSTL_V30_Bong(a, b)
                 finalRow.append(f"{','.join(pred)} (Khung mới N1)")
 
-        results.insert(3, finalRow)
+        results.insert(4, finalRow)
 
         if history:
             results.extend(data_rows)
@@ -834,7 +882,7 @@ def BACKTEST_MEMORY_BRIDGES(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_t
 
     for dayData in processedData:
         if dayData["error"]:
-            data_rows.append([dayData["soKy"], "Lỗi dữ liệu hàng"])
+            data_rows.append([dayData["soKy"], "Lỗi dữ liệu hàng"] + [""] * num_algorithms)
             continue
 
         actualSoKy = dayData["soKy"]

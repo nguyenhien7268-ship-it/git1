@@ -79,19 +79,21 @@ class BridgeManagerWindow:
         # --- Cây Treeview ---
         self.tree = ttk.Treeview(
             list_frame,
-            columns=("ID", "Name", "Rate", "Streak", "Prediction"),
+            columns=("ID", "Name", "Rate", "Streak", "RecentForm", "Prediction"),
             show="headings",
         )
         self.tree.heading("ID", text="ID")
         self.tree.heading("Name", text="Tên Cầu")
         self.tree.heading("Rate", text="Tỷ Lệ K2N")
         self.tree.heading("Streak", text="Chuỗi")
+        self.tree.heading("RecentForm", text="Phong độ 10 kỳ")
         self.tree.heading("Prediction", text="Dự Đoán")
 
         self.tree.column("ID", width=40, stretch=False)
         self.tree.column("Name", width=200, stretch=True)
         self.tree.column("Rate", width=80, stretch=False)
         self.tree.column("Streak", width=60, stretch=False)
+        self.tree.column("RecentForm", width=100, stretch=False)
         self.tree.column("Prediction", width=70, stretch=False)
 
         self.tree.pack(fill=tk.BOTH, expand=True)
@@ -163,6 +165,10 @@ class BridgeManagerWindow:
                 streak_val = bridge.get("current_streak", 0)
                 max_lose_val = bridge.get("max_lose_streak_k2n", 0)
                 streak_str = f"{streak_val} (L={max_lose_val})"
+                
+                # Get recent_win_count_10 for display
+                recent_form_val = bridge.get("recent_win_count_10", 0)
+                recent_form_str = f"{recent_form_val}/10"
 
                 self.tree.insert(
                     "",
@@ -172,6 +178,7 @@ class BridgeManagerWindow:
                         bridge["name"],
                         bridge.get("win_rate_text", "N/A"),
                         streak_str,
+                        recent_form_str,
                         bridge.get("next_prediction_stl", "N/A"),
                     ),
                     tags=("enabled" if bridge["is_enabled"] else "disabled",),

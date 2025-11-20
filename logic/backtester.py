@@ -92,20 +92,23 @@ except ImportError:
 try:
     from .bridges.bridges_memory import (
         calculate_bridge_stl,
-        checkHitBridge_V28,
-        getAllBridges_Memory_FAST,
+        get_27_loto_names,
+        get_27_loto_positions,
     )
 except ImportError:
     print("Lỗi: Không thể import bridges_memory trong backtester.py")
     
-    def getAllBridges_Memory_FAST(r):
+    def calculate_bridge_stl(loto_str_1, loto_str_2, algorithm_type):
+        """Fallback function for calculate_bridge_stl"""
+        return ["00", "00"]
+    
+    def get_27_loto_names():
+        """Fallback function for get_27_loto_names"""
         return []
     
-    def checkHitBridge_V28(b, loto_set):
-        return "Lỗi"
-    
-    def calculate_bridge_stl(b):
-        return "Lỗi"
+    def get_27_loto_positions(r):
+        """Fallback function for get_27_loto_positions"""
+        return []
 
 # Import refactored modules
 from .backtester_helpers import (
@@ -201,7 +204,7 @@ def run_and_update_all_bridge_K2N_cache(
             all_data_ai, ky_bat_dau, ky_ket_thuc, history=False
         )
 
-        if not results_k2n_classic or len(results_k2n_classic) < 4:
+        if not results_k2n_classic or len(results_k2n_classic) < 5:
             return {}, 0, "Backtest K2N cổ điển không trả về kết quả đầy đủ."
 
         cache_classic, pending_classic = _parse_k2n_results(results_k2n_classic)
@@ -211,7 +214,7 @@ def run_and_update_all_bridge_K2N_cache(
             all_data_ai, ky_bat_dau, ky_ket_thuc, db_name, history=False
         )
 
-        if not results_k2n_managed or len(results_k2n_managed) < 4:
+        if not results_k2n_managed or len(results_k2n_managed) < 5:
             cache_managed, pending_managed = [], {}
         else:
             cache_managed, pending_managed = _parse_k2n_results(results_k2n_managed)

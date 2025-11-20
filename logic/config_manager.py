@@ -12,7 +12,7 @@ class AppSettings:
     """
 
     def __init__(self):
-        # Giá trị mặc định (ĐÃ THÊM AI_LEARNING_RATE, AI_OBJECTIVE)
+        # Giá trị mặc định (ĐÃ THÊM AI_LEARNING_RATE, AI_OBJECTIVE, RECENT_FORM)
         self.defaults = {
             "STATS_DAYS": 7,
             "GAN_DAYS": 15,
@@ -27,6 +27,13 @@ class AppSettings:
             "AI_LEARNING_RATE": 0.1,  # MỚI: Learning Rate cho GBM
             "AI_OBJECTIVE": "binary:logistic",  # MỚI: Objective cho XGBoost/LightGBM
             "AI_SCORE_WEIGHT": 0.2,
+            "RECENT_FORM_PERIODS": 10,
+            "RECENT_FORM_BONUS_HIGH": 3.0,
+            "RECENT_FORM_BONUS_MED": 2.0,
+            "RECENT_FORM_BONUS_LOW": 1.0,
+            "RECENT_FORM_MIN_HIGH": 8,
+            "RECENT_FORM_MIN_MED": 6,
+            "RECENT_FORM_MIN_LOW": 5,
         }
 
         # Tải cài đặt
@@ -65,7 +72,7 @@ class AppSettings:
             self.save_settings(log=False)
 
     def save_settings(self, log=True):
-        """Lưu cài đặt hiện tại vào file JSON. (ĐÃ THÊM AI_LEARNING_RATE, AI_OBJECTIVE)"""
+        """Lưu cài đặt hiện tại vào file JSON. (ĐÃ THÊM AI_LEARNING_RATE, AI_OBJECTIVE, RECENT_FORM)"""
         try:
             settings_to_save = {
                 "STATS_DAYS": self.STATS_DAYS,
@@ -81,6 +88,13 @@ class AppSettings:
                 "AI_LEARNING_RATE": self.AI_LEARNING_RATE,
                 "AI_OBJECTIVE": self.AI_OBJECTIVE,
                 "AI_SCORE_WEIGHT": self.AI_SCORE_WEIGHT,
+                "RECENT_FORM_PERIODS": self.RECENT_FORM_PERIODS,
+                "RECENT_FORM_BONUS_HIGH": self.RECENT_FORM_BONUS_HIGH,
+                "RECENT_FORM_BONUS_MED": self.RECENT_FORM_BONUS_MED,
+                "RECENT_FORM_BONUS_LOW": self.RECENT_FORM_BONUS_LOW,
+                "RECENT_FORM_MIN_HIGH": self.RECENT_FORM_MIN_HIGH,
+                "RECENT_FORM_MIN_MED": self.RECENT_FORM_MIN_MED,
+                "RECENT_FORM_MIN_LOW": self.RECENT_FORM_MIN_LOW,
             }
             with open(CONFIG_FILE, "w", encoding="utf-8") as f:
                 json.dump(settings_to_save, f, indent=4)
@@ -95,7 +109,7 @@ class AppSettings:
             return False, f"Lỗi khi lưu file: {e}"
 
     def _update_class_attributes(self):
-        """Cập nhật các thuộc tính của lớp từ dict đã tải. (ĐÃ THÊM AI_LEARNING_RATE, AI_OBJECTIVE)"""
+        """Cập nhật các thuộc tính của lớp từ dict đã tải. (ĐÃ THÊM AI_LEARNING_RATE, AI_OBJECTIVE, RECENT_FORM)"""
         self.STATS_DAYS = int(self.settings.get("STATS_DAYS", 7))
         self.GAN_DAYS = int(self.settings.get("GAN_DAYS", 15))
         self.HIGH_WIN_THRESHOLD = float(self.settings.get("HIGH_WIN_THRESHOLD", 47.0))
@@ -115,9 +129,16 @@ class AppSettings:
             self.settings.get("AI_OBJECTIVE", "binary:logistic")
         )  # MỚI
         self.AI_SCORE_WEIGHT = float(self.settings.get("AI_SCORE_WEIGHT", 0.2))
+        self.RECENT_FORM_PERIODS = int(self.settings.get("RECENT_FORM_PERIODS", 10))
+        self.RECENT_FORM_BONUS_HIGH = float(self.settings.get("RECENT_FORM_BONUS_HIGH", 3.0))
+        self.RECENT_FORM_BONUS_MED = float(self.settings.get("RECENT_FORM_BONUS_MED", 2.0))
+        self.RECENT_FORM_BONUS_LOW = float(self.settings.get("RECENT_FORM_BONUS_LOW", 1.0))
+        self.RECENT_FORM_MIN_HIGH = int(self.settings.get("RECENT_FORM_MIN_HIGH", 8))
+        self.RECENT_FORM_MIN_MED = int(self.settings.get("RECENT_FORM_MIN_MED", 6))
+        self.RECENT_FORM_MIN_LOW = int(self.settings.get("RECENT_FORM_MIN_LOW", 5))
 
     def get_all_settings(self):
-        """Trả về một dict của các cài đặt hiện tại (để UI sử dụng). (ĐÃ THÊM AI_LEARNING_RATE, AI_OBJECTIVE)"""
+        """Trả về một dict của các cài đặt hiện tại (để UI sử dụng). (ĐÃ THÊM AI_LEARNING_RATE, AI_OBJECTIVE, RECENT_FORM)"""
         return {
             "STATS_DAYS": self.STATS_DAYS,
             "GAN_DAYS": self.GAN_DAYS,
@@ -132,6 +153,13 @@ class AppSettings:
             "AI_LEARNING_RATE": self.AI_LEARNING_RATE,  # MỚI
             "AI_OBJECTIVE": self.AI_OBJECTIVE,  # MỚI
             "AI_SCORE_WEIGHT": self.AI_SCORE_WEIGHT,
+            "RECENT_FORM_PERIODS": self.RECENT_FORM_PERIODS,
+            "RECENT_FORM_BONUS_HIGH": self.RECENT_FORM_BONUS_HIGH,
+            "RECENT_FORM_BONUS_MED": self.RECENT_FORM_BONUS_MED,
+            "RECENT_FORM_BONUS_LOW": self.RECENT_FORM_BONUS_LOW,
+            "RECENT_FORM_MIN_HIGH": self.RECENT_FORM_MIN_HIGH,
+            "RECENT_FORM_MIN_MED": self.RECENT_FORM_MIN_MED,
+            "RECENT_FORM_MIN_LOW": self.RECENT_FORM_MIN_LOW,
         }
 
     def update_setting(self, key, value):

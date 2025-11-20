@@ -1,12 +1,12 @@
 # Tên file: git3/ui/ui_settings.py
 #
-# (NỘI DUNG THAY THẾ TOÀN BỘ - SỬA W503)
+# (NỘI DUNG THAY THẾ TOÀN BỘ - CẬP NHẬT NHÃN HIỂN THỊ CHO ĐÚNG LOGIC MỚI)
 #
 import tkinter as tk
 import traceback
 from tkinter import messagebox, ttk
 
-# (MỚI GĐ 8) Import SETTINGS từ file config_manager
+# Import SETTINGS từ file config_manager
 try:
     from logic.config_manager import SETTINGS
 except ImportError:
@@ -22,8 +22,8 @@ except ImportError:
                 "HIGH_WIN_THRESHOLD": 47.0,
                 "AUTO_ADD_MIN_RATE": 50.0,
                 "AUTO_PRUNE_MIN_RATE": 40.0,
-                "K2N_RISK_START_THRESHOLD": 4,
-                "K2N_RISK_PENALTY_PER_FRAME": 0.5,
+                "K2N_RISK_START_THRESHOLD": 6,
+                "K2N_RISK_PENALTY_PER_FRAME": 1.0,
                 "AI_PROB_THRESHOLD": 45.0,
                 "AI_MAX_DEPTH": 6,
                 "AI_N_ESTIMATORS": 200,
@@ -40,7 +40,7 @@ except ImportError:
 
 class SettingsWindow:
     """
-    (MỚI GĐ 8) Cửa sổ Toplevel để quản lý file config.json.
+    Cửa sổ Toplevel để quản lý file config.json.
     """
 
     def __init__(self, app):
@@ -56,13 +56,12 @@ class SettingsWindow:
             self.app.settings_window.window.lift()
             return
 
-        # (SỬA) Thay app.update_output bằng app.logger.log
         self.app.logger.log("Đang mở cửa sổ Cài đặt...")
 
         self.window = tk.Toplevel(self.root)
         self.app.settings_window = self  # Gán lại vào app chính
         self.window.title("Cài đặt Hệ thống")
-        self.window.geometry("550x450")  # (Cập nhật kích thước)
+        self.window.geometry("550x500")  # Tăng chiều cao một chút
 
         main_frame = ttk.Frame(self.window, padding="10")
         main_frame.pack(expand=True, fill=tk.BOTH)
@@ -99,7 +98,6 @@ class SettingsWindow:
                     ),
                 ],
             ),
-            # --- START NEW GROUP ---
             (
                 "Cài đặt Mô hình AI (XGBoost V7.1)",
                 [
@@ -125,7 +123,6 @@ class SettingsWindow:
                     ),
                 ],
             ),
-            # --- END NEW GROUP ---
             (
                 "Tự động Dò Cầu",
                 [
@@ -147,12 +144,53 @@ class SettingsWindow:
                     (
                         "K2N_RISK_START_THRESHOLD",
                         "Ngưỡng bắt đầu phạt (khung)",
-                        "Bắt đầu trừ điểm nếu Chuỗi Thua Max > X (ví dụ: 4).",
+                        "Bắt đầu trừ điểm nếu Chuỗi Thua Max > X (ví dụ: 6).",
                     ),
+                    # (SỬA ĐỔI NHÃN HIỂN THỊ CHO ĐÚNG LOGIC MỚI)
                     (
                         "K2N_RISK_PENALTY_PER_FRAME",
-                        "Điểm phạt / khung thua",
-                        "Trừ X điểm cho mỗi khung thua vượt ngưỡng (ví dụ: 0.5).",
+                        "Điểm phạt CỐ ĐỊNH",
+                        "Trừ X điểm cố định 1 lần nếu cầu vượt ngưỡng rủi ro (ví dụ: 1.0).",
+                    ),
+                ],
+            ),
+            (
+                "Chấm Điểm Phong Độ",
+                [
+                    (
+                        "RECENT_FORM_PERIODS",
+                        "Số kỳ xét phong độ",
+                        "Xét phong độ trong X kỳ gần nhất (ví dụ: 10).",
+                    ),
+                    (
+                        "RECENT_FORM_MIN_HIGH",
+                        "Ngưỡng phong độ rất cao",
+                        "Số lần ăn tối thiểu cho phong độ rất cao (ví dụ: 8).",
+                    ),
+                    (
+                        "RECENT_FORM_BONUS_HIGH",
+                        "Điểm thưởng phong độ rất cao",
+                        "Điểm cộng cho phong độ rất cao (ví dụ: 3.0).",
+                    ),
+                    (
+                        "RECENT_FORM_MIN_MED",
+                        "Ngưỡng phong độ tốt",
+                        "Số lần ăn tối thiểu cho phong độ tốt (ví dụ: 6).",
+                    ),
+                    (
+                        "RECENT_FORM_BONUS_MED",
+                        "Điểm thưởng phong độ tốt",
+                        "Điểm cộng cho phong độ tốt (ví dụ: 2.0).",
+                    ),
+                    (
+                        "RECENT_FORM_MIN_LOW",
+                        "Ngưỡng phong độ ổn",
+                        "Số lần ăn tối thiểu cho phong độ ổn (ví dụ: 5).",
+                    ),
+                    (
+                        "RECENT_FORM_BONUS_LOW",
+                        "Điểm thưởng phong độ ổn",
+                        "Điểm cộng cho phong độ ổn (ví dụ: 1.0).",
                     ),
                 ],
             ),
@@ -182,7 +220,10 @@ class SettingsWindow:
                     row=current_row, column=0, sticky="w", padx=5, pady=3
                 )
 
-                entry_var = tk.StringVar(value=current_settings.get(key, ""))
+                # Lấy giá trị hiện tại
+                val = current_settings.get(key, "")
+                entry_var = tk.StringVar(value=str(val))
+                
                 entry_widget = ttk.Entry(main_frame, textvariable=entry_var)
                 entry_widget.grid(
                     row=current_row, column=1, sticky="ew", padx=5, pady=3

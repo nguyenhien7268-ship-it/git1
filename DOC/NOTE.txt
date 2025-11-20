@@ -1,4 +1,4 @@
-pip install pandas matplotlib seaborn scikit-learn joblib
+pip install pandas matplotlib seaborn scikit-learn joblib xgboost
 
  git config --global user.email "nguyenhien7268@gmail.com"
 
@@ -14,7 +14,8 @@ git lfs install
 Clone code: Khi bạn clone dự án của mình về, Git LFS sẽ tự động nhận diện file .gitattributes trong kho chứa và tải các file lớn (.joblib, .db) về đúng cách.
 
 Bash
-
+pip install -r requirements.txt
+git clone -b copilot/fix-logic-errors-in-app https://github.com/nguyenhien7268-ship-it/git1 code1
 git clone -b ten-nhanh-backup https://github.com/nguyenhien7268-ship-it/git1 du-an-backup
 git clone [URL_GitHub_của_bạn]
 https://github.com/nguyenhien7268-ship-it/git1
