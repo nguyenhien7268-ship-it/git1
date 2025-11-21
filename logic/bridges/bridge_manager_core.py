@@ -458,6 +458,72 @@ def prune_bad_bridges(all_data_ai, db_name=DB_NAME):
     return f"Lọc cầu hoàn tất. Đã TẮT {disabled_count} cầu yếu (Tỷ lệ K2N < {AUTO_PRUNE_MIN_RATE}%)."
 
 
+def auto_manage_bridges(all_data_ai, db_name=DB_NAME):
+    """
+    (MỚI) Tự động BẬT/TẮT cầu dựa trên tỷ lệ K2N:
+    - BẬT cầu có tỷ lệ >= AUTO_ADD_MIN_RATE (50%)
+    - TẮT cầu có tỷ lệ < AUTO_PRUNE_MIN_RATE (40%)
+    """
+    try:
+        AUTO_ADD_MIN_RATE = SETTINGS.AUTO_ADD_MIN_RATE
+        AUTO_PRUNE_MIN_RATE = SETTINGS.AUTO_PRUNE_MIN_RATE
+    except Exception as e_cfg:
+        print(f"Lỗi đọc config: {e_cfg}. Dùng giá trị mặc định.")
+        AUTO_ADD_MIN_RATE = 50.0
+        AUTO_PRUNE_MIN_RATE = 40.0
+
+    enabled_count = 0
+    disabled_count = 0
+
+    # Lấy TẤT CẢ cầu (cả enabled và disabled)
+    try:
+        all_bridges = get_all_managed_bridges(db_name, only_enabled=False)
+        if not all_bridges:
+            return "Lỗi: Không có cầu nào trong database."
+    except Exception as e_db:
+        return f"Lỗi DB khi tải Cầu Đã Lưu: {e_db}"
+
+    print(f"... (Quản Lý Tự Động) Đang kiểm tra {len(all_bridges)} cầu...")
+
+    for bridge in all_bridges:
+        try:
+            bridge_name = bridge["name"]
+            bridge_id = bridge["id"]
+            is_currently_enabled = bridge["is_enabled"]
+            old_desc = bridge["description"]
+
+            # Đọc tỷ lệ từ cache K2N
+            win_rate_str = str(bridge.get("win_rate_text", "0%")).replace("%", "")
+
+            if not win_rate_str or win_rate_str == "N/A":
+                continue
+
+            win_rate = float(win_rate_str)
+
+            # Quyết định BẬT hay TẮT
+            should_enable = win_rate >= AUTO_ADD_MIN_RATE
+            should_disable = win_rate < AUTO_PRUNE_MIN_RATE
+
+            # BẬT cầu tốt đang TẮT
+            if should_enable and not is_currently_enabled:
+                update_managed_bridge(bridge_id, old_desc, 1, db_name)
+                enabled_count += 1
+
+            # TẮT cầu yếu đang BẬT
+            elif should_disable and is_currently_enabled:
+                update_managed_bridge(bridge_id, old_desc, 0, db_name)
+                disabled_count += 1
+
+        except Exception as e_row:
+            print(f"Lỗi xử lý cầu: {bridge.get('name', 'Unknown')}, Lỗi: {e_row}")
+
+    return (
+        f"Quản lý tự động hoàn tất.\n"
+        f"✅ Đã BẬT {enabled_count} cầu tốt (Tỷ lệ >= {AUTO_ADD_MIN_RATE}%)\n"
+        f"❌ Đã TẮT {disabled_count} cầu yếu (Tỷ lệ < {AUTO_PRUNE_MIN_RATE}%)"
+    )
+
+
 # ===================================================================================
 # IV. HÀM NẠP 756 CẦU BẠC NHỚ (GIAI ĐOẠN 2)
 # ===================================================================================

@@ -80,6 +80,7 @@ try:
     from logic.bridges.bridge_manager_core import (
         TIM_CAU_BAC_NHO_TOT_NHAT,
         TIM_CAU_TOT_NHAT_V16,
+        auto_manage_bridges,
         find_and_auto_manage_bridges,
         prune_bad_bridges,
     )
@@ -165,9 +166,10 @@ __all__ = [
     "TONGHOP_TOP_CAU_RATE_V5",
     "run_and_update_all_bridge_K2N_cache",
     "run_and_update_all_bridge_rates",
-    # Bridge Manager (4)
+    # Bridge Manager (5)
     "TIM_CAU_BAC_NHO_TOT_NHAT",
     "TIM_CAU_TOT_NHAT_V16",
+    "auto_manage_bridges",
     "find_and_auto_manage_bridges",
     "prune_bad_bridges",
     # Dashboard (7)

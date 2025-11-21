@@ -33,6 +33,7 @@ try:
         load_data_ai_from_db,
         parse_and_APPEND_data,
         parse_and_insert_data,
+        auto_manage_bridges,
         prune_bad_bridges,
         run_ai_prediction_for_dashboard,
         run_ai_training_threaded,
@@ -421,6 +422,26 @@ class AppController:
             return
 
         result_message = prune_bad_bridges(toan_bo_A_I, self.db_name)
+
+        self.logger.log(f">>> {title} HOÀN TẤT:")
+        self.logger.log(result_message)
+
+        if (
+            self.app.bridge_manager_window
+            and self.app.bridge_manager_window.winfo_exists()
+        ):
+            self.logger.log("Đang tự động làm mới cửa sổ Quản lý Cầu...")
+            self.root_after(
+                0, self.app.bridge_manager_window_instance.refresh_bridge_list
+            )
+
+    def task_run_auto_manage_bridges(self, title):
+        """Tự động BẬT/TẮT cầu dựa trên tỷ lệ K2N."""
+        toan_bo_A_I = self.load_data_ai_from_db_controller()
+        if not toan_bo_A_I:
+            return
+
+        result_message = auto_manage_bridges(toan_bo_A_I, self.db_name)
 
         self.logger.log(f">>> {title} HOÀN TẤT:")
         self.logger.log(result_message)

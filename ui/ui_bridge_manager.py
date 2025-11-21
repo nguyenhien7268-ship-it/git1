@@ -76,12 +76,31 @@ class BridgeManagerWindow:
         details_frame.grid(row=0, column=1, sticky="nswe")
         details_frame.columnconfigure(1, weight=1)
 
-        # --- Cây Treeview ---
+        # --- Cây Treeview với Scrollbar ---
+        # Create frame for treeview and scrollbar
+        tree_frame = ttk.Frame(list_frame)
+        tree_frame.pack(fill=tk.BOTH, expand=True)
+
+        # Vertical scrollbar
+        tree_scroll = ttk.Scrollbar(tree_frame, orient="vertical")
+        tree_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+
+        # Horizontal scrollbar
+        tree_scroll_h = ttk.Scrollbar(tree_frame, orient="horizontal")
+        tree_scroll_h.pack(side=tk.BOTTOM, fill=tk.X)
+
         self.tree = ttk.Treeview(
-            list_frame,
+            tree_frame,
             columns=("ID", "Name", "Rate", "Streak", "RecentForm", "Prediction"),
             show="headings",
+            yscrollcommand=tree_scroll.set,
+            xscrollcommand=tree_scroll_h.set,
         )
+
+        # Configure scrollbars
+        tree_scroll.config(command=self.tree.yview)
+        tree_scroll_h.config(command=self.tree.xview)
+
         self.tree.heading("ID", text="ID")
         self.tree.heading("Name", text="Tên Cầu")
         self.tree.heading("Rate", text="Tỷ Lệ K2N")
@@ -96,7 +115,7 @@ class BridgeManagerWindow:
         self.tree.column("RecentForm", width=100, stretch=False)
         self.tree.column("Prediction", width=70, stretch=False)
 
-        self.tree.pack(fill=tk.BOTH, expand=True)
+        self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
         # Nút Xóa
         delete_button = ttk.Button(

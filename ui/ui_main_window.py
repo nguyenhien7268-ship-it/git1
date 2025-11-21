@@ -255,6 +255,14 @@ class DataAnalysisApp:
         self.auto_prune_bridges_button.grid(
             row=0, column=2, sticky="ew", padx=5, pady=5
         )
+        self.auto_manage_bridges_button = ttk.Button(
+            manage_frame,
+            text="🔄 Quản Lý Cầu Tự Động (Bật+Tắt)",
+            command=self.run_auto_manage_bridges,
+        )
+        self.auto_manage_bridges_button.grid(
+            row=1, column=1, sticky="ew", padx=5, pady=5
+        )
         self.settings_button = ttk.Button(
             manage_frame, text="⚙️ Cài đặt Tham số...", command=self.show_settings_window
         )
@@ -330,6 +338,7 @@ class DataAnalysisApp:
             self.manage_bridges_button,
             self.auto_find_bridges_button,
             self.auto_prune_bridges_button,
+            self.auto_manage_bridges_button,
             self.settings_button,
             self.tuner_button,
             self.train_ai_button,
@@ -477,6 +486,22 @@ class DataAnalysisApp:
             f"Các cầu có Tỷ lệ < {auto_prune_rate}% sẽ bị TẮT (vô hiệu hóa)..."
         )
         self.task_manager.run_task(self.controller.task_run_auto_prune_bridges, title)
+
+    def run_auto_manage_bridges(self):
+        title = "Quản Lý Cầu Tự Động (BẬT/TẮT)"
+        self.logger.log(f"\n--- Bắt đầu: {title} ---")
+        try:
+            auto_add_rate = SETTINGS.AUTO_ADD_MIN_RATE
+            auto_prune_rate = SETTINGS.AUTO_PRUNE_MIN_RATE
+        except Exception:
+            auto_add_rate = 50.0
+            auto_prune_rate = 40.0
+        self.logger.log("Đang kiểm tra cache K2N của TẤT CẢ Cầu Đã Lưu...")
+        self.logger.log(
+            f"✅ Cầu có Tỷ lệ >= {auto_add_rate}% sẽ được BẬT\n"
+            f"❌ Cầu có Tỷ lệ < {auto_prune_rate}% sẽ bị TẮT"
+        )
+        self.task_manager.run_task(self.controller.task_run_auto_manage_bridges, title)
 
     def run_train_ai(self):
         title = "Huấn luyện Mô hình AI (V6.0)"
