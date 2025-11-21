@@ -11,11 +11,26 @@ try:
     from logic.config_manager import SETTINGS
 except ImportError:
     print("LỖI: ui_dashboard.py không thể import logic.config_manager...")
-    SETTINGS = type(
-        "obj",
-        (object,),
-        {"GAN_DAYS": 15, "HIGH_WIN_THRESHOLD": 47.0, "K2N_RISK_START_THRESHOLD": 4},
-    )
+    
+    class FallbackSettings:
+        """Fallback settings when config_manager import fails"""
+        GAN_DAYS = 15
+        HIGH_WIN_THRESHOLD = 47.0
+        K2N_RISK_START_THRESHOLD = 4
+        FILTER_ENABLED = False
+        FILTER_MIN_CONFIDENCE = 0
+        FILTER_MIN_AI_PROB = 0
+        
+        def save_settings(self):
+            """Dummy save method for fallback"""
+            print("WARNING: Cannot save settings - config_manager not available")
+            return True, "Fallback mode"
+    
+    SETTINGS = FallbackSettings()
+
+# Enhancement 4: Filter threshold constants
+FILTER_CONFIDENCE_THRESHOLD = 4  # Minimum confidence stars
+FILTER_AI_PROB_THRESHOLD = 50  # Minimum AI probability %
 
 # Import DB Logic để lấy dữ liệu cầu
 try:
@@ -125,10 +140,12 @@ class DashboardWindow(ttk.Frame):
         conf_frame = ttk.Frame(filter_frame)
         conf_frame.pack(side=tk.LEFT, padx=5)
         
-        self.filter_confidence_var = tk.BooleanVar(value=SETTINGS.FILTER_MIN_CONFIDENCE >= 4)
+        self.filter_confidence_var = tk.BooleanVar(
+            value=SETTINGS.FILTER_MIN_CONFIDENCE >= FILTER_CONFIDENCE_THRESHOLD
+        )
         conf_check = ttk.Checkbutton(
             conf_frame,
-            text="Chỉ hiện ≥4⭐",
+            text=f"Chỉ hiện ≥{FILTER_CONFIDENCE_THRESHOLD}⭐",
             variable=self.filter_confidence_var,
             command=self._on_filter_changed
         )
@@ -138,10 +155,12 @@ class DashboardWindow(ttk.Frame):
         ai_frame = ttk.Frame(filter_frame)
         ai_frame.pack(side=tk.LEFT, padx=5)
         
-        self.filter_ai_var = tk.BooleanVar(value=SETTINGS.FILTER_MIN_AI_PROB >= 50)
+        self.filter_ai_var = tk.BooleanVar(
+            value=SETTINGS.FILTER_MIN_AI_PROB >= FILTER_AI_PROB_THRESHOLD
+        )
         ai_check = ttk.Checkbutton(
             ai_frame,
-            text="Chỉ hiện AI ≥50%",
+            text=f"Chỉ hiện AI ≥{FILTER_AI_PROB_THRESHOLD}%",
             variable=self.filter_ai_var,
             command=self._on_filter_changed
         )
@@ -151,8 +170,12 @@ class DashboardWindow(ttk.Frame):
         """Handle filter checkbox changes"""
         # Update SETTINGS
         SETTINGS.FILTER_ENABLED = self.filter_enabled_var.get()
-        SETTINGS.FILTER_MIN_CONFIDENCE = 4 if self.filter_confidence_var.get() else 0
-        SETTINGS.FILTER_MIN_AI_PROB = 50 if self.filter_ai_var.get() else 0
+        SETTINGS.FILTER_MIN_CONFIDENCE = (
+            FILTER_CONFIDENCE_THRESHOLD if self.filter_confidence_var.get() else 0
+        )
+        SETTINGS.FILTER_MIN_AI_PROB = (
+            FILTER_AI_PROB_THRESHOLD if self.filter_ai_var.get() else 0
+        )
         
         # Save preferences
         SETTINGS.save_settings()
