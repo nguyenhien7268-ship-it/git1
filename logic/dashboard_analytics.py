@@ -798,7 +798,7 @@ def get_top_scored_pairs(
                             pair_key = _standardize_pair([loto1, loto2])
                             if pair_key:
                                 recent_pairs_3.add(pair_key)
-                except:
+                except Exception:
                     pass
             
             for row in last_7:
@@ -809,7 +809,7 @@ def get_top_scored_pairs(
                             pair_key = _standardize_pair([loto1, loto2])
                             if pair_key:
                                 recent_pairs_7.add(pair_key)
-                except:
+                except Exception:
                     pass
             
             # Apply bonus to scored pairs
@@ -818,11 +818,17 @@ def get_top_scored_pairs(
                     # +2.0 bonus for appearing in last 3 periods
                     scores[pair_key]["score"] += 2.0
                     scores[pair_key]["reasons"].append("Về 3kỳ (+2.0)")
+                    # Initialize sources if not present
+                    if "sources" not in scores[pair_key]:
+                        scores[pair_key]["sources"] = 0
                     scores[pair_key]["sources"] += 1
                 elif pair_key in recent_pairs_7:
                     # +1.0 bonus for appearing in last 7 periods
                     scores[pair_key]["score"] += 1.0
                     scores[pair_key]["reasons"].append("Về 7kỳ (+1.0)")
+                    # Initialize sources if not present
+                    if "sources" not in scores[pair_key]:
+                        scores[pair_key]["sources"] = 0
                     scores[pair_key]["sources"] += 1
 
         # --- 6. Định dạng lại và Sắp xếp (IMPROVED: Thêm confidence score) ---
