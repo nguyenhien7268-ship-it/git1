@@ -47,6 +47,9 @@ class DashboardWindow(ttk.Frame):
         )
         self.title_label.pack(side=tk.LEFT, padx=(0, 20))
 
+        # Enhancement 4: Smart Filtering controls
+        self._create_filter_controls()
+
         self.refresh_button = ttk.Button(
             self.header_frame, text="Làm Mới Dữ Liệu", command=self.refresh_data
         )
@@ -102,6 +105,61 @@ class DashboardWindow(ttk.Frame):
     # ===================================================================================
     # CÁC HÀM TẠO UI
     # ===================================================================================
+
+    def _create_filter_controls(self):
+        """Enhancement 4: Create smart filtering controls"""
+        filter_frame = ttk.Frame(self.header_frame)
+        filter_frame.pack(side=tk.RIGHT, padx=(10, 10))
+
+        # Filter enabled checkbox
+        self.filter_enabled_var = tk.BooleanVar(value=SETTINGS.FILTER_ENABLED)
+        filter_check = ttk.Checkbutton(
+            filter_frame,
+            text="Lọc thông minh",
+            variable=self.filter_enabled_var,
+            command=self._on_filter_changed
+        )
+        filter_check.pack(side=tk.LEFT, padx=5)
+
+        # Min confidence filter
+        conf_frame = ttk.Frame(filter_frame)
+        conf_frame.pack(side=tk.LEFT, padx=5)
+        
+        self.filter_confidence_var = tk.BooleanVar(value=SETTINGS.FILTER_MIN_CONFIDENCE >= 4)
+        conf_check = ttk.Checkbutton(
+            conf_frame,
+            text="Chỉ hiện ≥4⭐",
+            variable=self.filter_confidence_var,
+            command=self._on_filter_changed
+        )
+        conf_check.pack()
+
+        # Min AI probability filter
+        ai_frame = ttk.Frame(filter_frame)
+        ai_frame.pack(side=tk.LEFT, padx=5)
+        
+        self.filter_ai_var = tk.BooleanVar(value=SETTINGS.FILTER_MIN_AI_PROB >= 50)
+        ai_check = ttk.Checkbutton(
+            ai_frame,
+            text="Chỉ hiện AI ≥50%",
+            variable=self.filter_ai_var,
+            command=self._on_filter_changed
+        )
+        ai_check.pack()
+
+    def _on_filter_changed(self):
+        """Handle filter checkbox changes"""
+        # Update SETTINGS
+        SETTINGS.FILTER_ENABLED = self.filter_enabled_var.get()
+        SETTINGS.FILTER_MIN_CONFIDENCE = 4 if self.filter_confidence_var.get() else 0
+        SETTINGS.FILTER_MIN_AI_PROB = 50 if self.filter_ai_var.get() else 0
+        
+        # Save preferences
+        SETTINGS.save_settings()
+        
+        # Refresh data to apply filters
+        if hasattr(self.app, 'refresh_dashboard'):
+            self.app.refresh_dashboard()
 
     def _create_top_scores_ui(self, parent_frame):
         self.top_scores_frame = ttk.Labelframe(
@@ -303,6 +361,34 @@ class DashboardWindow(ttk.Frame):
 
     # --- HÀM NẠP DỮ LIỆU ---
 
+    def _apply_filters(self, top_scores):
+        """Enhancement 4: Apply smart filters to top scores"""
+        if not top_scores:
+            return top_scores
+        
+        # If filtering is not enabled, return all scores
+        if not SETTINGS.FILTER_ENABLED:
+            return top_scores
+        
+        filtered = []
+        min_confidence = SETTINGS.FILTER_MIN_CONFIDENCE
+        min_ai_prob = SETTINGS.FILTER_MIN_AI_PROB / 100.0  # Convert to 0-1 range
+        
+        for item in top_scores:
+            # Check confidence filter (number of sources)
+            sources = item.get("sources", 0)
+            if min_confidence > 0 and sources < min_confidence:
+                continue
+            
+            # Check AI probability filter
+            ai_prob = item.get("ai_probability", 0.0)
+            if min_ai_prob > 0 and ai_prob < min_ai_prob:
+                continue
+            
+            filtered.append(item)
+        
+        return filtered
+
     def clear_data(self):
         self.title_label.config(text="Đang tải...")
         for tree in [
@@ -341,8 +427,11 @@ class DashboardWindow(ttk.Frame):
                 text=f"Bảng Quyết Định Tối Ưu - {next_ky} (Cập nhật: {today})"
             )
 
+            # Enhancement 4: Apply smart filters if enabled
+            filtered_top_scores = self._apply_filters(top_scores)
+
             # Nạp Bảng 1: Chấm Điểm
-            self._populate_top_scores(top_scores)
+            self._populate_top_scores(filtered_top_scores)
 
             # Nạp Bảng 2: Cầu K2N Đang Chờ
             self._populate_pending_k2n(pending_k2n)

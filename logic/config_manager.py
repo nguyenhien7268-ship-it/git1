@@ -39,6 +39,10 @@ class AppSettings:
             "VOTE_SCORE_WEIGHT": 0.5,  # MỚI: Trọng số vote với decay
             "HIGH_WIN_SCORE_BONUS": 2.5,  # IMPROVED: Tăng từ 2.0 → 2.5
             "K2N_RISK_PROGRESSIVE": True,  # MỚI: Bật progressive penalty
+            # Enhancement 4: Smart Filtering preferences
+            "FILTER_MIN_CONFIDENCE": 0,  # MỚI: Minimum confidence stars (0-7)
+            "FILTER_MIN_AI_PROB": 0,  # MỚI: Minimum AI probability % (0-100)
+            "FILTER_ENABLED": False,  # MỚI: Whether filtering is enabled
         }
 
         # Tải cài đặt
@@ -105,6 +109,9 @@ class AppSettings:
                 "VOTE_SCORE_WEIGHT": self.VOTE_SCORE_WEIGHT,
                 "HIGH_WIN_SCORE_BONUS": self.HIGH_WIN_SCORE_BONUS,
                 "K2N_RISK_PROGRESSIVE": self.K2N_RISK_PROGRESSIVE,
+                "FILTER_MIN_CONFIDENCE": self.FILTER_MIN_CONFIDENCE,
+                "FILTER_MIN_AI_PROB": self.FILTER_MIN_AI_PROB,
+                "FILTER_ENABLED": self.FILTER_ENABLED,
             }
             with open(CONFIG_FILE, "w", encoding="utf-8") as f:
                 json.dump(settings_to_save, f, indent=4)
@@ -151,6 +158,9 @@ class AppSettings:
         self.VOTE_SCORE_WEIGHT = float(self.settings.get("VOTE_SCORE_WEIGHT", 0.5))
         self.HIGH_WIN_SCORE_BONUS = float(self.settings.get("HIGH_WIN_SCORE_BONUS", 2.5))
         self.K2N_RISK_PROGRESSIVE = bool(self.settings.get("K2N_RISK_PROGRESSIVE", True))
+        self.FILTER_MIN_CONFIDENCE = int(self.settings.get("FILTER_MIN_CONFIDENCE", 0))
+        self.FILTER_MIN_AI_PROB = int(self.settings.get("FILTER_MIN_AI_PROB", 0))
+        self.FILTER_ENABLED = bool(self.settings.get("FILTER_ENABLED", False))
 
     def get_all_settings(self):
         """Trả về một dict của các cài đặt hiện tại (để UI sử dụng). (ĐÃ THÊM AI_LEARNING_RATE, AI_OBJECTIVE, RECENT_FORM)"""
@@ -180,6 +190,9 @@ class AppSettings:
             "VOTE_SCORE_WEIGHT": self.VOTE_SCORE_WEIGHT,
             "HIGH_WIN_SCORE_BONUS": self.HIGH_WIN_SCORE_BONUS,
             "K2N_RISK_PROGRESSIVE": self.K2N_RISK_PROGRESSIVE,
+            "FILTER_MIN_CONFIDENCE": self.FILTER_MIN_CONFIDENCE,
+            "FILTER_MIN_AI_PROB": self.FILTER_MIN_AI_PROB,
+            "FILTER_ENABLED": self.FILTER_ENABLED,
         }
 
     def update_setting(self, key, value):
