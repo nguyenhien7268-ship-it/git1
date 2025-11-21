@@ -42,14 +42,19 @@ def _get_loto_gan_history(all_data_ai):
     """
     Nội bộ: Tính toán lịch sử gan (số ngày chưa về) cho TẤT CẢ loto TẤT CẢ các ngày.
     Rất nặng, chỉ chạy khi huấn luyện.
-    Trả về: { 'ky_str': {'00': 0, '01': 5, ...}, ... }
+    (V7.7 Phase 2) Also calculates change in gan for F14 feature.
+    Trả về:
+        gan_history_map: { 'ky_str': {'00': 0, '01': 5, ...}, ... }
+        gan_change_map: { 'ky_str': {'00': 0, '01': 1, ...}, ... }
     """
     print("... (AI Train) Bắt đầu tính toán Lịch sử Lô Gan (nặng)...")
     gan_history_map = {}
+    gan_change_map = {}
     current_gan = {loto: 0 for loto in ALL_LOTOS}
+    prev_gan = {loto: 0 for loto in ALL_LOTOS}
 
     # Bỏ qua ngày đầu tiên (không có gì để tính)
-    for row in all_data_ai[1:]:
+    for idx, row in enumerate(all_data_ai[1:], start=1):
         ky_str = str(row[0])
         lotos_this_row = set(getAllLoto_V30(row))
 
@@ -63,9 +68,19 @@ def _get_loto_gan_history(all_data_ai):
         # 2. Lưu trữ bản sao của gan (để dùng cho ngày MAI)
         # (Vì dự đoán cho ngày mai dựa trên gan của ngày hôm nay)
         gan_history_map[ky_str] = current_gan.copy()
+        
+        # (V7.7 Phase 2: F14) Calculate change in gan
+        # Change = current_gan - prev_gan
+        gan_change = {}
+        for loto in ALL_LOTOS:
+            gan_change[loto] = current_gan[loto] - prev_gan[loto]
+        gan_change_map[ky_str] = gan_change
+        
+        # Update prev_gan for next iteration
+        prev_gan = current_gan.copy()
 
     print(f"... (AI Train) Đã tính xong Lịch sử Lô Gan ({len(gan_history_map)} ngày).")
-    return gan_history_map
+    return gan_history_map, gan_change_map
 
 
 # ===================================================================
@@ -82,8 +97,8 @@ def _create_ai_dataset(all_data_ai, daily_bridge_predictions_map):
     X = []  # Features
     y = []  # Target (0 = trượt, 1 = trúng)
 
-    # 1. Tính toán Lịch sử Gan (Feature F1)
-    gan_history_map = _get_loto_gan_history(all_data_ai)
+    # 1. Tính toán Lịch sử Gan (Feature F1) and Gan Change (Feature F14)
+    gan_history_map, gan_change_map = _get_loto_gan_history(all_data_ai)
 
     # 2. Lặp qua các ngày (bỏ ngày đầu tiên, không có target)
     # Chúng ta dự đoán cho K(n) dựa trên dữ liệu K(n-1)
@@ -99,6 +114,7 @@ def _create_ai_dataset(all_data_ai, daily_bridge_predictions_map):
 
         # Lấy features từ các nguồn đã tính toán trước
         gan_features_for_prev_ky = gan_history_map.get(prev_ky_str, {})
+        gan_change_for_actual_ky = gan_change_map.get(actual_ky_str, {})
         bridge_features_for_actual_ky = daily_bridge_predictions_map.get(
             actual_ky_str, {}
         )
@@ -167,6 +183,13 @@ def _create_ai_dataset(all_data_ai, daily_bridge_predictions_map):
 
             # F12: Độ lệch chuẩn Win Rate (100 kỳ) - Đo ổn định của cầu
             features.append(loto_features.get("q_avg_win_rate_stddev_100", 0.0))
+
+            # --- FEATURE SET 6: V7.7 PHASE 2 NEW FEATURES (F13 -> F14) ---
+            # F13: Binary indicator - Loto có về trong 3 kỳ gần đây không
+            features.append(loto_features.get("q_hit_in_last_3_days", 0))
+
+            # F14: Thay đổi giá trị Gan (Change_in_Gan)
+            features.append(gan_change_for_actual_ky.get(loto, 0))
 
             # Thêm hàng features này vào X
             X.append(features)
@@ -317,7 +340,9 @@ def train_ai_model(all_data_ai, daily_bridge_predictions_map, use_hyperparameter
             "F9_Max_Curr_Streak",
             "F10_Max_Lose_Streak",
             "F11_Is_K2N_Risk_Close",
-            "F12_Win_Rate_StdDev"
+            "F12_Win_Rate_StdDev",
+            "F13_Hit_Last_3_Days",
+            "F14_Change_In_Gan"
         ]
         
         feature_importance = dict(zip(feature_names, model.feature_importances_))
@@ -340,10 +365,10 @@ def train_ai_model(all_data_ai, daily_bridge_predictions_map, use_hyperparameter
         # 7. Đánh giá (Tùy chọn)
         test_accuracy = model.score(X_test, y_test)
         cv_mean = cv_scores.mean()
-        msg = (f"Huấn luyện AI (V7.5 - Phase 3) thành công!\n"
+        msg = (f"Huấn luyện AI (V7.7 - Phase 2) thành công!\n"
                f"Test Accuracy: {test_accuracy * 100:.2f}%\n"
                f"CV Accuracy: {cv_mean * 100:.2f}% (+/- {cv_scores.std() * 2 * 100:.2f}%)\n"
-               f"Features: 12 (3 new Phase 2 features included)")
+               f"Features: 14 (F13: Hit_Last_3_Days, F14: Change_In_Gan added)")
         print(f"... (AI Train) {msg}")
         return True, msg
 
@@ -368,11 +393,12 @@ def get_ai_predictions(all_data_ai, bridge_predictions_for_today):
         model = joblib.load(MODEL_FILE_PATH)
         scaler = joblib.load(SCALER_FILE_PATH)
 
-        # 2. Lấy dữ liệu Gan mới nhất (F1)
+        # 2. Lấy dữ liệu Gan mới nhất (F1) and Gan Change (F14)
         # Chỉ cần tính cho ngày cuối cùng
-        gan_history_map = _get_loto_gan_history(all_data_ai)
+        gan_history_map, gan_change_map = _get_loto_gan_history(all_data_ai)
         last_ky_str = str(all_data_ai[-1][0])
         gan_features_today = gan_history_map.get(last_ky_str)
+        gan_change_today = gan_change_map.get(last_ky_str, {})
 
         if not gan_features_today:
             return None, "Lỗi AI: Không thể tính Lô Gan cho ngày dự đoán."
@@ -424,6 +450,13 @@ def get_ai_predictions(all_data_ai, bridge_predictions_for_today):
             # F12: Độ lệch chuẩn Win Rate (100 kỳ) - Đo ổn định của cầu
             features.append(loto_features.get("q_avg_win_rate_stddev_100", 0.0))
 
+            # --- FEATURE SET 6: V7.7 PHASE 2 NEW FEATURES (F13 -> F14) ---
+            # F13: Binary indicator - Loto có về trong 3 kỳ gần đây không
+            features.append(loto_features.get("q_hit_in_last_3_days", 0))
+
+            # F14: Thay đổi giá trị Gan (Change_in_Gan)
+            features.append(gan_change_today.get(loto, 0))
+
             # Thêm hàng features này vào X_new
             X_new.append(features)
 
@@ -443,7 +476,7 @@ def get_ai_predictions(all_data_ai, bridge_predictions_for_today):
         # Sắp xếp theo xác suất giảm dần
         results.sort(key=lambda x: x["probability"], reverse=True)
 
-        return results, "Dự đoán AI (V7.0) thành công."
+        return results, "Dự đoán AI (V7.7 - 14 Features) thành công."
 
     except Exception as e:
         return None, f"Lỗi nghiêm trọng khi Dự đoán AI: {e}\n{traceback.format_exc()}"

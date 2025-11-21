@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 
 def test_feature_count_in_training():
-    """Test that training creates correct number of features (12 total with Phase 2)"""
+    """Test that training creates correct number of features (14 total with V7.7 Phase 2 - added F13 and F14)"""
     from logic.ml_model import _create_ai_dataset
     
     # Mock minimal data
@@ -27,7 +27,7 @@ def test_feature_count_in_training():
         [20003, "11223", "33445", "55667,78899", "00112", "23344,56677,89900", "11223", "34455,66778", "99001"],
     ]
     
-    # Mock bridge predictions with all Phase 2 features
+    # Mock bridge predictions with all Phase 2 features including F13
     mock_bridge_predictions = {
         "20002": {
             "00": {
@@ -39,7 +39,8 @@ def test_feature_count_in_training():
                 "q_max_curr_streak": 3,
                 "q_max_current_lose_streak": 0,
                 "q_is_k2n_risk_close": 0,
-                "q_avg_win_rate_stddev_100": 5.2
+                "q_avg_win_rate_stddev_100": 5.2,
+                "q_hit_in_last_3_days": 0
             }
         },
         "20003": {
@@ -52,16 +53,17 @@ def test_feature_count_in_training():
                 "q_max_curr_streak": 5,
                 "q_max_current_lose_streak": 1,
                 "q_is_k2n_risk_close": 1,
-                "q_avg_win_rate_stddev_100": 7.8
+                "q_avg_win_rate_stddev_100": 7.8,
+                "q_hit_in_last_3_days": 1
             }
         }
     }
     
     X, y = _create_ai_dataset(mock_all_data_ai, mock_bridge_predictions)
     
-    # Should have 12 features per row (F1-F12)
+    # Should have 14 features per row (F1-F14: added F13 and F14 in V7.7 Phase 2)
     if X.shape[0] > 0:
-        assert X.shape[1] == 12, f"Expected 12 features, got {X.shape[1]}"
+        assert X.shape[1] == 14, f"Expected 14 features, got {X.shape[1]}"
 
 
 def test_phase2_features_included_in_prediction():

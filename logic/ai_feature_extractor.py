@@ -111,6 +111,10 @@ def _get_daily_bridge_predictions(all_data_ai):
 
     # (Phase 2: Feature Engineering) Track historical win rates per bridge for stddev calculation
     bridge_win_rate_history = defaultdict(list)
+    
+    # (V7.7 Phase 2: F13) Track loto appearance history for last 3 days
+    # Structure: { 'loto': [ky1, ky2, ky3, ...] } - list of recent kys where loto appeared
+    loto_appearance_history = defaultdict(list)
 
     for bridge in managed_bridges:
         bridge["win_rate_float"] = _parse_win_rate_text(bridge.get("win_rate_text"))
@@ -180,6 +184,20 @@ def _get_daily_bridge_predictions(all_data_ai):
                 pair_key = _standardize_pair(stl)
                 if pair_key:
                     temp_bridge_preds[pair_key].append(alg_name)
+            except Exception:
+                pass
+
+        # (V7.7 Phase 2: F13) Update loto appearance history
+        # Get lotos that appeared in the PREVIOUS row (k-1) since we're predicting for current_ky
+        if k > 1:  # Need at least 2 rows
+            try:
+                from .bridges.bridges_classic import getAllLoto_V30
+                prev_lotos_appeared = set(getAllLoto_V30(prev_row))
+                for loto in prev_lotos_appeared:
+                    # Keep only last 3 appearances per loto
+                    loto_appearance_history[loto].append(current_ky)
+                    if len(loto_appearance_history[loto]) > 3:
+                        loto_appearance_history[loto] = loto_appearance_history[loto][-3:]
             except Exception:
                 pass
 
@@ -289,6 +307,12 @@ def _get_daily_bridge_predictions(all_data_ai):
                 daily_predictions_by_loto[current_ky][loto]["q_max_current_lose_streak"] = 0
                 daily_predictions_by_loto[current_ky][loto]["q_is_k2n_risk_close"] = 0
                 daily_predictions_by_loto[current_ky][loto]["q_avg_win_rate_stddev_100"] = 0.0
+            
+            # (V7.7 Phase 2: F13) Calculate q_hit_in_last_3_days
+            # Check if this loto appeared in any of the last 3 recorded periods
+            recent_appearances = loto_appearance_history.get(loto, [])
+            q_hit_in_last_3_days = 1 if len(recent_appearances) > 0 else 0
+            daily_predictions_by_loto[current_ky][loto]["q_hit_in_last_3_days"] = q_hit_in_last_3_days
 
     return daily_predictions_by_loto
 
