@@ -138,6 +138,10 @@ def setup_database(db_name=DB_NAME):
 # II. HÀM TRUY VẤN (BỊ THIẾU Ở V6.0)
 # ===================================================================================
 
+def get_db_connection(db_name=DB_NAME):
+    """(BỔ SUNG) Mở và trả về đối tượng kết nối SQLite. (Cần thiết cho Phase 2 finalize script)"""
+    return sqlite3.connect(db_name)
+
 
 def get_results_by_ky(ky_id, db_name=DB_NAME):
     """(BỔ SUNG) Lấy dữ liệu 1 hàng (38 cột) từ results_A_I bằng KỲ."""
