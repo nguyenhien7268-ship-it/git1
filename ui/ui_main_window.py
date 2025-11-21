@@ -261,18 +261,26 @@ class DataAnalysisApp:
             command=self.run_auto_manage_bridges,
         )
         self.auto_manage_bridges_button.grid(
-            row=1, column=1, sticky="ew", padx=5, pady=5
+            row=0, column=3, sticky="ew", padx=5, pady=5
+        )
+        self.vote_stats_button = ttk.Button(
+            manage_frame,
+            text="📊 Thống Kê Vote",
+            command=self.show_vote_statistics_window,
+        )
+        self.vote_stats_button.grid(
+            row=1, column=0, sticky="ew", padx=5, pady=5
         )
         self.settings_button = ttk.Button(
             manage_frame, text="⚙️ Cài đặt Tham số...", command=self.show_settings_window
         )
-        self.settings_button.grid(row=1, column=0, sticky="ew", padx=5, pady=5)
+        self.settings_button.grid(row=1, column=1, sticky="ew", padx=5, pady=5)
         self.tuner_button = ttk.Button(
             manage_frame,
             text="📈 Tinh chỉnh Tham số...",
             command=self.show_tuner_window,
         )
-        self.tuner_button.grid(row=1, column=1, sticky="ew", padx=5, pady=5)
+        self.tuner_button.grid(row=1, column=2, sticky="ew", padx=5, pady=5)
         self.train_ai_button = ttk.Button(
             manage_frame, text="🧠 Huấn luyện AI...", command=self.run_train_ai
         )
@@ -339,6 +347,7 @@ class DataAnalysisApp:
             self.auto_find_bridges_button,
             self.auto_prune_bridges_button,
             self.auto_manage_bridges_button,
+            self.vote_stats_button,
             self.settings_button,
             self.tuner_button,
             self.train_ai_button,
@@ -636,6 +645,11 @@ class DataAnalysisApp:
 
     def show_tuner_window(self):
         self.tuner_window = TunerWindow(self)
+
+    def show_vote_statistics_window(self):
+        """Hiển thị cửa sổ Thống Kê Vote."""
+        from ui.ui_vote_statistics import VoteStatisticsWindow
+        self.vote_stats_window_instance = VoteStatisticsWindow(self)
 
     def show_backtest_results(self, title, results_data, show_save_button=False):
         if "V17" in title or "Bạc Nhớ" in title:
