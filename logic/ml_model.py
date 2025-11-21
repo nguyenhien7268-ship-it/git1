@@ -54,7 +54,7 @@ def _get_loto_gan_history(all_data_ai):
     prev_gan = {loto: 0 for loto in ALL_LOTOS}
 
     # Bỏ qua ngày đầu tiên (không có gì để tính)
-    for idx, row in enumerate(all_data_ai[1:], start=1):
+    for row in all_data_ai[1:]:
         ky_str = str(row[0])
         lotos_this_row = set(getAllLoto_V30(row))
 

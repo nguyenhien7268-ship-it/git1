@@ -10,7 +10,7 @@ from collections import Counter, defaultdict
 try:
     # 1. DB và Repo
     # 2. Logic Cầu (để tính toán)
-    from .bridges.bridges_classic import ALL_15_BRIDGE_FUNCTIONS_V5
+    from .bridges.bridges_classic import ALL_15_BRIDGE_FUNCTIONS_V5, getAllLoto_V30
     from .bridges.bridges_memory import (
         calculate_bridge_stl,
         get_27_loto_names,
@@ -191,7 +191,6 @@ def _get_daily_bridge_predictions(all_data_ai):
         # Get lotos that appeared in the PREVIOUS row (k-1) since we're predicting for current_ky
         if k > 1:  # Need at least 2 rows
             try:
-                from .bridges.bridges_classic import getAllLoto_V30
                 prev_lotos_appeared = set(getAllLoto_V30(prev_row))
                 for loto in prev_lotos_appeared:
                     # Keep only last 3 appearances per loto
