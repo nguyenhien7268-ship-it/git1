@@ -32,9 +32,10 @@ def create_phase3_database_table():
     print("=" * 80)
     
     try:
-        from logic.db_manager import get_db_connection
+        import sqlite3
+        from logic.db_manager import DB_NAME
         
-        conn = get_db_connection()
+        conn = sqlite3.connect(DB_NAME)
         cursor = conn.cursor()
         
         # Create meta_learning_history table

@@ -88,9 +88,10 @@ def check_database_tables():
     print_header("DATABASE TABLE STATUS")
     
     try:
-        from logic.db_manager import get_db_connection
+        import sqlite3
+        from logic.db_manager import DB_NAME
         
-        conn = get_db_connection()
+        conn = sqlite3.connect(DB_NAME)
         cursor = conn.cursor()
         
         # Check meta_learning_history table
