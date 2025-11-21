@@ -16,6 +16,7 @@ try:
         DB_NAME,
         add_managed_bridge,
         delete_managed_bridge,
+        delete_ky_from_db,
         get_all_kys_from_db,
         get_results_by_ky,
         setup_database,

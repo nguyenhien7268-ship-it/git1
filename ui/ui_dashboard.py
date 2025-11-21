@@ -540,8 +540,9 @@ class DashboardWindow(ttk.Frame):
                     tags += ("ai_low",)
             
             # NEW: Enhancement 3 - Confidence stars (⭐)
+            # IMPROVED: Compact display - show number instead of repeated stars
             sources = item.get("sources", 0)
-            confidence_text = "⭐" * sources
+            confidence_text = f"{sources}⭐" if sources > 0 else ""
             
             # NEW: Enhancement 3 - Recommendation text and color
             recommendation = item.get("recommendation", "BỎ QUA")

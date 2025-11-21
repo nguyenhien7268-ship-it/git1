@@ -9,6 +9,7 @@ from tkinter import ttk
 try:
     from lottery_service import (
         calculate_loto_stats,
+        delete_ky_from_db,
         get_all_kys_from_db,
         get_results_by_ky,
         getAllLoto_V30,
@@ -28,6 +29,9 @@ except ImportError:
     # Sửa E741: đổi l thành loto_list
     def calculate_loto_stats(loto_list):
         return {}, {}
+    
+    def delete_ky_from_db(k):
+        return False, "Import error"
 
 
 class LookupWindow(ttk.Frame):  # (SỬA) Kế thừa từ ttk.Frame
@@ -61,6 +65,12 @@ class LookupWindow(ttk.Frame):  # (SỬA) Kế thừa từ ttk.Frame
             search_frame, text="Làm Mới", command=self.refresh_lookup_list
         )
         refresh_button.pack(side=tk.LEFT, padx=(5, 0))
+
+        # Add delete button
+        delete_button = ttk.Button(
+            search_frame, text="Xóa Kỳ", command=self.delete_selected_ky
+        )
+        delete_button.pack(side=tk.LEFT, padx=(5, 0))
 
         list_label = ttk.Label(list_frame, text="Danh sách các kỳ (mới nhất ở trên):")
         list_label.pack(pady=(0, 5), anchor="w", padx=2)
@@ -240,3 +250,50 @@ class LookupWindow(ttk.Frame):  # (SỬA) Kế thừa từ ttk.Frame
         self.detail_text.delete("1.0", tk.END)
         self.detail_text.insert(tk.END, message)
         self.detail_text.config(state=tk.DISABLED)
+
+    def delete_selected_ky(self):
+        """Delete the currently selected ky from the database"""
+        from tkinter import messagebox
+        
+        try:
+            selected_indices = self.list_box.curselection()
+            if not selected_indices:
+                messagebox.showwarning(
+                    "Chưa chọn kỳ",
+                    "Vui lòng chọn một kỳ để xóa.",
+                    parent=self.root
+                )
+                return
+            
+            selected_line = self.list_box.get(selected_indices[0])
+            ma_so_ky = selected_line.split()[0]
+            
+            # Confirm deletion
+            confirm = messagebox.askyesno(
+                "Xác nhận xóa",
+                f"Bạn có chắc chắn muốn xóa kỳ {ma_so_ky}?\n\nThao tác này không thể hoàn tác!",
+                parent=self.root
+            )
+            
+            if not confirm:
+                return
+            
+            # Delete from database
+            success, message = delete_ky_from_db(ma_so_ky)
+            
+            if success:
+                messagebox.showinfo("Thành công", message, parent=self.root)
+                self.app.logger.log(f"Đã xóa kỳ {ma_so_ky}")
+                # Refresh the list
+                self.refresh_lookup_list()
+            else:
+                messagebox.showerror("Lỗi", message, parent=self.root)
+                self.app.logger.log(f"Lỗi khi xóa kỳ {ma_so_ky}: {message}")
+                
+        except Exception as e:
+            messagebox.showerror(
+                "Lỗi",
+                f"Đã xảy ra lỗi khi xóa: {e}",
+                parent=self.root
+            )
+            self.app.logger.log(f"Lỗi delete_selected_ky: {e}")
