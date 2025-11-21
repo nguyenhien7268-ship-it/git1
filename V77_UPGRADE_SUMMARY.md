@@ -92,9 +92,29 @@ CREATE TABLE IF NOT EXISTS meta_learning_history (
 );
 ```
 
-**2. Begin Data Collection:**
-- Start logging predictions alongside actual outcomes
-- Need minimum 100 periods (about 3 months) before Phase 3 implementation
+**2. Begin Phase 3 Data Collection:**
+
+```bash
+# Check collection progress
+python scripts/v77_phase3_check_progress.py
+```
+
+The system now includes:
+- ✅ `logic/phase3_data_collector.py` - Automated data collection module
+- ✅ `scripts/v77_phase3_check_progress.py` - Progress checker
+
+**Integration:**
+```python
+from logic.phase3_data_collector import log_prediction, log_outcome
+
+# After predictions
+log_prediction(ky, loto, ai_prob, manual_score, confidence, votes)
+
+# After actual results
+log_outcome(ky, loto, actual_outcome)
+```
+
+Need minimum 100 periods (about 3 months) before Phase 3 implementation.
 
 ---
 

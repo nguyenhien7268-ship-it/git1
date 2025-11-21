@@ -4,7 +4,7 @@ This directory contains scripts to help execute the V7.7 upgrade plan.
 
 ## Available Scripts
 
-### v77_phase2_finalize.py
+### 1. v77_phase2_finalize.py
 
 **Purpose**: Complete Phase 2 by retraining the AI model with 14 features and preparing for Phase 3.
 
@@ -40,6 +40,51 @@ python scripts/v77_phase2_finalize.py --skip-db-setup
 - Updates model files: `logic/ml_model_files/loto_model.joblib` and `ai_scaler.joblib`
 - Creates/updates Phase 3 database tables
 - Logs training results to `model_performance_log` table
+
+---
+
+### 2. v77_phase3_check_progress.py
+
+**Purpose**: Check Phase 3 data collection progress and readiness for Meta-Learner training.
+
+**What it does:**
+1. Checks database tables for Phase 3 exist
+2. Reports data collection statistics
+3. Shows progress toward 100-period minimum
+4. Provides integration guide for data collection
+5. Indicates when ready for Phase 3 implementation
+
+**Usage:**
+
+```bash
+# Check current progress
+python scripts/v77_phase3_check_progress.py
+```
+
+**Output Example:**
+```
+📊 Collection Statistics:
+   Total Predictions Logged: 5,000
+   Predictions with Outcomes: 4,500
+   Unique Periods Collected: 45
+
+📈 Progress to Phase 3 Readiness:
+   Required Periods: 100
+   Current Periods: 45
+   Remaining: 55
+[████████████████████░░░░░░░░░░░░░░] 45.0%
+
+⏳ NOT YET READY
+   Need 55 more periods of data collection
+   Estimated time: 55 days (if collecting daily)
+```
+
+**When to run:**
+- After Phase 2 completion
+- Periodically during data collection (weekly/monthly)
+- Before attempting Phase 3 implementation
+
+---
 
 ## After Running Scripts
 
