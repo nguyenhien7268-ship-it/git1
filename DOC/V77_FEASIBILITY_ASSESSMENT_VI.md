@@ -269,10 +269,11 @@ adaptive_logger.setLevel(logging.INFO)
 ## III. Lộ Trình Triển Khai Đề Xuất
 
 ### Tuần 1: Thu Thập Dữ Liệu và Chuẩn Bị
-- [ ] Thêm bảng `meta_learning_history` vào database
-- [ ] Bắt đầu ghi lại predictions và outcomes
+- [ ] **Chạy script tự động**: `python scripts/v77_phase2_finalize.py --hyperparameter-tuning`
+  - Script sẽ tự động: thêm bảng database, huấn luyện model, verify kết quả
+- [ ] Bắt đầu ghi lại predictions và outcomes (sẽ tự động sau khi Phase 2 hoàn tất)
 - [ ] Chạy hệ thống trong 2-4 tuần để thu thập đủ dữ liệu
-- [ ] ✅ Huấn luyện lại model với 14 features (Phase 2 final step)
+- [ ] ✅ Huấn luyện lại model với 14 features (Phase 2 final step) - **Script đã sẵn sàng!**
 
 ### Tuần 2-3: Triển Khai Meta-Learner
 - [ ] Tạo file `logic/meta_learner.py`

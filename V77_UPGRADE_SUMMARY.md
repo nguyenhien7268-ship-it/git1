@@ -46,7 +46,23 @@ Review the feasibility of the V7.7 upgrade plan and suggest additions.
 
 ### To Complete Phase 2 (Final Step)
 
-**Retrain the AI model with 14 features:**
+**Option 1: Using the Automated Script (RECOMMENDED)**
+
+```bash
+# Basic retraining (faster)
+python scripts/v77_phase2_finalize.py
+
+# With hyperparameter tuning (recommended for best results)
+python scripts/v77_phase2_finalize.py --hyperparameter-tuning
+```
+
+This script will:
+- ✅ Create Phase 3 database tables automatically
+- ✅ Retrain model with 14 features (F1-F14)
+- ✅ Verify model is correctly saved
+- ✅ Log training results to database
+
+**Option 2: Manual Training (Advanced)**
 
 ```python
 # In the application UI or via script
@@ -56,7 +72,7 @@ from logic.ai_feature_extractor import run_ai_training_threaded
 run_ai_training_threaded(callback=your_callback_function)
 ```
 
-**Note:** Set `use_hyperparameter_tuning=True` in the `train_ai_model()` call for optimal results.
+**Note:** Manual training requires setting `use_hyperparameter_tuning=True` in `train_ai_model()` and manually creating Phase 3 tables.
 
 ### To Prepare for Phase 3
 
