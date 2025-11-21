@@ -791,6 +791,20 @@ def get_top_scored_pairs(
                 prob_2 = loto_prob_map.get(loto2, 0.0)
                 ai_prob = max(prob_1, prob_2)
             
+            # NEW: Enhancement 3 - Auto-Recommendation System
+            # Logic: Score ≥7 + Confidence ≥4 → CHƠI (green)
+            #        Score ≥5 OR Confidence ≥3 → XEM XÉT (yellow)
+            #        Otherwise → BỎ QUA (gray)
+            score_val = data["score"]
+            confidence_stars = num_sources  # Confidence stars = number of sources
+            
+            if score_val >= 7 and confidence_stars >= 4:
+                recommendation = "CHƠI"
+            elif score_val >= 5 or confidence_stars >= 3:
+                recommendation = "XEM XÉT"
+            else:
+                recommendation = "BỎ QUA"
+            
             final_list.append(
                 {
                     "pair": pair_key,
@@ -802,6 +816,7 @@ def get_top_scored_pairs(
                     "confidence": confidence,  # NEW: Confidence score
                     "sources": num_sources,  # NEW: Số nguồn
                     "ai_probability": round(ai_prob, 3),  # NEW: AI probability for this pair
+                    "recommendation": recommendation,  # NEW: Enhancement 3 - Auto-recommendation
                 }
             )
 
