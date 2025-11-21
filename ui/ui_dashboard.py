@@ -710,11 +710,15 @@ class DashboardWindow(ttk.Frame):
 
             # 3. (MỚI) Click vào Bảng Điểm -> Hiển thị Popup Chi tiết Lý do
             elif event.widget == self.scores_tree:
-                # values = (Score, Pair, Gan, Reasons)
+                # values = (Score, AI, Confidence, Recommendation, Pair, Gan, Reasons)
+                # After V7.7: Added AI (index 1) and Confidence (index 2) columns
                 score = values[0]
-                pair = values[1]
-                gan_text = values[2]
-                reasons_raw = values[3]
+                ai_prob = values[1]
+                confidence = values[2]
+                recommendation = values[3]
+                pair = values[4]
+                gan_text = values[5]
+                reasons_raw = values[6]
 
                 # Format lại lý do: Xuống dòng mỗi khi gặp dấu phẩy
                 reasons_formatted = reasons_raw.replace(", ", "\n- ")
@@ -722,6 +726,9 @@ class DashboardWindow(ttk.Frame):
                 info_text = (
                     f"Cặp số: {pair}\n"
                     f"Tổng điểm: {score}\n"
+                    f"AI: {ai_prob}%\n"
+                    f"⭐ Confidence: {confidence}\n"
+                    f"Khuyến nghị: {recommendation}\n"
                     f"Tình trạng Gan: {gan_text if gan_text else 'Không gan'}\n\n"
                     f"=== CHI TIẾT LÝ DO ===\n"
                     f"- {reasons_formatted}"
