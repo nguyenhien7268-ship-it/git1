@@ -33,8 +33,9 @@ class Phase3DataCollector:
     def _get_connection(self):
         """Get database connection."""
         if self.db_conn is None:
-            from logic.db_manager import get_db_connection
-            self.db_conn = get_db_connection()
+            import sqlite3
+            from logic.db_manager import DB_NAME
+            self.db_conn = sqlite3.connect(DB_NAME)
         return self.db_conn
     
     def log_prediction(self, ky, loto, ai_probability, manual_score,
