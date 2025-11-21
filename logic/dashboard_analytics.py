@@ -783,6 +783,14 @@ def get_top_scored_pairs(
             num_sources = data.get("sources", 0)
             confidence = round(num_sources / 7.0, 2)
             
+            # NEW: Extract AI probability for this pair
+            loto1, loto2 = pair_key.split("-")
+            ai_prob = 0.0
+            if loto_prob_map:
+                prob_1 = loto_prob_map.get(loto1, 0.0)
+                prob_2 = loto_prob_map.get(loto2, 0.0)
+                ai_prob = max(prob_1, prob_2)
+            
             final_list.append(
                 {
                     "pair": pair_key,
@@ -793,6 +801,7 @@ def get_top_scored_pairs(
                     "gan_loto": data.get("gan_loto", ""),  # NEW: Which loto is gan
                     "confidence": confidence,  # NEW: Confidence score
                     "sources": num_sources,  # NEW: Số nguồn
+                    "ai_probability": round(ai_prob, 3),  # NEW: AI probability for this pair
                 }
             )
 

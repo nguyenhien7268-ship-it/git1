@@ -110,19 +110,21 @@ class DashboardWindow(ttk.Frame):
         tree_frame = ttk.Frame(self.top_scores_frame)
         tree_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
-        cols = ("score", "pair", "gan", "reasons")
+        cols = ("score", "ai", "pair", "gan", "reasons")
         self.scores_tree = ttk.Treeview(
             tree_frame, columns=cols, show="headings", height=10
         )
         self.scores_tree.heading("score", text="Điểm")
+        self.scores_tree.heading("ai", text="AI")
         self.scores_tree.heading("pair", text="Cặp số")
         self.scores_tree.heading("gan", text="Gan")
         self.scores_tree.heading("reasons", text="Lý do (Tích hợp AI)")
         
         self.scores_tree.column("score", width=50, minwidth=50, anchor=tk.E)
+        self.scores_tree.column("ai", width=60, minwidth=60, anchor=tk.CENTER)
         self.scores_tree.column("pair", width=60, minwidth=60, anchor=tk.CENTER)
         self.scores_tree.column("gan", width=50, minwidth=50, anchor=tk.CENTER)
-        self.scores_tree.column("reasons", width=500, minwidth=300)
+        self.scores_tree.column("reasons", width=480, minwidth=280)
         
         # Thanh cuộn Dọc
         v_scrollbar = ttk.Scrollbar(
@@ -147,6 +149,12 @@ class DashboardWindow(ttk.Frame):
             "top1", background="#D5E8D4", font=("Arial", 10, "bold")
         )
         self.scores_tree.tag_configure("top3", background="#FFF2CC")
+        
+        # AI color tags
+        self.scores_tree.tag_configure("ai_very_high", foreground="#006400", font=("Arial", 9, "bold"))  # Dark green >=70%
+        self.scores_tree.tag_configure("ai_high", foreground="#228B22")  # Green >=50%
+        self.scores_tree.tag_configure("ai_med", foreground="#DAA520")  # Goldenrod >=30%
+        self.scores_tree.tag_configure("ai_low", foreground="#A9A9A9")  # Gray <30%
         
         # (MỚI) Bind sự kiện click
         self.scores_tree.bind("<Double-1>", self.on_tree_double_click)
@@ -374,7 +382,7 @@ class DashboardWindow(ttk.Frame):
     def _populate_top_scores(self, top_scores):
         if not top_scores:
             self.scores_tree.insert(
-                "", tk.END, values=("N/A", "N/A", "", "Không có cặp nào")
+                "", tk.END, values=("N/A", "", "N/A", "", "Không có cặp nào")
             )
             return
         for i, item in enumerate(top_scores[:40]):
@@ -395,11 +403,27 @@ class DashboardWindow(ttk.Frame):
                 else:
                     gan_text = f"{item['gan_days']}N"
             
+            # NEW: Format AI column with icon and percentage
+            ai_prob = item.get("ai_probability", 0.0)
+            ai_text = ""
+            if ai_prob > 0:
+                ai_text = f"🤖{int(ai_prob * 100)}"
+                # Add AI color tag based on probability
+                if ai_prob >= 0.70:
+                    tags += ("ai_very_high",)
+                elif ai_prob >= 0.50:
+                    tags += ("ai_high",)
+                elif ai_prob >= 0.30:
+                    tags += ("ai_med",)
+                else:
+                    tags += ("ai_low",)
+            
             self.scores_tree.insert(
                 "",
                 tk.END,
                 values=(
                     item["score"],
+                    ai_text,
                     item["pair"],
                     gan_text,
                     item["reasons"],
