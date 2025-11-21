@@ -463,7 +463,7 @@ def prune_bad_bridges(all_data_ai, db_name=DB_NAME):
 # ===================================================================================
 
 
-def init_all_756_memory_bridges_to_db(db_name=DB_NAME, progress_callback=None):
+def init_all_756_memory_bridges_to_db(db_name=DB_NAME, progress_callback=None, enable_all=False):
     """
     Sinh 756 cầu Bạc Nhớ và lưu vào database:
     - 378 cầu Tổng: Tổng(00+01), Tổng(00+02), ...
@@ -473,11 +473,12 @@ def init_all_756_memory_bridges_to_db(db_name=DB_NAME, progress_callback=None):
     - bridge_name: "Tổng(00+01)" hoặc "Hiệu(00-01)" (format với 2 chữ số)
     - pos1_idx: -1 (đánh dấu là Bạc Nhớ)
     - pos2_idx: -1
-    - is_enabled: False (mặc định tắt)
+    - is_enabled: Mặc định False, hoặc True nếu enable_all=True
 
     Args:
         db_name: Tên database
         progress_callback: Hàm callback để báo tiến độ, nhận (current, total, message)
+        enable_all: Nếu True, tất cả cầu sẽ được BẬT để phân tích (mặc định False)
 
     Returns:
         tuple: (success: bool, message: str, added_count: int, skipped_count: int)
@@ -524,14 +525,15 @@ def init_all_756_memory_bridges_to_db(db_name=DB_NAME, progress_callback=None):
             if existing:
                 skipped_count += 1
             else:
-                # Thêm cầu mới với is_enabled = 0 (tắt)
+                # Thêm cầu mới với is_enabled = 0 (tắt) hoặc 1 (bật) theo enable_all
+                is_enabled_value = 1 if enable_all else 0
                 cursor.execute(
                     """
                     INSERT INTO ManagedBridges
                     (name, description, win_rate_text, pos1_idx, pos2_idx, is_enabled)
-                    VALUES (?, ?, ?, ?, ?, 0)
+                    VALUES (?, ?, ?, ?, ?, ?)
                     """,
-                    (bridge_name, description, win_rate, pos1, pos2)
+                    (bridge_name, description, win_rate, pos1, pos2, is_enabled_value)
                 )
                 conn.commit()
                 added_count += 1

@@ -301,5 +301,38 @@ def test_progress_callback_is_called():
             os.remove(tmp_db)
 
 
+def test_init_all_756_memory_bridges_with_enable_all():
+    """Test that enable_all parameter enables all bridges."""
+    from logic.bridges.bridge_manager_core import init_all_756_memory_bridges_to_db
+    
+    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp:
+        tmp_db = tmp.name
+    
+    try:
+        from logic.db_manager import setup_database
+        setup_database(tmp_db)
+        
+        # Run with enable_all=True
+        success, message, added, skipped = init_all_756_memory_bridges_to_db(
+            tmp_db, enable_all=True
+        )
+        
+        assert success is True
+        assert added == 756
+        
+        # Check that all bridges are enabled
+        conn = sqlite3.connect(tmp_db)
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM ManagedBridges WHERE pos1_idx = -1 AND is_enabled = 1")
+        enabled_count = cursor.fetchone()[0]
+        conn.close()
+        
+        assert enabled_count == 756, f"All 756 bridges should be enabled, got {enabled_count}"
+        
+    finally:
+        if os.path.exists(tmp_db):
+            os.remove(tmp_db)
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

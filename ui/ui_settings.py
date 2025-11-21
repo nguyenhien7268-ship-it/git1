@@ -293,19 +293,79 @@ class SettingsWindow:
 
     def load_756_memory_bridges(self):
         """Nạp 756 cầu Bạc Nhớ vào database với progress bar."""
-        # Hiển thị confirmation dialog
-        response = messagebox.askyesno(
-            "Xác nhận",
-            "Bạn có chắc muốn thêm 756 cầu Bạc Nhớ vào database?\n\n"
-            "Lưu ý:\n"
-            "- Cầu trùng sẽ được bỏ qua\n"
-            "- Cầu mới sẽ được thêm ở trạng thái TẮT\n"
-            "- Bạn cần BẬT cầu thủ công trong 'Quản Lý Cầu'",
-            parent=self.window
-        )
+        # Create a custom dialog with options
+        dialog = tk.Toplevel(self.window)
+        dialog.title("Nạp 756 Cầu Bạc Nhớ")
+        dialog.geometry("500x250")
+        dialog.transient(self.window)
+        dialog.grab_set()
 
-        if not response:
+        # Dialog content
+        ttk.Label(
+            dialog,
+            text="Bạn có chắc muốn thêm 756 cầu Bạc Nhớ vào database?",
+            font=("TkDefaultFont", 10, "bold")
+        ).pack(pady=(20, 10))
+
+        ttk.Label(
+            dialog,
+            text="Lưu ý: Cầu trùng sẽ được bỏ qua",
+            font=("TkDefaultFont", 9)
+        ).pack(pady=5)
+
+        # Option for enabling all bridges
+        enable_var = tk.BooleanVar(value=False)
+        enable_check = ttk.Checkbutton(
+            dialog,
+            text="BẬT tất cả cầu để phân tích ngay (khuyến nghị)",
+            variable=enable_var
+        )
+        enable_check.pack(pady=10)
+
+        ttk.Label(
+            dialog,
+            text="💡 Nếu bật: Tất cả 756 cầu sẽ được BẬT để backtest tính tỷ lệ ăn.\n"
+                 "Sau đó dùng 'Lọc Cầu Yếu' để tự động TẮT cầu có tỷ lệ thấp.",
+            font=("TkDefaultFont", 8),
+            foreground="blue",
+            wraplength=450,
+            justify="left"
+        ).pack(pady=5)
+
+        ttk.Label(
+            dialog,
+            text="Nếu không bật: Cầu sẽ TẮT, bạn phải BẬT thủ công từng cầu.",
+            font=("TkDefaultFont", 8),
+            foreground="gray",
+            wraplength=450,
+            justify="left"
+        ).pack(pady=5)
+
+        # Store result
+        result = {"confirmed": False, "enable_all": False}
+
+        def on_ok():
+            result["confirmed"] = True
+            result["enable_all"] = enable_var.get()
+            dialog.destroy()
+
+        def on_cancel():
+            dialog.destroy()
+
+        # Buttons
+        button_frame = ttk.Frame(dialog)
+        button_frame.pack(pady=20)
+
+        ttk.Button(button_frame, text="OK", command=on_ok, width=10).pack(side=tk.LEFT, padx=5)
+        ttk.Button(button_frame, text="Hủy", command=on_cancel, width=10).pack(side=tk.LEFT, padx=5)
+
+        # Wait for dialog to close
+        self.window.wait_window(dialog)
+
+        if not result["confirmed"]:
             return
+
+        enable_all = result["enable_all"]
 
         # Tạo progress window
         progress_window = tk.Toplevel(self.window)
@@ -365,12 +425,14 @@ class SettingsWindow:
         def do_import():
             try:
                 success, message, added, skipped = init_all_756_memory_bridges_to_db(
-                    progress_callback=update_progress
+                    progress_callback=update_progress,
+                    enable_all=enable_all
                 )
                 result_container["success"] = success
                 result_container["message"] = message
                 result_container["added"] = added
                 result_container["skipped"] = skipped
+                result_container["enable_all"] = enable_all
             except Exception as e:
                 result_container["success"] = False
                 result_container["message"] = f"Lỗi: {e}"
@@ -391,9 +453,22 @@ class SettingsWindow:
         # Show result
         if result_container.get("success"):
             self.app.logger.log(result_container["message"])
+
+            # Build success message with next steps
+            success_msg = result_container["message"]
+            if result_container.get("enable_all"):
+                success_msg += "\n\n✅ Tất cả cầu đã được BẬT.\n\n"
+                success_msg += "🔄 Bước tiếp theo:\n"
+                success_msg += "1. Chạy 'Cập Nhật Cache K2N' để tính tỷ lệ ăn\n"
+                success_msg += "2. Dùng 'Lọc Cầu Yếu' để TẮT cầu có tỷ lệ thấp\n"
+                success_msg += "3. Chạy Backtest với các cầu còn lại"
+            else:
+                success_msg += "\n\n⚠️ Cầu đang ở trạng thái TẮT.\n\n"
+                success_msg += "Bạn cần BẬT cầu thủ công trong 'Quản Lý Cầu' trước khi backtest."
+
             messagebox.showinfo(
                 "Thành công",
-                result_container["message"],
+                success_msg,
                 parent=self.window
             )
         else:
