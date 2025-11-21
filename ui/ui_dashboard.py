@@ -29,8 +29,9 @@ except ImportError:
     SETTINGS = FallbackSettings()
 
 # Enhancement 4: Filter threshold constants
-FILTER_CONFIDENCE_THRESHOLD = 4  # Minimum confidence stars
-FILTER_AI_PROB_THRESHOLD = 50  # Minimum AI probability %
+# V7.6 IMPROVED: Tăng ngưỡng để cải thiện hiệu quả (giảm tỉ lệ gãy)
+FILTER_CONFIDENCE_THRESHOLD = 5  # Minimum confidence stars (tăng từ 4 → 5)
+FILTER_AI_PROB_THRESHOLD = 60  # Minimum AI probability % (tăng từ 50 → 60)
 
 # Import DB Logic để lấy dữ liệu cầu
 try:

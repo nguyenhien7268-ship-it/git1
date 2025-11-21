@@ -36,7 +36,7 @@ class AppSettings:
             "RECENT_FORM_MIN_HIGH": 7,  # IMPROVED: Giảm từ 8 → 7
             "RECENT_FORM_MIN_MED": 5,  # IMPROVED: Giảm từ 6 → 5
             "RECENT_FORM_MIN_LOW": 3,  # IMPROVED: Giảm từ 5 → 3
-            "VOTE_SCORE_WEIGHT": 0.5,  # MỚI: Trọng số vote với decay
+            "VOTE_SCORE_WEIGHT": 0.3,  # IMPROVED V7.6: Giảm từ 0.5 → 0.3 để cải thiện hiệu quả
             "HIGH_WIN_SCORE_BONUS": 2.5,  # IMPROVED: Tăng từ 2.0 → 2.5
             "K2N_RISK_PROGRESSIVE": True,  # MỚI: Bật progressive penalty
             # Enhancement 4: Smart Filtering preferences
