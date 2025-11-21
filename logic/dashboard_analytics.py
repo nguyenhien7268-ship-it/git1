@@ -494,7 +494,8 @@ def get_top_scored_pairs(
 
         # --- 3. Chấm điểm từ 4 nguồn chính ---
 
-        # Nguồn 2: Consensus
+        # Nguồn 2: Consensus (IMPROVED: Vote decay với sqrt)
+        vote_weight = getattr(SETTINGS, "VOTE_SCORE_WEIGHT", 0.5)
         for pair_key, count, _ in consensus:
             if pair_key not in scores:
                 scores[pair_key] = {
@@ -502,11 +503,17 @@ def get_top_scored_pairs(
                     "reasons": [],
                     "is_gan": False,
                     "gan_days": 0,
+                    "sources": 0,  # NEW: Đếm số nguồn
                 }
-            scores[pair_key]["score"] += count * 0.5
-            scores[pair_key]["reasons"].append(f"Vote x{count}")
+            # IMPROVED: Dùng sqrt để giảm dominance của vote cao
+            import math
+            vote_score = math.sqrt(count) * vote_weight
+            scores[pair_key]["score"] += vote_score
+            scores[pair_key]["reasons"].append(f"Vote x{count} (+{vote_score:.1f})")
+            scores[pair_key]["sources"] += 1
 
-        # Nguồn 3: Cầu Tỷ Lệ Cao
+        # Nguồn 3: Cầu Tỷ Lệ Cao (IMPROVED: Tăng từ 2.0 → 2.5)
+        high_win_bonus = getattr(SETTINGS, "HIGH_WIN_SCORE_BONUS", 2.5)
         for bridge in high_win:
             pair_key = _standardize_pair(bridge["stl"])
             if pair_key:
@@ -516,20 +523,41 @@ def get_top_scored_pairs(
                         "reasons": [],
                         "is_gan": False,
                         "gan_days": 0,
+                        "sources": 0,
                     }
-                scores[pair_key]["score"] += 2.0
+                scores[pair_key]["score"] += high_win_bonus
                 scores[pair_key]["reasons"].append(f"Cao ({bridge['rate']})")
+                scores[pair_key]["sources"] += 1
 
-        # Nguồn 4: Cầu K2N Đang Chờ (GOM NHÓM)
+        # Nguồn 4: Cầu K2N Đang Chờ (IMPROVED: Progressive penalty)
+        K2N_RISK_PROGRESSIVE = getattr(SETTINGS, "K2N_RISK_PROGRESSIVE", True)
         k2n_risks = {}
         for bridge_name, data in pending_k2n.items():
             pair_key = _standardize_pair(data["stl"].split(","))
-            if pair_key and data.get("max_lose", 0) >= K2N_RISK_START_THRESHOLD:
+            max_lose = data.get("max_lose", 0)
+            
+            # IMPROVED: Progressive penalty
+            if K2N_RISK_PROGRESSIVE:
+                # Khung 3-5: -0.5, Khung 6-9: -1.0, Khung 10+: -2.0
+                if max_lose >= 10:
+                    penalty = 2.0
+                elif max_lose >= 6:
+                    penalty = 1.0
+                elif max_lose >= 3:
+                    penalty = 0.5
+                else:
+                    penalty = 0.0
+            else:
+                # Original: fixed penalty
+                penalty = K2N_RISK_PENALTY_FIXED if max_lose >= K2N_RISK_START_THRESHOLD else 0.0
+            
+            if pair_key and penalty > 0:
                 if pair_key not in k2n_risks:
-                    k2n_risks[pair_key] = {"count": 0, "total_penalty": 0.0}
+                    k2n_risks[pair_key] = {"count": 0, "total_penalty": 0.0, "max_frames": 0}
                 
                 k2n_risks[pair_key]["count"] += 1
-                k2n_risks[pair_key]["total_penalty"] += K2N_RISK_PENALTY_FIXED
+                k2n_risks[pair_key]["total_penalty"] += penalty
+                k2n_risks[pair_key]["max_frames"] = max(k2n_risks[pair_key]["max_frames"], max_lose)
 
         for pair_key, info in k2n_risks.items():
              if pair_key not in scores:
@@ -538,19 +566,22 @@ def get_top_scored_pairs(
                     "reasons": [],
                     "is_gan": False,
                     "gan_days": 0,
+                    "sources": 0,
                 }
              
              total_pen = info["total_penalty"]
              count = info["count"]
+             max_frames = info["max_frames"]
              
              scores[pair_key]["score"] -= total_pen
+             scores[pair_key]["sources"] += 1
              
              if count > 1:
-                 scores[pair_key]["reasons"].append(f"Rủi ro K2N (x{count}) -{total_pen:.1f}")
+                 scores[pair_key]["reasons"].append(f"Rủi ro K2N (x{count}, max {max_frames}kh) -{total_pen:.1f}")
              else:
-                 scores[pair_key]["reasons"].append(f"Rủi ro K2N (-{total_pen:.1f})")
+                 scores[pair_key]["reasons"].append(f"Rủi ro K2N ({max_frames}kh) -{total_pen:.1f})")
 
-        # Nguồn 5: Cầu Bạc Nhớ (Top N)
+        # Nguồn 5: Cầu Bạc Nhớ (Top N) - Giữ nguyên 1.5
         for bridge in top_memory_bridges:
             pair_key = _standardize_pair(bridge["stl"])
             if pair_key:
@@ -560,9 +591,11 @@ def get_top_scored_pairs(
                         "reasons": [],
                         "is_gan": False,
                         "gan_days": 0,
+                        "sources": 0,
                     }
                 scores[pair_key]["score"] += 1.5
                 scores[pair_key]["reasons"].append(f"BN ({bridge['rate']})")
+                scores[pair_key]["sources"] += 1
 
         # Nguồn 6: Phong Độ Gần Đây (GOM NHÓM)
         try:
@@ -573,13 +606,16 @@ def get_top_scored_pairs(
             
             managed_bridges = get_all_managed_bridges(db_name=db_name_param)
             
-            RF_MIN_LOW = getattr(SETTINGS, "RECENT_FORM_MIN_LOW", 5)
-            RF_MIN_MED = getattr(SETTINGS, "RECENT_FORM_MIN_MED", 7)
-            RF_MIN_HIGH = getattr(SETTINGS, "RECENT_FORM_MIN_HIGH", 9)
+            # IMPROVED: Thêm tier Very High và giảm thresholds
+            RF_MIN_LOW = getattr(SETTINGS, "RECENT_FORM_MIN_LOW", 3)
+            RF_MIN_MED = getattr(SETTINGS, "RECENT_FORM_MIN_MED", 5)
+            RF_MIN_HIGH = getattr(SETTINGS, "RECENT_FORM_MIN_HIGH", 7)
+            RF_MIN_VERY_HIGH = getattr(SETTINGS, "RECENT_FORM_MIN_VERY_HIGH", 9)
             
-            RF_BONUS_LOW = getattr(SETTINGS, "RECENT_FORM_BONUS_LOW", 0.5)
-            RF_BONUS_MED = getattr(SETTINGS, "RECENT_FORM_BONUS_MED", 1.0)
-            RF_BONUS_HIGH = getattr(SETTINGS, "RECENT_FORM_BONUS_HIGH", 1.5)
+            RF_BONUS_LOW = getattr(SETTINGS, "RECENT_FORM_BONUS_LOW", 1.0)
+            RF_BONUS_MED = getattr(SETTINGS, "RECENT_FORM_BONUS_MED", 2.0)
+            RF_BONUS_HIGH = getattr(SETTINGS, "RECENT_FORM_BONUS_HIGH", 3.0)
+            RF_BONUS_VERY_HIGH = getattr(SETTINGS, "RECENT_FORM_BONUS_VERY_HIGH", 4.0)
 
             recent_form_groups = {} # pair -> {count, total_bonus, best_wins}
 
@@ -611,10 +647,14 @@ def get_top_scored_pairs(
                             "reasons": [],
                             "is_gan": False,
                             "gan_days": 0,
+                            "sources": 0,
                         }
                     
+                    # IMPROVED: 4 tiers thay vì 3
                     bonus = 0.0
-                    if recent_wins >= RF_MIN_HIGH:
+                    if recent_wins >= RF_MIN_VERY_HIGH:
+                        bonus = RF_BONUS_VERY_HIGH
+                    elif recent_wins >= RF_MIN_HIGH:
                         bonus = RF_BONUS_HIGH
                     elif recent_wins >= RF_MIN_MED:
                         bonus = RF_BONUS_MED
@@ -643,6 +683,7 @@ def get_top_scored_pairs(
                 best_wins = info["best_wins"]
                 
                 scores[pair_key]["score"] += total_bonus
+                scores[pair_key]["sources"] += 1
                 
                 if count > 1:
                     scores[pair_key]["reasons"].append(f"Phong độ (x{count}) +{total_bonus:.1f}")
@@ -661,6 +702,7 @@ def get_top_scored_pairs(
             if loto1 in top_hot_lotos or loto2 in top_hot_lotos:
                 scores[pair_key]["score"] += 1.0
                 scores[pair_key]["reasons"].append("Loto Hot")
+                scores[pair_key]["sources"] += 1
 
             # Nguồn 6: Gắn cờ Gan
             gan_days_1 = gan_map.get(loto1, 0)
@@ -670,18 +712,19 @@ def get_top_scored_pairs(
                 scores[pair_key]["is_gan"] = True
                 scores[pair_key]["gan_days"] = max_gan
 
-            # Nguồn 7: Chấm điểm AI
+            # Nguồn 7: Chấm điểm AI (IMPROVED: Tăng weight từ 0.2 → 0.3)
             if loto_prob_map:
                 prob_1 = loto_prob_map.get(loto1, 0.0)
                 prob_2 = loto_prob_map.get(loto2, 0.0)
                 max_prob = max(prob_1, prob_2)
 
-                ai_score_contribution = max_prob * ai_score_weight
-                scores[pair_key]["score"] += ai_score_contribution
-
-                scores[pair_key]["reasons"].append(
-                    f"AI: +{ai_score_contribution:.2f} ({max_prob * 100.0:.1f}%)"
-                )
+                if max_prob > 0:
+                    ai_score_contribution = max_prob * ai_score_weight
+                    scores[pair_key]["score"] += ai_score_contribution
+                    scores[pair_key]["sources"] += 1
+                    scores[pair_key]["reasons"].append(
+                        f"AI: +{ai_score_contribution:.2f} ({max_prob * 100.0:.1f}%)"
+                    )
 
         # --- 5. Thêm các cặp SẠCH (Chỉ AI phát hiện - STL) ---
         if loto_prob_map:
@@ -721,9 +764,14 @@ def get_top_scored_pairs(
                         scores[stl_pair]["is_gan"] = True
                         scores[stl_pair]["gan_days"] = max_gan
 
-        # --- 6. Định dạng lại và Sắp xếp ---
+        # --- 6. Định dạng lại và Sắp xếp (IMPROVED: Thêm confidence score) ---
         final_list = []
         for pair_key, data in scores.items():
+            # IMPROVED: Confidence score = số nguồn / 7 nguồn tối đa
+            # 7 nguồn: Vote, High Win, K2N Risk, Memory, Recent Form, Loto Hot, AI
+            num_sources = data.get("sources", 0)
+            confidence = round(num_sources / 7.0, 2)
+            
             final_list.append(
                 {
                     "pair": pair_key,
@@ -731,6 +779,8 @@ def get_top_scored_pairs(
                     "reasons": ", ".join(data["reasons"]),
                     "is_gan": data["is_gan"],
                     "gan_days": data["gan_days"],
+                    "confidence": confidence,  # NEW: Confidence score
+                    "sources": num_sources,  # NEW: Số nguồn
                 }
             )
 

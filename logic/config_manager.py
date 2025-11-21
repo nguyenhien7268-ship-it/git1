@@ -26,14 +26,19 @@ class AppSettings:
             "AI_N_ESTIMATORS": 100,
             "AI_LEARNING_RATE": 0.1,  # MỚI: Learning Rate cho GBM
             "AI_OBJECTIVE": "binary:logistic",  # MỚI: Objective cho XGBoost/LightGBM
-            "AI_SCORE_WEIGHT": 0.2,
+            "AI_SCORE_WEIGHT": 0.3,  # IMPROVED: Tăng từ 0.2 → 0.3
             "RECENT_FORM_PERIODS": 10,
+            "RECENT_FORM_BONUS_VERY_HIGH": 4.0,  # MỚI: Tier Very High
             "RECENT_FORM_BONUS_HIGH": 3.0,
             "RECENT_FORM_BONUS_MED": 2.0,
             "RECENT_FORM_BONUS_LOW": 1.0,
-            "RECENT_FORM_MIN_HIGH": 8,
-            "RECENT_FORM_MIN_MED": 6,
-            "RECENT_FORM_MIN_LOW": 5,
+            "RECENT_FORM_MIN_VERY_HIGH": 9,  # MỚI: Ngưỡng Very High
+            "RECENT_FORM_MIN_HIGH": 7,  # IMPROVED: Giảm từ 8 → 7
+            "RECENT_FORM_MIN_MED": 5,  # IMPROVED: Giảm từ 6 → 5
+            "RECENT_FORM_MIN_LOW": 3,  # IMPROVED: Giảm từ 5 → 3
+            "VOTE_SCORE_WEIGHT": 0.5,  # MỚI: Trọng số vote với decay
+            "HIGH_WIN_SCORE_BONUS": 2.5,  # IMPROVED: Tăng từ 2.0 → 2.5
+            "K2N_RISK_PROGRESSIVE": True,  # MỚI: Bật progressive penalty
         }
 
         # Tải cài đặt
@@ -89,12 +94,17 @@ class AppSettings:
                 "AI_OBJECTIVE": self.AI_OBJECTIVE,
                 "AI_SCORE_WEIGHT": self.AI_SCORE_WEIGHT,
                 "RECENT_FORM_PERIODS": self.RECENT_FORM_PERIODS,
+                "RECENT_FORM_BONUS_VERY_HIGH": self.RECENT_FORM_BONUS_VERY_HIGH,
                 "RECENT_FORM_BONUS_HIGH": self.RECENT_FORM_BONUS_HIGH,
                 "RECENT_FORM_BONUS_MED": self.RECENT_FORM_BONUS_MED,
                 "RECENT_FORM_BONUS_LOW": self.RECENT_FORM_BONUS_LOW,
+                "RECENT_FORM_MIN_VERY_HIGH": self.RECENT_FORM_MIN_VERY_HIGH,
                 "RECENT_FORM_MIN_HIGH": self.RECENT_FORM_MIN_HIGH,
                 "RECENT_FORM_MIN_MED": self.RECENT_FORM_MIN_MED,
                 "RECENT_FORM_MIN_LOW": self.RECENT_FORM_MIN_LOW,
+                "VOTE_SCORE_WEIGHT": self.VOTE_SCORE_WEIGHT,
+                "HIGH_WIN_SCORE_BONUS": self.HIGH_WIN_SCORE_BONUS,
+                "K2N_RISK_PROGRESSIVE": self.K2N_RISK_PROGRESSIVE,
             }
             with open(CONFIG_FILE, "w", encoding="utf-8") as f:
                 json.dump(settings_to_save, f, indent=4)
@@ -128,14 +138,19 @@ class AppSettings:
         self.AI_OBJECTIVE = str(
             self.settings.get("AI_OBJECTIVE", "binary:logistic")
         )  # MỚI
-        self.AI_SCORE_WEIGHT = float(self.settings.get("AI_SCORE_WEIGHT", 0.2))
+        self.AI_SCORE_WEIGHT = float(self.settings.get("AI_SCORE_WEIGHT", 0.3))
         self.RECENT_FORM_PERIODS = int(self.settings.get("RECENT_FORM_PERIODS", 10))
+        self.RECENT_FORM_BONUS_VERY_HIGH = float(self.settings.get("RECENT_FORM_BONUS_VERY_HIGH", 4.0))
         self.RECENT_FORM_BONUS_HIGH = float(self.settings.get("RECENT_FORM_BONUS_HIGH", 3.0))
         self.RECENT_FORM_BONUS_MED = float(self.settings.get("RECENT_FORM_BONUS_MED", 2.0))
         self.RECENT_FORM_BONUS_LOW = float(self.settings.get("RECENT_FORM_BONUS_LOW", 1.0))
-        self.RECENT_FORM_MIN_HIGH = int(self.settings.get("RECENT_FORM_MIN_HIGH", 8))
-        self.RECENT_FORM_MIN_MED = int(self.settings.get("RECENT_FORM_MIN_MED", 6))
-        self.RECENT_FORM_MIN_LOW = int(self.settings.get("RECENT_FORM_MIN_LOW", 5))
+        self.RECENT_FORM_MIN_VERY_HIGH = int(self.settings.get("RECENT_FORM_MIN_VERY_HIGH", 9))
+        self.RECENT_FORM_MIN_HIGH = int(self.settings.get("RECENT_FORM_MIN_HIGH", 7))
+        self.RECENT_FORM_MIN_MED = int(self.settings.get("RECENT_FORM_MIN_MED", 5))
+        self.RECENT_FORM_MIN_LOW = int(self.settings.get("RECENT_FORM_MIN_LOW", 3))
+        self.VOTE_SCORE_WEIGHT = float(self.settings.get("VOTE_SCORE_WEIGHT", 0.5))
+        self.HIGH_WIN_SCORE_BONUS = float(self.settings.get("HIGH_WIN_SCORE_BONUS", 2.5))
+        self.K2N_RISK_PROGRESSIVE = bool(self.settings.get("K2N_RISK_PROGRESSIVE", True))
 
     def get_all_settings(self):
         """Trả về một dict của các cài đặt hiện tại (để UI sử dụng). (ĐÃ THÊM AI_LEARNING_RATE, AI_OBJECTIVE, RECENT_FORM)"""
@@ -154,12 +169,17 @@ class AppSettings:
             "AI_OBJECTIVE": self.AI_OBJECTIVE,  # MỚI
             "AI_SCORE_WEIGHT": self.AI_SCORE_WEIGHT,
             "RECENT_FORM_PERIODS": self.RECENT_FORM_PERIODS,
+            "RECENT_FORM_BONUS_VERY_HIGH": self.RECENT_FORM_BONUS_VERY_HIGH,
             "RECENT_FORM_BONUS_HIGH": self.RECENT_FORM_BONUS_HIGH,
             "RECENT_FORM_BONUS_MED": self.RECENT_FORM_BONUS_MED,
             "RECENT_FORM_BONUS_LOW": self.RECENT_FORM_BONUS_LOW,
+            "RECENT_FORM_MIN_VERY_HIGH": self.RECENT_FORM_MIN_VERY_HIGH,
             "RECENT_FORM_MIN_HIGH": self.RECENT_FORM_MIN_HIGH,
             "RECENT_FORM_MIN_MED": self.RECENT_FORM_MIN_MED,
             "RECENT_FORM_MIN_LOW": self.RECENT_FORM_MIN_LOW,
+            "VOTE_SCORE_WEIGHT": self.VOTE_SCORE_WEIGHT,
+            "HIGH_WIN_SCORE_BONUS": self.HIGH_WIN_SCORE_BONUS,
+            "K2N_RISK_PROGRESSIVE": self.K2N_RISK_PROGRESSIVE,
         }
 
     def update_setting(self, key, value):
