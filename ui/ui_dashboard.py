@@ -95,9 +95,9 @@ class DashboardWindow(ttk.Frame):
         self._create_hot_loto_ui(self.main_analysis_frame)
         self.hot_loto_frame.grid(row=1, column=14, columnspan=5, sticky="nsew", padx=5, pady=5)
 
-        # 6. Lô Gan (5/24 cột)
-        self._create_gan_loto_ui(self.main_analysis_frame)
-        self.gan_loto_frame.grid(row=1, column=19, columnspan=5, sticky="nsew", padx=5, pady=5)
+        # 6. Vote Statistics (5/24 cột) - REPLACED Lô Gan
+        self._create_vote_statistics_ui(self.main_analysis_frame)
+        self.vote_statistics_frame.grid(row=1, column=19, columnspan=5, sticky="nsew", padx=5, pady=5)
 
     # ===================================================================================
     # CÁC HÀM TẠO UI
@@ -110,19 +110,21 @@ class DashboardWindow(ttk.Frame):
         tree_frame = ttk.Frame(self.top_scores_frame)
         tree_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
-        cols = ("score", "pair", "gan", "reasons")
+        cols = ("score", "ai", "pair", "gan", "reasons")
         self.scores_tree = ttk.Treeview(
             tree_frame, columns=cols, show="headings", height=10
         )
         self.scores_tree.heading("score", text="Điểm")
+        self.scores_tree.heading("ai", text="AI")
         self.scores_tree.heading("pair", text="Cặp số")
         self.scores_tree.heading("gan", text="Gan")
         self.scores_tree.heading("reasons", text="Lý do (Tích hợp AI)")
         
         self.scores_tree.column("score", width=50, minwidth=50, anchor=tk.E)
+        self.scores_tree.column("ai", width=60, minwidth=60, anchor=tk.CENTER)
         self.scores_tree.column("pair", width=60, minwidth=60, anchor=tk.CENTER)
         self.scores_tree.column("gan", width=50, minwidth=50, anchor=tk.CENTER)
-        self.scores_tree.column("reasons", width=500, minwidth=300)
+        self.scores_tree.column("reasons", width=480, minwidth=280)
         
         # Thanh cuộn Dọc
         v_scrollbar = ttk.Scrollbar(
@@ -147,6 +149,12 @@ class DashboardWindow(ttk.Frame):
             "top1", background="#D5E8D4", font=("Arial", 10, "bold")
         )
         self.scores_tree.tag_configure("top3", background="#FFF2CC")
+        
+        # AI color tags
+        self.scores_tree.tag_configure("ai_very_high", foreground="#006400", font=("Arial", 9, "bold"))  # Dark green >=70%
+        self.scores_tree.tag_configure("ai_high", foreground="#228B22")  # Green >=50%
+        self.scores_tree.tag_configure("ai_med", foreground="#DAA520")  # Goldenrod >=30%
+        self.scores_tree.tag_configure("ai_low", foreground="#A9A9A9")  # Gray <30%
         
         # (MỚI) Bind sự kiện click
         self.scores_tree.bind("<Double-1>", self.on_tree_double_click)
@@ -230,26 +238,31 @@ class DashboardWindow(ttk.Frame):
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         self.hot_loto_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
-    def _create_gan_loto_ui(self, parent_frame):
-        self.gan_loto_frame = ttk.Labelframe(
-            parent_frame, text="🧊 Lô Gan (>15)"
+    def _create_vote_statistics_ui(self, parent_frame):
+        """NEW: Vote Statistics table (replaces Lô Gan)"""
+        self.vote_statistics_frame = ttk.Labelframe(
+            parent_frame, text="📊 Vote (Top)"
         )
-        tree_frame = ttk.Frame(self.gan_loto_frame)
+        tree_frame = ttk.Frame(self.vote_statistics_frame)
         tree_frame.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
-        cols = ("loto", "days")
-        self.gan_tree = ttk.Treeview(
+        cols = ("pair", "votes")
+        self.vote_tree = ttk.Treeview(
             tree_frame, columns=cols, show="headings", height=8
         )
-        self.gan_tree.heading("loto", text="Số")
-        self.gan_tree.heading("days", text="Ngày")
-        self.gan_tree.column("loto", width=40, anchor=tk.CENTER)
-        self.gan_tree.column("days", width=50, anchor=tk.CENTER)
+        self.vote_tree.heading("pair", text="Cặp")
+        self.vote_tree.heading("votes", text="Vote")
+        self.vote_tree.column("pair", width=50, anchor=tk.CENTER)
+        self.vote_tree.column("votes", width=40, anchor=tk.CENTER)
         scrollbar = ttk.Scrollbar(
-            tree_frame, orient=tk.VERTICAL, command=self.gan_tree.yview
+            tree_frame, orient=tk.VERTICAL, command=self.vote_tree.yview
         )
-        self.gan_tree.configure(yscrollcommand=scrollbar.set)
+        self.vote_tree.configure(yscrollcommand=scrollbar.set)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        self.gan_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self.vote_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        
+        # Color coding
+        self.vote_tree.tag_configure("high", background="#D5E8D4", font=("Arial", 9, "bold"))
+        self.vote_tree.tag_configure("medium", background="#FFF2CC")
 
     def _create_pending_k2n_ui(self, parent_frame):
         self.pending_k2n_frame = ttk.Labelframe(
@@ -286,7 +299,7 @@ class DashboardWindow(ttk.Frame):
         for tree in [
             self.scores_tree,
             self.hot_loto_tree,
-            self.gan_tree,
+            self.vote_tree,  # CHANGED: vote_tree instead of gan_tree
             self.k2n_tree,
             self.ai_tree,
             self.recent_form_tree,
@@ -352,10 +365,8 @@ class DashboardWindow(ttk.Frame):
             self.hot_loto_frame.config(text=f"🔥 Hot ({n_days_stats} ngày)")
             self._populate_hot_loto(stats)
 
-            # Nạp Bảng 6: Lô Gan
-            gan_threshold = SETTINGS.GAN_DAYS
-            self.gan_loto_frame.config(text=f"🧊 Lô Gan (>{gan_threshold})")
-            self._populate_gan_loto(gan_stats)
+            # Nạp Bảng 6: Vote Statistics (REPLACED Lô Gan)
+            self._populate_vote_statistics(consensus)
 
         except Exception as e:
             messagebox.showerror(
@@ -371,7 +382,7 @@ class DashboardWindow(ttk.Frame):
     def _populate_top_scores(self, top_scores):
         if not top_scores:
             self.scores_tree.insert(
-                "", tk.END, values=("N/A", "N/A", "", "Không có cặp nào")
+                "", tk.END, values=("N/A", "", "N/A", "", "Không có cặp nào")
             )
             return
         for i, item in enumerate(top_scores[:40]):
@@ -382,13 +393,39 @@ class DashboardWindow(ttk.Frame):
                 tags += ("top1",)
             elif i < 3:
                 tags += ("top3",)
+            
+            # IMPROVED: Show gan loto with days (e.g., "38(8N)")
+            gan_text = ""
+            if item["is_gan"]:
+                gan_loto = item.get("gan_loto", "")
+                if gan_loto:
+                    gan_text = f"{gan_loto}({item['gan_days']}N)"
+                else:
+                    gan_text = f"{item['gan_days']}N"
+            
+            # NEW: Format AI column with icon and percentage
+            ai_prob = item.get("ai_probability", 0.0)
+            ai_text = ""
+            if ai_prob > 0:
+                ai_text = f"🤖{int(ai_prob * 100)}"
+                # Add AI color tag based on probability
+                if ai_prob >= 0.70:
+                    tags += ("ai_very_high",)
+                elif ai_prob >= 0.50:
+                    tags += ("ai_high",)
+                elif ai_prob >= 0.30:
+                    tags += ("ai_med",)
+                else:
+                    tags += ("ai_low",)
+            
             self.scores_tree.insert(
                 "",
                 tk.END,
                 values=(
                     item["score"],
+                    ai_text,
                     item["pair"],
-                    f"{item['gan_days']} ngày" if item["is_gan"] else "",
+                    gan_text,
                     item["reasons"],
                 ),
                 tags=tags,
@@ -488,12 +525,19 @@ class DashboardWindow(ttk.Frame):
         for loto, hits, days in stats:
             self.hot_loto_tree.insert("", tk.END, values=(loto, hits))
 
-    def _populate_gan_loto(self, gan_stats):
-        if not gan_stats:
-            self.gan_tree.insert("", tk.END, values=("(N/A)", "Không có lô gan"))
+    def _populate_vote_statistics(self, consensus):
+        """NEW: Populate vote statistics (replaces gan loto)"""
+        if not consensus:
+            self.vote_tree.insert("", tk.END, values=("(N/A)", ""))
             return
-        for loto, days in gan_stats:
-            self.gan_tree.insert("", tk.END, values=(loto, f"{days} ngày"))
+        # consensus is a list of tuples: (pair_key, count, sources_str)
+        for pair_key, count, _ in consensus[:20]:  # Show top 20
+            tags = ()
+            if count >= 10:
+                tags = ("high",)
+            elif count >= 5:
+                tags = ("medium",)
+            self.vote_tree.insert("", tk.END, values=(pair_key, f"x{count}"), tags=tags)
 
     # ===================================================================================
     # HÀM TƯƠNG TÁC

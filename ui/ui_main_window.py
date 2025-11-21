@@ -255,16 +255,32 @@ class DataAnalysisApp:
         self.auto_prune_bridges_button.grid(
             row=0, column=2, sticky="ew", padx=5, pady=5
         )
+        self.auto_manage_bridges_button = ttk.Button(
+            manage_frame,
+            text="🔄 Quản Lý Cầu Tự Động (Bật+Tắt)",
+            command=self.run_auto_manage_bridges,
+        )
+        self.auto_manage_bridges_button.grid(
+            row=0, column=3, sticky="ew", padx=5, pady=5
+        )
+        self.vote_stats_button = ttk.Button(
+            manage_frame,
+            text="📊 Thống Kê Vote",
+            command=self.show_vote_statistics_window,
+        )
+        self.vote_stats_button.grid(
+            row=1, column=0, sticky="ew", padx=5, pady=5
+        )
         self.settings_button = ttk.Button(
             manage_frame, text="⚙️ Cài đặt Tham số...", command=self.show_settings_window
         )
-        self.settings_button.grid(row=1, column=0, sticky="ew", padx=5, pady=5)
+        self.settings_button.grid(row=1, column=1, sticky="ew", padx=5, pady=5)
         self.tuner_button = ttk.Button(
             manage_frame,
             text="📈 Tinh chỉnh Tham số...",
             command=self.show_tuner_window,
         )
-        self.tuner_button.grid(row=1, column=1, sticky="ew", padx=5, pady=5)
+        self.tuner_button.grid(row=1, column=2, sticky="ew", padx=5, pady=5)
         self.train_ai_button = ttk.Button(
             manage_frame, text="🧠 Huấn luyện AI...", command=self.run_train_ai
         )
@@ -330,6 +346,8 @@ class DataAnalysisApp:
             self.manage_bridges_button,
             self.auto_find_bridges_button,
             self.auto_prune_bridges_button,
+            self.auto_manage_bridges_button,
+            self.vote_stats_button,
             self.settings_button,
             self.tuner_button,
             self.train_ai_button,
@@ -478,6 +496,22 @@ class DataAnalysisApp:
         )
         self.task_manager.run_task(self.controller.task_run_auto_prune_bridges, title)
 
+    def run_auto_manage_bridges(self):
+        title = "Quản Lý Cầu Tự Động (BẬT/TẮT)"
+        self.logger.log(f"\n--- Bắt đầu: {title} ---")
+        try:
+            auto_add_rate = SETTINGS.AUTO_ADD_MIN_RATE
+            auto_prune_rate = SETTINGS.AUTO_PRUNE_MIN_RATE
+        except Exception:
+            auto_add_rate = 50.0
+            auto_prune_rate = 40.0
+        self.logger.log("Đang kiểm tra cache K2N của TẤT CẢ Cầu Đã Lưu...")
+        self.logger.log(
+            f"✅ Cầu có Tỷ lệ >= {auto_add_rate}% sẽ được BẬT\n"
+            f"❌ Cầu có Tỷ lệ < {auto_prune_rate}% sẽ bị TẮT"
+        )
+        self.task_manager.run_task(self.controller.task_run_auto_manage_bridges, title)
+
     def run_train_ai(self):
         title = "Huấn luyện Mô hình AI (V6.0)"
         self.logger.log(f"\n--- Bắt đầu: {title} ---")
@@ -611,6 +645,11 @@ class DataAnalysisApp:
 
     def show_tuner_window(self):
         self.tuner_window = TunerWindow(self)
+
+    def show_vote_statistics_window(self):
+        """Hiển thị cửa sổ Thống Kê Vote."""
+        from ui.ui_vote_statistics import VoteStatisticsWindow
+        self.vote_stats_window_instance = VoteStatisticsWindow(self)
 
     def show_backtest_results(self, title, results_data, show_save_button=False):
         if "V17" in title or "Bạc Nhớ" in title:

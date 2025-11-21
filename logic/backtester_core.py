@@ -94,6 +94,10 @@ except ImportError:
 # Import helper functions
 from .backtester_helpers import validate_backtest_params as _validate_backtest_params
 
+# Import re module for bridge name parsing
+import re
+
+
 def BACKTEST_15_CAU_K2N_V30_AI_V8(
     toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra, history=True
 ):
@@ -513,7 +517,7 @@ def BACKTEST_CUSTOM_CAU_V16(
 def BACKTEST_MANAGED_BRIDGES_N1(
     toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra, db_name=DB_NAME
 ):
-    """Backtest N1 cho Cầu Đã Lưu (V17 Shadow)"""
+    """Backtest N1 cho Cầu Đã Lưu (V17 Shadow + Bạc Nhớ)"""
     try:
         # (V7.1) Dùng get_all_managed_bridges từ Repository
         bridges_to_test = get_all_managed_bridges(db_name, only_enabled=True)
@@ -549,16 +553,53 @@ def BACKTEST_MANAGED_BRIDGES_N1(
         actualSoKy, actualLotoSet = actualRow[0] or k, set(getAllLoto_V30(actualRow))
 
         prevPositions = getAllPositions_V17_Shadow(prevRow)
+        prevLotos = get_27_loto_positions(prevRow)
         daily_results_row = [actualSoKy]
 
         for bridge in bridges_to_test:
             try:
                 idx1, idx2 = bridge["pos1_idx"], bridge["pos2_idx"]
-                a, b = prevPositions[idx1], prevPositions[idx2]
-                if a is None or b is None:
-                    daily_results_row.append("Lỗi Vị Trí")
-                    continue
-                pred = taoSTL_V30_Bong(a, b)
+
+                # Check if this is a Memory Bridge (Cầu Bạc Nhớ)
+                if idx1 == -1 and idx2 == -1:
+                    # Parse bridge name to extract positions and algorithm
+                    bridge_name = bridge["name"]
+                    try:
+
+                        if "Tổng(" in bridge_name:
+                            # Format: "Tổng(00+01)" or "Tổng(0+1)"
+                            match = re.search(r'Tổng\((\d+)\+(\d+)\)', bridge_name)
+                            if match:
+                                pos1, pos2 = int(match.group(1)), int(match.group(2))
+                                loto1, loto2 = prevLotos[pos1], prevLotos[pos2]
+                                pred = calculate_bridge_stl(loto1, loto2, "sum")
+                            else:
+                                daily_results_row.append("Lỗi Parse Tổng")
+                                continue
+                        elif "Hiệu(" in bridge_name:
+                            # Format: "Hiệu(00-01)" or "Hiệu(0-1)"
+                            match = re.search(r'Hiệu\((\d+)-(\d+)\)', bridge_name)
+                            if match:
+                                pos1, pos2 = int(match.group(1)), int(match.group(2))
+                                loto1, loto2 = prevLotos[pos1], prevLotos[pos2]
+                                pred = calculate_bridge_stl(loto1, loto2, "diff")
+                            else:
+                                daily_results_row.append("Lỗi Parse Hiệu")
+                                continue
+                        else:
+                            daily_results_row.append("Lỗi Format BN")
+                            continue
+                    except Exception as e_parse:
+                        daily_results_row.append(f"Lỗi Parse: {e_parse}")
+                        continue
+                else:
+                    # V17 Bridge (original logic)
+                    a, b = prevPositions[idx1], prevPositions[idx2]
+                    if a is None or b is None:
+                        daily_results_row.append("Lỗi Vị Trí")
+                        continue
+                    pred = taoSTL_V30_Bong(a, b)
+
                 check_result = checkHitSet_V30_K2N(pred, actualLotoSet)
                 daily_results_row.append(f"{','.join(pred)} {check_result}")
             except Exception as e:
@@ -596,14 +637,48 @@ def BACKTEST_MANAGED_BRIDGES_N1(
         finalRow = [finalRowK]
 
         last_positions = getAllPositions_V17_Shadow(last_data_row)
+        last_lotos = get_27_loto_positions(last_data_row)
 
         for bridge in bridges_to_test:
             idx1, idx2 = bridge["pos1_idx"], bridge["pos2_idx"]
-            a, b = last_positions[idx1], last_positions[idx2]
-            if a is None or b is None:
-                finalRow.append("Lỗi Vị Trí")
-                continue
-            pred = taoSTL_V30_Bong(a, b)
+
+            # Check if this is a Memory Bridge
+            if idx1 == -1 and idx2 == -1:
+                bridge_name = bridge["name"]
+                try:
+
+                    if "Tổng(" in bridge_name:
+                        match = re.search(r'Tổng\((\d+)\+(\d+)\)', bridge_name)
+                        if match:
+                            pos1, pos2 = int(match.group(1)), int(match.group(2))
+                            loto1, loto2 = last_lotos[pos1], last_lotos[pos2]
+                            pred = calculate_bridge_stl(loto1, loto2, "sum")
+                        else:
+                            finalRow.append("Lỗi Parse")
+                            continue
+                    elif "Hiệu(" in bridge_name:
+                        match = re.search(r'Hiệu\((\d+)-(\d+)\)', bridge_name)
+                        if match:
+                            pos1, pos2 = int(match.group(1)), int(match.group(2))
+                            loto1, loto2 = last_lotos[pos1], last_lotos[pos2]
+                            pred = calculate_bridge_stl(loto1, loto2, "diff")
+                        else:
+                            finalRow.append("Lỗi Parse")
+                            continue
+                    else:
+                        finalRow.append("Lỗi Format")
+                        continue
+                except Exception:
+                    finalRow.append("Lỗi")
+                    continue
+            else:
+                # V17 Bridge
+                a, b = last_positions[idx1], last_positions[idx2]
+                if a is None or b is None:
+                    finalRow.append("Lỗi Vị Trí")
+                    continue
+                pred = taoSTL_V30_Bong(a, b)
+
             finalRow.append(f"{','.join(pred)} (Dự đoán N1)")
 
         results.insert(2, finalRow)
@@ -623,7 +698,7 @@ def BACKTEST_MANAGED_BRIDGES_K2N(
     db_name=DB_NAME,
     history=True,
 ):
-    """Backtest K2N cho Cầu Đã Lưu (V17 Shadow)"""
+    """Backtest K2N cho Cầu Đã Lưu (V17 Shadow + Bạc Nhớ)"""
     try:
         # (V7.1) Dùng get_all_managed_bridges từ Repository
         bridges_to_test = get_all_managed_bridges(db_name, only_enabled=True)
@@ -685,6 +760,7 @@ def BACKTEST_MANAGED_BRIDGES_K2N(
 
         actualSoKy, actualLotoSet = actualRow[0] or k, set(getAllLoto_V30(actualRow))
         prevPositions = getAllPositions_V17_Shadow(prevRow)
+        prevLotos = get_27_loto_positions(prevRow)
         totalTestDays += 1
 
         daily_results_row = [actualSoKy]
@@ -711,13 +787,45 @@ def BACKTEST_MANAGED_BRIDGES_K2N(
                     in_frame[j], prediction_in_frame[j] = False, None
                 else:
                     idx1, idx2 = bridge["pos1_idx"], bridge["pos2_idx"]
-                    a, b = prevPositions[idx1], prevPositions[idx2]
-                    if a is None or b is None:
-                        # [FIX] Luôn append vào daily_results_row
-                        daily_results_row.append("Lỗi Vị Trí")
-                        continue
 
-                    pred = taoSTL_V30_Bong(a, b)
+                    # Check if this is a Memory Bridge
+                    if idx1 == -1 and idx2 == -1:
+                        bridge_name = bridge["name"]
+                        try:
+
+                            if "Tổng(" in bridge_name:
+                                match = re.search(r'Tổng\((\d+)\+(\d+)\)', bridge_name)
+                                if match:
+                                    pos1, pos2 = int(match.group(1)), int(match.group(2))
+                                    loto1, loto2 = prevLotos[pos1], prevLotos[pos2]
+                                    pred = calculate_bridge_stl(loto1, loto2, "sum")
+                                else:
+                                    daily_results_row.append("Lỗi Parse Tổng")
+                                    continue
+                            elif "Hiệu(" in bridge_name:
+                                match = re.search(r'Hiệu\((\d+)-(\d+)\)', bridge_name)
+                                if match:
+                                    pos1, pos2 = int(match.group(1)), int(match.group(2))
+                                    loto1, loto2 = prevLotos[pos1], prevLotos[pos2]
+                                    pred = calculate_bridge_stl(loto1, loto2, "diff")
+                                else:
+                                    daily_results_row.append("Lỗi Parse Hiệu")
+                                    continue
+                            else:
+                                daily_results_row.append("Lỗi Format BN")
+                                continue
+                        except Exception as e_parse:
+                            daily_results_row.append(f"Lỗi Parse: {e_parse}")
+                            continue
+                    else:
+                        # V17 Bridge (original logic)
+                        a, b = prevPositions[idx1], prevPositions[idx2]
+                        if a is None or b is None:
+                            # [FIX] Luôn append vào daily_results_row
+                            daily_results_row.append("Lỗi Vị Trí")
+                            continue
+                        pred = taoSTL_V30_Bong(a, b)
+
                     check_result = checkHitSet_V30_K2N(pred, actualLotoSet)
 
                     if "✅" in check_result:
@@ -792,17 +900,51 @@ def BACKTEST_MANAGED_BRIDGES_K2N(
         finalRow = [finalRowK]
 
         last_positions = getAllPositions_V17_Shadow(last_data_row)
+        last_lotos = get_27_loto_positions(last_data_row)
 
         for j, bridge in enumerate(bridges_to_test):
             if in_frame[j]:
                 finalRow.append(f"{','.join(prediction_in_frame[j])} (Đang chờ N2)")
             else:
                 idx1, idx2 = bridge["pos1_idx"], bridge["pos2_idx"]
-                a, b = last_positions[idx1], last_positions[idx2]
-                if a is None or b is None:
-                    finalRow.append("Lỗi Vị Trí")
-                    continue
-                pred = taoSTL_V30_Bong(a, b)
+
+                # Check if this is a Memory Bridge
+                if idx1 == -1 and idx2 == -1:
+                    bridge_name = bridge["name"]
+                    try:
+
+                        if "Tổng(" in bridge_name:
+                            match = re.search(r'Tổng\((\d+)\+(\d+)\)', bridge_name)
+                            if match:
+                                pos1, pos2 = int(match.group(1)), int(match.group(2))
+                                loto1, loto2 = last_lotos[pos1], last_lotos[pos2]
+                                pred = calculate_bridge_stl(loto1, loto2, "sum")
+                            else:
+                                finalRow.append("Lỗi Parse")
+                                continue
+                        elif "Hiệu(" in bridge_name:
+                            match = re.search(r'Hiệu\((\d+)-(\d+)\)', bridge_name)
+                            if match:
+                                pos1, pos2 = int(match.group(1)), int(match.group(2))
+                                loto1, loto2 = last_lotos[pos1], last_lotos[pos2]
+                                pred = calculate_bridge_stl(loto1, loto2, "diff")
+                            else:
+                                finalRow.append("Lỗi Parse")
+                                continue
+                        else:
+                            finalRow.append("Lỗi Format")
+                            continue
+                    except Exception:
+                        finalRow.append("Lỗi")
+                        continue
+                else:
+                    # V17 Bridge
+                    a, b = last_positions[idx1], last_positions[idx2]
+                    if a is None or b is None:
+                        finalRow.append("Lỗi Vị Trí")
+                        continue
+                    pred = taoSTL_V30_Bong(a, b)
+
                 finalRow.append(f"{','.join(pred)} (Khung mới N1)")
 
         results.insert(4, finalRow)
