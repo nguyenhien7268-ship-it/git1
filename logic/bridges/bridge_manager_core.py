@@ -460,16 +460,17 @@ def prune_bad_bridges(all_data_ai, db_name=DB_NAME):
 
 def auto_manage_bridges(all_data_ai, db_name=DB_NAME):
     """
-    (MỚI) Tự động BẬT/TẮT cầu dựa trên tỷ lệ K2N:
-    - BẬT cầu có tỷ lệ >= AUTO_ADD_MIN_RATE (50%)
-    - TẮT cầu có tỷ lệ < AUTO_PRUNE_MIN_RATE (40%)
+    (V7.7 - FIXED) Tự động BẬT/TẮT cầu dựa trên mức lọc tối thiểu:
+    - BẬT tất cả cầu có tỷ lệ >= AUTO_PRUNE_MIN_RATE (40%) - Mức lọc thấp
+    - TẮT cầu có tỷ lệ < AUTO_PRUNE_MIN_RATE (40%) - Dưới mức tối thiểu
+    
+    LƯU Ý: AUTO_ADD_MIN_RATE (50%) chỉ dùng cho tìm kiếm/thêm cầu mới,
+    không dùng cho quản lý bật/tắt cầu.
     """
     try:
-        AUTO_ADD_MIN_RATE = SETTINGS.AUTO_ADD_MIN_RATE
         AUTO_PRUNE_MIN_RATE = SETTINGS.AUTO_PRUNE_MIN_RATE
     except Exception as e_cfg:
         print(f"Lỗi đọc config: {e_cfg}. Dùng giá trị mặc định.")
-        AUTO_ADD_MIN_RATE = 50.0
         AUTO_PRUNE_MIN_RATE = 40.0
 
     enabled_count = 0
@@ -500,16 +501,17 @@ def auto_manage_bridges(all_data_ai, db_name=DB_NAME):
 
             win_rate = float(win_rate_str)
 
-            # Quyết định BẬT hay TẮT
-            should_enable = win_rate >= AUTO_ADD_MIN_RATE
+            # FIXED: Quyết định BẬT hay TẮT dựa trên MỨC LỌC CẦU THẤP (AUTO_PRUNE_MIN_RATE)
+            # Khi BẬT thì BẬT tất cả cầu >= mức lọc thấp, không phải chỉ cầu cao
+            should_enable = win_rate >= AUTO_PRUNE_MIN_RATE
             should_disable = win_rate < AUTO_PRUNE_MIN_RATE
 
-            # BẬT cầu tốt đang TẮT
+            # BẬT cầu đạt mức tối thiểu đang TẮT
             if should_enable and not is_currently_enabled:
                 update_managed_bridge(bridge_id, old_desc, 1, db_name)
                 enabled_count += 1
 
-            # TẮT cầu yếu đang BẬT
+            # TẮT cầu yếu (dưới mức tối thiểu) đang BẬT
             elif should_disable and is_currently_enabled:
                 update_managed_bridge(bridge_id, old_desc, 0, db_name)
                 disabled_count += 1
@@ -519,7 +521,7 @@ def auto_manage_bridges(all_data_ai, db_name=DB_NAME):
 
     return (
         f"Quản lý tự động hoàn tất.\n"
-        f"✅ Đã BẬT {enabled_count} cầu tốt (Tỷ lệ >= {AUTO_ADD_MIN_RATE}%)\n"
+        f"✅ Đã BẬT {enabled_count} cầu (Tỷ lệ >= {AUTO_PRUNE_MIN_RATE}%)\n"
         f"❌ Đã TẮT {disabled_count} cầu yếu (Tỷ lệ < {AUTO_PRUNE_MIN_RATE}%)"
     )
 

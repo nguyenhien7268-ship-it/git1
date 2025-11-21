@@ -1,0 +1,60 @@
+I. Cấu Trúc Thư Mục Hệ Thống (Root)
+Đây là cấu trúc thư mục cốt lõi của ứng dụng, tập trung vào các file logic và điều khiển chính:
+
+Plaintext
+
+root/
+├── app_controller.py        # Bộ điều khiển chính
+├── config.json              # Cấu hình ứng dụng
+├── core_services.py
+├── lottery_service.py       # Dịch vụ xổ số cốt lõi
+├── main_app.py              # Điểm khởi động ứng dụng
+├── requirements.txt
+├── logic/                   # Chứa Logic Nghiệp vụ & AI
+│   ├── ai_feature_extractor.py  <- Tệp Cần Sửa (Giai đoạn 2)
+│   ├── backtester_aggregation.py
+│   ├── backtester_scoring.py
+│   ├── config_manager.py
+│   ├── db_manager.py
+│   ├── data_repository.py
+│   ├── ml_model.py
+│   └── bridges/             # Chiến lược cầu/nhịp
+│       ├── bridge_manager_core.py
+│       └── bridges_classic.py
+└── ui/                      # Giao diện người dùng
+    ├── ui_dashboard.py
+    └── ui_main_window.py
+    └── ... (các tệp UI khác)
+II. Kế Hoạch Chi Tiết Nâng Cấp Hệ Thống (V7.7)
+Mục tiêu là đạt được hiệu quả dự đoán cao, bền vững thông qua việc củng cố sự ổn định và triển khai hệ thống học tập thích ứng.
+
+1. Giai Đoạn 1: Ổn Định và Chuẩn Hóa Nền Tảng
+1.1. Cải tiến Cơ chế Chấm điểm Cầu: Đã sửa đổi hàm chấm điểm trong logic/backtester_scoring.py và logic/backtester_aggregation.py để bổ sung yếu tố ổn định (total_days). Điều này giúp ưu tiên các cầu có hiệu suất cao được duy trì trong thời gian dài, loại bỏ các cầu may mắn ngắn hạn.
+
+1.2. Tối Ưu Hóa Metrics cho Mô hình AI: Đã thay đổi chỉ số đánh giá chính (scoring) của XGBoost trong logic/ml_model.py từ Accuracy sang F1-Score. F1-Score là chỉ số lý tưởng để tối ưu hóa khả năng dự đoán đúng các Lô sẽ về (Positive Class) trong dữ liệu mất cân bằng.
+
+1.3. Mở Rộng Bộ Features AI: Đã mở rộng bộ Features đầu vào trong logic/ml_model.py từ 12 lên 14 Features, bổ sung hai đặc trưng bắt sóng xu hướng ngắn hạn: F13 (q_hit_in_last_3_days) và F14 (Change_in_Gan).
+
+2. Giai Đoạn 2: Hoàn Thiện Logic và Huấn Luyện Lại
+Giai đoạn này tập trung vào việc hoàn tất logic lập trình cho các Features mới và thiết lập mô hình nền tảng mới.
+
+2.1. Triển khai Logic tính toán F13 (Hành động cần thiết): Cần tích hợp logic tính toán q_hit_in_last_3_days (kiểm tra Loto có về trong 3 kỳ gần nhất) vào file logic/ai_feature_extractor.py. Việc này sẽ kích hoạt hoàn toàn 14 Features cho mô hình.
+
+2.2. Kiểm tra và Xác nhận Logic F14: Xác nhận logic tính toán Change_in_Gan đã được tích hợp đúng trong logic/ml_model.py.
+
+2.3. Huấn luyện Lại Mô hình (Final Retraining): Chạy lại quá trình huấn luyện mô hình XGBoost (train_ai_model) với tùy chọn use_hyperparameter_tuning=True để thiết lập mô hình nền tảng mới, tận dụng 14 Features và tối ưu hóa bằng F1-Score.
+
+3. Giai Đoạn 3: Học Tập Thích Ứng & Tối Ưu Quyết Định (Chiến Lược)
+Đây là giai đoạn triển khai cơ chế học hỏi liên tục và thay thế logic quyết định thủ công bằng AI.
+
+3.1. Xây dựng Hệ thống Meta-Learner:
+
+Mục tiêu: Giải quyết vấn đề thiếu công cụ đánh giá logic chấm điểm/quyết định thủ công.
+
+Cơ chế: Xây dựng một mô hình AI cấp 2 (ví dụ: Logistic Regression hoặc small NN) để học cách cân bằng và kết hợp giữa Xác suất AI (từ XGBoost) với các Điểm cầu thủ công (Rate/Streak) nhằm đưa ra quyết định chọn tập hợp số cuối cùng có hiệu suất tối ưu.
+
+3.2. Triển khai Học tập Thích ứng (Adaptive Retraining):
+
+Mục tiêu: Đảm bảo mô hình luôn cập nhật với xu hướng mới.
+
+Cơ chế: Cấu hình hệ thống để thực hiện: Huấn luyện Gia tăng (Incremental) hàng ngày trên một tập dữ liệu cuốn chiếu (Rolling Window, ví dụ: 300-500 kỳ gần nhất). Huấn luyện Toàn bộ (Full) chỉ được kích hoạt định kỳ hoặc khi chỉ số F1-Score trên tập Validation giảm xuống dưới ngưỡng cảnh báo.

@@ -468,10 +468,12 @@ def get_top_scored_pairs(
     gan_stats,
     top_memory_bridges,
     ai_predictions=None,
+    recent_data=None,
 ):
     """
     (V7.5) Tính toán, chấm điểm và xếp hạng các cặp số.
     Đã thêm logic GOM NHÓM cho cả K2N RISK và RECENT FORM.
+    (V7.6) IMPROVED: Thêm bonus "Về Gần" để cải thiện hiệu quả.
     """
     try:
         scores = {}
@@ -495,7 +497,8 @@ def get_top_scored_pairs(
         # --- 3. Chấm điểm từ 4 nguồn chính ---
 
         # Nguồn 2: Consensus (IMPROVED: Vote decay với sqrt)
-        vote_weight = getattr(SETTINGS, "VOTE_SCORE_WEIGHT", 0.5)
+        # IMPROVED V7.6: Giảm từ 0.5 → 0.3 để giảm dominance của vote
+        vote_weight = getattr(SETTINGS, "VOTE_SCORE_WEIGHT", 0.3)
         for pair_key, count, _ in consensus:
             if pair_key not in scores:
                 scores[pair_key] = {
@@ -775,6 +778,59 @@ def get_top_scored_pairs(
                         scores[stl_pair]["is_gan"] = True
                         scores[stl_pair]["gan_days"] = max_gan
 
+        # --- 5.5. BONUS "VỀ GẦN" (V7.6 - IMPROVED EFFECTIVENESS) ---
+        # Thêm điểm bonus cho các cặp đã về trong các kỳ gần đây
+        if recent_data and len(recent_data) > 0:
+            # Get last 7 periods
+            last_7 = recent_data[-7:] if len(recent_data) >= 7 else recent_data
+            last_3 = recent_data[-3:] if len(recent_data) >= 3 else recent_data
+            
+            # Extract all pairs from recent periods
+            recent_pairs_3 = set()
+            recent_pairs_7 = set()
+            
+            for row in last_3:
+                try:
+                    lotos = getAllLoto_V30(row)
+                    # Generate all possible pairs from lotos
+                    for i, loto1 in enumerate(lotos):
+                        for loto2 in lotos[i+1:]:
+                            pair_key = _standardize_pair([loto1, loto2])
+                            if pair_key:
+                                recent_pairs_3.add(pair_key)
+                except Exception:
+                    pass
+            
+            for row in last_7:
+                try:
+                    lotos = getAllLoto_V30(row)
+                    for i, loto1 in enumerate(lotos):
+                        for loto2 in lotos[i+1:]:
+                            pair_key = _standardize_pair([loto1, loto2])
+                            if pair_key:
+                                recent_pairs_7.add(pair_key)
+                except Exception:
+                    pass
+            
+            # Apply bonus to scored pairs
+            for pair_key in scores.keys():
+                if pair_key in recent_pairs_3:
+                    # +2.0 bonus for appearing in last 3 periods
+                    scores[pair_key]["score"] += 2.0
+                    scores[pair_key]["reasons"].append("Về 3kỳ (+2.0)")
+                    # Initialize sources if not present
+                    if "sources" not in scores[pair_key]:
+                        scores[pair_key]["sources"] = 0
+                    scores[pair_key]["sources"] += 1
+                elif pair_key in recent_pairs_7:
+                    # +1.0 bonus for appearing in last 7 periods
+                    scores[pair_key]["score"] += 1.0
+                    scores[pair_key]["reasons"].append("Về 7kỳ (+1.0)")
+                    # Initialize sources if not present
+                    if "sources" not in scores[pair_key]:
+                        scores[pair_key]["sources"] = 0
+                    scores[pair_key]["sources"] += 1
+
         # --- 6. Định dạng lại và Sắp xếp (IMPROVED: Thêm confidence score) ---
         final_list = []
         for pair_key, data in scores.items():
@@ -791,6 +847,20 @@ def get_top_scored_pairs(
                 prob_2 = loto_prob_map.get(loto2, 0.0)
                 ai_prob = max(prob_1, prob_2)
             
+            # NEW: Enhancement 3 - Auto-Recommendation System
+            # Logic: Score ≥7 + Confidence ≥4 → CHƠI (green)
+            #        Score ≥5 OR Confidence ≥3 → XEM XÉT (yellow)
+            #        Otherwise → BỎ QUA (gray)
+            score_val = data["score"]
+            confidence_stars = num_sources  # Confidence stars = number of sources
+            
+            if score_val >= 7 and confidence_stars >= 4:
+                recommendation = "CHƠI"
+            elif score_val >= 5 or confidence_stars >= 3:
+                recommendation = "XEM XÉT"
+            else:
+                recommendation = "BỎ QUA"
+            
             final_list.append(
                 {
                     "pair": pair_key,
@@ -802,6 +872,7 @@ def get_top_scored_pairs(
                     "confidence": confidence,  # NEW: Confidence score
                     "sources": num_sources,  # NEW: Số nguồn
                     "ai_probability": round(ai_prob, 3),  # NEW: AI probability for this pair
+                    "recommendation": recommendation,  # NEW: Enhancement 3 - Auto-recommendation
                 }
             )
 
@@ -984,7 +1055,7 @@ def get_historical_dashboard_data(all_data_ai, day_index, temp_settings):
     # (6) Lô Gan
     gan_stats = get_loto_gan_stats(data_slice, n_days=n_days_gan)
 
-    # (7) Chấm điểm
+    # (7) Chấm điểm (V7.6: IMPROVED với recent_data cho bonus "Về Gần")
     top_scores = get_top_scored_pairs(
         stats_n_day,
         consensus,
@@ -993,6 +1064,7 @@ def get_historical_dashboard_data(all_data_ai, day_index, temp_settings):
         gan_stats,
         top_memory_bridges,
         ai_predictions=None,
+        recent_data=data_slice,  # NEW: Pass recent data for "Về Gần" bonus
     )
 
     return top_scores

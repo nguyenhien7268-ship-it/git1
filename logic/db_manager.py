@@ -176,6 +176,30 @@ def get_all_kys_from_db(db_name=DB_NAME):
             conn.close()
 
 
+def delete_ky_from_db(ky, db_name=DB_NAME):
+    """Delete a lottery result by ky (period number)."""
+    conn = None
+    try:
+        conn = sqlite3.connect(db_name)
+        cursor = conn.cursor()
+        
+        # Delete from both tables and track counts
+        cursor.execute("DELETE FROM results_A_I WHERE ky = ?", (ky,))
+        count1 = cursor.rowcount
+        cursor.execute("DELETE FROM DuLieu_AI WHERE Col_A_Ky = ?", (ky,))
+        count2 = cursor.rowcount
+        
+        conn.commit()
+        total_deleted = count1 + count2
+        return True, f"Đã xóa kỳ {ky} ({total_deleted} bản ghi)"
+    except Exception as e:
+        print(f"Lỗi delete_ky_from_db: {e}")
+        return False, f"Lỗi khi xóa: {e}"
+    finally:
+        if conn:
+            conn.close()
+
+
 # ===================================================================================
 # III. HÀM QUẢN LÝ CẦU (CRUD) (BỊ THIẾU Ở V6.0)
 # ===================================================================================

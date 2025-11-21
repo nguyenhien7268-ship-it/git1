@@ -11,11 +11,27 @@ try:
     from logic.config_manager import SETTINGS
 except ImportError:
     print("LỖI: ui_dashboard.py không thể import logic.config_manager...")
-    SETTINGS = type(
-        "obj",
-        (object,),
-        {"GAN_DAYS": 15, "HIGH_WIN_THRESHOLD": 47.0, "K2N_RISK_START_THRESHOLD": 4},
-    )
+    
+    class FallbackSettings:
+        """Fallback settings when config_manager import fails"""
+        GAN_DAYS = 15
+        HIGH_WIN_THRESHOLD = 47.0
+        K2N_RISK_START_THRESHOLD = 4
+        FILTER_ENABLED = False
+        FILTER_MIN_CONFIDENCE = 0
+        FILTER_MIN_AI_PROB = 0
+        
+        def save_settings(self):
+            """Dummy save method for fallback"""
+            print("WARNING: Cannot save settings - config_manager not available")
+            return True, "Fallback mode"
+    
+    SETTINGS = FallbackSettings()
+
+# Enhancement 4: Filter threshold constants
+# V7.6 IMPROVED: Tăng ngưỡng để cải thiện hiệu quả (giảm tỉ lệ gãy)
+FILTER_CONFIDENCE_THRESHOLD = 5  # Minimum confidence stars (tăng từ 4 → 5)
+FILTER_AI_PROB_THRESHOLD = 60  # Minimum AI probability % (tăng từ 50 → 60)
 
 # Import DB Logic để lấy dữ liệu cầu
 try:
@@ -46,6 +62,9 @@ class DashboardWindow(ttk.Frame):
             self.header_frame, text="Đang tải...", font=("Arial", 16, "bold")
         )
         self.title_label.pack(side=tk.LEFT, padx=(0, 20))
+
+        # Enhancement 4: Smart Filtering controls
+        self._create_filter_controls()
 
         self.refresh_button = ttk.Button(
             self.header_frame, text="Làm Mới Dữ Liệu", command=self.refresh_data
@@ -103,6 +122,69 @@ class DashboardWindow(ttk.Frame):
     # CÁC HÀM TẠO UI
     # ===================================================================================
 
+    def _create_filter_controls(self):
+        """Enhancement 4: Create smart filtering controls"""
+        filter_frame = ttk.Frame(self.header_frame)
+        filter_frame.pack(side=tk.RIGHT, padx=(10, 10))
+
+        # Filter enabled checkbox
+        self.filter_enabled_var = tk.BooleanVar(value=SETTINGS.FILTER_ENABLED)
+        filter_check = ttk.Checkbutton(
+            filter_frame,
+            text="Lọc thông minh",
+            variable=self.filter_enabled_var,
+            command=self._on_filter_changed
+        )
+        filter_check.pack(side=tk.LEFT, padx=5)
+
+        # Min confidence filter
+        conf_frame = ttk.Frame(filter_frame)
+        conf_frame.pack(side=tk.LEFT, padx=5)
+        
+        self.filter_confidence_var = tk.BooleanVar(
+            value=SETTINGS.FILTER_MIN_CONFIDENCE >= FILTER_CONFIDENCE_THRESHOLD
+        )
+        conf_check = ttk.Checkbutton(
+            conf_frame,
+            text=f"Chỉ hiện ≥{FILTER_CONFIDENCE_THRESHOLD}⭐",
+            variable=self.filter_confidence_var,
+            command=self._on_filter_changed
+        )
+        conf_check.pack()
+
+        # Min AI probability filter
+        ai_frame = ttk.Frame(filter_frame)
+        ai_frame.pack(side=tk.LEFT, padx=5)
+        
+        self.filter_ai_var = tk.BooleanVar(
+            value=SETTINGS.FILTER_MIN_AI_PROB >= FILTER_AI_PROB_THRESHOLD
+        )
+        ai_check = ttk.Checkbutton(
+            ai_frame,
+            text=f"Chỉ hiện AI ≥{FILTER_AI_PROB_THRESHOLD}%",
+            variable=self.filter_ai_var,
+            command=self._on_filter_changed
+        )
+        ai_check.pack()
+
+    def _on_filter_changed(self):
+        """Handle filter checkbox changes"""
+        # Update SETTINGS
+        SETTINGS.FILTER_ENABLED = self.filter_enabled_var.get()
+        SETTINGS.FILTER_MIN_CONFIDENCE = (
+            FILTER_CONFIDENCE_THRESHOLD if self.filter_confidence_var.get() else 0
+        )
+        SETTINGS.FILTER_MIN_AI_PROB = (
+            FILTER_AI_PROB_THRESHOLD if self.filter_ai_var.get() else 0
+        )
+        
+        # Save preferences
+        SETTINGS.save_settings()
+        
+        # Refresh data to apply filters
+        if hasattr(self.app, 'refresh_dashboard'):
+            self.app.refresh_dashboard()
+
     def _create_top_scores_ui(self, parent_frame):
         self.top_scores_frame = ttk.Labelframe(
             parent_frame, text="🏆 Bảng Chấm Điểm Tổng Lực (Double-click để xem chi tiết)"
@@ -110,21 +192,25 @@ class DashboardWindow(ttk.Frame):
         tree_frame = ttk.Frame(self.top_scores_frame)
         tree_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
-        cols = ("score", "ai", "pair", "gan", "reasons")
+        cols = ("score", "ai", "confidence", "recommendation", "pair", "gan", "reasons")
         self.scores_tree = ttk.Treeview(
             tree_frame, columns=cols, show="headings", height=10
         )
         self.scores_tree.heading("score", text="Điểm")
         self.scores_tree.heading("ai", text="AI")
+        self.scores_tree.heading("confidence", text="⭐")
+        self.scores_tree.heading("recommendation", text="Khuyến Nghị")
         self.scores_tree.heading("pair", text="Cặp số")
         self.scores_tree.heading("gan", text="Gan")
         self.scores_tree.heading("reasons", text="Lý do (Tích hợp AI)")
         
         self.scores_tree.column("score", width=50, minwidth=50, anchor=tk.E)
         self.scores_tree.column("ai", width=60, minwidth=60, anchor=tk.CENTER)
+        self.scores_tree.column("confidence", width=50, minwidth=50, anchor=tk.CENTER)
+        self.scores_tree.column("recommendation", width=80, minwidth=80, anchor=tk.CENTER)
         self.scores_tree.column("pair", width=60, minwidth=60, anchor=tk.CENTER)
         self.scores_tree.column("gan", width=50, minwidth=50, anchor=tk.CENTER)
-        self.scores_tree.column("reasons", width=480, minwidth=280)
+        self.scores_tree.column("reasons", width=380, minwidth=280)
         
         # Thanh cuộn Dọc
         v_scrollbar = ttk.Scrollbar(
@@ -155,6 +241,11 @@ class DashboardWindow(ttk.Frame):
         self.scores_tree.tag_configure("ai_high", foreground="#228B22")  # Green >=50%
         self.scores_tree.tag_configure("ai_med", foreground="#DAA520")  # Goldenrod >=30%
         self.scores_tree.tag_configure("ai_low", foreground="#A9A9A9")  # Gray <30%
+        
+        # NEW: Enhancement 3 - Recommendation color tags
+        self.scores_tree.tag_configure("rec_choi", foreground="green", font=("Arial", 9, "bold"))
+        self.scores_tree.tag_configure("rec_xem_xet", foreground="#DAA520", font=("Arial", 9))
+        self.scores_tree.tag_configure("rec_bo_qua", foreground="gray", font=("Arial", 9))
         
         # (MỚI) Bind sự kiện click
         self.scores_tree.bind("<Double-1>", self.on_tree_double_click)
@@ -294,6 +385,34 @@ class DashboardWindow(ttk.Frame):
 
     # --- HÀM NẠP DỮ LIỆU ---
 
+    def _apply_filters(self, top_scores):
+        """Enhancement 4: Apply smart filters to top scores"""
+        if not top_scores:
+            return top_scores
+        
+        # If filtering is not enabled, return all scores
+        if not SETTINGS.FILTER_ENABLED:
+            return top_scores
+        
+        filtered = []
+        min_confidence = SETTINGS.FILTER_MIN_CONFIDENCE
+        min_ai_prob = SETTINGS.FILTER_MIN_AI_PROB / 100.0  # Convert to 0-1 range
+        
+        for item in top_scores:
+            # Check confidence filter (number of sources)
+            sources = item.get("sources", 0)
+            if min_confidence > 0 and sources < min_confidence:
+                continue
+            
+            # Check AI probability filter
+            ai_prob = item.get("ai_probability", 0.0)
+            if min_ai_prob > 0 and ai_prob < min_ai_prob:
+                continue
+            
+            filtered.append(item)
+        
+        return filtered
+
     def clear_data(self):
         self.title_label.config(text="Đang tải...")
         for tree in [
@@ -332,8 +451,11 @@ class DashboardWindow(ttk.Frame):
                 text=f"Bảng Quyết Định Tối Ưu - {next_ky} (Cập nhật: {today})"
             )
 
+            # Enhancement 4: Apply smart filters if enabled
+            filtered_top_scores = self._apply_filters(top_scores)
+
             # Nạp Bảng 1: Chấm Điểm
-            self._populate_top_scores(top_scores)
+            self._populate_top_scores(filtered_top_scores)
 
             # Nạp Bảng 2: Cầu K2N Đang Chờ
             self._populate_pending_k2n(pending_k2n)
@@ -382,7 +504,7 @@ class DashboardWindow(ttk.Frame):
     def _populate_top_scores(self, top_scores):
         if not top_scores:
             self.scores_tree.insert(
-                "", tk.END, values=("N/A", "", "N/A", "", "Không có cặp nào")
+                "", tk.END, values=("N/A", "", "", "", "N/A", "", "Không có cặp nào")
             )
             return
         for i, item in enumerate(top_scores[:40]):
@@ -418,12 +540,28 @@ class DashboardWindow(ttk.Frame):
                 else:
                     tags += ("ai_low",)
             
+            # NEW: Enhancement 3 - Confidence stars (⭐)
+            # IMPROVED: Compact display - show number instead of repeated stars
+            sources = item.get("sources", 0)
+            confidence_text = f"{sources}⭐" if sources > 0 else ""
+            
+            # NEW: Enhancement 3 - Recommendation text and color
+            recommendation = item.get("recommendation", "BỎ QUA")
+            if recommendation == "CHƠI":
+                tags += ("rec_choi",)
+            elif recommendation == "XEM XÉT":
+                tags += ("rec_xem_xet",)
+            else:
+                tags += ("rec_bo_qua",)
+            
             self.scores_tree.insert(
                 "",
                 tk.END,
                 values=(
                     item["score"],
                     ai_text,
+                    confidence_text,
+                    recommendation,
                     item["pair"],
                     gan_text,
                     item["reasons"],
