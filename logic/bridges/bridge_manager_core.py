@@ -468,11 +468,9 @@ def auto_manage_bridges(all_data_ai, db_name=DB_NAME):
     không dùng cho quản lý bật/tắt cầu.
     """
     try:
-        AUTO_ADD_MIN_RATE = SETTINGS.AUTO_ADD_MIN_RATE
         AUTO_PRUNE_MIN_RATE = SETTINGS.AUTO_PRUNE_MIN_RATE
     except Exception as e_cfg:
         print(f"Lỗi đọc config: {e_cfg}. Dùng giá trị mặc định.")
-        AUTO_ADD_MIN_RATE = 50.0
         AUTO_PRUNE_MIN_RATE = 40.0
 
     enabled_count = 0
