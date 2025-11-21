@@ -503,6 +503,7 @@ def get_top_scored_pairs(
                     "reasons": [],
                     "is_gan": False,
                     "gan_days": 0,
+                    "gan_loto": "",  # NEW: Which loto is gan
                     "sources": 0,  # NEW: Đếm số nguồn
                 }
             # IMPROVED: Dùng sqrt để giảm dominance của vote cao
@@ -523,6 +524,7 @@ def get_top_scored_pairs(
                         "reasons": [],
                         "is_gan": False,
                         "gan_days": 0,
+                        "gan_loto": "",
                         "sources": 0,
                     }
                 scores[pair_key]["score"] += high_win_bonus
@@ -566,6 +568,7 @@ def get_top_scored_pairs(
                     "reasons": [],
                     "is_gan": False,
                     "gan_days": 0,
+                    "gan_loto": "",
                     "sources": 0,
                 }
              
@@ -591,6 +594,7 @@ def get_top_scored_pairs(
                         "reasons": [],
                         "is_gan": False,
                         "gan_days": 0,
+                    "gan_loto": "",
                         "sources": 0,
                     }
                 scores[pair_key]["score"] += 1.5
@@ -647,6 +651,7 @@ def get_top_scored_pairs(
                             "reasons": [],
                             "is_gan": False,
                             "gan_days": 0,
+                    "gan_loto": "",
                             "sources": 0,
                         }
                     
@@ -704,13 +709,18 @@ def get_top_scored_pairs(
                 scores[pair_key]["reasons"].append("Loto Hot")
                 scores[pair_key]["sources"] += 1
 
-            # Nguồn 6: Gắn cờ Gan
+            # Nguồn 6: Gắn cờ Gan (IMPROVED: Track which number is gan)
             gan_days_1 = gan_map.get(loto1, 0)
             gan_days_2 = gan_map.get(loto2, 0)
             max_gan = max(gan_days_1, gan_days_2)
             if max_gan > 0:
                 scores[pair_key]["is_gan"] = True
                 scores[pair_key]["gan_days"] = max_gan
+                # NEW: Store which loto is gan
+                if gan_days_1 >= gan_days_2:
+                    scores[pair_key]["gan_loto"] = loto1
+                else:
+                    scores[pair_key]["gan_loto"] = loto2
 
             # Nguồn 7: Chấm điểm AI (IMPROVED: Tăng weight từ 0.2 → 0.3)
             if loto_prob_map:
@@ -750,6 +760,7 @@ def get_top_scored_pairs(
                             "reasons": [],
                             "is_gan": False,
                             "gan_days": 0,
+                    "gan_loto": "",
                         }
 
                     scores[stl_pair]["score"] += ai_score_contribution
@@ -779,6 +790,7 @@ def get_top_scored_pairs(
                     "reasons": ", ".join(data["reasons"]),
                     "is_gan": data["is_gan"],
                     "gan_days": data["gan_days"],
+                    "gan_loto": data.get("gan_loto", ""),  # NEW: Which loto is gan
                     "confidence": confidence,  # NEW: Confidence score
                     "sources": num_sources,  # NEW: Số nguồn
                 }
