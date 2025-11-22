@@ -713,7 +713,7 @@ class DashboardWindow(ttk.Frame):
                 # values = (Score, AI, Confidence, Recommendation, Pair, Gan, Reasons)
                 # After V7.7: Added AI (index 1) and Confidence (index 2) columns
                 score = values[0]
-                ai_prob = values[1]
+                ai_text = values[1]  # Already formatted as "🤖75" or empty
                 confidence = values[2]
                 recommendation = values[3]
                 pair = values[4]
@@ -723,10 +723,13 @@ class DashboardWindow(ttk.Frame):
                 # Format lại lý do: Xuống dòng mỗi khi gặp dấu phẩy
                 reasons_formatted = reasons_raw.replace(", ", "\n- ")
                 
+                # Format AI display - ai_text is already formatted with emoji and percentage
+                ai_display = f"{ai_text}%" if ai_text else "N/A"
+                
                 info_text = (
                     f"Cặp số: {pair}\n"
                     f"Tổng điểm: {score}\n"
-                    f"AI: {ai_prob}%\n"
+                    f"AI: {ai_display}\n"
                     f"⭐ Confidence: {confidence}\n"
                     f"Khuyến nghị: {recommendation}\n"
                     f"Tình trạng Gan: {gan_text if gan_text else 'Không gan'}\n\n"
