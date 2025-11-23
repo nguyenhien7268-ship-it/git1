@@ -1,0 +1,61 @@
+TỔNG HỢP QUY TRÌNH PHỐI HỢP GEMINI VÀ CURSOR (TỐI ƯU CHI PHÍ)
+
+1. NGUYÊN TẮC CỐT LÕI "Gemini suy nghĩ (Brain), Cursor thực thi (Hand)." Tuyệt đối tránh việc bắt Cursor phải suy luận trên toàn bộ dự án vì chi phí token rất cao.
+
+2. QUY TRÌNH THỰC HIỆN CHI TIẾT
+
+Bước 1: Phân tích & Chẩn đoán (Tại Gemini)
+
+Thay vì hỏi Cursor "Tại sao lỗi?", hãy mang dữ liệu ra ngoài cho Gemini.
+
+Đầu vào: Copy đoạn Log lỗi màu đỏ từ Terminal hoặc upload file code đang gặp vấn đề.
+
+Hành động: Yêu cầu Gemini phân tích nguyên nhân và tìm giải pháp.
+
+Mẹo tiết kiệm: Chỉ copy đúng đoạn lỗi và file liên quan, không cần copy cả dự án.
+
+Bước 2: Tạo Lệnh Prompt "Ăn Sẵn" (Tại Gemini)
+
+Yêu cầu Gemini viết sẵn một câu lệnh (Prompt) chính xác để giao việc cho Cursor.
+
+Cấu trúc Prompt chuẩn cần có 3 yếu tố: (1) Đích danh file cần sửa (Ví dụ: @tests/test_abc.py). (2) Vị trí cụ thể (Tên hàm, số dòng). (3) Lệnh thực thi rõ ràng ("Sửa A thành B", "Giữ nguyên các phần khác").
+
+Bước 3: Thực thi (Tại Cursor)
+
+Công cụ sử dụng: Composer (Phím tắt: Ctrl + I hoặc Cmd + I). Không dùng Chat (Ctrl + L) để sửa code.
+
+Thao tác: (1) Mở Composer. (2) Gõ ký tự "@" và chọn đúng tên file cần sửa. TUYỆT ĐỐI KHÔNG DÙNG lệnh @Codebase. (3) Dán Prompt đã chuẩn bị ở Bước 2 vào. (4) Nhấn Enter, đợi Cursor viết code xong thì nhấn "Accept" (hoặc Ctrl+Enter) để lưu.
+
+Bước 4: Kiểm tra nhanh (Tại Terminal)
+
+Công cụ: Terminal tích hợp trong Cursor (Ctrl + `).
+
+Hành động: Chạy lệnh test ngay lập tức (ví dụ: pytest tests/...).
+
+Kết quả:
+
+Nếu Xanh (Passed): Hoàn thành.
+
+Nếu Đỏ (Failed): Copy log lỗi và quay lại Bước 1.
+
+3. CÁC QUY TẮC VÀNG ĐỂ TIẾT KIỆM CHI PHÍ (SO SÁNH HIỆU QUẢ)
+
+Về Tư duy: Đừng dùng Cursor để "nghĩ" (quét code tìm lỗi tốn $$). Hãy dùng Gemini để nghĩ (miễn phí/rẻ hơn).
+
+Về Ngữ cảnh (Context): Đừng dùng @Codebase (quét hàng nghìn dòng). Hãy dùng @Tên_File_Cụ_Thể (chỉ quét vài chục dòng).
+
+Về Câu lệnh: Đừng ra lệnh mơ hồ kiểu "Sửa lỗi đi". Hãy ra lệnh cụ thể kiểu "Thay dòng 10 bằng đoạn code này".
+
+Về Công cụ: Đừng dùng Chat để copy-paste thủ công. Hãy dùng Composer để sửa trực tiếp vào file.
+
+4. VÍ DỤ MẪU VỀ PROMPT (Dùng để paste vào Cursor)
+
+[Bắt đầu Prompt] @tests/test_v77_phase2.py
+
+Tôi gặp lỗi logic tại hàm 'test_auto_add_bridge'. Yêu cầu sửa assert dòng 45:
+
+Code cũ: assert result == False
+
+Code mới: assert result is None
+
+Chỉ sửa đúng dòng này, giữ nguyên các logic khác của file. [Kết thúc Prompt]

@@ -68,8 +68,14 @@ Quy trình sửa file: Khi bạn yêu cầu sửa đổi một file, tôi sẽ c
 
 Cách thực hiện: Bạn chỉ cần sao chép (copy) toàn bộ nội dung mới mà tôi cung cấp và dán (paste) đè lên, thay thế hoàn toàn nội dung trong file gốc tương ứng của bạn.
 
-------------------------------------------------------
-flake8 .
-TIẾP TỤC sửa lỗi khi chạy flake8 .
+-----------------------------------------------------II. Chiến Lược Ủy Quyền Kép (Dual Delegation) 🚀
 
-chia giai đoạn để sửa và có bước kiểm tra kết quả để tránh lỗi phát sinh
+Tài liệu này đề xuất một quy trình làm việc kết hợp hai mô hình ngôn ngữ lớn (LLM) để tối ưu hóa việc phát triển dự án Python (phân tích xổ số), tập trung vào hiệu quả chi phí và chất lượng code.
+
+Mô hìnhVai trò Tối ưuLoại Tác vụLợi íchGemini ProPLANNER (Lên kế hoạch)Thiết kế kiến trúc, lập kế hoạch chi tiết (ví dụ: 5 bước), tạo Docstrings/Comments, giải thích logic phức tạp.Rẻ, tốc độ nhanh, phù hợp cho tư duy và sáng tạo.Claude Code (Sonnet)AGENT (Thực thi)Thực hiện thay đổi đa file (Agent), tái cấu trúc logic phức tạp, sửa lỗi sâu, đảm bảo tuân thủ định dạng và nhất quán giữa các file.Hiệu quả chi phí cho tác vụ thực thi code (Agent), suy luận code sâu.Quy trình làm việc đề xuất:
+
+Giai đoạn PLANNING (Gemini Pro): Bắt đầu với Gemini Pro để tạo ra một kế hoạch chi tiết và rõ ràng cho tính năng hoặc sửa lỗi.
+
+Giai đoạn EXECUTION (Claude Code Agent): Sử dụng kế hoạch của Gemini Pro làm đầu vào cho Claude Code Agent để thực thi các thay đổi code thực tế trên nhiều file.
+
+Giai đoạn REVIEW (Cả hai): Kiểm tra tính nhất quán (Claude) và tính dễ đọc (Gemini) của code đã thay đổi.

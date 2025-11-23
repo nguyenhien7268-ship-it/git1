@@ -110,10 +110,8 @@ except ImportError:
         """Fallback function for get_27_loto_positions"""
         return []
 
-# Import refactored modules
-from .backtester_helpers import (
-    parse_k2n_results as _parse_k2n_results,
-)
+# Import refactored modules (parse_k2n_results moved to backtester_core)
+from .backtester_core import parse_k2n_results as _parse_k2n_results
 
 from .backtester_aggregation import (
     tonghop_top_cau_n1 as TONGHOP_TOP_CAU_N1_V5,

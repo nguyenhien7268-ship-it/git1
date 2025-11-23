@@ -7,7 +7,7 @@ import pytest
 import sqlite3
 import os
 import tempfile
-
+import gc  # <--- THÊM DÒNG NÀY
 
 # ===================================================================================
 # PHASE 2: Data Generator Tests
@@ -46,6 +46,7 @@ def test_init_all_756_memory_bridges_creates_correct_count():
         
     finally:
         # Clean up
+        gc.collect()
         if os.path.exists(tmp_db):
             os.remove(tmp_db)
 
@@ -91,6 +92,7 @@ def test_init_all_756_memory_bridges_creates_correct_format():
         conn.close()
         
     finally:
+        gc.collect()
         if os.path.exists(tmp_db):
             os.remove(tmp_db)
 
@@ -118,6 +120,7 @@ def test_init_all_756_memory_bridges_default_disabled():
         assert enabled_count == 0, f"All memory bridges should be disabled by default, got {enabled_count} enabled"
         
     finally:
+        gc.collect()
         if os.path.exists(tmp_db):
             os.remove(tmp_db)
 
@@ -145,6 +148,7 @@ def test_init_all_756_memory_bridges_skips_duplicates():
         assert skipped2 == 756, "Should skip all 756 bridges on second run"
         
     finally:
+        gc.collect()
         if os.path.exists(tmp_db):
             os.remove(tmp_db)
 
@@ -264,6 +268,7 @@ def test_full_integration_memory_bridge_in_database():
         assert memory_bridge["pos2_idx"] == -1, "Memory bridge should have pos2_idx = -1"
         
     finally:
+        gc.collect()
         if os.path.exists(tmp_db):
             os.remove(tmp_db)
 
@@ -297,6 +302,7 @@ def test_progress_callback_is_called():
         assert final_call[1] == 756, "Final callback should show 756 total"
         
     finally:
+        gc.collect()
         if os.path.exists(tmp_db):
             os.remove(tmp_db)
 
@@ -330,6 +336,7 @@ def test_init_all_756_memory_bridges_with_enable_all():
         assert enabled_count == 756, f"All 756 bridges should be enabled, got {enabled_count}"
         
     finally:
+        gc.collect()
         if os.path.exists(tmp_db):
             os.remove(tmp_db)
 

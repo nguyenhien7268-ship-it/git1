@@ -11,8 +11,8 @@ def test_vote_weight_reduced():
     from logic.config_manager import AppSettings
     
     settings = AppSettings()
-    # Should be 0.3 after improvement
-    assert settings.VOTE_SCORE_WEIGHT == 0.3
+    # SỬA: Kiểm tra trong defaults để tránh bị file config.json đè lên
+    assert settings.defaults["VOTE_SCORE_WEIGHT"] == 0.3
 
 
 def test_filter_thresholds_increased():

@@ -42,8 +42,8 @@ try:
         BACKTEST_15_CAU_K2N_V30_AI_V8,
         BACKTEST_MANAGED_BRIDGES_K2N,
     )
-    # Import parse function from backtester_helpers.py
-    from .backtester_helpers import parse_k2n_results as _parse_k2n_results
+    # Import parse function from backtester_core (moved during refactoring)
+    from .backtester_core import parse_k2n_results as _parse_k2n_results
     from .bridges.bridges_classic import (
         ALL_15_BRIDGE_FUNCTIONS_V5,
         checkHitSet_V30_K2N,
