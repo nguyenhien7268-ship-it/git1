@@ -31,7 +31,7 @@ Bước	Lệnh	Mục đích
 
 	git add .
 
-	git commit -m "update thu vien"
+	git commit -m "update tai cau truc"
 
 	git push origin main	
 
@@ -54,7 +54,7 @@ COMMIT;
 -- ROLLBACK;
 
 ------------------------------------------------------
-
+------------------------------------------------------
 
 
 
@@ -68,14 +68,94 @@ Quy trình sửa file: Khi bạn yêu cầu sửa đổi một file, tôi sẽ c
 
 Cách thực hiện: Bạn chỉ cần sao chép (copy) toàn bộ nội dung mới mà tôi cung cấp và dán (paste) đè lên, thay thế hoàn toàn nội dung trong file gốc tương ứng của bạn.
 
------------------------------------------------------II. Chiến Lược Ủy Quyền Kép (Dual Delegation) 🚀
+-----------------------------------------------------
+-----------------------------------------------------------
 
-Tài liệu này đề xuất một quy trình làm việc kết hợp hai mô hình ngôn ngữ lớn (LLM) để tối ưu hóa việc phát triển dự án Python (phân tích xổ số), tập trung vào hiệu quả chi phí và chất lượng code.
+TỔNG HỢP QUY TRÌNH PHỐI HỢP GEMINI VÀ CURSOR (TỐI ƯU CHI PHÍ)
+1. Nguyên Tắc Cốt Lõi: "Não & Tay"
+Gemini là Bộ Não (The Brain): Chịu trách nhiệm đọc log, phân tích lỗi, tư duy logic và soạn thảo giải pháp.
 
-Mô hìnhVai trò Tối ưuLoại Tác vụLợi íchGemini ProPLANNER (Lên kế hoạch)Thiết kế kiến trúc, lập kế hoạch chi tiết (ví dụ: 5 bước), tạo Docstrings/Comments, giải thích logic phức tạp.Rẻ, tốc độ nhanh, phù hợp cho tư duy và sáng tạo.Claude Code (Sonnet)AGENT (Thực thi)Thực hiện thay đổi đa file (Agent), tái cấu trúc logic phức tạp, sửa lỗi sâu, đảm bảo tuân thủ định dạng và nhất quán giữa các file.Hiệu quả chi phí cho tác vụ thực thi code (Agent), suy luận code sâu.Quy trình làm việc đề xuất:
+Cursor là Bàn Tay (The Hand): Chịu trách nhiệm tìm đúng file, sửa đúng dòng code và thực thi lệnh.
 
-Giai đoạn PLANNING (Gemini Pro): Bắt đầu với Gemini Pro để tạo ra một kế hoạch chi tiết và rõ ràng cho tính năng hoặc sửa lỗi.
+Quy tắc vàng: Không bao giờ hỏi Cursor "Tại sao lỗi?". Hãy hỏi Gemini "Tại sao lỗi?" và ra lệnh cho Cursor "Sửa như thế này".
 
-Giai đoạn EXECUTION (Claude Code Agent): Sử dụng kế hoạch của Gemini Pro làm đầu vào cho Claude Code Agent để thực thi các thay đổi code thực tế trên nhiều file.
+2. Quy Trình 4 Bước Chi Tiết
+Bước 1: Thu Thập & Phân Tích (Tại Gemini)
 
-Giai đoạn REVIEW (Cả hai): Kiểm tra tính nhất quán (Claude) và tính dễ đọc (Gemini) của code đã thay đổi.
+Khi gặp lỗi hoặc muốn thêm tính năng mới, hãy copy toàn bộ Log lỗi (từ Terminal) hoặc Code hiện tại đang gặp vấn đề.
+
+Gửi dữ liệu cho Gemini kèm câu hỏi: "Phân tích lỗi này và đưa ra giải pháp sửa code".
+
+Lợi ích: Bạn tận dụng được khả năng suy luận mạnh mẽ của Gemini mà không tốn phí token context đắt đỏ của Cursor (khi quét toàn bộ codebase).
+
+Bước 2: Tạo Lệnh Prompt "Ăn Sẵn" (Tại Gemini)
+
+Yêu cầu Gemini không chỉ đưa ra giải pháp, mà phải viết một Prompt lệnh dành riêng cho Cursor.
+
+Cấu trúc Prompt chuẩn:
+
+Đích danh: @Ten_File.py (Chỉ định rõ file cần sửa).
+
+Vị trí: "Tại hàm abc, dòng xyz..."
+
+Hành động: "Thay code cũ A bằng code mới B", hoặc "Thêm dòng X vào sau dòng Y".
+
+Giới hạn: "Chỉ sửa đúng chỗ này, giữ nguyên các phần khác".
+
+Bước 3: Thực Thi Chính Xác (Tại Cursor)
+
+Chuyển sang Cursor để áp dụng code.
+
+Mở Composer: Nhấn Ctrl + I (Windows) hoặc Cmd + I (Mac). Tuyệt đối không dùng Chat (Ctrl+L) để sửa code phức tạp.
+
+Gán ngữ cảnh hẹp: Gõ @ và chọn đúng file cần sửa.
+
+⛔ CẤM: Dùng @Codebase (Trừ khi bạn không biết lỗi nằm ở đâu). Lệnh này quét cả dự án, rất tốn tiền và chậm.
+
+✅ NÊN: Dùng @Ten_File.py (Chỉ tốn token cho file đó).
+
+Dán Prompt: Paste lệnh mà Gemini đã soạn ở Bước 2.
+
+Review & Save: Xem Diff (Code thay đổi) -> Nhấn Accept (hoặc Ctrl+Enter) -> Nhấn Ctrl+S (Lưu file thủ công để chắc chắn).
+
+Bước 4: Kiểm Tra Nhanh (Tại Terminal)
+
+Mở Terminal trong Cursor (Ctrl + `) và chạy lệnh kiểm thử ngay lập tức.
+
+Ví dụ: pytest tests/test_abc.py -v
+
+Nếu Xanh (Passed): Xong.
+
+Nếu Đỏ (Failed): Copy log lỗi quay lại Bước 1.
+
+3. So Sánh Hiệu Quả Kinh Tế
+Về Tư duy:
+
+Cách cũ (Cursor): Tốn kém vì dùng Model AI của Editor để suy luận.
+
+Cách mới (Gemini): Tiết kiệm vì dùng Gemini Web/API để suy luận.
+
+Về Context (Ngữ cảnh):
+
+Cách cũ (Cursor): Rất tốn kém khi quét @Codebase (hàng nghìn dòng).
+
+Cách mới (Gemini): Rất rẻ khi chỉ quét @File (vài chục dòng).
+
+Về Độ chính xác:
+
+Cách cũ (Cursor): Thấp, dễ bị ảo giác do quá nhiều context nhiễu.
+
+Cách mới (Gemini): Cao, nhờ prompt cụ thể và rõ ràng.
+
+Về Tốc độ:
+
+Cách cũ (Cursor): Chậm do phải đợi AI đọc hết dự án.
+
+Cách mới (Gemini): Nhanh, sửa ngay lập tức vào đích.
+
+4. Các Mẹo Nhỏ "Xương Máu" (Từ dự án thực tế)
+Windows File Lock: Luôn nhớ thêm import gc; gc.collect() trong các test xóa file tạm trên Windows.
+
+Config Isolation: Khi test các giá trị mặc định, hãy kiểm tra settings.defaults thay vì settings.Gia_Tri_Hien_Tai để tránh bị file config cá nhân làm sai lệch.
+
+Manual Save: Sau khi Cursor sửa xong, hãy tạo thói quen nhấn Ctrl+S. Đôi khi Cursor báo xong nhưng chưa ghi xuống đĩa cứng kịp thời.

@@ -85,6 +85,7 @@ try:
         find_and_auto_manage_bridges,
         prune_bad_bridges,
     )
+    from logic.bridges.bridge_manager_de import find_and_auto_manage_bridges_de
 
     print(">>> (V7.3) Tải logic.bridges.bridge_manager_core thành công.")
 except ImportError as e_bridge_core:
@@ -173,6 +174,7 @@ __all__ = [
     "auto_manage_bridges",
     "find_and_auto_manage_bridges",
     "prune_bad_bridges",
+    "find_and_auto_manage_bridges_de",  # Thêm hàm của Đề
     # Dashboard (7)
     "get_high_win_rate_predictions",
     "get_historical_dashboard_data",

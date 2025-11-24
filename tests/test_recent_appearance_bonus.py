@@ -9,9 +9,7 @@ import pytest
 def test_vote_weight_reduced():
     """Test that vote weight has been reduced from 0.5 to 0.3"""
     from logic.config_manager import AppSettings
-    
     settings = AppSettings()
-    # SỬA: Kiểm tra trong defaults để tránh bị file config.json đè lên
     assert settings.defaults["VOTE_SCORE_WEIGHT"] == 0.3
 
 

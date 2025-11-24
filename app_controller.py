@@ -8,6 +8,7 @@ import os
 import time
 import tkinter as tk
 import traceback
+import pandas as pd
 
 # Import tường minh các hàm cần thiết từ lottery_service
 try:
@@ -21,6 +22,7 @@ try:
         TIM_CAU_BAC_NHO_TOT_NHAT,
         TIM_CAU_TOT_NHAT_V16,
         find_and_auto_manage_bridges,
+        find_and_auto_manage_bridges_de,
         get_all_managed_bridges,
         get_high_win_rate_predictions,
         get_historical_dashboard_data,
@@ -345,36 +347,79 @@ class AppController:
         ai_predictions, ai_message = run_ai_prediction_for_dashboard()
         self.logger.log(f"... (AI) {ai_message}")
 
-        self.logger.log("... (Kết thúc) Đang chấm điểm và tổng hợp quyết định...")
-        top_memory_bridges = get_top_memory_bridge_predictions(
-            all_data_ai, last_row, top_n=5
-        )
-        top_scores = get_top_scored_pairs(
-            stats_n_day,
-            consensus,
-            high_win,
-            pending_k2n_data,
-            gan_stats,
-            top_memory_bridges,
-            ai_predictions,
-        )
+        # --- CẬP NHẬT DỮ LIỆU CHO TAB SOI CẦU ĐỀ (V7.8) ---
+        try:
+            if hasattr(self.app, 'de_dashboard_tab') and self.app.de_dashboard_tab:
+                self.logger.log("... (Soi Cầu Đề) Đang chuẩn bị dữ liệu...")
+                # 1. Định nghĩa cột (Mapping chuẩn theo DataParser)
+                # Index: 0=Ky, 1=Ngay, 2=GDB, 3=G1, ... 9=G7
+                cols = ["NB", "NGAY", "GDB", "G1", "G2", "G3", "G4", "G5", "G6", "G7"]
 
-        self.logger.log("Phân tích hoàn tất. Đang hiển thị Bảng Quyết Định Tối Ưu...")
+                # 2. Lọc dữ liệu: Chỉ lấy các cột cần thiết để tạo DataFrame nhẹ
+                # Lưu ý: all_data_ai là list of lists. Cần slice 10 phần tử đầu.
+                data_for_df = [r[:10] for r in all_data_ai if r and len(r) >= 10]
 
-        self.root_after(
-            0,
-            self.app._show_dashboard_window,
-            next_ky,
-            stats_n_day,
-            n_days_stats,
-            consensus,
-            high_win,
-            pending_k2n_data,
-            gan_stats,
-            top_scores,
-            top_memory_bridges,
-            ai_predictions,
-        )
+                # 3. Tạo DataFrame
+                df_de = pd.DataFrame(data_for_df, columns=cols)
+
+                # 4. Gửi sang UI
+                self.root_after(0, self.app.de_dashboard_tab.update_data, df_de)
+                self.logger.log(f"... (Soi Cầu Đề) Đã nạp {len(df_de)} kỳ vào hệ thống.")
+        except Exception as e_de:
+            self.logger.log(f"Cảnh báo: Lỗi cập nhật Tab Soi Cầu Đề: {e_de}")
+        # -----------------------------------------------------
+
+        # --- LOGIC CHẤM ĐIỂM & HIỂN THỊ (Đã Bọc Try-Except An Toàn) ---
+        try:
+            self.logger.log("... (Kết thúc) Đang chấm điểm và tổng hợp quyết định...")
+            
+            # 1. Tính toán Top Cầu Bạc Nhớ (Có bắt lỗi riêng)
+            try:
+                top_memory_bridges = get_top_memory_bridge_predictions(
+                    all_data_ai, last_row, top_n=5
+                )
+            except Exception as e_mem:
+                self.logger.log(f"Lỗi tính Cầu Bạc Nhớ: {e_mem}")
+                top_memory_bridges = []
+
+            # 2. Tính toán Điểm Tổng Lực (Có bắt lỗi riêng)
+            try:
+                top_scores = get_top_scored_pairs(
+                    stats_n_day,
+                    consensus,
+                    high_win,
+                    pending_k2n_data,
+                    gan_stats,
+                    top_memory_bridges,
+                    ai_predictions,
+                )
+            except Exception as e_score:
+                self.logger.log(f"Lỗi tính Điểm Tổng Lực: {e_score}")
+                top_scores = []
+
+            self.logger.log("Phân tích hoàn tất. Đang hiển thị Bảng Quyết Định Tối Ưu...")
+
+            # 3. Hiển thị Dashboard (Luôn chạy dù các bước trên có thể lỗi nhẹ)
+            self.root_after(
+                0,
+                self.app._show_dashboard_window,
+                next_ky,
+                stats_n_day,
+                n_days_stats,
+                consensus,
+                high_win,
+                pending_k2n_data,
+                gan_stats,
+                top_scores,
+                top_memory_bridges,
+                ai_predictions,
+            )
+            
+        except Exception as e_final:
+            self.logger.log(f"LỖI NGHIÊM TRỌNG khi hiển thị Dashboard Lô: {e_final}")
+            self.logger.log(traceback.format_exc())
+            # Cố gắng hiển thị bảng rỗng để không treo UI
+            self.root_after(0, self.app._on_dashboard_close)
 
     def task_run_update_all_bridge_K2N_cache(self, title):
         all_data_ai = self.load_data_ai_from_db_controller()
@@ -402,10 +447,15 @@ class AppController:
         if not toan_bo_A_I:
             return
 
-        result_message = find_and_auto_manage_bridges(toan_bo_A_I, self.db_name)
+        # 1. Chạy Lô
+        msg_loto = find_and_auto_manage_bridges(toan_bo_A_I, self.db_name)
+        self.logger.log(f">>> LOTO: {msg_loto}")
 
-        self.logger.log(f">>> {title} HOÀN TẤT:")
-        self.logger.log(result_message)
+        # 2. Chạy Đề (Hệ thống riêng biệt)
+        self.logger.log(">>> Đang chuyển sang hệ thống Dò Cầu Đề...")
+        msg_de = find_and_auto_manage_bridges_de(toan_bo_A_I, self.db_name)
+        self.logger.log(f">>> ĐỀ: {msg_de}")
+        self.logger.log(">>> Tác vụ hoàn tất.")
 
         if (
             self.app.bridge_manager_window

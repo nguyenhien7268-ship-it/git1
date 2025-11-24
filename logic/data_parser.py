@@ -701,3 +701,53 @@ def run_and_update_from_text(raw_data):
             False,
             f"Lỗi nghiêm trọng khi thêm từ text: {e}\n{traceback.format_exc()}",
         )
+
+
+class DataParser:
+    def get_positions_map(self, row) -> list:
+        """
+        Lấy mảng phẳng 107 con số từ tất cả các giải (GDB -> G7).
+        Logic map vị trí chuẩn V16 (Google Script).
+        """
+        positions = []
+        try:
+            def parse_digits(val):
+                if not val: return []
+                s = str(val)
+                return [int(d) for d in s if d.isdigit()]
+            # 1. GĐB (5 số)
+            positions.extend(parse_digits(row.get('GDB', ''))[:5])
+            while len(positions) < 5: positions.append(0)
+            # 2. G1 (5 số)
+            positions.extend(parse_digits(row.get('G1', ''))[:5])
+            while len(positions) < 10: positions.append(0)
+            # 3. G2 (2 giải * 5)
+            g2 = str(row.get('G2', '')).split(',')
+            for g in g2: positions.extend(parse_digits(g)[:5])
+            while len(positions) < 20: positions.append(0)
+            # 4. G3 (6 giải * 5)
+            g3 = str(row.get('G3', '')).split(',')
+            for g in g3: positions.extend(parse_digits(g)[:5])
+            while len(positions) < 50: positions.append(0)
+            # 5. G4 (4 giải * 4)
+            g4 = str(row.get('G4', '')).split(',')
+            for g in g4: positions.extend(parse_digits(g)[:4])
+            while len(positions) < 66: positions.append(0)
+            # 6. G5 (6 giải * 4)
+            g5 = str(row.get('G5', '')).split(',')
+            for g in g5: positions.extend(parse_digits(g)[:4])
+            while len(positions) < 90: positions.append(0)
+            # 7. G6 (3 giải * 3)
+            g6 = str(row.get('G6', '')).split(',')
+            for g in g6: positions.extend(parse_digits(g)[:3])
+            while len(positions) < 99: positions.append(0)
+            # 8. G7 (4 giải * 2)
+            g7 = str(row.get('G7', '')).split(',')
+            for g in g7: positions.extend(parse_digits(g)[:2])
+            # Cắt hoặc bù cho đủ 107
+            if len(positions) > 107: positions = positions[:107]
+            while len(positions) < 107: positions.append(0)
+            return positions
+        except Exception as e:
+            print(f"Parser Error: {e}")
+            return [0] * 107

@@ -8,14 +8,12 @@ from logic.config_manager import AppSettings
 
 
 def test_filter_settings_defaults():
-    """Test default filter settings"""
+    """Test that filter settings have proper defaults"""
     from logic.config_manager import SETTINGS
-    
-    # SỬA: Kiểm tra trong từ điển defaults thay vì giá trị instance hiện tại
-    # Vì instance có thể đã load giá trị 5 từ file config.json
-    assert SETTINGS.defaults["FILTER_MIN_CONFIDENCE"] == 0
-    assert SETTINGS.defaults["FILTER_MIN_AI_PROB"] == 0
-    assert SETTINGS.defaults["FILTER_ENABLED"] is False
+    settings = SETTINGS
+    assert settings.defaults["FILTER_MIN_CONFIDENCE"] == 0
+    assert settings.defaults["FILTER_MIN_AI_PROB"] == 0
+    assert settings.defaults["FILTER_ENABLED"] == False
 
 
 def test_filter_settings_in_get_all_settings():

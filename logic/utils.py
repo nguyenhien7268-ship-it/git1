@@ -1,9 +1,16 @@
-# Tên file: du-an-backup/logic/utils.py
-#
-# (NỘI DUNG THAY THẾ TOÀN BỘ - SỬA F401, E741)
-#
-# (SỬA F401) Xóa 'import re' không dùng
-# (SỬA F401) Xóa 'from collections import Counter' không dùng
+import logging
+import sys
+
+def setup_logger(name="Logic"):
+    """Cấu hình Logger đơn giản."""
+    logger = logging.getLogger(name)
+    if not logger.handlers:
+        logger.setLevel(logging.INFO)
+        handler = logging.StreamHandler(sys.stdout)
+        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+    return logger
 
 # ===================================================================================
 # CẤU HÌNH VÀ HÀM HỖ TRỢ CỐT LÕI (V25 / V30)

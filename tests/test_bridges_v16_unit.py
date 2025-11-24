@@ -247,8 +247,8 @@ class TestGetAllPositionsV17Shadow:
         positions = getAllPositions_V17_Shadow(row)
         
         assert len(positions) == 214
-        # If original is None, bong should also be None hoặc 0
         assert positions[0] == 0 or positions[0] is None
+        # Update: bóng của 0 là 5 hoặc None
         assert positions[107] == 5 or positions[107] is None
 
 

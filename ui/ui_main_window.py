@@ -51,6 +51,7 @@ except ImportError:
 # (SỬA LỖI CIRCULAR IMPORT)
 try:
     from ui.ui_dashboard import DashboardWindow
+    from ui.ui_de_dashboard import UiDeDashboard
     from ui.ui_lookup import LookupWindow
     from ui.ui_optimizer import OptimizerTab
     from ui.ui_results_viewer import ResultsViewerWindow
@@ -122,12 +123,14 @@ class DataAnalysisApp:
         self.tab1_frame.rowconfigure(1, weight=1)
 
         self.dashboard_tab = DashboardWindow(self)
+        self.de_dashboard_tab = UiDeDashboard(self.notebook, None)
         self.lookup_tab = LookupWindow(self)
         self.optimizer_tab = OptimizerTab(self.notebook, self)
 
         # 5. ADD CÁC TAB VÀO NOTEBOOK
         self.notebook.add(self.tab1_frame, text="⚙️ Điều Khiển")
         self.notebook.add(self.dashboard_tab, text="📊 Bảng Quyết Định")
+        self.notebook.add(self.de_dashboard_tab, text="🔮 Soi Cầu Đề")
         self.notebook.add(self.lookup_tab, text="🔍 Tra Cứu")
         self.notebook.add(self.optimizer_tab, text="🚀 Tối ưu Hóa")
         self.notebook.add(self.tab_log_frame, text="Log Hệ Thống")
@@ -367,7 +370,7 @@ class DataAnalysisApp:
 
         self.controller = AppController(self)
         self.controller.logger = self.logger
-
+        self.de_dashboard_tab.controller = self.controller
         self.logger.log("Hệ thống sẵn sàng (UI Tối Ưu).")
 
     # --- HÀM XÓA TEXT (Callback cho Controller) ---

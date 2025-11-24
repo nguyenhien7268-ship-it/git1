@@ -114,6 +114,37 @@ except ImportError as e:
 
 
 # ===================================================================================
+# 0. ĐỊNH NGHĨA DATA STRUCTURES (Thêm mới để sửa lỗi Import)
+# ===================================================================================
+from dataclasses import dataclass
+from typing import List, Optional
+
+@dataclass
+class BridgeLocation:
+    index: int
+    type_id: int = 0  # 0: Normal, 1: Shadow, etc.
+
+@dataclass
+class Bridge:
+    locations: List[BridgeLocation]
+    value: int
+    predicted_value: int
+    score: float
+    bridge_type: str = "UNKNOWN"
+    
+    def __str__(self):
+        return f"Bridge(Type={self.bridge_type}, Score={self.score}, Pred={self.predicted_value})"
+# ===================================================================================
+
+
+# ===================================================================================
+# HELPER CHO CẦU ĐỀ
+# ===================================================================================
+# XÓA: BONG_DUONG_MAP, get_4_touches, check_hit_de_4_touches, TIM_CAU_DE_TOT_NHAT
+# ===================================================================================
+
+
+# ===================================================================================
 # I. HÀM DÒ CẦU (ĐÃ DI CHUYỂN TỪ BACKTESTER V7.0)
 # ===================================================================================
 
@@ -365,37 +396,33 @@ def TIM_CAU_BAC_NHO_TOT_NHAT(
 
 
 # ===================================================================================
+# II.A. HÀM DÒ CẦU ĐỀ V17 (MỚI - BACKTEST K1N & K2N)
+# ===================================================================================
+# XÓA: BONG_DUONG_MAP, get_4_touches, check_hit_de_4_touches, TIM_CAU_DE_TOT_NHAT
+# ===================================================================================
+
+
+# ===================================================================================
 # III. HÀM QUẢN LÝ TỰ ĐỘNG (ĐÃ DI CHUYỂN TỪ BACKTESTER V7.0)
 # ===================================================================================
 
 
 def find_and_auto_manage_bridges(all_data_ai, db_name=DB_NAME):
     """
-    (V7.0) Wrapper: Chạy cả 2 hàm dò cầu (V17 + Bạc Nhớ) và cập nhật DB.
+    (V7.0) Wrapper: Chạy cả 2 hàm dò cầu (V17 Lô + Bạc Nhớ) và cập nhật DB.
     """
     try:
         if not all_data_ai:
             return "Lỗi: Không có dữ liệu A:I để dò cầu."
-
         ky_bat_dau = 2
         ky_ket_thuc = len(all_data_ai) + (ky_bat_dau - 1)
-
-        print("... (Auto Find) Bắt đầu dò Cầu V17 (Shadow)...")
-        results_v17 = TIM_CAU_TOT_NHAT_V16(
-            all_data_ai, ky_bat_dau, ky_ket_thuc, db_name
-        )
-        count_v17 = len(results_v17) - 1 if results_v17 and len(results_v17) > 1 else 0
-
+        print("... (Auto Find) Bắt đầu dò Cầu Lô V17 (Shadow)...")
+        results_v17 = TIM_CAU_TOT_NHAT_V16(all_data_ai, ky_bat_dau, ky_ket_thuc, db_name)
+        c_v17 = len(results_v17) - 1 if results_v17 else 0
         print("... (Auto Find) Bắt đầu dò Cầu Bạc Nhớ...")
-        results_memory = TIM_CAU_BAC_NHO_TOT_NHAT(
-            all_data_ai, ky_bat_dau, ky_ket_thuc, db_name
-        )
-        count_memory = (
-            len(results_memory) - 1 if results_memory and len(results_memory) > 1 else 0
-        )
-
-        return f"Dò cầu hoàn tất. Tự động thêm/cập nhật {count_v17} cầu V17 và {count_memory} cầu Bạc Nhớ."
-
+        results_bn = TIM_CAU_BAC_NHO_TOT_NHAT(all_data_ai, ky_bat_dau, ky_ket_thuc, db_name)
+        c_bn = len(results_bn) - 1 if results_bn else 0
+        return f"Hoàn tất. Đã cập nhật: {c_v17} Cầu Lô, {c_bn} Bạc Nhớ."
     except Exception as e:
         return f"Lỗi nghiêm trọng trong find_and_auto_manage_bridges: {e}"
 
