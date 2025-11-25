@@ -1,10 +1,10 @@
-# Tên file: git3/lottery_service.py
+# Tên file: git1/lottery_service.py
 #
-# (NỘI DUNG THAY THẾ TOÀN BỘ - SỬA F821)
+# (NỘI DUNG THAY THẾ TOÀN BỘ - SỬA LỖI MISSING IMPORT DASHBOARD ANALYTICS)
 #
 """
 ==================================================================================
-LOTTERY SERVICE API (BỘ ĐIỀU PHỐI) - (V7.3 - TÁCH LOGIC AI FEATURE)
+LOTTERY SERVICE API (BỘ ĐIỀU PHỐI) - (V7.4 - FIXED EXPORTS)
 ==================================================================================
 File này đóng vai trò là API trung tâm, import và phân phối logic từ
 các file con trong thư mục /logic.
@@ -103,6 +103,9 @@ try:
         get_prediction_consensus,
         get_top_memory_bridge_predictions,
         get_top_scored_pairs,
+        # [FIXED] Thêm import để phục vụ AppController
+        prepare_daily_features,
+        calculate_score_from_features
     )
 
     print(">>> (V7.3) Tải logic.dashboard_analytics thành công.")
@@ -188,6 +191,9 @@ __all__ = [
     "run_ai_training_threaded",
     # Hàm Wrapper (1)
     "get_all_managed_bridges_wrapper",
+    # Optimizer functions
+    "prepare_daily_features",
+    "calculate_score_from_features",
 ]
 
 
@@ -205,4 +211,4 @@ def get_all_managed_bridges_wrapper(db_name=DB_NAME, only_enabled=False):
     return get_all_managed_bridges(db_name, only_enabled)
 
 
-print("Lottery Service API (lottery_service.py) đã tải thành công (V7.3).")
+print("Lottery Service API (lottery_service.py) đã tải thành công (V7.4).")

@@ -77,6 +77,7 @@ except ImportError as e_import:
     def run_and_update_from_text(raw_data):
         return False, "Lỗi: Không tìm thấy module logic.data_parser"
 
+from logic.dashboard_analytics import prepare_daily_features, calculate_score_from_features
 
 class AppController:
     """
@@ -505,6 +506,41 @@ class AppController:
                 0, self.app.bridge_manager_window_instance.refresh_bridge_list
             )
 
+    def task_run_smart_optimization(self, title):
+        """
+        Gộp chức năng: Lọc cầu yếu + Quản lý tự động + Refresh UI.
+        """
+        try:
+            # Tải dữ liệu một lần dùng chung
+            all_data = self.load_data_ai_from_db_controller()
+            if not all_data:
+                return
+
+            self.logger.log(f"\n--- ⚡ BẮT ĐẦU: {title} ---")
+
+            # BƯỚC 1: Dọn dẹp (Prune)
+            self.logger.log("(1/3) Đang quét và TẮT các cầu hiệu quả kém...")
+            # Gọi hàm prune từ lottery_service
+            msg_prune = prune_bad_bridges(all_data, self.db_name)
+            self.logger.log(f"-> Kết quả lọc: {msg_prune}")
+
+            # BƯỚC 2: Cân bằng (Auto Manage)
+            self.logger.log("(2/3) Đang kiểm tra và BẬT lại các cầu tiềm năng...")
+            # Gọi hàm auto manage từ lottery_service
+            msg_manage = auto_manage_bridges(all_data, self.db_name)
+            self.logger.log(f"-> Kết quả quản lý: {msg_manage}")
+
+            # BƯỚC 3: Làm mới UI
+            self.logger.log("(3/3) Đang làm mới danh sách cầu...")
+            if self.app.bridge_manager_window_instance:
+                self.root_after(0, self.app.bridge_manager_window_instance.refresh_bridge_list)
+
+            self.logger.log(f"✅ TỐI ƯU HÓA HOÀN TẤT!")
+
+        except Exception as e:
+            self.logger.log(f"LỖI TỐI ƯU HÓA: {e}")
+            self.logger.log(traceback.format_exc())
+
     def task_run_train_ai(self, title):
 
         def train_callback(success, message):
@@ -731,7 +767,6 @@ class AppController:
                 optimizer_tab.tree.insert(
                     "", tk.END, values=(rate_str, hits, params_str), tags=tags_with_data
                 )
-
             optimizer_tab.apply_button.config(state=tk.NORMAL)
 
         def float_range(start, stop, step):
@@ -751,21 +786,17 @@ class AppController:
             for key in config_keys:
                 v_from, v_to, v_step = param_ranges[key]
                 if isinstance(original_settings[key], int):
-                    param_lists.append(
-                        [
-                            (key, int(i))
-                            for i in float_range(v_from, v_to, v_step)
-                            if i >= 0
-                        ]
-                    )
+                    param_lists.append([
+                        (key, int(i))
+                        for i in float_range(v_from, v_to, v_step)
+                        if i >= 0
+                    ])
                 else:
-                    param_lists.append(
-                        [
-                            (key, round(i, 2))
-                            for i in float_range(v_from, v_to, v_step)
-                            if i >= 0
-                        ]
-                    )
+                    param_lists.append([
+                        (key, round(i, 2))
+                        for i in float_range(v_from, v_to, v_step)
+                        if i >= 0
+                    ])
             if not param_lists:
                 return []
 
@@ -783,9 +814,7 @@ class AppController:
             log_to_optimizer("Đang tải toàn bộ dữ liệu A:I...")
             all_data_ai = self.load_data_ai_from_db_controller()
             if not all_data_ai or len(all_data_ai) < days_to_test + 50:
-                log_to_optimizer(
-                    f"LỖI: Cần ít nhất {days_to_test + 50} kỳ dữ liệu để kiểm thử."
-                )
+                log_to_optimizer(f"LỖI: Cần ít nhất {days_to_test + 50} kỳ dữ liệu để kiểm thử.")
                 return
             log_to_optimizer(f"...Tải dữ liệu thành công ({len(all_data_ai)} kỳ).")
 
@@ -795,87 +824,63 @@ class AppController:
             if total_combos == 0:
                 log_to_optimizer("Lỗi: Không tạo được tổ hợp kiểm thử.")
                 return
+            log_to_optimizer(f"Đã tạo {total_combos} tổ hợp. Bắt đầu chuẩn bị features cache...")
 
-            log_to_optimizer(f"Đã tạo {total_combos} tổ hợp. Bắt đầu kiểm thử...")
+            # Phase 1: Precompute features cho từng ngày trong days_to_test
+            cached_features = []
+            offset = len(all_data_ai) - days_to_test
+            for i in range(days_to_test):
+                day_index = offset + i
+                log_to_optimizer(f"Đang chuẩn bị dữ liệu ngày {day_index + 1 - offset}/{days_to_test} ...")
+                try:
+                    features = prepare_daily_features(all_data_ai, day_index)
+                    cached_features.append(features)
+                except Exception as e:
+                    log_to_optimizer(f"Lỗi khi prepare features ngày {i+1}: {e}")
+                    cached_features.append(None)
 
-            original_settings_backup = original_settings.copy()
             results_list = []
-
-            for i, config in enumerate(combinations):
-                log_to_optimizer(
-                    f"--- Đang kiểm thử [{i + 1}/{total_combos}]: {config} ---"
-                )
-
-                for key, value in config.items():
-                    setattr(SETTINGS, key, value)
-
+            log_to_optimizer(f"Chuẩn bị xong features. Bắt đầu Loop tối ưu ({total_combos} tổ hợp)...")
+            for ci, config in enumerate(combinations):
+                log_to_optimizer(f"--- Đang kiểm thử [{ci + 1}/{total_combos}]: {config} ---")
                 total_hits = 0
                 days_tested = 0
-
-                for day_offset in range(days_to_test):
-                    actual_index = len(all_data_ai) - 1 - day_offset
-                    day_index = actual_index - 1
-                    if day_index < 50:
+                for fidx, features in enumerate(cached_features):
+                    if not features:
+                        continue
+                    try:
+                        top_scores = calculate_score_from_features(features, config)
+                    except Exception as e:
+                        log_to_optimizer(f"Lỗi tính score ngày {fidx+1}: {e}")
                         continue
                     days_tested += 1
-
-                    actual_row = all_data_ai[actual_index]
-                    actual_loto_set = set(getAllLoto_V30(actual_row))
-
-                    top_scores = get_historical_dashboard_data(
-                        all_data_ai, day_index, config
-                    )
-
+                    # Logic tính hit: lấy top 1 cặp, check xuất hiện trong actual
                     if not top_scores:
                         continue
-
-                    if strategy == "Tối ưu Top 1 (N1)":
-                        top_1_pair_str = top_scores[0]["pair"]
-                        loto1, loto2 = top_1_pair_str.split("-")
-                        if loto1 in actual_loto_set or loto2 in actual_loto_set:
+                    top1 = top_scores[0]
+                    # Lấy actual_lotos của ngày đó
+                    last_row = features['recent_data'][-1] if 'recent_data' in features else None
+                    if last_row:
+                        actual_lotos = set(getAllLoto_V30(last_row))
+                        loto1, loto2 = top1['pair'].split('-')
+                        if loto1 in actual_lotos or loto2 in actual_lotos:
                             total_hits += 1
-
-                    elif strategy == "Tối ưu Top 3 (N1)":
-                        top_3_pairs = {item["pair"] for item in top_scores[:3]}
-                        for pair_str in top_3_pairs:
-                            loto1, loto2 = pair_str.split("-")
-                            if loto1 in actual_loto_set or loto2 in actual_loto_set:
-                                total_hits += 1
-                                break
-
                 rate = total_hits / days_tested if days_tested > 0 else 0
                 hits_str = f"{total_hits}/{days_tested}"
+                import json
                 config_str_json = json.dumps(config)
                 params_str_display = ", ".join(
-                    [
-                        f"{key}: {value}"
-                        for key, value in config.items()
-                        if key in param_ranges
-                    ]
+                    [f"{key}: {value}" for key, value in config.items() if key in param_ranges]
                 )
-                results_list.append(
-                    (rate, hits_str, params_str_display, config_str_json)
-                )
+                results_list.append((rate, hits_str, params_str_display, config_str_json))
                 log_to_optimizer(f"-> Kết quả: {hits_str} ({rate * 100:.1f}%)")
-
             log_to_optimizer("Đang sắp xếp kết quả...")
             results_list.sort(key=lambda x: x[0], reverse=True)
-
-            for key, value in original_settings_backup.items():
-                setattr(SETTINGS, key, value)
-            log_to_optimizer("Đã khôi phục cài đặt gốc.")
-
             self.root_after(0, update_tree_results_threadsafe, results_list)
             log_to_optimizer("--- HOÀN TẤT TỐI ƯU HÓA ---")
-
         except Exception as e:
             log_to_optimizer(f"LỖI: {e}")
+            import traceback
             log_to_optimizer(traceback.format_exc())
-            try:
-                for key, value in original_settings_backup.items():
-                    setattr(SETTINGS, key, value)
-                log_to_optimizer("Đã khôi phục cài đặt gốc sau lỗi.")
-            except NameError:
-                pass
         finally:
             self.root_after(0, optimizer_tab.run_button.config, {"state": tk.NORMAL})

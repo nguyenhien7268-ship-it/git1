@@ -1,410 +1,115 @@
-# 📚 System Evaluation Documentation
+# Xổ Số Data Analysis System (XS-DAS) - V7.8
 
-> Comprehensive assessment of XS-DAS V7.3: Strengths, Weaknesses, and Upgrade Path
+[![CI Pipeline](https://github.com/nguyenhien7268-ship-it/git1/actions/workflows/ci.yml/badge.svg)](https://github.com/nguyenhien7268-ship-it/git1/actions/workflows/ci.yml)
+[![Code Quality](https://img.shields.io/badge/flake8-passing-brightgreen)](https://github.com/nguyenhien7268-ship-it/git1)
+[![Tests](https://img.shields.io/badge/tests-15%20passing-brightgreen)](https://github.com/nguyenhien7268-ship-it/git1)
 
-**Evaluation Date:** November 18, 2025  
-**System Version:** V7.3 (MVP)  
-**Overall Score:** 5.5/10 (Average - Needs Improvement)  
-**Evaluator:** Copilot AI Agent
+CẤU TRÚC THƯ MỤC
+root/
+├── data/
+│   └── xo_so_prizes_all_logic.db    # Cơ sở dữ liệu chính
+├── DOC/                             # Tài liệu dự án
+├── logic/                           # BACKEND LOGIC
+│   ├── bridges/                     # Các thuật toán soi cầu
+│   │   ├── bridge_manager_de.py     # Quản lý cầu Đề (Cũ/Sẽ sửa sau)
+│   │   ├── de_bridge_scanner.py     # Quét cầu Đề (Sẽ nâng cấp ở GĐ 2)
+│   │   └── ... (các file cầu Lô)
+│   ├── ml_model_files/              # File mô hình AI
+│   ├── backtester_core.py           # Lõi kiểm thử (Dùng chung)
+│   ├── db_manager.py                # Quản lý kết nối DB
+│   ├── de_analytics.py              # (MỚI) 🟢 Phân tích thị trường Đề
+│   ├── de_utils.py                  # (MỚI) 🟢 Tiện ích & Adapter Đề
+│   └── ... (các file logic Lô)
+├── ui/                              # GIAO DIỆN NGƯỜI DÙNG
+│   ├── ui_de_dashboard.py           # (SẼ SỬA) Màn hình Soi Cầu Đề
+│   ├── ui_dashboard.py              # Màn hình Soi Cầu Lô
+│   └── ...
+├── app_controller.py                # Bộ điều phối chính
+├── main_app.py                      # File chạy chương trình
+└── ...
 
----
+## 🎯 Giới Thiệu
 
-## 🎯 Quick Start
-
-### New to these documents?
-👉 **Start here:** [`INDEX.md`](INDEX.md) - Complete navigation guide
-
-### Want the executive summary?
-👉 **Read:** [`EXECUTIVE_SUMMARY.md`](EXECUTIVE_SUMMARY.md) - 10 minutes
-
-### Need to fix things now?
-👉 **Follow:** [`QUICK_WINS_GUIDE.md`](QUICK_WINS_GUIDE.md) - 2 days of work
-
----
-
-## 📋 Documents Overview
-
-| Document | Purpose | Audience | Time | Pages |
-|----------|---------|----------|------|-------|
-| [EXECUTIVE_SUMMARY.md](EXECUTIVE_SUMMARY.md) | High-level overview + ROI | Leadership, Stakeholders | 10 min | 10 |
-| [SYSTEM_EVALUATION_REPORT.md](SYSTEM_EVALUATION_REPORT.md) | Technical assessment | Tech Leads, Architects | 30 min | 20 |
-| [TECHNICAL_DEBT_ANALYSIS.md](TECHNICAL_DEBT_ANALYSIS.md) | Code quality deep dive | Senior Developers | 40 min | 25 |
-| [QUICK_WINS_GUIDE.md](QUICK_WINS_GUIDE.md) | Actionable improvements | All Developers | 15 min | 22 |
-| [IMPLEMENTATION_ROADMAP.md](IMPLEMENTATION_ROADMAP.md) | Execution plan | Project Managers | 20 min | 28 |
-| [INDEX.md](INDEX.md) | Navigation guide | Everyone | 5 min | 15 |
-
-**Total:** 6 documents, ~80 pages, 50,000+ words
+Đây là Hệ thống Phân tích Dữ liệu Xổ Số (XS-DAS), được thiết kế để tự động backtest, phân tích chuyên sâu các chiến lược dò cầu, quản lý chiến lược và đưa ra dự đoán dựa trên AI. Hệ thống cung cấp các công cụ trực quan để tinh chỉnh và tối ưu hóa tham số đầu tư.
 
 ---
 
-## 🎯 Key Findings at a Glance
+## 🚀 CẬP NHẬT MỚI (V7.8 - SEPARATION OF CONCERNS)
 
-### Overall Score: 5.5/10
+Phiên bản V7.8 đánh dấu bước ngoặt về kiến trúc hệ thống, tách biệt hoàn toàn logic xử lý **Lô** và **Đề** để tối ưu hóa hiệu năng và khả năng bảo trì:
 
-```
-Component Breakdown:
-┌──────────────────────────────────────┐
-│  Architecture:     8/10  ████████░░  │  ⭐ Strong
-│  Code Quality:     6/10  ██████░░░░  │  ⚠️ Needs work
-│  Testing:          1/10  █░░░░░░░░░  │  🔴 Critical
-│  Security:         6/10  ██████░░░░  │  ⚠️ Needs work
-│  Documentation:    7/10  ███████░░░  │  ⭐ Good
-│  Performance:      7/10  ███████░░░  │  ⭐ Good
-│  Scalability:      4/10  ████░░░░░░  │  🔴 Limited
-│  Maintainability:  5/10  █████░░░░░  │  ⚠️ Needs work
-└──────────────────────────────────────┘
-```
-
-### Top 5 Strengths ⭐
-1. **MVP Architecture** (8/10) - Clean separation of concerns
-2. **SQL Security** - Proper parameterized queries
-3. **Exception Handling** - 216+ try-except blocks
-4. **ML Stack** - Modern XGBoost implementation
-5. **Multi-threading** - Prevents UI freezing
-
-### Top 5 Weaknesses 🔴
-1. **Test Coverage = 0%** - Cannot refactor safely
-2. **Large Files** - Max 1,303 LOC in backtester.py
-3. **99 Flake8 Warnings** - Including 3 crash bugs
-4. **No CI/CD** - Manual quality checks
-5. **SQLite Limitations** - Cannot scale beyond single user
+* **🔮 Hệ Thống Soi Cầu Đề Chuyên Biệt:**
+    * **Module Mới:** `bridge_manager_de.py` hoạt động độc lập.
+    * **Thuật Toán:** Sử dụng vị trí V17 (Shadow) để tìm cặp số cốt lõi, từ đó suy ra **4 Chạm Đề** (Gốc + Bóng Dương).
+    * **Backtest Kép:** Đánh giá đồng thời tỷ lệ ăn ngày 1 (N1) và khung nuôi 2 ngày (K2N).
+* **🛠️ Tái Cấu Trúc Core:**
+    * `bridge_manager_core.py`: Được tinh gọn để chỉ tập trung xử lý **Cầu Lô** (V17 + Bạc Nhớ).
+    * Giảm thiểu xung đột logic, giúp việc nâng cấp thuật toán cho từng loại hình trở nên dễ dàng hơn.
+* **📊 Dashboard Nâng Cấp:**
+    * Tích hợp hiển thị dữ liệu Soi Cầu Đề ngay trên giao diện chính (Tab riêng biệt).
+    * Quy trình "Tự động Dò & Thêm Cầu" giờ đây chạy song song cả 2 hệ thống Lô và Đề.
 
 ---
 
-## 💰 Investment & ROI
+## 🏗️ KIẾN TRÚC HỆ THỐNG (MVP)
 
-### Current Annual Cost (Technical Debt)
-```
-├─ Bug fixing:         $15,000
-├─ Slow development:   $20,000
-├─ Manual testing:     $8,000
-├─ Production issues:  $12,000
-└─ TOTAL:             $55,000/year
-```
+Hệ thống vận hành theo mô hình **Model-View-Presenter (MVP)** cải tiến:
 
-### Proposed Investment
-```
-One-time: $50,000 (12 weeks)
-├─ Phase 1: Testing & Quality      $12,000
-├─ Phase 2: Security & Stability   $6,000
-├─ Phase 3: Performance & Scale    $10,000
-├─ Phase 4: AI & Features          $16,000
-└─ Phase 5: Deployment & DevOps    $6,000
-```
+### 1. Model (`logic/`)
+"Bộ não" của ứng dụng, chứa toàn bộ logic nghiệp vụ được phân chia rõ ràng:
 
-### Return on Investment
-```
-Year 1:  -$50K (investment) + $35K (savings) = -$15K
-Year 2:  +$55K (full savings)                = +$40K
-Year 3:  +$55K (full savings)                = +$95K
+* **Bridge Managers (Quản lý Cầu):**
+    * **`bridge_manager_core.py`**: Quản lý và dò tìm **Cầu Lô** (V17, Bạc Nhớ).
+    * **`bridge_manager_de.py`**: Quản lý và dò tìm **Cầu Đề** (4 Chạm, K1N/K2N).
+* **Backtest Engine:**
+    * `backtester_core.py`: Lõi tính toán Backtest hiệu năng cao.
+    * `backtester_scoring.py`: Hệ thống chấm điểm thông minh.
+* **Analytics & AI:**
+    * `dashboard_analytics.py`: Engine chấm điểm tổng lực.
+    * `ml_model.py`: Mô hình AI (XGBoost) dự đoán xác suất.
+    * `ai_feature_extractor.py`: Trích xuất đặc trưng cho AI.
+* **Database:**
+    * `db_manager.py`: Quản lý cơ sở dữ liệu SQLite (`ManagedBridges`, `results_A_I`).
 
-Break-even: 10 months
-3-year ROI: 280%
-```
+### 2. View (`ui/`)
+Giao diện người dùng (Tkinter):
+* **`ui_main_window.py`**: Khung chương trình chính.
+* **`ui_dashboard.py`**: Bảng Quyết Định Lô (Decision Dashboard).
+* **`ui_de_dashboard.py`**: Bảng Soi Cầu Đề chuyên sâu.
+* **`ui_bridge_manager.py`**: Quản lý danh sách cầu đã lưu (chung cho cả Lô & Đề).
+* **`ui_settings.py`**: Cài đặt tham số hệ thống.
 
-**Verdict:** ✅ **Highly recommended investment**
-
----
-
-## 🚀 Quick Wins (Start This Week!)
-
-### 8 improvements in 2 days:
-
-| # | Item | Time | Impact | Priority |
-|---|------|------|--------|----------|
-| 1 | Fix critical bugs (F821) | 2h | Prevent crashes | 🔥 P0 |
-| 2 | Pin dependency versions | 1h | Security | 🔴 P1 |
-| 3 | Add database indexes | 1h | 100x faster! | 🔴 P1 |
-| 4 | Auto-format code | 30m | Clean code | 🟡 P2 |
-| 5 | Add basic tests | 4h | Quality gate | 🔴 P1 |
-| 6 | Setup GitHub Actions | 2h | Automation | 🟡 P2 |
-| 7 | Extract configs | 1h | Maintainable | 🟡 P2 |
-| 8 | Input validation | 2h | Security | 🟡 P2 |
-
-**Total time:** 14 hours over 2 days  
-**Expected ROI:** 60% risk reduction, 40% quality improvement
-
-See: [`QUICK_WINS_GUIDE.md`](QUICK_WINS_GUIDE.md) for detailed instructions
+### 3. Controller
+* **`app_controller.py`**: Điều phối luồng dữ liệu, gọi đúng Manager (Lô hoặc Đề) dựa trên yêu cầu người dùng.
+* **`lottery_service.py`**: Facade API giúp UI giao tiếp với tầng Logic.
 
 ---
 
-## 📅 Implementation Timeline
+## ⚙️ Yêu cầu Thư viện
 
-### 5 Phases over 12-14 weeks:
+Cài đặt các thư viện cần thiết qua `pip`:
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    GANTT CHART                              │
-├─────────────────────────────────────────────────────────────┤
-│ Phase 1 (Wk 1-3):  Foundation & Quality  ████████░░░░░░░░ │
-│ Phase 2 (Wk 4-5):  Security & Stability  ░░░░░░░░████░░░░ │
-│ Phase 3 (Wk 6-8):  Performance & Scale   ░░░░░░░░░░██████ │
-│ Phase 4 (Wk 9-12): AI & Features         ░░░░░░░░░░░░████ │
-│ Phase 5 (Wk 11-12): Deploy & DevOps      ░░░░░░░░░░░░░░██ │
-└─────────────────────────────────────────────────────────────┘
-```
-
-**Phase 1: Foundation & Quality** (2-3 weeks)
-- Setup testing infrastructure
-- Write 50+ unit tests
-- Refactor large files
-- Implement proper logging
-
-**Phase 2: Security & Stability** (1-2 weeks)
-- Pin dependencies & scan
-- Add input validation
-- Improve error handling
-- Add retry logic
-
-**Phase 3: Performance & Scale** (2-3 weeks)
-- Add database indexes
-- Implement lazy loading
-- Plan PostgreSQL migration
-- Memory optimization
-
-**Phase 4: AI & Features** (3-4 weeks)
-- Add Q-Features to ML model
-- Implement weighted scoring
-- Setup A/B testing
-- Retrain models
-
-**Phase 5: Deployment & DevOps** (1-2 weeks)
-- Setup CI/CD pipeline
-- Create Docker containers
-- Write deployment docs
-- Team training
-
-See: [`IMPLEMENTATION_ROADMAP.md`](IMPLEMENTATION_ROADMAP.md) for week-by-week breakdown
-
----
-
-## 📊 Success Metrics
-
-### Current Baseline
-| Metric | Current | Target (3mo) | Status |
-|--------|---------|--------------|--------|
-| Test Coverage | 0% | 80% | 🔴 Critical |
-| Flake8 Issues | 99 | 0 | 🔴 High |
-| Largest File | 1,303 LOC | <500 LOC | 🔴 High |
-| CI/CD | None | Automated | 🔴 Critical |
-| Deploy Time | 2 hours | <5 min | 🔴 High |
-| Bug Count | ~20/month | <5/month | 🟡 Medium |
-| Query Time | 50ms | <1ms | 🟡 Medium |
-| Memory Usage | 500MB | <100MB | 🟡 Medium |
-
----
-
-## 🎓 How to Use These Documents
-
-### For Decision Makers
-1. Read [`EXECUTIVE_SUMMARY.md`](EXECUTIVE_SUMMARY.md) (10 min)
-2. Review ROI section
-3. Make go/no-go decision
-4. Approve budget & timeline
-
-### For Technical Leads
-1. Read [`SYSTEM_EVALUATION_REPORT.md`](SYSTEM_EVALUATION_REPORT.md) (30 min)
-2. Review [`TECHNICAL_DEBT_ANALYSIS.md`](TECHNICAL_DEBT_ANALYSIS.md) (40 min)
-3. Prioritize items with team
-4. Assign owners
-
-### For Developers
-1. Skim [`QUICK_WINS_GUIDE.md`](QUICK_WINS_GUIDE.md) (15 min)
-2. Pick a quick win to tackle
-3. Follow code examples
-4. Submit PR
-
-### For Project Managers
-1. Read [`IMPLEMENTATION_ROADMAP.md`](IMPLEMENTATION_ROADMAP.md) (20 min)
-2. Setup tracking board
-3. Schedule weekly checkpoints
-4. Monitor progress
-
----
-
-## 🔍 Finding Specific Information
-
-Use [`INDEX.md`](INDEX.md) to quickly locate:
-- Testing strategies
-- Security improvements
-- Performance optimizations
-- AI/ML enhancements
-- Deployment guides
-
-Or use document search:
 ```bash
-# Example: Find all mentions of "test coverage"
-grep -r "test coverage" DOC/*.md
+pip install -r requirements.txt
+📝 Hướng Dẫn Sử Dụng Nhanh
+Nạp Dữ Liệu: * Mở tab "Nạp/Cập Nhật Dữ Liệu".
 
-# Example: Find CI/CD related sections
-grep -r "CI/CD" DOC/*.md
-```
+Nhập file dữ liệu hoặc paste text dữ liệu mới nhất.
 
----
+Nhấn "Cập Nhật Ngay".
 
-## 📞 Questions & Support
+Dò Cầu Tự Động (Lô & Đề): * Vào tab "Quản lý & Dò Cầu".
 
-### Common Questions
+Nhấn nút "Tự động Dò & Thêm Cầu (V17+BN)".
 
-**Q: Should we refactor everything?**  
-A: No. Incremental improvement is better. Start with quick wins, then proceed phase by phase.
+Hệ thống sẽ chạy lần lượt: Dò Lô V17 -> Dò Bạc Nhớ -> Dò Đề V17.
 
-**Q: Is $50K investment justified?**  
-A: Yes. 280% ROI over 3 years, break-even in 10 months. See [`EXECUTIVE_SUMMARY.md`](EXECUTIVE_SUMMARY.md) Section 7.
+Xem Kết Quả:
 
-**Q: What if we only have 1 week?**  
-A: Focus on quick wins from [`QUICK_WINS_GUIDE.md`](QUICK_WINS_GUIDE.md) - especially fixing critical bugs and adding tests.
+Lô: Xem tại tab "Bảng Quyết Định" (Kết hợp chấm điểm AI, Phong độ, Bạc nhớ...).
 
-**Q: Can we skip testing?**  
-A: No. Testing is P0 (critical priority). Without tests, refactoring is too risky.
+Đề: Xem tại tab "Soi Cầu Đề" (Thống kê Chạm, Bộ số, Dàn đề dự đoán).
 
-**Q: What about PostgreSQL migration?**  
-A: Phase 3 (Week 6-8). Not urgent but plan ahead. See [`IMPLEMENTATION_ROADMAP.md`](IMPLEMENTATION_ROADMAP.md) Phase 3.
+Quản Lý Cầu: * Vào nút "Quản lý Cầu (V17)".
 
-### Need Help?
-
-- Technical questions → [`TECHNICAL_DEBT_ANALYSIS.md`](TECHNICAL_DEBT_ANALYSIS.md)
-- Implementation questions → [`IMPLEMENTATION_ROADMAP.md`](IMPLEMENTATION_ROADMAP.md)
-- Business questions → [`EXECUTIVE_SUMMARY.md`](EXECUTIVE_SUMMARY.md)
-- Quick fixes → [`QUICK_WINS_GUIDE.md`](QUICK_WINS_GUIDE.md)
-
----
-
-## 🔄 Review & Update Schedule
-
-### Weekly
-- Team standup: Review progress vs roadmap
-- Code review: Check quality standards
-- Metrics review: Track coverage, issues, performance
-
-### Monthly
-- Document updates based on learnings
-- Roadmap adjustments
-- Stakeholder sync
-
-### Quarterly
-- Complete re-evaluation
-- Metrics comparison (baseline vs current)
-- Next phase planning
-
----
-
-## ✅ Next Actions
-
-### This Week
-1. [ ] Share documents with team
-2. [ ] Schedule review meeting
-3. [ ] Prioritize quick wins
-4. [ ] Assign owners
-5. [ ] Setup tracking board
-
-### Next Week
-1. [ ] Fix critical bugs (F821)
-2. [ ] Pin dependencies
-3. [ ] Add database indexes
-4. [ ] Start test framework
-
-### This Month
-1. [ ] Complete Phase 1 (Foundation & Quality)
-2. [ ] Achieve 60% test coverage
-3. [ ] Refactor large files
-4. [ ] Setup CI/CD
-
-### This Quarter
-1. [ ] All 5 phases complete
-2. [ ] 80% test coverage
-3. [ ] Production-ready system
-4. [ ] Team trained
-
----
-
-## 📈 Tracking Progress
-
-### Recommended Tools
-- **Jira/Trello:** Task tracking
-- **GitHub Projects:** Issue management
-- **CodeCov:** Test coverage
-- **SonarQube:** Code quality
-
-### Weekly Dashboard
-```yaml
-Week X Status:
-  Tests Written: 25 (target: 50)
-  Coverage: 35% (target: 60%)
-  Flake8 Issues: 45 (target: <10)
-  Velocity: On Track / At Risk / Blocked
-  
-Blockers:
-  - None / List blockers here
-  
-Next Week:
-  - Planned tasks
-```
-
----
-
-## 🏆 Success Criteria
-
-### Phase 1 Complete When:
-- [ ] 60% test coverage achieved
-- [ ] Flake8 issues < 10
-- [ ] All files < 500 LOC
-- [ ] Logging implemented
-- [ ] Team trained on new practices
-
-### Project Complete When:
-- [ ] 80% test coverage
-- [ ] 0 flake8 errors
-- [ ] CI/CD automated
-- [ ] Performance SLAs met
-- [ ] Documentation complete
-- [ ] Team confident
-
----
-
-## 📚 Additional Resources
-
-### Original Documents
-- [`Kế Hoạch Nâng Cấp Hệ Thống.txt`](Kế%20Hoạch%20Nâng%20Cấp%20Hệ%20Thống%20Phân%20Tích%20Xổ%20Số%20(V7.0)K.txt) - Original upgrade plan
-- [`log error.txt`](log%20error.txt) - Known issues
-- [`NOTE.txt`](NOTE.txt) - Development notes
-
-### Code Documentation
-- Main README: [`../README.md`](../README.md)
-- Requirements: [`../requirements.txt`](../requirements.txt)
-- Config: [`../config.json`](../config.json)
-
-### External References
-- Python Best Practices: [PEP 8](https://pep8.org/)
-- Testing Guide: [pytest docs](https://docs.pytest.org/)
-- Security: [OWASP Top 10](https://owasp.org/www-project-top-ten/)
-
----
-
-## 📝 Document History
-
-| Version | Date | Changes | Author |
-|---------|------|---------|--------|
-| 1.0 | 2025-11-18 | Initial comprehensive evaluation | Copilot AI Agent |
-
----
-
-## 🙏 Acknowledgments
-
-This evaluation was conducted using:
-- **Static Analysis:** flake8, code metrics
-- **Manual Review:** Architecture, patterns, best practices
-- **Industry Standards:** SOLID, DRY, KISS principles
-- **Best Practices:** Python PEPs, testing guidelines
-
----
-
-**STATUS: ✅ EVALUATION COMPLETE**
-
-**Next Review:** December 18, 2025 (1 month)
-
----
-
-*"The best time to fix technical debt was yesterday. The second best time is now."*
-
-**Let's build something great! 🚀**
+Tại đây bạn có thể xem, xóa hoặc tắt/bật các cầu đã lưu. Cầu Đề sẽ có tên bắt đầu bằng "Đề...".

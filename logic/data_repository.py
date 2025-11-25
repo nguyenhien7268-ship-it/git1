@@ -1,20 +1,26 @@
-# Tên file: du-an-backup/logic/data_repository.py
+# Tên file: git1/logic/data_repository.py
 #
-# (NỘI DUNG THAY THẾ TOÀN BỘ - SỬA F401, F811, W291, F841)
+# (PHIÊN BẢN V7.9 - FIX PATH DB TUYỆT ĐỐI)
 #
 import sqlite3
-
-# (BỔ SUNG) Thêm datetime để xử lý ngày tháng
+import os
 from datetime import datetime
 
-# ĐÃ SỬA: Cập nhật đường dẫn DB mới sau khi di chuyển file sang thư mục 'data/'
-DB_NAME = "data/xo_so_prizes_all_logic.db"
-
+# --- CẤU HÌNH ĐƯỜNG DẪN DB TUYỆT ĐỐI ---
+# Lấy thư mục hiện tại của file này (thư mục logic)
+current_dir = os.path.dirname(os.path.abspath(__file__))
+# Lấy thư mục gốc dự án (cha của logic)
+project_root = os.path.dirname(current_dir)
+# Đường dẫn thư mục data
+data_dir = os.path.join(project_root, "data")
+# Đường dẫn DB tuyệt đối
+DB_NAME = os.path.join(data_dir, "xo_so_prizes_all_logic.db")
+# ----------------------------------------
 
 def load_data_ai_from_db(db_name=DB_NAME):
     """Tải toàn bộ dữ liệu A:I từ DB (10 cột)."""
-    import os  # (SỬA F811) Di chuyển import 'os' vào đây vì chỉ hàm này dùng
-
+    # Không cần import os ở đây nữa vì đã import ở trên
+    
     if not os.path.exists(db_name):
         return (
             None,
@@ -31,7 +37,6 @@ def load_data_ai_from_db(db_name=DB_NAME):
         ORDER BY MaSoKy ASC
         """
         )
-        # (SỬA W291) Xóa khoảng trắng thừa
         rows = cursor.fetchall()
         conn.close()
 
@@ -71,7 +76,7 @@ def get_all_managed_bridges(db_name=DB_NAME, only_enabled=False):
 
         return dict_rows
 
-    except Exception:  # (SỬA F841) Đổi 'except Exception as e' thành 'except Exception'
+    except Exception:
         # Nếu bảng không tồn tại hoặc lỗi, trả về danh sách rỗng
         return []
     finally:
@@ -85,7 +90,6 @@ def get_latest_ky_date(conn):
     """
     try:
         cursor = conn.cursor()
-        # (SỬA W291) Xóa khoảng trắng thừa
         cursor.execute("SELECT ky, date FROM results_A_I ORDER BY ky DESC LIMIT 1")
         latest = cursor.fetchone()
 
@@ -93,7 +97,6 @@ def get_latest_ky_date(conn):
             latest_ky_str = str(latest[0]).strip()
             date_str = str(latest[1]).strip()
 
-            # (SỬA W291) Xóa khoảng trắng thừa
             # Thử 1: Định dạng chuẩn dd/mm/YYYY
             try:
                 latest_date_obj = datetime.strptime(date_str, "%d/%m/%Y")
@@ -108,7 +111,7 @@ def get_latest_ky_date(conn):
             except ValueError:
                 pass
 
-            # (SỬA) Thử 3: Định dạng thiếu năm dd-mm (VD: 13-11)
+            # Thử 3: Định dạng thiếu năm dd-mm (VD: 13-11)
             try:
                 # Thêm năm hiện tại vào
                 date_str_with_year = f"{date_str}-{datetime.now().year}"
@@ -117,7 +120,7 @@ def get_latest_ky_date(conn):
             except ValueError:
                 pass
 
-            # (SỬA) Thử 4: Định dạng thiếu năm dd/mm (VD: 13/11)
+            # Thử 4: Định dạng thiếu năm dd/mm (VD: 13/11)
             try:
                 # Thêm năm hiện tại vào
                 date_str_with_year = f"{date_str}/{datetime.now().year}"

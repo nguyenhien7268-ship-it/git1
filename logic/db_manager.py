@@ -1,11 +1,29 @@
-# Tên file: git3/logic/db_manager.py
+# Tên file: git1/logic/db_manager.py
 #
-# (NỘI DUNG THAY THẾ TOÀN BỘ - SỬA W291)
+# (PHIÊN BẢN V7.9 - FIX PATH DB TUYỆT ĐỐI)
 #
 import sqlite3
+import os
 
-# ĐÃ SỬA: Cập nhật đường dẫn DB mới sau khi di chuyển file sang thư mục 'data/'
-DB_NAME = "data/xo_so_prizes_all_logic.db"
+# --- CẤU HÌNH ĐƯỜNG DẪN DB TUYỆT ĐỐI ---
+# Lấy thư mục hiện tại của file này (thư mục logic)
+current_dir = os.path.dirname(os.path.abspath(__file__))
+# Lấy thư mục gốc dự án (cha của logic)
+project_root = os.path.dirname(current_dir)
+# Đường dẫn thư mục data
+data_dir = os.path.join(project_root, "data")
+
+# Tự động tạo thư mục data nếu chưa có
+if not os.path.exists(data_dir):
+    try:
+        os.makedirs(data_dir)
+        print(f">>> Đã tự động tạo thư mục: {data_dir}")
+    except Exception as e:
+        print(f"LỖI: Không thể tạo thư mục data: {e}")
+
+# Đường dẫn DB tuyệt đối
+DB_NAME = os.path.join(data_dir, "xo_so_prizes_all_logic.db")
+# ----------------------------------------
 
 PRIZE_TO_COL_MAP = {
     "Đặc Biệt": "Col_B_GDB",
@@ -27,8 +45,7 @@ except ImportError:
     try:
         from logic.bridges.bridges_v16 import get_index_from_name_V16
     except ImportError:
-        print("LỖI: db_manager.py không thể import get_index_from_name_V16.")
-
+        # print("LỖI: db_manager.py không thể import get_index_from_name_V16.") # Silence this to avoid spam
         def get_index_from_name_V16(name):
             return None
 
@@ -105,7 +122,7 @@ def setup_database(db_name=DB_NAME):
         pass  # Cột đã tồn tại
 
     # (PERFORMANCE OPTIMIZATION) Tạo indexes để tăng tốc queries 10-100x
-    print("Đang tạo database indexes...")
+    # print("Đang kiểm tra database indexes...")
     
     # Index cho results_A_I.ky (tra cứu thường xuyên nhất)
     cursor.execute(
@@ -128,7 +145,7 @@ def setup_database(db_name=DB_NAME):
         "ON ManagedBridges(is_enabled, win_rate_text)"
     )
     
-    print("✅ Database indexes đã được tạo thành công")
+    # print("✅ Database indexes đã được kiểm tra/tạo thành công")
 
     conn.commit()
     return conn, cursor

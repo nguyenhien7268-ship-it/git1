@@ -1,6 +1,6 @@
-# Tên file: git3/ui/ui_tuner.py
+# Tên file: git1/ui/ui_tuner.py
 #
-# (NỘI DUNG THAY THẾ TOÀN BỘ - SỬA F541, W503)
+# (PHIÊN BẢN V7.9 - FIXED ATTRIBUTE ERROR UPDATE_OUTPUT)
 #
 import tkinter as tk
 import traceback
@@ -32,7 +32,9 @@ class TunerWindow:
             self.app.tuner_window.window.lift()
             return
 
-        self.app.update_output("Đang mở Trợ lý Tinh chỉnh Tham số...")
+        # [FIX] Sử dụng logger.log thay vì update_output (hàm cũ không tồn tại)
+        if hasattr(self.app, 'logger'):
+            self.app.logger.log("Đang mở Trợ lý Tinh chỉnh Tham số...")
 
         self.window = tk.Toplevel(self.root)
         self.app.tuner_window = self  # Gán lại vào app chính

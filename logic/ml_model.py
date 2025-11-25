@@ -1,6 +1,6 @@
-# Tên file: git3/logic/ml_model.py
+# Tên file: git1/logic/ml_model.py
 #
-# (NỘI DUNG THAY THẾ TOÀN BỘ - SỬA W503)
+# (PHIÊN BẢN V7.9 - FIX PATH TUYỆT ĐỐI CHO MODEL FILES)
 #
 import os
 import traceback
@@ -11,9 +11,23 @@ import xgboost as xgb
 from sklearn.model_selection import train_test_split, GridSearchCV, cross_val_score
 from sklearn.preprocessing import StandardScaler
 
-# ĐÃ SỬA: Cập nhật đường dẫn mới cho file mô hình và scaler
-MODEL_FILE_PATH = "logic/ml_model_files/loto_model.joblib"
-SCALER_FILE_PATH = "logic/ml_model_files/ai_scaler.joblib"
+# --- CẤU HÌNH ĐƯỜNG DẪN TUYỆT ĐỐI ---
+# Lấy thư mục hiện tại của file này (thư mục logic)
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+# Đường dẫn tới thư mục lưu model (logic/ml_model_files)
+MODEL_DIR = os.path.join(CURRENT_DIR, "ml_model_files")
+
+# Đảm bảo thư mục tồn tại ngay khi import
+if not os.path.exists(MODEL_DIR):
+    try:
+        os.makedirs(MODEL_DIR)
+    except OSError:
+        pass
+
+# Cập nhật đường dẫn file
+MODEL_FILE_PATH = os.path.join(MODEL_DIR, "loto_model.joblib")
+SCALER_FILE_PATH = os.path.join(MODEL_DIR, "ai_scaler.joblib")
+# -------------------------------------
 
 ALL_LOTOS = [str(i).zfill(2) for i in range(100)]
 MIN_DATA_TO_TRAIN = 50
@@ -352,12 +366,13 @@ def train_ai_model(all_data_ai, daily_bridge_predictions_map, use_hyperparameter
         for i, (feature, importance) in enumerate(sorted_features[:5], 1):
             print(f"    {i}. {feature}: {importance:.4f}")
         
-        # Save feature importance metadata
-        feature_importance_file = "logic/ml_model_files/feature_importance.joblib"
+        # [FIX] Đảm bảo thư mục tồn tại trước khi lưu
+        os.makedirs(MODEL_DIR, exist_ok=True)
+        feature_importance_file = os.path.join(MODEL_DIR, "feature_importance.joblib")
         joblib.dump(feature_importance, feature_importance_file)
         
         # 6. Lưu mô hình và Scaler
-        os.makedirs(os.path.dirname(MODEL_FILE_PATH), exist_ok=True)
+        # os.makedirs(os.path.dirname(MODEL_FILE_PATH), exist_ok=True) # Đã làm ở trên
         joblib.dump(model, MODEL_FILE_PATH)
         joblib.dump(scaler, SCALER_FILE_PATH)
         print(f"... (AI Train) Đã lưu mô hình vào '{MODEL_FILE_PATH}'")

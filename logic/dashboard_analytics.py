@@ -1010,28 +1010,20 @@ def get_high_win_simulation(data_slice, last_row, threshold):
     return high_win_bridges
 
 
-def get_historical_dashboard_data(all_data_ai, day_index, temp_settings):
-    """Hàm "chủ" để mô phỏng Bảng Tổng Hợp tại một ngày trong quá khứ."""
-
-    # 1. Cắt lát dữ liệu
+def prepare_daily_features(all_data_ai, day_index):
+    """
+    Tính toán tất cả dữ liệu thô (Raw Features) tốn kém cho dashboard một ngày cụ thể.
+    Trả về dict đã cache các features để backtest nhanh.
+    """
     data_slice = all_data_ai[: day_index + 1]
     if len(data_slice) < 2:
         return None
-
     last_row = data_slice[-1]
-    # prev_row = data_slice[-2]
+    n_days_stats = getattr(SETTINGS, "STATS_DAYS", 7)
+    n_days_gan = getattr(SETTINGS, "GAN_DAYS", 15)
+    high_win_thresh = getattr(SETTINGS, "HIGH_WIN_THRESHOLD", 47.0)
 
-    # 2. Lấy các giá trị cài đặt tạm thời
-    n_days_stats = int(temp_settings.get("STATS_DAYS", 7))
-    n_days_gan = int(temp_settings.get("GAN_DAYS", 15))
-    high_win_thresh = float(temp_settings.get("HIGH_WIN_THRESHOLD", 47.0))
-
-    # 3. Chạy 7 hệ thống (phiên bản mô phỏng)
-
-    # (1) Loto Hot
     stats_n_day = get_loto_stats_last_n_days(data_slice, n=n_days_stats)
-
-    # (2) Cache K2N (để lấy pending - cần dict pending_k2n)
     _, pending_k2n_data = _parse_k2n_results(
         BACKTEST_15_CAU_K2N_V30_AI_V8(
             data_slice,
@@ -1040,31 +1032,50 @@ def get_historical_dashboard_data(all_data_ai, day_index, temp_settings):
             history=False,
         )
     )
-
-    # (3) Consensus (Vote)
     consensus = get_consensus_simulation(data_slice, last_row)
-
-    # (4) Cầu Tỷ Lệ Cao
     high_win = get_high_win_simulation(data_slice, last_row, threshold=high_win_thresh)
-
-    # (5) Cầu Bạc Nhớ
     top_memory_bridges = get_top_memory_bridge_predictions(
         data_slice, last_row, top_n=5
     )
-
-    # (6) Lô Gan
     gan_stats = get_loto_gan_stats(data_slice, n_days=n_days_gan)
+    # Nếu có AI: ai_predictions = run_ai_prediction_for_dashboard(data_slice), ở đây là None để tương thích
+    ai_predictions = None
+    return {
+        "stats_n_day": stats_n_day,
+        "consensus": consensus,
+        "high_win": high_win,
+        "gan_stats": gan_stats,
+        "pending_k2n": pending_k2n_data,
+        "top_memory": top_memory_bridges,
+        "ai_predictions": ai_predictions,
+        "recent_data": data_slice,
+    }
 
-    # (7) Chấm điểm (V7.6: IMPROVED với recent_data cho bonus "Về Gần")
-    top_scores = get_top_scored_pairs(
-        stats_n_day,
-        consensus,
-        high_win,
-        pending_k2n_data,  # Dữ liệu pending K2N
-        gan_stats,
-        top_memory_bridges,
-        ai_predictions=None,
-        recent_data=data_slice,  # NEW: Pass recent data for "Về Gần" bonus
+def calculate_score_from_features(features_dict, config_dict):
+    """
+    Inject config_dict params into SETTINGS before calculating scores. If get_top_scored_pairs adds explicit weight params, pass those too.
+    """
+    # Always update SETTINGS
+    for k, v in config_dict.items():
+        try:
+            setattr(SETTINGS, k, v)
+        except Exception:
+            pass
+    return get_top_scored_pairs(
+        features_dict["stats_n_day"],
+        features_dict["consensus"],
+        features_dict["high_win"],
+        features_dict["pending_k2n"],
+        features_dict["gan_stats"],
+        features_dict["top_memory"],
+        features_dict.get("ai_predictions"),
+        features_dict.get("recent_data"),
     )
 
-    return top_scores
+def get_historical_dashboard_data(all_data_ai, day_index, temp_settings):
+    """Hàm "chủ" để mô phỏng Bảng Tổng Hợp tại một ngày trong quá khứ. (refactored sử dụng cache features)"""
+    features = prepare_daily_features(all_data_ai, day_index)
+    if not features:
+        return None
+    # PATCH SETTINGS/CONFIG tại đây nếu thực sự cần (truyền temp_settings cho score cũng hợp lệ nếu cần expand logic config)
+    return calculate_score_from_features(features, temp_settings)

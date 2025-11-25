@@ -1,33 +1,121 @@
-PS C:\Users\KAKA\Documents\27loto\CODE5\git1>  & 'c:\Users\KAKA\AppData\Local\Programs\Python\Python314\python.exe' 'c:\Users\KAKA\.cursor\extensions\ms-python.debugpy-2025.14.1-win32-x64\bundled\libs\debugpy\launcher' '60022' '--' 'c:\Users\KAKA\Documents\27loto\CODE5\git1\main_app.py' 
->>> (V7.3) Tải logic.db_manager & data_repository thành công.
->>> (V7.3) Tải logic.data_parser thành công.
->>> (V7.3) Tải logic.bridges.bridges_classic thành công.
-Đã tải cài đặt từ config.json
+================================================================================
+V7.7 PHASE 2 FINALIZATION
+================================================================================
+This script will:
+1. Create Phase 3 database tables (if not skipped)
+2. Retrain AI model with 14 features (F1-F14)
+3. Verify the model is correctly saved
+================================================================================
+
+================================================================================
+Step 1: Creating Phase 3 Database Table
+================================================================================
+✅ Phase 3 database tables created successfully!
+   - meta_learning_history: For storing predictions and outcomes
+   - model_performance_log: For tracking model performance over time
+
+================================================================================
+Step 2: Retraining AI Model with 14 Features
+================================================================================
+Hyperparameter Tuning: DISABLED
+
+Loading lottery data from database...
+✅ Loaded 5502 periods of data
+
+Extracting features for all periods (including F13 and F14)...
+This may take several minutes for large datasets...
+... (V7.0 G2 Feature Extraction) Bước 1: Tính toán dự đoán cầu cho toàn bộ lịch sử...
+Không tìm thấy config.json. Đang tạo file với cài đặt mặc định.
 ConfigManager đã khởi tạo và tải cài đặt.
->>> (V7.3) Tải logic.backtester thành công.
-[PATH FIX] c:\Users\KAKA\Documents\27loto\CODE5\git1 đã có trong sys.path
-[IMPORT V4] Đã import thành công: SETTINGS
-[IMPORT V4] Đã import thành công: data_repository, db_manager
-[IMPORT V4] Đã import thành công: các hàm cầu (bridges_v16, memory, classic)
->>> (V7.3) Tải logic.bridges.bridge_manager_core thành công.
->>> (V7.3) Tải logic.dashboard_analytics thành công.
->>> (V7.3) Tải logic.ai_feature_extractor (AI Wrappers) thành công.
-Lottery Service API (lottery_service.py) đã tải thành công (V7.3).
-LỖI NGHIÊM TRỌNG: Không thể import các cửa sổ con (trừ BridgeManager): cannot import name 'Bridge' from 'logic.bridges.bridge_manager_core' (c:\Users\KAKA\Documents\27loto\CODE5\git1\logic\bridges\bridge_manager_core.py)
-PS C:\Users\KAKA\Documents\27loto\CODE5\git1>  c:; cd 'c:\Users\KAKA\Documents\27loto\CODE5\git1'; & 'c:\Users\KAKA\AppData\Local\Programs\Python\Python314\python.exe' 'c:\Users\KAKA\.cursor\extensions\ms-python.debugpy-2025.14.1-win32-x64\bundled\libs\debugpy\launcher' '57577' '--' 'c:\Users\KAKA\Documents\27loto\CODE5\git1\main_app.py'
->>> (V7.3) Tải logic.db_manager & data_repository thành công.
->>> (V7.3) Tải logic.data_parser thành công.
->>> (V7.3) Tải logic.bridges.bridges_classic thành công.
-Đã tải cài đặt từ config.json
-ConfigManager đã khởi tạo và tải cài đặt.
->>> (V7.3) Tải logic.backtester thành công.
-[PATH FIX] c:\Users\KAKA\Documents\27loto\CODE5\git1 đã có trong sys.path
-[IMPORT V4] Đã import thành công: SETTINGS
-[IMPORT V4] Đã import thành công: data_repository, db_manager
-[IMPORT V4] Đã import thành công: các hàm cầu (bridges_v16, memory, classic)
->>> (V7.3) Tải logic.bridges.bridge_manager_core thành công.
->>> (V7.3) Tải logic.dashboard_analytics thành công.
->>> (V7.3) Tải logic.ai_feature_extractor (AI Wrappers) thành công.
-Lottery Service API (lottery_service.py) đã tải thành công (V7.3).
-LỖI NGHIÊM TRỌNG: Không thể import các cửa sổ con (trừ BridgeManager): cannot import name 'setup_logger' from 'logic.utils' (c:\Users\KAKA\Documents\27loto\CODE5\git1\logic\utils.py)
-PS C:\Users\KAKA\Documents\27loto\CODE5\git1> 
+... (V7.0 G2 Feature Extraction) Bước 1: Đã xử lý 100/5502 ngày (dự đoán cầu)
+... (V7.0 G2 Feature Extraction) Bước 1: Đã xử lý 200/5502 ngày (dự đoán cầu)
+... (V7.0 G2 Feature Extraction) Bước 1: Đã xử lý 300/5502 ngày (dự đoán cầu)
+... (V7.0 G2 Feature Extraction) Bước 1: Đã xử lý 400/5502 ngày (dự đoán cầu)
+... (V7.0 G2 Feature Extraction) Bước 1: Đã xử lý 500/5502 ngày (dự đoán cầu)
+... (V7.0 G2 Feature Extraction) Bước 1: Đã xử lý 600/5502 ngày (dự đoán cầu)
+... (V7.0 G2 Feature Extraction) Bước 1: Đã xử lý 700/5502 ngày (dự đoán cầu)
+... (V7.0 G2 Feature Extraction) Bước 1: Đã xử lý 800/5502 ngày (dự đoán cầu)
+... (V7.0 G2 Feature Extraction) Bước 1: Đã xử lý 900/5502 ngày (dự đoán cầu)
+... (V7.0 G2 Feature Extraction) Bước 1: Đã xử lý 1000/5502 ngày (dự đoán cầu)
+... (V7.0 G2 Feature Extraction) Bước 1: Đã xử lý 1100/5502 ngày (dự đoán cầu)
+... (V7.0 G2 Feature Extraction) Bước 1: Đã xử lý 1200/5502 ngày (dự đoán cầu)
+... (V7.0 G2 Feature Extraction) Bước 1: Đã xử lý 1300/5502 ngày (dự đoán cầu)
+... (V7.0 G2 Feature Extraction) Bước 1: Đã xử lý 1400/5502 ngày (dự đoán cầu)
+... (V7.0 G2 Feature Extraction) Bước 1: Đã xử lý 1500/5502 ngày (dự đoán cầu)
+... (V7.0 G2 Feature Extraction) Bước 1: Đã xử lý 1600/5502 ngày (dự đoán cầu)
+... (V7.0 G2 Feature Extraction) Bước 1: Đã xử lý 1700/5502 ngày (dự đoán cầu)
+... (V7.0 G2 Feature Extraction) Bước 1: Đã xử lý 1800/5502 ngày (dự đoán cầu)
+... (V7.0 G2 Feature Extraction) Bước 1: Đã xử lý 1900/5502 ngày (dự đoán cầu)
+... (V7.0 G2 Feature Extraction) Bước 1: Đã xử lý 2000/5502 ngày (dự đoán cầu)
+... (V7.0 G2 Feature Extraction) Bước 1: Đã xử lý 2100/5502 ngày (dự đoán cầu)
+... (V7.0 G2 Feature Extraction) Bước 1: Đã xử lý 2200/5502 ngày (dự đoán cầu)
+... (V7.0 G2 Feature Extraction) Bước 1: Đã xử lý 2300/5502 ngày (dự đoán cầu)
+... (V7.0 G2 Feature Extraction) Bước 1: Đã xử lý 2400/5502 ngày (dự đoán cầu)
+... (V7.0 G2 Feature Extraction) Bước 1: Đã xử lý 2500/5502 ngày (dự đoán cầu)
+... (V7.0 G2 Feature Extraction) Bước 1: Đã xử lý 2600/5502 ngày (dự đoán cầu)
+... (V7.0 G2 Feature Extraction) Bước 1: Đã xử lý 2700/5502 ngày (dự đoán cầu)
+... (V7.0 G2 Feature Extraction) Bước 1: Đã xử lý 2800/5502 ngày (dự đoán cầu)
+... (V7.0 G2 Feature Extraction) Bước 1: Đã xử lý 2900/5502 ngày (dự đoán cầu)
+... (V7.0 G2 Feature Extraction) Bước 1: Đã xử lý 3000/5502 ngày (dự đoán cầu)
+... (V7.0 G2 Feature Extraction) Bước 1: Đã xử lý 3100/5502 ngày (dự đoán cầu)
+... (V7.0 G2 Feature Extraction) Bước 1: Đã xử lý 3200/5502 ngày (dự đoán cầu)
+... (V7.0 G2 Feature Extraction) Bước 1: Đã xử lý 3300/5502 ngày (dự đoán cầu)
+... (V7.0 G2 Feature Extraction) Bước 1: Đã xử lý 3400/5502 ngày (dự đoán cầu)
+... (V7.0 G2 Feature Extraction) Bước 1: Đã xử lý 3500/5502 ngày (dự đoán cầu)
+... (V7.0 G2 Feature Extraction) Bước 1: Đã xử lý 3600/5502 ngày (dự đoán cầu)
+... (V7.0 G2 Feature Extraction) Bước 1: Đã xử lý 3700/5502 ngày (dự đoán cầu)
+... (V7.0 G2 Feature Extraction) Bước 1: Đã xử lý 3800/5502 ngày (dự đoán cầu)
+... (V7.0 G2 Feature Extraction) Bước 1: Đã xử lý 3900/5502 ngày (dự đoán cầu)
+... (V7.0 G2 Feature Extraction) Bước 1: Đã xử lý 4000/5502 ngày (dự đoán cầu)
+... (V7.0 G2 Feature Extraction) Bước 1: Đã xử lý 4100/5502 ngày (dự đoán cầu)
+... (V7.0 G2 Feature Extraction) Bước 1: Đã xử lý 4200/5502 ngày (dự đoán cầu)
+... (V7.0 G2 Feature Extraction) Bước 1: Đã xử lý 4300/5502 ngày (dự đoán cầu)
+... (V7.0 G2 Feature Extraction) Bước 1: Đã xử lý 4400/5502 ngày (dự đoán cầu)
+... (V7.0 G2 Feature Extraction) Bước 1: Đã xử lý 4500/5502 ngày (dự đoán cầu)
+... (V7.0 G2 Feature Extraction) Bước 1: Đã xử lý 4600/5502 ngày (dự đoán cầu)
+... (V7.0 G2 Feature Extraction) Bước 1: Đã xử lý 4700/5502 ngày (dự đoán cầu)
+... (V7.0 G2 Feature Extraction) Bước 1: Đã xử lý 4800/5502 ngày (dự đoán cầu)
+... (V7.0 G2 Feature Extraction) Bước 1: Đã xử lý 4900/5502 ngày (dự đoán cầu)
+... (V7.0 G2 Feature Extraction) Bước 1: Đã xử lý 5000/5502 ngày (dự đoán cầu)
+... (V7.0 G2 Feature Extraction) Bước 1: Đã xử lý 5100/5502 ngày (dự đoán cầu)
+... (V7.0 G2 Feature Extraction) Bước 1: Đã xử lý 5200/5502 ngày (dự đoán cầu)
+... (V7.0 G2 Feature Extraction) Bước 1: Đã xử lý 5300/5502 ngày (dự đoán cầu)
+... (V7.0 G2 Feature Extraction) Bước 1: Đã xử lý 5400/5502 ngày (dự đoán cầu)
+... (V7.0 G2 Feature Extraction) Bước 1: Đã xử lý 5500/5502 ngày (dự đoán cầu)
+✅ Feature extraction complete for 5501 periods
+
+Training AI model with 14 features...
+... (AI Train) Đang tạo bộ dữ liệu X, y...
+... (AI Train) Bắt đầu tính toán Lịch sử Lô Gan (nặng)...
+... (AI Train) Đã tính xong Lịch sử Lô Gan (5501 ngày).
+... (AI Train) Đã tạo bộ dữ liệu (Shape: (550000, 14), (550000,))
+... (AI Train) Đang chuẩn hóa (StandardScaler)...
+... (AI Train) Bắt đầu huấn luyện mô hình XGBoost...
+... (AI Train) Huấn luyện hoàn tất.
+... (Phase 3) Đang tính Cross-Validation score...
+... (Phase 3) CV Accuracy: 1.0000 (+/- 0.0000)
+... (Phase 3) Trích xuất Feature Importance...
+... (Phase 3) Top 5 Features quan trọng nhất:
+    1. F14_Change_In_Gan: 1.0000
+    2. F1_Gan: 0.0000
+    3. F2_V5_Count: 0.0000
+    4. F3_V17_Count: 0.0000
+    5. F4_Memory_Count: 0.0000
+
+❌ Training failed: Lỗi nghiêm trọng khi Huấn luyện AI: [Errno 2] No such file or directory: 'logic/ml_model_files/feature_importance.joblib'
+Traceback (most recent call last):
+  File "C:\Users\KAKA\Documents\27loto\CODE5\git1\logic\ml_model.py", line 357, in train_ai_model
+    joblib.dump(feature_importance, feature_importance_file)
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\KAKA\AppData\Local\Programs\Python\Python314\Lib\site-packages\joblib\numpy_pickle.py", line 599, in dump
+    with open(filename, "wb") as f:
+         ~~~~^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: 'logic/ml_model_files/feature_importance.joblib'
+
+
+❌ Phase 2 finalization FAILED
+Please check the error messages above and try again.
+[Finished in 18.9s with exit code 1]
+[cmd: ['py', '-u', 'C:\\Users\\KAKA\\Documents\\27loto\\CODE5\\git1\\scripts\\v77_phase2_finalize.py']]
+[dir: C:\Users\KAKA\Documents\27loto\CODE5\git1\scripts]
+[path: C:\Program Files (x86)\Common Files\Oracle\Java\java8path;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Program Files\Microsoft MPI\Bin\;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;C:\Program Files\dotnet\;C:\Program Files (x86)\Microsoft SQL Server\160\Tools\Binn\;C:\Program Files\Microsoft SQL Server\160\Tools\Binn\;C:\Program Files\Microsoft SQL Server\Client SDK\ODBC\170\Tools\Binn\;C:\Program Files\Microsoft SQL Server\160\DTS\Binn\;C:\Program Files (x86)\Microsoft SQL Server\150\DTS\Binn\;C:\Program Files\Azure Data Studio\bin;C:\Program Files\Java\jre1.8.0_441\bin;C:\Program Files\Git\cmd;C:\Program Files\Git LFS;C:\Program Files\cursor\resources\app\bin;C:\Program Files\nodejs\;C:\Users\KAKA\AppData\Local\Programs\Python\Python314\Scripts\;C:\Users\KAKA\AppData\Local\Programs\Python\Python314\;C:\Users\KAKA\AppData\Local\Microsoft\WindowsApps;C:\Users\KAKA\AppData\Local\GitHubDesktop\bin;C:\Users\KAKA\AppData\Roaming\npm]

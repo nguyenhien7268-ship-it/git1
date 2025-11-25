@@ -1,0 +1,30 @@
+I. Cấu Trúc Thư Mục Hệ Thống (Root)
+Đây là cấu trúc thư mục cốt lõi của ứng dụng, tập trung vào các file logic và điều khiển chính:
+
+Plaintext
+
+CẤU TRÚC THƯ MỤC
+root/
+├── data/
+│   └── xo_so_prizes_all_logic.db    # Cơ sở dữ liệu chính
+├── DOC/                             # Tài liệu dự án
+├── logic/                           # BACKEND LOGIC
+│   ├── bridges/                     # Các thuật toán soi cầu
+│   │   ├── bridge_manager_de.py     # Quản lý cầu Đề (Cũ/Sẽ sửa sau)
+│   │   ├── de_bridge_scanner.py     # Quét cầu Đề (Sẽ nâng cấp ở GĐ 2)
+│   │   └── ... (các file cầu Lô)
+│   ├── ml_model_files/              # File mô hình AI
+│   ├── backtester_core.py           # Lõi kiểm thử (Dùng chung)
+│   ├── db_manager.py                # Quản lý kết nối DB
+│   ├── de_analytics.py              # (MỚI) 🟢 Phân tích thị trường Đề
+│   ├── de_utils.py                  # (MỚI) 🟢 Tiện ích & Adapter Đề
+│   └── ... (các file logic Lô)
+├── ui/                              # GIAO DIỆN NGƯỜI DÙNG
+│   ├── ui_de_dashboard.py           # (SẼ SỬA) Màn hình Soi Cầu Đề
+│   ├── ui_dashboard.py              # Màn hình Soi Cầu Lô
+│   └── ...
+├── app_controller.py                # Bộ điều phối chính
+├── main_app.py                      # File chạy chương trình
+└── ...
+II. Kế Hoạch Chi Tiết Nâng Cấp Hệ Thống (V7.7)
+🎯 MỤC TIÊUGiảm thời gian chạy Tối ưu hóa từ hàng giờ xuống còn vài phút (Tăng tốc độ 50x - 100x).⚙️ NGUYÊN LÝ KỸ THUẬT: "TÁCH BIỆT VÀ CACHE" (DECOUPLE & CACHE)Chúng ta sẽ chia quá trình xử lý thành 2 giai đoạn:Giai đoạn TĨNH (Heavy - Chạy 1 lần):Tính toán các dữ liệu nền tảng: Danh sách cầu chạy, Lô gan, Tần suất, AI dự đoán... cho toàn bộ 30 ngày kiểm thử.Lưu kết quả này vào RAM (Cache).Dù bạn có thử 1.000 bộ trọng số khác nhau, dữ liệu này không đổi, nên không cần tính lại.Giai đoạn ĐỘNG (Light - Chạy N lần):Lặp qua hàng nghìn tổ hợp tham số.Lấy dữ liệu từ Cache ra.Chỉ thực hiện phép cộng/trừ nhân chia điểm số (Scoring).Tốc độ xử lý phép toán này cực nhanh (micro-seconds).📋 CÁC BƯỚC THỰC HIỆN CỤ THỂBƯỚC 1: CẤU TRÚC LẠI LOGIC (logic/dashboard_analytics.py)Tách hàm get_historical_dashboard_data khổng lồ hiện tại thành 2 hàm nhỏ:prepare_daily_features(...): Hàm này chạy nặng, trả về một gói dữ liệu thô (Raw Features).calculate_score_from_features(...): Hàm này chạy nhẹ, nhận gói dữ liệu thô + bảng tham số -> Trả về điểm số.BƯỚC 2: NÂNG CẤP BỘ ĐIỀU KHIỂN (app_controller.py)Viết lại hàm task_run_strategy_optimization theo luồng mới:Bước A (Pre-computation): Chạy vòng lặp qua days_to_test. Gọi prepare_daily_features và lưu vào một biến cached_features_list.Bước B (Optimization Loop):Chạy vòng lặp qua hàng nghìn combinations.Với mỗi combo, duyệt qua cached_features_list.Gọi calculate_score_from_features (siêu nhanh).Ghi nhận kết quả.BƯỚC 3: XỬ LÝ THAM SỐ CẤU TRÚC (NÂNG CAO)Có một ngoại lệ: Nếu tham số cần tối ưu là GAN_DAYS hoặc HIGH_WIN_THRESHOLD (những tham số làm thay đổi dữ liệu thô), ta không thể dùng Cache cũ.Giải pháp: Nhóm các tổ hợp tham số lại.Ví dụ: Nếu đang test GAN_DAYS=10, ta tính Cache cho 10 ngày.Sau đó thử nghiệm 100 biến thể trọng số điểm (AI, Vote...) trên Cache đó.Chuyển sang GAN_DAYS=11, tính lại Cache mới, rồi lại thử 100 biến thể trọng số.⚠️ ĐÁNH GIÁ RỦI RO & GIẢI PHÁPRủi roGiải phápTràn bộ nhớ (RAM)Lưu trữ dữ liệu thô của 30 ngày không tốn nhiều RAM (chỉ vài MB text/json). Hoàn toàn khả thi.Code phức tạp hơnTôi sẽ viết code tách biệt rõ ràng, có chú thích để đảm bảo dễ bảo trì.Dữ liệu không đồng bộĐảm bảo hàm prepare lấy đúng snapshot dữ liệu tại thời điểm quá khứ (cắt lát all_data_ai).✅ KẾT QUẢ ĐẠT ĐƯỢC SAU KHI SỬATrước đây: Test 30 ngày x 1000 tổ hợp = 30.000 lần chạy Backtest (Siêu nặng).Sau khi sửa:Chạy Backtest 30 lần (để tạo Cache).Chạy Phép toán cộng điểm 30.000 lần (Siêu nhanh).Thời gian: Dự kiến giảm từ 60 phút xuống còn 1-2 phút.
