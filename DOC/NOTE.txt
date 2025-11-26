@@ -4,6 +4,10 @@ pip install pandas matplotlib seaborn scikit-learn joblib xgboost
 
   git config --global user.name "Jason"
 
+python scripts/v77_phase2_finalize.py
+
+python scripts/v77_phase3_check_progress.py
+
 Sau khi đã cài đặt Git và Git LFS, bạn cần thực hiện 2 bước sau để Git nhận diện được LFS và tải file lớn về:
 
 Khởi tạo Git LFS: Bạn cần chạy lệnh này trong terminal (chỉ cần chạy một lần cho hệ thống):

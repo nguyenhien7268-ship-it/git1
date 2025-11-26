@@ -103,109 +103,63 @@ def _get_loto_gan_history(all_data_ai):
 
 
 def _create_ai_dataset(all_data_ai, daily_bridge_predictions_map):
-    """
-    (V7.0) Tạo bộ dữ liệu X (features) và y (target) từ 2 nguồn:
-    1. all_data_ai (dữ liệu KQXS)
-    2. daily_bridge_predictions_map (dữ liệu features cầu đã tính toán trước)
-    """
-    X = []  # Features
-    y = []  # Target (0 = trượt, 1 = trúng)
-
-    # 1. Tính toán Lịch sử Gan (Feature F1) and Gan Change (Feature F14)
+    X = []
+    y = []
     gan_history_map, gan_change_map = _get_loto_gan_history(all_data_ai)
 
-    # 2. Lặp qua các ngày (bỏ ngày đầu tiên, không có target)
-    # Chúng ta dự đoán cho K(n) dựa trên dữ liệu K(n-1)
     for k in range(1, len(all_data_ai)):
-        # Dữ liệu của ngày hôm trước (K(n-1))
+        # Dữ liệu ngày hôm trước (Input Features)
         prev_row = all_data_ai[k - 1]
         prev_ky_str = str(prev_row[0])
 
-        # Dữ liệu của ngày hôm nay (K(n)) - Dùng làm TARGET
+        # Dữ liệu ngày hôm nay (Target)
         actual_row = all_data_ai[k]
         actual_ky_str = str(actual_row[0])
         actual_loto_set = set(getAllLoto_V30(actual_row))
 
-        # Lấy features từ các nguồn đã tính toán trước
+        # Lấy Features từ QUÁ KHỨ (Ngày K-1)
         gan_features_for_prev_ky = gan_history_map.get(prev_ky_str, {})
-        gan_change_for_actual_ky = gan_change_map.get(actual_ky_str, {})
-        bridge_features_for_actual_ky = daily_bridge_predictions_map.get(
-            actual_ky_str, {}
-        )
+        
+        # [SỬA LỖI DATA LEAKAGE]
+        # F14 phải lấy Change Gan của ngày hôm trước (K-1), không phải ngày hiện tại (K)
+        # Change Gan (K-1) cho biết hôm qua nó vừa về hay vừa trượt -> Trend quá khứ
+        gan_change_for_prev_ky = gan_change_map.get(prev_ky_str, {})
+        
+        bridge_features_for_actual_ky = daily_bridge_predictions_map.get(actual_ky_str, {})
 
         if not gan_features_for_prev_ky or not bridge_features_for_actual_ky:
-            # print(f"Bỏ qua kỳ {actual_ky_str}: Thiếu dữ liệu gan hoặc cầu.")
             continue
 
-        # 3. Tạo 100 hàng dữ liệu (mỗi loto 1 hàng) cho ngày này
         for loto in ALL_LOTOS:
             features = []
-
-            # === TARGET (y) ===
-            # (Loto có về trong ngày K(n) không?)
             target = 1 if loto in actual_loto_set else 0
             y.append(target)
 
-            # === FEATURES (X) ===
-            # (Dựa trên dữ liệu của K(n-1))
-
-            # SỬA LỖI NAMERROR TẠI ĐÂY: Dùng bridge_features_for_actual_ky
             loto_features = bridge_features_for_actual_ky.get(loto, {})
 
-            # --- FEATURE SET 1: GAN (F1) ---
-            # F1: Loto này đã gan bao nhiêu ngày (tính đến K(n-1))
+            # F1: Gan (tính đến hôm qua)
             features.append(gan_features_for_prev_ky.get(loto, 0))
-
-            # --- FEATURE SET 2: VOTE COUNTS (F2 -> F4) ---
-            # (Đây là dữ liệu của K(n), nhưng được tính bằng K(n-1))
-            # F2: Số vote từ 15 Cầu Cổ Điển
+            
+            # F2-F12: Các chỉ số cầu (đã tính từ hôm qua)
             features.append(loto_features.get("v5_count", 0))
-            # F3: Số vote từ Cầu Đã Lưu (V17)
             features.append(loto_features.get("v17_count", 0))
-            # F4: Số vote từ Cầu Bạc Nhớ (756 cầu)
             features.append(loto_features.get("memory_count", 0))
-
-            # --- FEATURE SET 3: TỔNG HỢP VOTE (F5 -> F6) ---
-            features.append(
-                loto_features.get("v5_count", 0)
-                + loto_features.get("v17_count", 0)
-                + loto_features.get("memory_count", 0)
-            )
-            f6 = (
-                (1 if loto_features.get("v5_count", 0) > 0 else 0)
-                + (1 if loto_features.get("v17_count", 0) > 0 else 0)
-                + (1 if loto_features.get("memory_count", 0) > 0 else 0)
-            )
+            features.append(loto_features.get("v5_count", 0) + loto_features.get("v17_count", 0) + loto_features.get("memory_count", 0))
+            f6 = (1 if loto_features.get("v5_count", 0) > 0 else 0) + \
+                 (1 if loto_features.get("v17_count", 0) > 0 else 0) + \
+                 (1 if loto_features.get("memory_count", 0) > 0 else 0)
             features.append(f6)
-
-            # --- FEATURE SET 4: CHẤT LƯỢNG (Q) FEATURES (F7 -> F9) ---
-            # F7: Tỷ lệ thắng trung bình (Managed Bridges)
             features.append(loto_features.get("q_avg_win_rate", 0.0))
-
-            # F8: Rủi ro K2N tối thiểu
             features.append(loto_features.get("q_min_k2n_risk", 999.0))
-
-            # F9: Chuỗi Thắng/Thua hiện tại tối đa (Max Current Streak)
             features.append(loto_features.get("q_max_curr_streak", -999.0))
-
-            # --- FEATURE SET 5: PHASE 2 NEW Q-FEATURES (F10 -> F12) ---
-            # F10: Chuỗi thua liên tiếp hiện tại tối đa (Max Current Lose Streak)
             features.append(loto_features.get("q_max_current_lose_streak", 0))
-
-            # F11: Binary indicator - Gần ngưỡng phạt K2N (Is K2N Risk Close)
             features.append(loto_features.get("q_is_k2n_risk_close", 0))
-
-            # F12: Độ lệch chuẩn Win Rate (100 kỳ) - Đo ổn định của cầu
             features.append(loto_features.get("q_avg_win_rate_stddev_100", 0.0))
-
-            # --- FEATURE SET 6: V7.7 PHASE 2 NEW FEATURES (F13 -> F14) ---
-            # F13: Binary indicator - Loto có về trong 3 kỳ gần đây không
             features.append(loto_features.get("q_hit_in_last_3_days", 0))
 
-            # F14: Thay đổi giá trị Gan (Change_in_Gan)
-            features.append(gan_change_for_actual_ky.get(loto, 0))
+            # F14: [ĐÃ SỬA] Change In Gan của ngày HÔM QUA (K-1)
+            features.append(gan_change_for_prev_ky.get(loto, 0))
 
-            # Thêm hàng features này vào X
             X.append(features)
 
     return np.array(X), np.array(y)
