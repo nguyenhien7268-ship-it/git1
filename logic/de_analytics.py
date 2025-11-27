@@ -5,11 +5,8 @@ try:
 except ImportError:
     from de_utils import BO_SO_DE, get_gdb_last_2, check_cham, check_tong
 
+# --- GIỮ NGUYÊN LOGIC THỐNG KÊ CŨ (KHÔNG CẮT BỎ) ---
 def analyze_market_trends(all_data_ai, n_days=30):
-    """
-    Phân tích xu hướng Đề (Chạm, Tổng, Bộ).
-    Trả về: freq_cham, freq_tong, freq_bo, gan_cham, gan_tong, gan_bo
-    """
     if not all_data_ai:
         return {}, {}, {}, {}, {}, {}
         
@@ -89,62 +86,85 @@ def analyze_market_trends(all_data_ai, n_days=30):
         "gan_bo": gan_bo
     }
 
-def get_de_consensus(active_bridges):
-    """Tổng hợp Vote từ cầu"""
+# --- CÁC HÀM PHÂN TÍCH V77 (NÂNG CẤP) ---
+
+def get_de_consensus(bridges):
+    """Tổng hợp Vote từ cầu (Consensus)"""
     vote_cham = Counter()
-    vote_tong = Counter()
     
-    for bridge in active_bridges:
+    for bridge in bridges:
         b_type = str(bridge.get('type', '')).upper()
         val = str(bridge.get('predicted_value', ''))
-        if not val.isdigit(): continue
-        val_int = int(val)
         weight = bridge.get('streak', 1)
         
-        if 'CHAM' in b_type: vote_cham[val_int] += weight
-        elif 'TONG' in b_type: vote_tong[val_int] += weight
-                 
-    return {
-        "consensus_cham": vote_cham.most_common(),
-        "consensus_tong": vote_tong.most_common()
-    }
+        # Nếu là cầu bộ -> Vote cho các số trong bộ
+        if 'BO' in b_type and val in BO_SO_DE:
+             for n in BO_SO_DE[val]:
+                 # Tách số đề n thành 2 chạm
+                 c1, c2 = int(n[0]), int(n[1])
+                 vote_cham[c1] += weight
+                 vote_cham[c2] += weight
+        else:
+            # Nếu là cầu chạm/tổng -> Parse list
+            parts = [v.strip() for v in val.split(',') if v.strip().isdigit()]
+            for p in parts:
+                vote_cham[int(p)] += weight
+                
+    return {"consensus_cham": vote_cham.most_common()}
 
-def calculate_number_scores(active_bridges):
-    """Chấm điểm 00-99 dựa trên hội tụ cầu"""
+def calculate_number_scores(bridges):
+    """
+    Chấm điểm 00-99 (V77 Ultimate).
+    Ưu tiên Cầu Bộ: Điểm x 2.
+    """
     scores = {f"{i:02d}": 0 for i in range(100)}
-    for bridge in active_bridges:
+    for bridge in bridges:
         b_type = str(bridge.get('type', '')).upper()
         val = str(bridge.get('predicted_value', ''))
         streak = bridge.get('streak', 1)
+        
         if not val: continue
         
-        if 'CHAM' in b_type:
-            for s in scores:
-                if check_cham(s, [int(val)]): scores[s] += streak
-        elif 'TONG' in b_type:
-            for s in scores:
-                if check_tong(s, [int(val)]): scores[s] += streak
-        elif 'BO' in b_type:
+        # LOGIC MỚI: Ưu tiên bộ
+        if 'BO' in b_type:
             if val in BO_SO_DE:
-                for s in BO_SO_DE[val]: scores[s] += streak
+                for s in BO_SO_DE[val]: 
+                    scores[s] += streak * 2.0 # Bộ được nhân đôi điểm
+        else:
+            # Cầu chạm/tổng thường
+            parts = []
+            if ',' in val:
+                parts = [int(v) for v in val.split(',') if v.strip().isdigit()]
+            elif val.isdigit():
+                parts = [int(val)]
+                
+            if not parts: continue
+
+            if 'CHAM' in b_type or 'VITRI' in b_type:
+                for s in scores:
+                    if check_cham(s, parts): scores[s] += streak
+            elif 'TONG' in b_type:
+                for s in scores:
+                    if check_tong(s, parts): scores[s] += streak
                 
     return sorted(scores.items(), key=lambda x: x[1], reverse=True)
 
-def get_top_strongest_sets(active_bridges):
+def get_top_strongest_sets(bridges):
     """
-    Tìm ra các Bộ Số có cầu chạy mạnh nhất.
-    Trả về list tên bộ ['01', '23'...] đã sort.
+    Tìm ra các Bộ Số có cầu chạy mạnh nhất (V77).
+    Chỉ tính cầu loại 'BO' hoặc cầu trùng khớp bộ.
     """
     set_scores = {bo: 0 for bo in BO_SO_DE.keys()}
     
-    for bridge in active_bridges:
+    for bridge in bridges:
         b_type = str(bridge.get('type', '')).upper()
         val = str(bridge.get('predicted_value', ''))
         streak = bridge.get('streak', 1)
         
-        # Chỉ ưu tiên Cầu Bộ trực tiếp để độ chính xác cao
+        # Chỉ cộng điểm nếu loại cầu được xác định là BO
         if 'BO' in b_type and val in set_scores:
             set_scores[val] += streak
             
+    # Lọc bộ có điểm > 0 và sort giảm dần
     sorted_sets = sorted(set_scores.items(), key=lambda x: x[1], reverse=True)
     return [x[0] for x in sorted_sets if x[1] > 0]

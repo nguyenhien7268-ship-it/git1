@@ -128,7 +128,7 @@ def _create_ai_dataset(all_data_ai, daily_bridge_predictions_map):
 
         # Lấy features từ các nguồn đã tính toán trước
         gan_features_for_prev_ky = gan_history_map.get(prev_ky_str, {})
-        gan_change_for_actual_ky = gan_change_map.get(actual_ky_str, {})
+        gan_change_for_prev_ky = gan_change_map.get(prev_ky_str, {})
         bridge_features_for_actual_ky = daily_bridge_predictions_map.get(
             actual_ky_str, {}
         )
@@ -203,7 +203,7 @@ def _create_ai_dataset(all_data_ai, daily_bridge_predictions_map):
             features.append(loto_features.get("q_hit_in_last_3_days", 0))
 
             # F14: Thay đổi giá trị Gan (Change_in_Gan)
-            features.append(gan_change_for_actual_ky.get(loto, 0))
+            features.append(gan_change_for_prev_ky.get(loto, 0))
 
             # Thêm hàng features này vào X
             X.append(features)
@@ -410,10 +410,12 @@ def get_ai_predictions(all_data_ai, bridge_predictions_for_today):
 
         # 2. Lấy dữ liệu Gan mới nhất (F1) and Gan Change (F14)
         # Chỉ cần tính cho ngày cuối cùng
+        # Lưu ý: Dự đoán cho ngày mai dựa trên dữ liệu ngày hôm nay (last_ky_str)
+        # Logic đồng nhất với training: lấy gan_change của ngày trước đó để dự đoán
         gan_history_map, gan_change_map = _get_loto_gan_history(all_data_ai)
-        last_ky_str = str(all_data_ai[-1][0])
+        last_ky_str = str(all_data_ai[-1][0])  # Ngày hôm nay (tương đương prev_ky trong training)
         gan_features_today = gan_history_map.get(last_ky_str)
-        gan_change_today = gan_change_map.get(last_ky_str, {})
+        gan_change_for_last_ky = gan_change_map.get(last_ky_str, {})  # gan_change của ngày hôm nay
 
         if not gan_features_today:
             return None, "Lỗi AI: Không thể tính Lô Gan cho ngày dự đoán."
@@ -470,7 +472,7 @@ def get_ai_predictions(all_data_ai, bridge_predictions_for_today):
             features.append(loto_features.get("q_hit_in_last_3_days", 0))
 
             # F14: Thay đổi giá trị Gan (Change_in_Gan)
-            features.append(gan_change_today.get(loto, 0))
+            features.append(gan_change_for_last_ky.get(loto, 0))
 
             # Thêm hàng features này vào X_new
             X_new.append(features)

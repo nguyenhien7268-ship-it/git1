@@ -34,6 +34,13 @@ Bước	Lệnh	Mục đích
 	git commit -m "update tai cau truc"
 
 	git push origin main	
+----------------
+----------------
+
+model AI
+python scripts/v77_phase2_finalize.py
+
+python scripts/v77_phase3_check_progress.py
 
 ----------------sql
 BEGIN TRANSACTION;
@@ -55,107 +62,46 @@ COMMIT;
 
 ------------------------------------------------------
 ------------------------------------------------------
+HÃY KIỂM TRA LẠI CÁC FILE CODE GỐC NÀY TRƯỚC KHI SỬA. KHI SỬA PHẢI ĐẢM BẢO CHỈ SỬA NỘI DUNG LIÊN QUAN CÁC CHỨC NĂNG KHÁC GIỮ NGUYÊN, GỬI LẠI TOÀN BỘ NỘI DUNG FILE CẦN SỬA
+------------------------------------------------------
+------------------------------------------------------
 
 
+🛠️ QUY TRÌNH PHỐI HỢP V2.1 (GEMINI & CURSOR)
+1. PHA ĐỌC HIỂU (INPUT):
 
-xem qua hệ thống, kiểm tra và xác nhận rằng bạn đã nắm được toàn bộ hệ thống chương trình và nhận được đủ các file như mô tả 
+Hành động: Trước khi sửa bất cứ lỗi gì, tôi sẽ Luôn Đọc File Gốc.
 
-thống nhất quy trình làm việc như sau:
+Lợi ích: Tránh việc "sửa lợn lành thành lợn què" do không hiểu các biến/hàm xung quanh.
 
-Quy trình xem xét file: Trước khi thực hiện bất kỳ thay đổi phức tạp nào, tôi sẽ luôn đọc và phân tích toàn bộ nội dung của các file gốc liên quan mà bạn chỉ định. Việc này để đảm bảo tôi hiểu rõ logic và bối cảnh của code, giúp cho việc chỉnh sửa được chính xác.
+2. PHA TRẢ KẾT QUẢ (OUTPUT) - LINH HOẠT THEO TÌNH HUỐNG:
 
-Quy trình sửa file: Khi bạn yêu cầu sửa đổi một file, tôi sẽ cung cấp toàn bộ nội dung mới của file đó sau khi đã chỉnh sửa.
+Trường hợp 1: Sửa lỗi cục bộ (Trong 1 hàm/class)
 
-Cách thực hiện: Bạn chỉ cần sao chép (copy) toàn bộ nội dung mới mà tôi cung cấp và dán (paste) đè lên, thay thế hoàn toàn nội dung trong file gốc tương ứng của bạn.
+Chiến thuật: "Sửa đâu thay đó" (Surgical Replacement).
 
------------------------------------------------------
------------------------------------------------------------
+Output: Tôi gửi NGUYÊN VĂN CẢ HÀM/CLASS mới (kèm tên hàm rõ ràng).
 
-TỔNG HỢP QUY TRÌNH PHỐI HỢP GEMINI VÀ CURSOR (TỐI ƯU CHI PHÍ)
-1. Nguyên Tắc Cốt Lõi: "Não & Tay"
-Gemini là Bộ Não (The Brain): Chịu trách nhiệm đọc log, phân tích lỗi, tư duy logic và soạn thảo giải pháp.
+Thao tác Cursor: Bạn tìm tên hàm -> Bôi đen hàm cũ -> Paste đè hàm mới.
 
-Cursor là Bàn Tay (The Hand): Chịu trách nhiệm tìm đúng file, sửa đúng dòng code và thực thi lệnh.
+Mục đích: Tiết kiệm Token Output của Gemini và Token Input của Cursor (không phải load lại cả file dài nghìn dòng).
 
-Quy tắc vàng: Không bao giờ hỏi Cursor "Tại sao lỗi?". Hãy hỏi Gemini "Tại sao lỗi?" và ra lệnh cho Cursor "Sửa như thế này".
+Trường hợp 2: Sửa lỗi cấu trúc / Logic phức tạp / File ngắn
 
-2. Quy Trình 4 Bước Chi Tiết
-Bước 1: Thu Thập & Phân Tích (Tại Gemini)
+Chiến thuật: "Làm mới hoàn toàn" (Full Overwrite).
 
-Khi gặp lỗi hoặc muốn thêm tính năng mới, hãy copy toàn bộ Log lỗi (từ Terminal) hoặc Code hiện tại đang gặp vấn đề.
+Output: Tôi gửi TOÀN BỘ FILE (FULL CODE).
 
-Gửi dữ liệu cho Gemini kèm câu hỏi: "Phân tích lỗi này và đưa ra giải pháp sửa code".
+Thao tác Cursor: Ctrl+A -> Ctrl+V.
 
-Lợi ích: Bạn tận dụng được khả năng suy luận mạnh mẽ của Gemini mà không tốn phí token context đắt đỏ của Cursor (khi quét toàn bộ codebase).
+Mục đích: Đảm bảo tính nhất quán tuyệt đối, không sót dấu ngoặc/indent.
 
-Bước 2: Tạo Lệnh Prompt "Ăn Sẵn" (Tại Gemini)
+Trường hợp 3: Thay đổi liên quan nhiều file (Cross-file)
 
-Yêu cầu Gemini không chỉ đưa ra giải pháp, mà phải viết một Prompt lệnh dành riêng cho Cursor.
+Chiến thuật: "Tổng chỉ huy" (Orchestrator).
 
-Cấu trúc Prompt chuẩn:
+Output: Tôi sẽ viết Prompt Lệnh Cụ Thể để bạn paste vào Composer (Ctrl+I) của Cursor. Ví dụ: "Tại file A sửa hàm X, tại file B thêm import Y..."
 
-Đích danh: @Ten_File.py (Chỉ định rõ file cần sửa).
+3. PHA TỐI ƯU (VALUE ADD):
 
-Vị trí: "Tại hàm abc, dòng xyz..."
-
-Hành động: "Thay code cũ A bằng code mới B", hoặc "Thêm dòng X vào sau dòng Y".
-
-Giới hạn: "Chỉ sửa đúng chỗ này, giữ nguyên các phần khác".
-
-Bước 3: Thực Thi Chính Xác (Tại Cursor)
-
-Chuyển sang Cursor để áp dụng code.
-
-Mở Composer: Nhấn Ctrl + I (Windows) hoặc Cmd + I (Mac). Tuyệt đối không dùng Chat (Ctrl+L) để sửa code phức tạp.
-
-Gán ngữ cảnh hẹp: Gõ @ và chọn đúng file cần sửa.
-
-⛔ CẤM: Dùng @Codebase (Trừ khi bạn không biết lỗi nằm ở đâu). Lệnh này quét cả dự án, rất tốn tiền và chậm.
-
-✅ NÊN: Dùng @Ten_File.py (Chỉ tốn token cho file đó).
-
-Dán Prompt: Paste lệnh mà Gemini đã soạn ở Bước 2.
-
-Review & Save: Xem Diff (Code thay đổi) -> Nhấn Accept (hoặc Ctrl+Enter) -> Nhấn Ctrl+S (Lưu file thủ công để chắc chắn).
-
-Bước 4: Kiểm Tra Nhanh (Tại Terminal)
-
-Mở Terminal trong Cursor (Ctrl + `) và chạy lệnh kiểm thử ngay lập tức.
-
-Ví dụ: pytest tests/test_abc.py -v
-
-Nếu Xanh (Passed): Xong.
-
-Nếu Đỏ (Failed): Copy log lỗi quay lại Bước 1.
-
-3. So Sánh Hiệu Quả Kinh Tế
-Về Tư duy:
-
-Cách cũ (Cursor): Tốn kém vì dùng Model AI của Editor để suy luận.
-
-Cách mới (Gemini): Tiết kiệm vì dùng Gemini Web/API để suy luận.
-
-Về Context (Ngữ cảnh):
-
-Cách cũ (Cursor): Rất tốn kém khi quét @Codebase (hàng nghìn dòng).
-
-Cách mới (Gemini): Rất rẻ khi chỉ quét @File (vài chục dòng).
-
-Về Độ chính xác:
-
-Cách cũ (Cursor): Thấp, dễ bị ảo giác do quá nhiều context nhiễu.
-
-Cách mới (Gemini): Cao, nhờ prompt cụ thể và rõ ràng.
-
-Về Tốc độ:
-
-Cách cũ (Cursor): Chậm do phải đợi AI đọc hết dự án.
-
-Cách mới (Gemini): Nhanh, sửa ngay lập tức vào đích.
-
-4. Các Mẹo Nhỏ "Xương Máu" (Từ dự án thực tế)
-Windows File Lock: Luôn nhớ thêm import gc; gc.collect() trong các test xóa file tạm trên Windows.
-
-Config Isolation: Khi test các giá trị mặc định, hãy kiểm tra settings.defaults thay vì settings.Gia_Tri_Hien_Tai để tránh bị file config cá nhân làm sai lệch.
-
-Manual Save: Sau khi Cursor sửa xong, hãy tạo thói quen nhấn Ctrl+S. Đôi khi Cursor báo xong nhưng chưa ghi xuống đĩa cứng kịp thời.
+Ngoài việc sửa lỗi, tôi sẽ luôn kèm theo mục "Gemini Suggestion": Đề xuất code ngắn hơn, chạy nhanh hơn hoặc dễ đọc hơn nếu tôi phát hiện cách viết tốt hơn code gốc.

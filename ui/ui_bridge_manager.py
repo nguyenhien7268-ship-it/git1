@@ -1,7 +1,4 @@
-# Tên file: CODE5/git1/ui/ui_bridge_manager.py
-#
-# (PHIÊN BẢN V7.9 - FIXED KEY ERROR DATE_ADDED)
-#
+# Tên file: git1/ui/ui_bridge_manager.py
 import tkinter as tk
 from tkinter import messagebox, ttk
 
@@ -13,8 +10,8 @@ try:
         get_all_managed_bridges,
         update_managed_bridge,
     )
-except ImportError:
-    print("LỖI: ui_bridge_manager.py không thể import lottery_service.")
+except ImportError as e:
+    print(f"LỖI IMPORT NGHIÊM TRỌNG tại ui_bridge_manager: {e}")
     # Fallback functions để tránh crash IDE
     def get_all_managed_bridges(db, only_enabled=False): return []
     def add_managed_bridge(n, d, w): return False, "Lỗi Import"
@@ -30,7 +27,6 @@ class BridgeManagerWindow:
         self.root = app.root
         self.all_bridges_cache = []  # Cache danh sách cầu
         
-        # Kiểm tra xem cửa sổ đã mở chưa
         if (
             hasattr(self.app, "bridge_manager_window")
             and self.app.bridge_manager_window
@@ -39,29 +35,20 @@ class BridgeManagerWindow:
             self.app.bridge_manager_window.lift()
             return
 
-        # Khởi tạo cửa sổ mới
         self.window = tk.Toplevel(self.root)
         self.window.title("Quản Lý Cầu (Bridge Manager)")
         self.window.geometry("900x600")
         
-        # Lưu tham chiếu vào App để controller gọi lại được
         self.app.bridge_manager_window = self.window
-        self.app.bridge_manager_window_instance = self # Quan trọng cho controller gọi refresh
+        self.app.bridge_manager_window_instance = self
 
-        # Layout chính
         self.window.columnconfigure(0, weight=1)
         self.window.rowconfigure(1, weight=1)
 
-        # 1. FORM NHẬP LIỆU (Trên cùng)
         self.create_input_form()
-
-        # 2. DANH SÁCH CẦU (Giữa)
         self.create_bridge_list()
-
-        # 3. THANH CÔNG CỤ (Dưới cùng)
         self.create_toolbar()
 
-        # Load dữ liệu ban đầu
         self.refresh_bridge_list()
 
     def create_input_form(self):
@@ -70,7 +57,6 @@ class BridgeManagerWindow:
         frame.grid(row=0, column=0, sticky="ew", padx=10, pady=5)
         frame.columnconfigure(1, weight=1)
 
-        # Hàng 1: Tên cầu & Trạng thái
         ttk.Label(frame, text="Tên Cầu (VD: Cầu 1, Bong(0,1)):").grid(row=0, column=0, sticky="w")
         self.name_entry = ttk.Entry(frame)
         self.name_entry.grid(row=0, column=1, sticky="ew", padx=5)
@@ -78,7 +64,6 @@ class BridgeManagerWindow:
         self.enabled_var = tk.BooleanVar(value=True)
         ttk.Checkbutton(frame, text="Đang Bật (Sử dụng)", variable=self.enabled_var).grid(row=0, column=2, padx=5)
 
-        # Hàng 2: Mô tả
         ttk.Label(frame, text="Mô tả:").grid(row=1, column=0, sticky="w")
         self.desc_entry = ttk.Entry(frame)
         self.desc_entry.grid(row=1, column=1, columnspan=2, sticky="ew", padx=5, pady=5)
@@ -93,7 +78,6 @@ class BridgeManagerWindow:
         columns = ("id", "name", "desc", "win_rate", "status", "created_at")
         self.tree = ttk.Treeview(frame, columns=columns, show="headings", selectmode="browse")
         
-        # Định nghĩa cột
         self.tree.heading("id", text="ID")
         self.tree.column("id", width=40, anchor="center")
         
@@ -112,14 +96,12 @@ class BridgeManagerWindow:
         self.tree.heading("created_at", text="Ngày Tạo")
         self.tree.column("created_at", width=120, anchor="center")
 
-        # Scrollbar
         scrollbar = ttk.Scrollbar(frame, orient=tk.VERTICAL, command=self.tree.yview)
         self.tree.configure(yscrollcommand=scrollbar.set)
         
         self.tree.grid(row=0, column=0, sticky="nsew")
         scrollbar.grid(row=0, column=1, sticky="ns")
 
-        # Bind sự kiện chọn dòng
         self.tree.bind("<<TreeviewSelect>>", self.on_bridge_select)
 
     def create_toolbar(self):
@@ -127,17 +109,14 @@ class BridgeManagerWindow:
         frame = ttk.Frame(self.window, padding="10")
         frame.grid(row=2, column=0, sticky="ew")
         
-        # Style cho nút tối ưu
         style = ttk.Style()
         style.configure("Smart.TButton", foreground="blue", font=("Helvetica", 10, "bold"))
 
-        # Nhóm 1: Thao tác CRUD
         ttk.Button(frame, text="Thêm Mới", command=self.add_bridge).pack(side=tk.LEFT, padx=2)
         ttk.Button(frame, text="Cập Nhật", command=self.update_selected_bridge).pack(side=tk.LEFT, padx=2)
         ttk.Button(frame, text="Xóa", command=self.delete_selected_bridge).pack(side=tk.LEFT, padx=2)
         ttk.Button(frame, text="Làm Mới List", command=self.refresh_bridge_list).pack(side=tk.LEFT, padx=2)
 
-        # Nhóm 2: Chức năng nâng cao (Nút mới)
         ttk.Separator(frame, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=10)
         
         self.btn_smart_opt = ttk.Button(
@@ -148,46 +127,54 @@ class BridgeManagerWindow:
         )
         self.btn_smart_opt.pack(side=tk.LEFT, padx=2)
         
-        # Nhóm 3: Backtest nhanh (Bên phải)
         ttk.Button(frame, text="Test Cầu Này", command=self.run_quick_backtest).pack(side=tk.RIGHT, padx=2)
 
     # --- LOGIC HANDLERS ---
 
     def refresh_bridge_list(self):
-        """Tải lại danh sách cầu từ DB."""
-        # Xóa cũ
-        for item in self.tree.get_children():
-            self.tree.delete(item)
+        """Tải lại danh sách cầu từ DB (ĐÃ FIX LỖI RACE CONDITION)."""
+        try:
+            # [FIX QUAN TRỌNG]: Kiểm tra self.window chứ không phải self
+            if not hasattr(self, 'window') or not self.window.winfo_exists():
+                return
             
-        # Tải mới
-        self.all_bridges_cache = get_all_managed_bridges(self.app.db_name)
-        
-        # Hiển thị
-        for b in self.all_bridges_cache:
-            status_text = "Đang Bật" if b['is_enabled'] else "Đã Tắt"
-            # Tô màu dòng nếu tắt
-            tags = ("disabled",) if not b['is_enabled'] else ()
+            # Kiểm tra treeview còn tồn tại không
+            try:
+                self.tree.get_children()
+            except tk.TclError:
+                return
+
+            for item in self.tree.get_children():
+                self.tree.delete(item)
+                
+            self.all_bridges_cache = get_all_managed_bridges(self.app.db_name)
             
-            # [FIXED] Sử dụng .get('date_added') thay vì ['created_at'] để khớp với DB
-            created_date = b.get('date_added', 'N/A')
+            for b in self.all_bridges_cache:
+                status_text = "Đang Bật" if b['is_enabled'] else "Đã Tắt"
+                tags = ("disabled",) if not b['is_enabled'] else ()
+                
+                # Dùng .get() an toàn cho các key có thể thiếu
+                created_date = b.get('created_at') or b.get('date_added', 'N/A')
+                win_rate = b.get('win_rate_text', 'N/A')
+                
+                self.tree.insert(
+                    "", tk.END, 
+                    values=(b['id'], b['name'], b['description'], win_rate, status_text, created_date),
+                    tags=tags
+                )
             
-            self.tree.insert(
-                "", tk.END, 
-                values=(b['id'], b['name'], b['description'], b.get('win_rate_text', 'N/A'), status_text, created_date),
-                tags=tags
-            )
-        
-        self.tree.tag_configure("disabled", foreground="gray")
+            self.tree.tag_configure("disabled", foreground="gray")
+            
+        except Exception as e:
+            print(f"Lỗi refresh_bridge_list (Ignored): {e}")
 
     def on_bridge_select(self, event):
-        """Khi chọn 1 dòng, đổ dữ liệu lên form."""
         selected = self.tree.focus()
         if not selected: return
         
         values = self.tree.item(selected, "values")
         if not values: return
         
-        # Điền form
         self.name_entry.delete(0, tk.END)
         self.name_entry.insert(0, values[1])
         
@@ -245,12 +232,10 @@ class BridgeManagerWindow:
         self.enabled_var.set(True)
 
     def run_smart_optimization(self):
-        """Gọi logic Tối ưu hóa từ Controller."""
         if messagebox.askyesno("Tối Ưu Cầu", "Hệ thống sẽ:\n1. Tắt các cầu hiệu quả thấp (Lọc)\n2. Bật lại các cầu tiềm năng\n3. Làm mới danh sách\n\nTiếp tục?"):
             self.app.task_manager.run_task(self.app.controller.task_run_smart_optimization, "Tối Ưu Cầu Thông Minh")
 
     def run_quick_backtest(self):
-        """Chạy backtest cho cầu đang chọn."""
         selected = self.tree.focus()
         if not selected: return
         

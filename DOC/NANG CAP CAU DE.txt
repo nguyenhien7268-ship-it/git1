@@ -1,0 +1,93 @@
+QUY TRÌNH PHỐI HỢP LÀM VIỆC (GEMINI/CURSOR & THỦ CÔNG)
+Đây là phương pháp "An toàn & Chính xác" để tránh lỗi khi chỉnh sửa code phức tạp.
+
+Bước 1: Pha Đọc Hiểu (Input)
+Nguyên tắc: Không bao giờ sửa code khi chưa đọc file gốc.
+
+Hành động: Trước khi yêu cầu sửa lỗi, hãy mở file cần sửa (ví dụ: de_bridge_scanner.py) để AI nắm được ngữ cảnh, các biến và thư viện đang được import.
+
+Bước 2: Pha Trả Kết Quả & Sửa Chữa (Output)
+Tùy vào mức độ thay đổi, chúng ta áp dụng 3 chiến thuật:
+
+Chiến thuật 1: Sửa lỗi nhỏ (Surgical Replacement)
+
+Áp dụng: Khi chỉ sửa 1 hàm hoặc vài dòng logic.
+
+Cách làm: Tôi gửi đoạn code hàm mới -> Bạn dùng Cursor bôi đen hàm cũ -> Dán đè hoặc dùng tính năng "Edit" của Cursor để thay thế.
+
+Ưu điểm: Nhanh, không làm rối các phần khác.
+
+Chiến thuật 2: Làm mới hoàn toàn (Full Overwrite) - Khuyên dùng cho dự án này
+
+Áp dụng: Khi thay đổi logic lớn, sửa cấu trúc file, hoặc file ngắn (< 300 dòng).
+
+Cách làm: Tôi gửi TOÀN BỘ nội dung file -> Bạn mở file trong Cursor -> Ctrl+A (Chọn hết) -> Ctrl+V (Dán đè).
+
+Ưu điểm: Đảm bảo tính nhất quán tuyệt đối, không sót dấu ngoặc, không lỗi thụt đầu dòng (indentation).
+
+Chiến thuật 3: Tổng chỉ huy (Orchestrator)
+
+Áp dụng: Khi thay đổi liên quan đến nhiều file (ví dụ: sửa db_manager.py thì phải sửa cả bridge_manager.py).
+
+Cách làm: Tôi sẽ liệt kê trình tự file cần sửa. Bạn thực hiện lần lượt từng file theo chiến thuật 1 hoặc 2.
+
+Bước 3: Pha Tối Ưu (Value Add)
+Sau khi code đã chạy, tôi sẽ đề xuất các đoạn code ngắn gọn hơn hoặc hiệu năng cao hơn (nếu có).
+
+2. QUY TRÌNH NÂNG CẤP HỆ THỐNG (CỤ THỂ CHO V77 ULTIMATE)
+Dựa trên lộ trình trong IMPLEMENTATION_ROADMAP.md và thực tế code, đây là các bước để nâng cấp hệ thống Cầu Đề:
+
+Giai đoạn 1: Ổn định Động cơ Quét (Scanner Stabilization)
+Mục tiêu: Đảm bảo nút "Quét Cầu" hoạt động đúng, ra nhiều kết quả (>20 cầu), đúng logic 4 chạm.
+
+Các bước thực hiện:
+
+Đồng bộ Database: Chạy script init_db_fix.py (hoặc code tương đương) để đảm bảo bảng ManagedBridges có đủ cột type, recent_win_count_10.
+
+Cập nhật Toán học (de_utils.py): Đảm bảo hàm get_touches_by_offset trả về đúng 4 số (Gốc + Bóng dương).
+
+Cập nhật Scanner (de_bridge_scanner.py): Chuyển đổi logic quét sang "Dynamic Offset" (Vòng lặp K từ 0-9).
+
+Kiểm tra: Bấm "Quét Cầu & Chốt" -> Phải ra danh sách cầu có tên dạng (T+3), (T+5)...
+
+Giai đoạn 2: Xây dựng Backtester Độc lập (Backend Core)
+Mục tiêu: Kiểm chứng độ bền của cầu trong quá khứ xa (1-2 năm).
+
+Các bước thực hiện:
+
+Tạo file logic/de_backtester_core.py.
+
+Viết hàm backtest dài hạn, tính chỉ số Max Gan, ROI.
+
+Viết script chạy thử (không cần giao diện).
+
+Giai đoạn 3: Giao diện & Tích hợp (UI Integration)
+Mục tiêu: Đưa Backtester lên giao diện người dùng.
+
+Các bước thực hiện:
+
+Tạo/Cập nhật ui/ui_de_dashboard.py hoặc tạo tab mới ui_de_backtester.py.
+
+Thêm tính năng "Double Click" vào bảng cầu để xem lịch sử chi tiết (đã thực hiện ở bước trước).
+
+Thêm biểu đồ lợi nhuận (nếu cần).
+
+Giai đoạn 4: Đồng bộ & Tự động hóa (Automation)
+Mục tiêu: Kết hợp sức mạnh của Scanner và Backtester.
+
+Các bước thực hiện:
+
+Thêm tính năng "Ghim cầu" (Pin) để không bị xóa khi quét lại.
+
+Tự động loại bỏ cầu có Max Gan quá cao trong lịch sử.
+
+Dọn dẹp code rác và tối ưu hiệu năng.
+
+TÓM LẠI: VIỆC CẦN LÀM NGAY LÚC NÀY
+Bạn đang ở cuối Giai đoạn 1 và chớm sang Giai đoạn 3 (làm tính năng Double Click xem lịch sử).
+
+Ưu tiên 1: Đảm bảo file de_utils.py và de_bridge_scanner.py đã được cập nhật code mới nhất (Logic Dynamic Offset).
+
+Ưu tiên 2: Cập nhật ui_de_dashboard.py để có tính năng Double Click xem lịch sử 30 ngày.
+
+Ưu tiên 3: Chạy thử và kiểm tra xem số lượng cầu quét ra có phong phú không.

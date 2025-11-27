@@ -237,6 +237,56 @@ class SettingsWindow:
                 self.entries[key] = entry_var  # Lưu biến, không phải widget
                 current_row += 1
 
+        # --- 4. Cấu Hình Hiệu Năng (MỚI) ---
+        grp_perf = ttk.LabelFrame(main_frame, text="4. Cấu Hình Hiệu Năng (Data Slicing)", padding="10")
+        grp_perf.grid(row=current_row, column=0, columnspan=3, sticky="ew", padx=5, pady=5)
+        grp_perf.columnconfigure(1, weight=1)
+        current_row += 1
+
+        # Giới hạn dữ liệu Dashboard
+        ttk.Label(grp_perf, text="Giới hạn dữ liệu Dashboard (0 = Full):").grid(
+            row=0, column=0, sticky="w", padx=5, pady=3
+        )
+        val_dashboard = current_settings.get("DATA_LIMIT_DASHBOARD", "0")
+        entry_dashboard_var = tk.StringVar(value=str(val_dashboard))
+        entry_dashboard = ttk.Entry(grp_perf, textvariable=entry_dashboard_var)
+        entry_dashboard.grid(
+            row=0, column=1, sticky="ew", padx=5, pady=3
+        )
+        self.entries["DATA_LIMIT_DASHBOARD"] = entry_dashboard_var
+
+        # Giới hạn dữ liệu Tối Ưu Hóa
+        ttk.Label(grp_perf, text="Giới hạn dữ liệu Tối Ưu Hóa (0 = Full):").grid(
+            row=1, column=0, sticky="w", padx=5, pady=3
+        )
+        val_research = current_settings.get("DATA_LIMIT_RESEARCH", "0")
+        entry_research_var = tk.StringVar(value=str(val_research))
+        entry_research = ttk.Entry(grp_perf, textvariable=entry_research_var)
+        entry_research.grid(
+            row=1, column=1, sticky="ew", padx=5, pady=3
+        )
+        self.entries["DATA_LIMIT_RESEARCH"] = entry_research_var
+
+        # Giới hạn dữ liệu Quét Cầu
+        ttk.Label(grp_perf, text="Giới hạn dữ liệu Quét Cầu (0 = Full):").grid(
+            row=2, column=0, sticky="w", padx=5, pady=3
+        )
+        val_scanner = current_settings.get("DATA_LIMIT_SCANNER", "2")
+        entry_scanner_var = tk.StringVar(value=str(val_scanner))
+        entry_scanner = ttk.Entry(grp_perf, textvariable=entry_scanner_var)
+        entry_scanner.grid(
+            row=2, column=1, sticky="ew", padx=5, pady=3
+        )
+        self.entries["DATA_LIMIT_SCANNER"] = entry_scanner_var
+
+        # Label giải thích chung
+        ttk.Label(
+            grp_perf, 
+            text="* Giảm số lượng kỳ giúp tăng tốc độ xử lý.", 
+            font=("Arial", 8, "italic"), 
+            foreground="gray"
+        ).grid(row=3, column=1, sticky="w", padx=5, pady=(0, 5))
+
         # --- Nút Lưu ---
         save_button = ttk.Button(
             main_frame, text="Lưu Cài đặt", command=self.save_all_settings

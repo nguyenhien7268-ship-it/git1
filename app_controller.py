@@ -78,6 +78,7 @@ except ImportError as e_import:
         return False, "Lỗi: Không tìm thấy module logic.data_parser"
 
 from logic.dashboard_analytics import prepare_daily_features, calculate_score_from_features
+from logic.bridges.de_bridge_scanner import run_de_scanner
 
 class AppController:
     """
@@ -297,6 +298,17 @@ class AppController:
     def task_run_decision_dashboard(self, title):
         all_data_ai = self.load_data_ai_from_db_controller()
 
+        # Áp dụng DATA LIMIT (Cắt trên RAM)
+        try:
+            limit = getattr(SETTINGS, "DATA_LIMIT_DASHBOARD", 2000)
+        except:
+            limit = 2000
+        if limit > 0 and len(all_data_ai) > limit:
+            all_data_ai = all_data_ai[-limit:]
+            self.logger.log(f"⚡ HIỆU NĂNG: Đang phân tích {limit} kỳ gần nhất (Tổng DB có nhiều hơn).")
+        else:
+            self.logger.log(f"⚡ Chế độ Full Data: Đang phân tích toàn bộ {len(all_data_ai)} kỳ.")
+
         if not all_data_ai or len(all_data_ai) < 2:
             self.logger.log("LỖI: Cần ít nhất 2 kỳ dữ liệu để chạy Bảng Tổng Hợp.")
             self.root_after(0, self.app._on_dashboard_close)
@@ -444,28 +456,39 @@ class AppController:
                 self.logger.log(f"Lỗi khi tự động làm mới QL Cầu: {e_refresh}")
 
     def task_run_auto_find_bridges(self, title):
-        toan_bo_A_I = self.load_data_ai_from_db_controller()
-        if not toan_bo_A_I:
+        data = self.load_data_ai_from_db_controller()
+        if not data:
             return
 
-        # 1. Chạy Lô
-        msg_loto = find_and_auto_manage_bridges(toan_bo_A_I, self.db_name)
-        self.logger.log(f">>> LOTO: {msg_loto}")
+        # --- TỐI ƯU HÓA: CHỈ QUÉT KỲ CUỐI (Lấy từ Cài đặt) ---
+        try:
+            SCAN_LIMIT = getattr(SETTINGS, "DATA_LIMIT_SCANNER", 500)
+        except:
+            SCAN_LIMIT = 500
 
-        # 2. Chạy Đề (Hệ thống riêng biệt)
-        self.logger.log(">>> Đang chuyển sang hệ thống Dò Cầu Đề...")
-        msg_de = find_and_auto_manage_bridges_de(toan_bo_A_I, self.db_name)
-        self.logger.log(f">>> ĐỀ: {msg_de}")
+        if SCAN_LIMIT > 0 and len(data) > SCAN_LIMIT:
+            self.logger.log(f"⚡ TỰ ĐỘNG TỐI ƯU: Hệ thống chỉ quét trên {SCAN_LIMIT} kỳ gần nhất để tăng tốc độ.")
+            scan_data = data[-SCAN_LIMIT:]
+        else:
+            scan_data = data
+
+        # 1. Chạy Lô (Scanner cũ - Vẫn dùng nhưng nhanh hơn nhờ data nhỏ)
+        self.logger.log(">>> Đang quét cầu Lô (V17 & Bạc Nhớ)...")
+        msg_lo = find_and_auto_manage_bridges(scan_data, self.db_name)
+        self.logger.log(f"Lô: {msg_lo}")
+
+        # 2. Chạy Đề (Scanner mới V7.7 - Nhanh & Hiệu quả hơn)
+        self.logger.log(">>> Đang quét cầu Đề (Chạm/Tổng/Bộ)...")
+        try:
+            count, bridges = run_de_scanner(scan_data)
+            self.logger.log(f"Đề: Đã tìm thấy và lưu {count} cầu Đề đang thông.")
+        except Exception as e:
+            self.logger.log(f"Lỗi quét Đề: {e}")
+
         self.logger.log(">>> Tác vụ hoàn tất.")
 
-        if (
-            self.app.bridge_manager_window
-            and self.app.bridge_manager_window.winfo_exists()
-        ):
-            self.logger.log("Đang tự động làm mới cửa sổ Quản lý Cầu...")
-            self.root_after(
-                0, self.app.bridge_manager_window_instance.refresh_bridge_list
-            )
+        if self.app.bridge_manager_window_instance:
+            self.root_after(0, self.app.bridge_manager_window_instance.refresh_bridge_list)
 
     def task_run_auto_prune_bridges(self, title):
         toan_bo_A_I = self.load_data_ai_from_db_controller()
@@ -818,6 +841,18 @@ class AppController:
                 return
             log_to_optimizer(f"...Tải dữ liệu thành công ({len(all_data_ai)} kỳ).")
 
+            # Áp dụng DATA LIMIT RESEARCH
+            try:
+                limit = getattr(SETTINGS, "DATA_LIMIT_RESEARCH", 0)
+            except:
+                limit = 0
+            if limit > 0 and len(all_data_ai) > limit:
+                data_processing = all_data_ai[-limit:]
+                log_to_optimizer(f"⚡ HIỆU NĂNG: Tối ưu hóa trên {limit} kỳ gần nhất.")
+            else:
+                data_processing = all_data_ai
+                log_to_optimizer(f"⚡ Chế độ Full Data: Tối ưu hóa trên toàn bộ {len(all_data_ai)} kỳ.")
+
             original_settings = SETTINGS.get_all_settings()
             combinations = generate_combinations(param_ranges, original_settings)
             total_combos = len(combinations)
@@ -828,12 +863,12 @@ class AppController:
 
             # Phase 1: Precompute features cho từng ngày trong days_to_test
             cached_features = []
-            offset = len(all_data_ai) - days_to_test
+            offset = len(data_processing) - days_to_test
             for i in range(days_to_test):
                 day_index = offset + i
                 log_to_optimizer(f"Đang chuẩn bị dữ liệu ngày {day_index + 1 - offset}/{days_to_test} ...")
                 try:
-                    features = prepare_daily_features(all_data_ai, day_index)
+                    features = prepare_daily_features(data_processing, day_index)
                     cached_features.append(features)
                 except Exception as e:
                     log_to_optimizer(f"Lỗi khi prepare features ngày {i+1}: {e}")
