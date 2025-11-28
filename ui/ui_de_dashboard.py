@@ -74,7 +74,11 @@ class UiDeDashboard(ttk.Frame):
         self.tree_bridges.column("hp", width=60, anchor="center")
         
         self.tree_bridges.pack(fill=tk.BOTH, expand=True)
-        self.tree_bridges.bind("<<TreeviewSelect>>", self.on_bridge_select)
+        # Bind double-click event
+        self.tree_bridges.bind("<Double-1>", self.on_bridge_double_click)
+        # Test: Bind cả Button-1 để debug
+        self.tree_bridges.bind("<Button-1>", lambda e: print(f"[DEBUG] Button-1 clicked on tree_bridges"))
+        print("[DEBUG] Double-click event đã được bind vào tree_bridges")
 
         # --- COL 3: CHỐT SỐ (RIGHT) ---
         frame_right = ttk.Frame(paned)
@@ -210,10 +214,14 @@ class UiDeDashboard(ttk.Frame):
     def _update_scan_ui(self):
         for row in self.tree_bridges.get_children(): self.tree_bridges.delete(row)
         
+        # Đảm bảo self.strong_sets được khởi tạo
+        if not hasattr(self, 'strong_sets') or self.strong_sets is None:
+            self.strong_sets = []
+        
         best_thong_val = None
         best_rate_val = None
         max_streak_found = -1
-        max_rate_found = -1
+        max_rate_found = -1.0  # Sử dụng float để so sánh win_rate
         
         # Helper: Chuyển tên Bộ thành chuỗi chạm (VD: Bộ 01 -> "0,1,5,6")
         def expand_bo_to_touch(bo_name):
@@ -225,50 +233,81 @@ class UiDeDashboard(ttk.Frame):
 
         # DUYỆT CẦU ĐỂ HIỂN THỊ VÀ TÌM BEST
         for i, b in enumerate(self.found_bridges):
-            p_val = b['predicted_value']
-            b_type = str(b['type']).upper()
-            
-            lbl_type = "Cầu Thông"
-            if 'BO' in b_type: lbl_type = "Cầu Bộ"
-            elif 'TI_LE' in b_type: lbl_type = "Cầu Tỉ Lệ"
-            
-            p_text = f"Bộ {p_val}" if 'BO' in b_type else f"Chạm {p_val}"
-            info = f"{b['streak']} kỳ" if 'THONG' in b_type else f"{b['win_rate']:.0f}%"
-            if 'BO' in b_type and 'THONG' in b_type: info += " (🔥)"
-            
-            # For old format compatibility
-            wins_10 = b.get('wins_10', 0)
-            hp = b.get('hp', 3)
-            form_show = f"{wins_10}/10" if wins_10 > 0 else info
-            hp_show = "❤️" * hp if hp <= 3 else str(hp)
-            
-            self.tree_bridges.insert("", "end", iid=i, values=(b['name'], p_text, b['streak'], form_show, hp_show))
-            
-            # --- LOGIC TÌM BEST (FIXED) ---
-            # 1. Tìm Chạm Thông Tốt Nhất (Ưu tiên Streak cao nhất)
-            if b['streak'] > max_streak_found:
-                max_streak_found = b['streak']
-                if 'BO' in b_type:
-                    best_thong_val = expand_bo_to_touch(p_val) # Bung Bộ ra chạm
-                else:
-                    best_thong_val = p_val
-            
-            # 2. Tìm Chạm Tỉ Lệ Tốt Nhất (Ưu tiên WinRate cao nhất)
-            if b['win_rate'] > max_rate_found:
-                max_rate_found = b['win_rate']
-                if 'BO' in b_type:
-                    best_rate_val = expand_bo_to_touch(p_val)
-                else:
-                    best_rate_val = p_val
+            try:
+                p_val = b.get('predicted_value', '')
+                b_type = str(b.get('type', '')).upper()
+                
+                lbl_type = "Cầu Thông"
+                if 'BO' in b_type: lbl_type = "Cầu Bộ"
+                elif 'TI_LE' in b_type: lbl_type = "Cầu Tỉ Lệ"
+                
+                p_text = f"Bộ {p_val}" if 'BO' in b_type else f"Chạm {p_val}"
+                info = f"{b.get('streak', 0)} kỳ" if 'THONG' in b_type else f"{b.get('win_rate', 0):.0f}%"
+                if 'BO' in b_type and 'THONG' in b_type: info += " (🔥)"
+                
+                # For old format compatibility
+                wins_10 = b.get('wins_10', 0)
+                hp = b.get('hp', 3)
+                form_show = f"{wins_10}/10" if wins_10 > 0 else info
+                hp_show = "❤️" * hp if hp <= 3 else str(hp)
+                
+                self.tree_bridges.insert("", "end", iid=i, values=(b.get('name', ''), p_text, b.get('streak', 0), form_show, hp_show))
+                
+                # --- LOGIC TÌM BEST (FIXED) ---
+                # 1. Tìm Chạm Thông Tốt Nhất (Ưu tiên Streak cao nhất)
+                # Đảm bảo streak là số hợp lệ
+                streak = b.get('streak', 0)
+                if not isinstance(streak, (int, float)):
+                    try:
+                        streak = float(streak) if streak else 0
+                    except (ValueError, TypeError):
+                        streak = 0
+                
+                if streak > max_streak_found:
+                    max_streak_found = streak
+                    if 'BO' in b_type:
+                        best_thong_val = expand_bo_to_touch(p_val) # Bung Bộ ra chạm
+                    else:
+                        best_thong_val = str(p_val) if p_val else None
+                
+                # 2. Tìm Chạm Tỉ Lệ Tốt Nhất (Ưu tiên WinRate cao nhất)
+                # Đảm bảo win_rate là số hợp lệ và >= 0
+                win_rate = b.get('win_rate', 0)
+                if not isinstance(win_rate, (int, float)):
+                    try:
+                        win_rate = float(win_rate) if win_rate else 0
+                    except (ValueError, TypeError):
+                        win_rate = 0
+                
+                if win_rate >= 0 and win_rate > max_rate_found:
+                    max_rate_found = win_rate
+                    if 'BO' in b_type:
+                        best_rate_val = expand_bo_to_touch(p_val)
+                    else:
+                        best_rate_val = str(p_val) if p_val else None
+            except Exception as e:
+                # Bỏ qua lỗi và tiếp tục với cầu tiếp theo
+                print(f"Lỗi xử lý cầu {i}: {e}")
+                continue
 
         # Nếu không tìm thấy tỉ lệ (hiếm), fallback
-        if not best_rate_val and best_thong_val: best_rate_val = best_thong_val
+        if not best_rate_val and best_thong_val:
+            best_rate_val = best_thong_val
         
-        self.lbl_cham_thong.config(text=f"💎 Chạm Thông: {best_thong_val if best_thong_val else '...'}")
-        self.lbl_cham_rate.config(text=f"⭐ Chạm Tỉ Lệ: {best_rate_val if best_rate_val else '...'}")
+        # Đảm bảo giá trị không None trước khi hiển thị
+        cham_thong_display = best_thong_val if best_thong_val else '...'
+        cham_rate_display = best_rate_val if best_rate_val else '...'
         
-        top3_sets = self.strong_sets[:3]
-        self.lbl_bo_dep.config(text=f"📦 Bộ Đẹp: {', '.join(top3_sets) if top3_sets else '...'}")
+        self.lbl_cham_thong.config(text=f"💎 Chạm Thông: {cham_thong_display}")
+        self.lbl_cham_rate.config(text=f"⭐ Chạm Tỉ Lệ: {cham_rate_display}")
+        
+        # Đảm bảo self.strong_sets tồn tại và là list
+        if not hasattr(self, 'strong_sets') or not isinstance(self.strong_sets, list):
+            self.strong_sets = []
+        
+        top3_sets = self.strong_sets[:3] if self.strong_sets else []
+        bo_dep_display = ', '.join(top3_sets) if top3_sets else '...'
+        self.lbl_bo_dep.config(text=f"📦 Bộ Đẹp: {bo_dep_display}")
 
         # Update Dàn
         if self.scores:
@@ -314,7 +353,14 @@ class UiDeDashboard(ttk.Frame):
 
         self.lbl_cham_thong.config(text=f"💎 Top Rank: {best_rank or '...'}")
         self.lbl_cham_rate.config(text=f"⭐ Top Form: {best_form or '...'}")
-        self.lbl_bo_dep.config(text=f"📦 Bộ Đẹp: {', '.join(self.strong_sets[:3])}")
+        
+        # Đảm bảo self.strong_sets tồn tại và là list
+        if not hasattr(self, 'strong_sets') or not isinstance(self.strong_sets, list):
+            self.strong_sets = []
+        
+        top3_sets_final = self.strong_sets[:3] if self.strong_sets else []
+        bo_dep_final = ', '.join(top3_sets_final) if top3_sets_final else '...'
+        self.lbl_bo_dep.config(text=f"📦 Bộ Đẹp: {bo_dep_final}")
         
         # Update text widgets
         if self.scores:
@@ -353,6 +399,60 @@ class UiDeDashboard(ttk.Frame):
         self.txt_manual.delete("1.0", tk.END); self.txt_manual.insert("1.0", ",".join(result))
 
     def on_bridge_select(self, event): pass
+    
+    def on_bridge_double_click(self, event):
+        """Xử lý double-click trên cầu để mở backtest popup."""
+        print(f"[DEBUG] on_bridge_double_click được gọi! Event: {event}")
+        try:
+            # Kiểm tra controller có tồn tại không
+            if not hasattr(self, 'controller') or self.controller is None:
+                print("[ERROR] Controller chưa được khởi tạo.")
+                messagebox.showwarning("Lỗi", "Controller chưa được khởi tạo. Vui lòng đợi một chút và thử lại.")
+                return
+            
+            print(f"[DEBUG] Controller OK: {type(self.controller)}")
+            
+            # Lấy item được chọn từ event (giống như ui_dashboard.py)
+            widget = event.widget
+            print(f"[DEBUG] Widget: {widget}, Tree bridges: {self.tree_bridges}")
+            
+            # Sử dụng focus() để lấy item được chọn (giống ui_dashboard.py)
+            item_id = widget.focus()
+            print(f"[DEBUG] Item ID từ focus: {item_id}")
+            
+            if not item_id:
+                print("[DEBUG] Không có item được chọn.")
+                return
+            
+            # Lấy giá trị từ item
+            item = widget.item(item_id)
+            values = item.get("values", [])
+            print(f"[DEBUG] Values: {values}")
+            
+            if not values or len(values) == 0:
+                print("[DEBUG] Values rỗng.")
+                return
+            
+            # Lấy tên cầu từ cột đầu tiên (name)
+            bridge_name = values[0] if values else ""
+            print(f"[DEBUG] Bridge name: '{bridge_name}'")
+            
+            if bridge_name:
+                # Gọi Controller với cờ báo hiệu là cầu Đề
+                if hasattr(self.controller, 'trigger_bridge_backtest'):
+                    print(f"[DEBUG] Gọi trigger_bridge_backtest với bridge_name='{bridge_name}', is_de=True")
+                    self.controller.trigger_bridge_backtest(bridge_name, is_de=True)
+                    print("[DEBUG] trigger_bridge_backtest đã được gọi.")
+                else:
+                    print(f"[ERROR] Controller không có method trigger_bridge_backtest.")
+                    messagebox.showerror("Lỗi", "Controller không có method trigger_bridge_backtest.")
+            else:
+                print("[DEBUG] Bridge name rỗng.")
+        except Exception as e:
+            print(f"[ERROR] Lỗi khi double-click cầu: {e}")
+            import traceback
+            traceback.print_exc()
+            messagebox.showerror("Lỗi", f"Lỗi khi double-click: {e}")
 
     def copy_current_tab(self):
         try:

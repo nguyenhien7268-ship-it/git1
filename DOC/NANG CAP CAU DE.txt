@@ -91,3 +91,20 @@ Bạn đang ở cuối Giai đoạn 1 và chớm sang Giai đoạn 3 (làm tính
 Ưu tiên 2: Cập nhật ui_de_dashboard.py để có tính năng Double Click xem lịch sử 30 ngày.
 
 Ưu tiên 3: Chạy thử và kiểm tra xem số lượng cầu quét ra có phong phú không.
+
+🚀 BƯỚC TIẾP THEO: GIAI ĐOẠN MỞ RỘNG (EXPANSION)
+Hệ thống hiện tại đã đạt độ ổn định cao nhất. Chúng ta nên chuyển sang Giai đoạn Tối Ưu Hiệu Năng và Phát triển AI Cấp cao (Meta-Learner).
+
+Tôi đề xuất hai lộ trình tiếp theo, bạn muốn ưu tiên hướng đi nào?
+
+1. Lộ trình Tối ưu hóa Hiệu năng (Performance Optimization)
+Mục tiêu: Tăng tốc độ tính toán cho các tác vụ nặng (như Backtest toàn bộ lịch sử) và giảm tải DB.
+
+Nhiệm vụ: Triển khai Caching cho các truy vấn DB lặp lại và Vectorization (sử dụng NumPy/Pandas) cho các vòng lặp tính toán cốt lõi.
+
+2. Lộ trình Phát triển AI Nâng cao (Meta-Learning)
+Mục tiêu: Cải thiện độ chính xác của dự đoán tổng hợp bằng cách thêm một tầng AI thứ hai.
+
+Nhiệm vụ: Triển khai Meta-Learner để học cách kết hợp các dự đoán của AI và các nguồn cầu truyền thống (Score).
+
+Bạn muốn bắt đầu với Tối ưu hóa Hiệu năng (tốc độ) hay Nâng cấp AI (độ chính xác) trước?

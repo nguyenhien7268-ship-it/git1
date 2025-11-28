@@ -1,4 +1,4 @@
-# Xổ Số Data Analysis System (XS-DAS) - V7.8
+# Xổ Số Data Analysis System (XS-DAS) - V7.9
 
 [![CI Pipeline](https://github.com/nguyenhien7268-ship-it/git1/actions/workflows/ci.yml/badge.svg)](https://github.com/nguyenhien7268-ship-it/git1/actions/workflows/ci.yml)
 [![Code Quality](https://img.shields.io/badge/flake8-passing-brightgreen)](https://github.com/nguyenhien7268-ship-it/git1)
@@ -11,20 +11,27 @@ root/
 ├── DOC/                             # Tài liệu dự án
 ├── logic/                           # BACKEND LOGIC
 │   ├── bridges/                     # Các thuật toán soi cầu
-│   │   ├── bridge_manager_de.py     # Quản lý cầu Đề (Cũ/Sẽ sửa sau)
-│   │   ├── de_bridge_scanner.py     # Quét cầu Đề (Sẽ nâng cấp ở GĐ 2)
+│   │   ├── bridge_manager_de.py     # ✅ Quản lý cầu Đề (V7.9: Complete)
+│   │   ├── de_bridge_scanner.py     # ✅ Quét cầu Đề (V7.9: Complete)
 │   │   └── ... (các file cầu Lô)
 │   ├── ml_model_files/              # File mô hình AI
 │   ├── backtester_core.py           # Lõi kiểm thử (Dùng chung)
-│   ├── db_manager.py                # Quản lý kết nối DB
-│   ├── de_analytics.py              # (MỚI) 🟢 Phân tích thị trường Đề
-│   ├── de_utils.py                  # (MỚI) 🟢 Tiện ích & Adapter Đề
+│   ├── de_backtester_core.py        # (V7.9) 🟢 Backtest cầu Đề 30 ngày
+│   ├── db_manager.py                # ✅ Quản lý kết nối DB (V7.9: +Pin/Prune)
+│   ├── de_analytics.py              # ✅ Phân tích thị trường Đề
+│   ├── de_utils.py                  # ✅ Tiện ích & Adapter Đề
 │   └── ... (các file logic Lô)
+├── services/                        # (V7.9) 🟢 SERVICE LAYER
+│   ├── analysis_service.py          # Phân tích & Backtest
+│   ├── bridge_service.py            # Quản lý cầu (Pin/Prune)
+│   └── data_service.py              # Quản lý dữ liệu
 ├── ui/                              # GIAO DIỆN NGƯỜI DÙNG
-│   ├── ui_de_dashboard.py           # (SẼ SỬA) Màn hình Soi Cầu Đề
+│   ├── ui_de_dashboard.py           # ✅ Màn hình Soi Cầu Đề (V7.9: +Double-click)
 │   ├── ui_dashboard.py              # Màn hình Soi Cầu Lô
+│   ├── popups/                      # (V7.9) 🟢 Popup Windows
+│   │   └── ui_backtest_popup.py     # Popup hiển thị backtest 30 ngày
 │   └── ...
-├── app_controller.py                # Bộ điều phối chính
+├── app_controller.py                # ✅ Bộ điều phối chính (V7.9: <500 LOC)
 ├── main_app.py                      # File chạy chương trình
 └── ...
 
@@ -34,7 +41,16 @@ root/
 
 ---
 
-## 🚀 CẬP NHẬT MỚI (V7.8 - SEPARATION OF CONCERNS)
+## 🚀 CẬP NHẬT MỚI (V7.9 - AUTOMATED BRIDGE MANAGEMENT)
+
+### V7.9: Quản Lý Cầu Tự Động (Phase 4 Complete)
+* **🔍 Double-Click Backtest:** Click đúp vào cầu để xem lịch sử 30 ngày backtest chi tiết.
+* **📌 Ghim Cầu (Pin):** Bảo vệ cầu quan trọng khỏi bị tự động loại bỏ.
+* **✂️ Loại Bỏ Tự Động (Pruning):** Tự động vô hiệu hóa cầu Đề có chuỗi gãy vượt ngưỡng.
+* **🏗️ MVC Architecture:** Hoàn thiện kiến trúc MVC với Service Layer tách biệt.
+* **✅ Technical Debt Resolved:** Tất cả nợ kỹ thuật đã được giải quyết.
+
+### V7.8: Separation of Concerns (Previous)
 
 Phiên bản V7.8 đánh dấu bước ngoặt về kiến trúc hệ thống, tách biệt hoàn toàn logic xử lý **Lô** và **Đề** để tối ưu hóa hiệu năng và khả năng bảo trì:
 
@@ -51,7 +67,9 @@ Phiên bản V7.8 đánh dấu bước ngoặt về kiến trúc hệ thống, t
 
 ---
 
-## 🏗️ KIẾN TRÚC HỆ THỐNG (MVP)
+## 🏗️ KIẾN TRÚC HỆ THỐNG (V7.9 - MVC Architecture)
+
+**Status:** V7.9: MVC Architecture, All Technical Debt Resolved, Automated Bridge Management (Pin/Prune) Implemented.
 
 Hệ thống vận hành theo mô hình **Model-View-Presenter (MVP)** cải tiến:
 
@@ -75,12 +93,16 @@ Hệ thống vận hành theo mô hình **Model-View-Presenter (MVP)** cải ti�
 Giao diện người dùng (Tkinter):
 * **`ui_main_window.py`**: Khung chương trình chính.
 * **`ui_dashboard.py`**: Bảng Quyết Định Lô (Decision Dashboard).
-* **`ui_de_dashboard.py`**: Bảng Soi Cầu Đề chuyên sâu.
+* **`ui_de_dashboard.py`**: ✅ Bảng Soi Cầu Đề chuyên sâu (V7.9: +Double-click Backtest).
 * **`ui_bridge_manager.py`**: Quản lý danh sách cầu đã lưu (chung cho cả Lô & Đề).
 * **`ui_settings.py`**: Cài đặt tham số hệ thống.
+* **`popups/ui_backtest_popup.py`**: (V7.9) 🟢 Popup hiển thị backtest 30 ngày.
 
-### 3. Controller
-* **`app_controller.py`**: Điều phối luồng dữ liệu, gọi đúng Manager (Lô hoặc Đề) dựa trên yêu cầu người dùng.
+### 3. Controller & Services (V7.9)
+* **`app_controller.py`**: ✅ Điều phối luồng dữ liệu (<500 LOC, V7.9).
+* **`services/analysis_service.py`**: (V7.9) 🟢 Service phân tích & backtest.
+* **`services/bridge_service.py`**: (V7.9) 🟢 Service quản lý cầu (Pin/Prune).
+* **`services/data_service.py`**: (V7.9) 🟢 Service quản lý dữ liệu.
 * **`lottery_service.py`**: Facade API giúp UI giao tiếp với tầng Logic.
 
 ---

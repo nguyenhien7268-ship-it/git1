@@ -1,15 +1,17 @@
-# Tên file: git3/logic/bridges/bridge_manager_core.py
+# Tên file: git1/logic/bridges/bridge_manager_core.py
 #
-# (NỘI DUNG THAY THẾ TOÀN BỘ - SỬA W503)
+# (PHIÊN BẢN V7.9.10 - KHÔI PHỤC FULL LOGIC CŨ + TÍCH HỢP PHASE C + FIX DB)
 #
 
 import os
 import sqlite3
+import sys
+from dataclasses import dataclass
+from typing import List, Optional
 
 # =========================================================================
 # PATH FIX: Tự động thêm thư mục gốc (git1 - Sao chép/) vào sys.path
-import sys
-
+# =========================================================================
 try:
     # Lấy đường dẫn thư mục hiện tại (logic/bridges)
     current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -24,53 +26,48 @@ try:
         print(f"[PATH FIX] {project_root} đã có trong sys.path")
 except Exception as e_path:
     print(f"[PATH FIX] LỖI: Không thể thêm đường dẫn gốc: {e_path}")
+
 # =========================================================================
-
-
-# Import SETTINGS
+# IMPORT SETTINGS & DB
+# =========================================================================
 try:
     # Dùng import tuyệt đối (từ gốc logic)
     from logic.config_manager import SETTINGS
-
     print("[IMPORT V4] Đã import thành công: SETTINGS")
 except ImportError as e:
     print(f"[IMPORT V4] LỖI IMPORT SETTINGS: {e}")
-    try:
-        from config_manager import SETTINGS
-    except ImportError:
-        print(
-            "LỖI: bridge_manager_core.py không thể import SETTINGS. Sử dụng fallback."
-        )
-        SETTINGS = type(
-            "obj", (object,), {"AUTO_ADD_MIN_RATE": 50.0, "AUTO_PRUNE_MIN_RATE": 40.0}
-        )
+    # Fallback an toàn
+    SETTINGS = type("obj", (object,), {"AUTO_ADD_MIN_RATE": 50.0, "AUTO_PRUNE_MIN_RATE": 40.0})
 
 # Import DB functions (CRUD và Management)
 try:
-    # Dùng import tuyệt đối (từ gốc logic)
     from logic.data_repository import get_all_managed_bridges
     from logic.db_manager import DB_NAME, update_managed_bridge, upsert_managed_bridge
-
     print("[IMPORT V4] Đã import thành công: data_repository, db_manager")
 except ImportError as e:
-    # Fallback cho DB/Repo
     print(f"[IMPORT V4] LỖI IMPORT DB/REPO: {e}")
     DB_NAME = "data/xo_so_prizes_all_logic.db"
+    def upsert_managed_bridge(*args, **kwargs): return False, "Lỗi Import"
+    def update_managed_bridge(*args, **kwargs): return False, "Lỗi Import"
+    def get_all_managed_bridges(*args, **kwargs): return []
 
-    def upsert_managed_bridge(n, d, r, db, i1=None, i2=None):
-        return False, "Lỗi Import"
-
-    def update_managed_bridge(id, d, e, db):
-        return False, "Lỗi Import"
-
-    def get_all_managed_bridges(db, o):
-        return {}
-
-
-# Import các hàm cầu (V17 và Bạc Nhớ)
+# =========================================================================
+# IMPORT HÀM CẦU (ĐẦY ĐỦ CHO CẢ LOGIC CŨ VÀ MỚI)
+# =========================================================================
 try:
-    # Dùng import tuyệt đối (từ gốc logic.bridges)
-    from logic.bridges.bridges_classic import checkHitSet_V30_K2N, getAllLoto_V30
+    # 1. Import Classic Utils & 15 Hàm Cầu Cố Định (CHO PHASE C - MỚI)
+    from logic.bridges.bridges_classic import (
+        checkHitSet_V30_K2N, 
+        getAllLoto_V30,
+        # 15 Cầu Lô Cố Định
+        getCau1_STL_P5_V30_V5, getCau2_VT1_V30_V5, getCau3_VT2_V30_V5,
+        getCau4_VT3_V30_V5, getCau5_TDB1_V30_V5, getCau6_VT5_V30_V5,
+        getCau7_Moi1_V30_V5, getCau8_Moi2_V30_V5, getCau9_Moi3_V30_V5,
+        getCau10_Moi4_V30_V5, getCau11_Moi5_V30_V5, getCau12_Moi6_V30_V5,
+        getCau13_G7_3_P8_V30_V5, getCau14_G1_P2_V30_V5, getCau15_DE_P7_V30_V5
+    )
+    
+    # 2. Import Memory & V16 (CHO LOGIC CŨ - KHÔI PHỤC)
     from logic.bridges.bridges_memory import (
         calculate_bridge_stl,
         get_27_loto_names,
@@ -82,43 +79,44 @@ try:
         taoSTL_V30_Bong,
     )
 
-    print(
-        "[IMPORT V4] Đã import thành công: các hàm cầu (bridges_v16, memory, classic)"
-    )
+    print("[IMPORT V4] Đã import thành công: Full Bridge Functions (Classic, V16, Memory)")
 except ImportError as e:
     print(f"[IMPORT V4] LỖI IMPORT HÀM CẦU: {e}")
+    # Định nghĩa hàm giả lập để tránh crash nếu thiếu file
+    def getAllPositions_V17_Shadow(r): return []
+    def getPositionName_V17_Shadow(i): return "Lỗi"
+    def taoSTL_V30_Bong(a, b): return ["00", "00"]
+    def calculate_bridge_stl(l1, l2, t): return ["00", "00"]
+    def get_27_loto_names(): return []
+    def get_27_loto_positions(r): return []
+    def checkHitSet_V30_K2N(p, loto_set): return "Lỗi"
+    def getAllLoto_V30(r): return []
 
-    def getAllPositions_V17_Shadow(r):
-        return []
 
-    def getPositionName_V17_Shadow(i):
-        return "Lỗi"
-
-    def taoSTL_V30_Bong(a, b):
-        return ["00", "00"]
-
-    def calculate_bridge_stl(l1, l2, t):
-        return ["00", "00"]
-
-    def get_27_loto_names():
-        return []
-
-    def get_27_loto_positions(r):
-        return []
-
-    def checkHitSet_V30_K2N(p, loto_set):
-        return "Lỗi"
-
-    def getAllLoto_V30(r):
-        return []
-
+# =========================================================================
+# [PHASE C] BẢNG ÁNH XẠ 15 CẦU LÔ CỐ ĐỊNH (MAPPING TABLE) - MỚI
+# =========================================================================
+LO_BRIDGE_MAP = {
+    "LO_STL_FIXED_01": {"func": getCau1_STL_P5_V30_V5, "desc": "Cầu Lô 01 (GĐB+5)"},
+    "LO_STL_FIXED_02": {"func": getCau2_VT1_V30_V5,    "desc": "Cầu Lô 02 (G6.2+G7.3)"},
+    "LO_STL_FIXED_03": {"func": getCau3_VT2_V30_V5,    "desc": "Cầu Lô 03 (Đuôi GĐB+G1)"},
+    "LO_STL_FIXED_04": {"func": getCau4_VT3_V30_V5,    "desc": "Cầu Lô 04 (GĐB Sát Đuôi)"},
+    "LO_STL_FIXED_05": {"func": getCau5_TDB1_V30_V5,   "desc": "Cầu Lô 05 (Đầu G7.0+Đuôi G7.3)"},
+    "LO_STL_FIXED_06": {"func": getCau6_VT5_V30_V5,    "desc": "Cầu Lô 06 (G7.1+G7.2)"},
+    "LO_STL_FIXED_07": {"func": getCau7_Moi1_V30_V5,   "desc": "Cầu Lô 07 (G5.0+G7.0)"},
+    "LO_STL_FIXED_08": {"func": getCau8_Moi2_V30_V5,   "desc": "Cầu Lô 08 (G3.0+G4.0)"},
+    "LO_STL_FIXED_09": {"func": getCau9_Moi3_V30_V5,   "desc": "Cầu Lô 09 (Đầu GĐB+Đầu G1)"},
+    "LO_STL_FIXED_10": {"func": getCau10_Moi4_V30_V5,  "desc": "Cầu Lô 10 (G2.1+G3.2)"},
+    "LO_STL_FIXED_11": {"func": getCau11_Moi5_V30_V5,  "desc": "Cầu Lô 11 (GĐB+G3.1)"},
+    "LO_STL_FIXED_12": {"func": getCau12_Moi6_V30_V5,  "desc": "Cầu Lô 12 (Đuôi GĐB+G3.2)"},
+    "LO_STL_FIXED_13": {"func": getCau13_G7_3_P8_V30_V5, "desc": "Cầu Lô 13 (G7.3+8)"},
+    "LO_STL_FIXED_14": {"func": getCau14_G1_P2_V30_V5,   "desc": "Cầu Lô 14 (G1+2)"},
+    "LO_STL_FIXED_15": {"func": getCau15_DE_P7_V30_V5,   "desc": "Cầu Lô 15 (GĐB+7)"},
+}
 
 # ===================================================================================
-# 0. ĐỊNH NGHĨA DATA STRUCTURES (Thêm mới để sửa lỗi Import)
+# 0. ĐỊNH NGHĨA DATA STRUCTURES (KHÔI PHỤC)
 # ===================================================================================
-from dataclasses import dataclass
-from typing import List, Optional
-
 @dataclass
 class BridgeLocation:
     index: int
@@ -134,21 +132,33 @@ class Bridge:
     
     def __str__(self):
         return f"Bridge(Type={self.bridge_type}, Score={self.score}, Pred={self.predicted_value})"
-# ===================================================================================
-
 
 # ===================================================================================
-# HELPER CHO CẦU ĐỀ
+# 0. HELPER: SELF-HEALING DB (MỚI - TỰ VÁ LỖI THIẾU CỘT)
 # ===================================================================================
-# XÓA: BONG_DUONG_MAP, get_4_touches, check_hit_de_4_touches, TIM_CAU_DE_TOT_NHAT
+def _ensure_core_db_columns(cursor):
+    """Đảm bảo bảng ManagedBridges có đủ cột cần thiết cho Cầu Lô."""
+    try:
+        cursor.execute("PRAGMA table_info(ManagedBridges)")
+        columns = [info[1] for info in cursor.fetchall()]
+        
+        # Thêm cột type nếu thiếu
+        if "type" not in columns:
+            print(">>> [LO MANAGER] Tự động thêm cột 'type' vào DB...")
+            cursor.execute("ALTER TABLE ManagedBridges ADD COLUMN type TEXT DEFAULT 'UNKNOWN'")
+            
+        # Thêm các cột khác để đồng bộ
+        if "recent_win_count_10" not in columns:
+            cursor.execute("ALTER TABLE ManagedBridges ADD COLUMN recent_win_count_10 INTEGER DEFAULT 0")
+        if "next_prediction_stl" not in columns:
+            cursor.execute("ALTER TABLE ManagedBridges ADD COLUMN next_prediction_stl TEXT DEFAULT ''")
+            
+    except Exception as e:
+        print(f"Lỗi Self-Healing DB (Core): {e}")
+
 # ===================================================================================
-
-
+# I. HÀM DÒ CẦU V17 SHADOW (KHÔI PHỤC NGUYÊN BẢN)
 # ===================================================================================
-# I. HÀM DÒ CẦU (ĐÃ DI CHUYỂN TỪ BACKTESTER V7.0)
-# ===================================================================================
-
-
 def TIM_CAU_TOT_NHAT_V16(
     toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra, db_name=DB_NAME
 ):
@@ -167,8 +177,11 @@ def TIM_CAU_TOT_NHAT_V16(
     headers = ["STT", "Cầu (V17 Shadow)", "Vị Trí", "Tỷ Lệ %", "Chuỗi"]
     results = [headers]
 
-    positions_shadow = getAllPositions_V17_Shadow(allData[0])
-    num_positions_shadow = len(positions_shadow)
+    try:
+        positions_shadow = getAllPositions_V17_Shadow(allData[0])
+        num_positions_shadow = len(positions_shadow)
+    except:
+        return [["LỖI:", "Không thể lấy Vị Trí V17 Shadow."]]
 
     if num_positions_shadow == 0:
         return [["LỖI:", "Không thể lấy Vị Trí V17 Shadow."]]
@@ -179,9 +192,7 @@ def TIM_CAU_TOT_NHAT_V16(
             algorithms.append((i, j))
 
     num_algorithms = len(algorithms)
-    print(
-        f"Đã tạo {num_algorithms} thuật toán V17. Bắt đầu tiền xử lý {len(allData)} hàng..."
-    )
+    print(f"Đã tạo {num_algorithms} thuật toán V17. Bắt đầu tiền xử lý {len(allData)} hàng...")
 
     processedData = []
     for k in range(startCheckRow, finalEndRow + 1):
@@ -192,10 +203,7 @@ def TIM_CAU_TOT_NHAT_V16(
         if (
             not prevRow
             or not actualRow
-            or not actualRow[0]
-            or str(actualRow[0]).strip() == ""
             or len(actualRow) < 10
-            or not actualRow[9]
         ):
             continue
 
@@ -262,7 +270,7 @@ def TIM_CAU_TOT_NHAT_V16(
     if bridges_to_add:
         print(f"Dò cầu V17: Tự động thêm/cập nhật {len(bridges_to_add)} cầu...")
         try:
-            # Dùng list comprehension
+            # Dùng list comprehension để batch update
             [
                 upsert_managed_bridge(n, d, r, db, i1, i2)
                 for n, d, r, db, i1, i2 in bridges_to_add
@@ -275,10 +283,8 @@ def TIM_CAU_TOT_NHAT_V16(
 
 
 # ===================================================================================
-# II. HÀM DÒ CẦU BẠC NHỚ (ĐÃ DI CHUYỂN TỪ BACKTESTER V7.0)
+# II. HÀM DÒ CẦU BẠC NHỚ (KHÔI PHỤC NGUYÊN BẢN)
 # ===================================================================================
-
-
 def TIM_CAU_BAC_NHO_TOT_NHAT(
     toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra, db_name=DB_NAME
 ):
@@ -309,9 +315,7 @@ def TIM_CAU_BAC_NHO_TOT_NHAT(
 
     num_algorithms = len(algorithms)
     results = [headers]
-    print(
-        f"Đã tạo {num_algorithms} thuật toán Bạc Nhớ. Bắt đầu tiền xử lý {len(allData)} hàng..."
-    )
+    print(f"Đã tạo {num_algorithms} thuật toán Bạc Nhớ. Bắt đầu tiền xử lý...")
 
     processedData = []
     for k in range(startCheckRow, finalEndRow + 1):
@@ -322,10 +326,7 @@ def TIM_CAU_BAC_NHO_TOT_NHAT(
         if (
             not prevRow
             or not actualRow
-            or not actualRow[0]
-            or str(actualRow[0]).strip() == ""
             or len(actualRow) < 10
-            or not actualRow[9]
         ):
             continue
 
@@ -383,7 +384,6 @@ def TIM_CAU_BAC_NHO_TOT_NHAT(
     if bridges_to_add:
         print(f"Dò cầu Bạc Nhớ: Tự động thêm/cập nhật {len(bridges_to_add)} cầu...")
         try:
-            # Dùng list comprehension
             [
                 upsert_managed_bridge(n, d, r, db, i1, i2)
                 for n, d, r, db, i1, i2 in bridges_to_add
@@ -394,263 +394,234 @@ def TIM_CAU_BAC_NHO_TOT_NHAT(
     print("Hoàn tất Dò Cầu Bạc Nhớ.")
     return results
 
+# ===================================================================================
+# III. [MỚI] HÀM QUẢN LÝ 15 CẦU LÔ CỐ ĐỊNH (PHASE C) - ĐÃ FIX
+# ===================================================================================
+def _update_fixed_lo_bridges(all_data_ai, db_name):
+    """
+    (V2.1) Tính toán hiệu quả của 15 Cầu Lô Cố Định và lưu vào DB với ID chuẩn.
+    Hàm này chạy song song với các logic cũ.
+    """
+    print(">>> [LO MANAGER] Đang cập nhật 15 Cầu Lô Cố Định (Phase C)...")
+    if not all_data_ai or len(all_data_ai) < 10: return 0
+    
+    # Cấu hình check: 10 kỳ gần nhất
+    check_days = 10 
+    # Lấy buffer dữ liệu đủ để check
+    scan_data = all_data_ai[- (check_days + 5):]
+    
+    updated_count = 0
+    
+    for bridge_id, info in LO_BRIDGE_MAP.items():
+        func = info["func"]
+        desc = info["desc"]
+        
+        wins = 0
+        current_streak = 0
+        
+        # Backtest nhanh
+        for i in range(len(scan_data) - 1 - check_days, len(scan_data) - 1):
+            if i < 0: continue
+            row_prev = scan_data[i]
+            row_next = scan_data[i+1]
+            
+            try:
+                stl = func(row_prev) # Dự đoán
+                lotos_next = set(getAllLoto_V30(row_next)) # Kết quả
+                
+                if "✅" in checkHitSet_V30_K2N(stl, lotos_next):
+                    wins += 1
+                    current_streak += 1
+                else:
+                    current_streak = 0
+            except: pass
+            
+        # Dự đoán tương lai
+        last_row = all_data_ai[-1]
+        try:
+            next_stl = func(last_row)
+            pred_val = f"{next_stl[0]},{next_stl[1]}"
+        except: 
+            pred_val = "Error"
+            
+        win_rate = (wins / check_days) * 100
+        full_desc = f"{desc}. Phong độ {wins}/{check_days}."
+        
+        # Lưu vào DB với ID CHUẨN (LO_STL_FIXED_XX)
+        try:
+            # FIX: Sử dụng tham số vị trí thay vì từ khóa
+            upsert_managed_bridge(
+                bridge_id,          # name
+                full_desc,          # description
+                f"{win_rate:.0f}%", # win_rate_text
+                db_name,            # db_name
+                -1,                 # pos1_idx
+                -1                  # pos2_idx
+            )
+            
+            # Update chi tiết Type & Enabled
+            conn = sqlite3.connect(db_name)
+            cursor = conn.cursor()
+            
+            # [SELF-HEALING] Gọi hàm vá lỗi DB trước khi update
+            _ensure_core_db_columns(cursor)
+            
+            is_enabled = 1 if win_rate >= 40 else 0
+            
+            cursor.execute("""
+                UPDATE ManagedBridges 
+                SET type='CAU_LO_FIXED', current_streak=?, next_prediction_stl=?, is_enabled=?
+                WHERE name=?
+            """, (current_streak, pred_val, is_enabled, bridge_id))
+            conn.commit()
+            conn.close()
+            updated_count += 1
+        except Exception as e:
+            print(f"Lỗi update Fixed Bridge {bridge_id}: {e}")
+            
+    return updated_count
 
 # ===================================================================================
-# II.A. HÀM DÒ CẦU ĐỀ V17 (MỚI - BACKTEST K1N & K2N)
+# IV. HÀM QUẢN LÝ CHUNG (WRAPPER & PRUNE) - ĐÃ CẬP NHẬT
 # ===================================================================================
-# XÓA: BONG_DUONG_MAP, get_4_touches, check_hit_de_4_touches, TIM_CAU_DE_TOT_NHAT
-# ===================================================================================
-
-
-# ===================================================================================
-# III. HÀM QUẢN LÝ TỰ ĐỘNG (ĐÃ DI CHUYỂN TỪ BACKTESTER V7.0)
-# ===================================================================================
-
 
 def find_and_auto_manage_bridges(all_data_ai, db_name=DB_NAME):
     """
-    (V7.0) Wrapper: Chạy cả 2 hàm dò cầu (V17 Lô + Bạc Nhớ) và cập nhật DB.
+    (V7.9.10) Wrapper Tổng Hợp:
+    1. Chạy dò cầu V17 Shadow (Logic Cũ - KHÔI PHỤC).
+    2. Chạy dò cầu Bạc Nhớ (Logic Cũ - KHÔI PHỤC).
+    3. Chạy cập nhật 15 Cầu Lô Cố Định (Logic Mới - Phase C).
     """
     try:
-        if not all_data_ai:
-            return "Lỗi: Không có dữ liệu A:I để dò cầu."
+        if not all_data_ai: return "Lỗi: Không có dữ liệu A:I để dò cầu."
+        
+        msg = []
+        
+        # 1. Logic Cũ (V17 Shadow)
+        print("... [Auto] Bắt đầu dò V17 Shadow (Classic) ...")
         ky_bat_dau = 2
-        ky_ket_thuc = len(all_data_ai) + (ky_bat_dau - 1)
-        print("... (Auto Find) Bắt đầu dò Cầu Lô V17 (Shadow)...")
-        results_v17 = TIM_CAU_TOT_NHAT_V16(all_data_ai, ky_bat_dau, ky_ket_thuc, db_name)
-        c_v17 = len(results_v17) - 1 if results_v17 else 0
-        print("... (Auto Find) Bắt đầu dò Cầu Bạc Nhớ...")
-        results_bn = TIM_CAU_BAC_NHO_TOT_NHAT(all_data_ai, ky_bat_dau, ky_ket_thuc, db_name)
-        c_bn = len(results_bn) - 1 if results_bn else 0
-        return f"Hoàn tất. Đã cập nhật: {c_v17} Cầu Lô, {c_bn} Bạc Nhớ."
+        ky_ket_thuc = len(all_data_ai) + 1
+        res_v17 = TIM_CAU_TOT_NHAT_V16(all_data_ai, ky_bat_dau, ky_ket_thuc, db_name)
+        c_v17 = len(res_v17) - 1 if res_v17 else 0
+        msg.append(f"V17 Shadow: {c_v17} cầu")
+        
+        # 2. Logic Cũ (Bạc Nhớ)
+        print("... [Auto] Bắt đầu dò Bạc Nhớ (Classic) ...")
+        res_bn = TIM_CAU_BAC_NHO_TOT_NHAT(all_data_ai, ky_bat_dau, ky_ket_thuc, db_name)
+        c_bn = len(res_bn) - 1 if res_bn else 0
+        msg.append(f"Bạc Nhớ: {c_bn} cầu")
+        
+        # 3. Logic Mới (Fixed Classic - Phase C)
+        print("... [Auto] Cập nhật 15 Cầu Cố Định (New) ...")
+        count_fix = _update_fixed_lo_bridges(all_data_ai, db_name)
+        msg.append(f"Fixed Classic: {count_fix} cầu")
+        
+        return " | ".join(msg)
+        
     except Exception as e:
         return f"Lỗi nghiêm trọng trong find_and_auto_manage_bridges: {e}"
 
-
 def prune_bad_bridges(all_data_ai, db_name=DB_NAME):
-    """
-    (V7.0) Tự động TẮT (disable) các cầu có tỷ lệ K2N thấp (đã cache).
-    """
+    """(V7.0) Tự động TẮT các cầu yếu - Khôi phục nguyên bản"""
     try:
-        # (V7.1) Đã chuyển sang .config_manager
         AUTO_PRUNE_MIN_RATE = SETTINGS.AUTO_PRUNE_MIN_RATE
-    except Exception as e_cfg:
-        print(f"Lỗi đọc config: {e_cfg}. Dùng AUTO_PRUNE_MIN_RATE=40.0")
-        AUTO_PRUNE_MIN_RATE = 40.0
+    except: AUTO_PRUNE_MIN_RATE = 40.0
 
     disabled_count = 0
-
-    # Bước 1: Lấy danh sách các cầu đang Bật (enabled)
+    skipped_pinned = 0
     try:
-        # (V7.1) Đã chuyển sang .data_repository
-        managed_bridges_list = get_all_managed_bridges(db_name, only_enabled=True)
-        if not managed_bridges_list:
-            return "Lỗi: Không có cầu nào được Bật để lọc."
+        bridges = get_all_managed_bridges(db_name, only_enabled=True)
+        if not bridges: return "Không có cầu để lọc."
+        
+        for b in bridges:
+            try:
+                # [PHASE 4 - PINNING] Bỏ qua cầu đã ghim
+                is_pinned = b.get("is_pinned", 0)
+                if is_pinned:
+                    skipped_pinned += 1
+                    continue
+                
+                wr_str = str(b.get("win_rate_text", "0")).replace("%", "")
+                if float(wr_str) < AUTO_PRUNE_MIN_RATE:
+                    update_managed_bridge(b["id"], b["description"], 0, db_name)
+                    disabled_count += 1
+            except: pass
+    except Exception as e: return f"Lỗi lọc cầu: {e}"
 
-        # Chuyển sang map/dict để dễ tra cứu
-        managed_bridges_map = {b["name"]: b for b in managed_bridges_list}
-
-    except Exception as e_db:
-        return f"Lỗi DB khi tải Cầu Đã Lưu: {e_db}"
-
-    if not managed_bridges_map:
-        return "Lỗi: Không có cầu nào được Bật để lọc."
-
-    print(f"... (Lọc Cầu Yếu) Đang kiểm tra {len(managed_bridges_map)} cầu đã bật...")
-
-    # Bước 2: Duyệt các cầu đã cache và lọc
-    for bridge_name, bridge_data in managed_bridges_map.items():
-        try:
-            # Đọc tỷ lệ từ cache K2N
-            win_rate_str = str(bridge_data.get("win_rate_text", "0%")).replace("%", "")
-
-            if not win_rate_str or win_rate_str == "N/A":
-                continue
-
-            win_rate = float(win_rate_str)
-
-            # Nếu cầu còn được bật (enabled) VÀ tỷ lệ thấp
-            if win_rate < AUTO_PRUNE_MIN_RATE:
-
-                bridge_id = bridge_data["id"]
-                old_desc = bridge_data["description"]
-
-                # Gọi hàm update, set is_enabled = 0
-                update_managed_bridge(bridge_id, old_desc, 0, db_name)
-                disabled_count += 1
-
-        except Exception as e_row:
-            print(f"Lỗi xử lý lọc cầu: {bridge_name}, Lỗi: {e_row}")
-
-    return f"Lọc cầu hoàn tất. Đã TẮT {disabled_count} cầu yếu (Tỷ lệ K2N < {AUTO_PRUNE_MIN_RATE}%)."
-
+    msg = f"Lọc cầu hoàn tất. Đã TẮT {disabled_count} cầu yếu (Tỷ lệ < {AUTO_PRUNE_MIN_RATE}%)."
+    if skipped_pinned > 0:
+        msg += f" Bỏ qua {skipped_pinned} cầu đã ghim."
+    return msg
 
 def auto_manage_bridges(all_data_ai, db_name=DB_NAME):
-    """
-    (V7.7 - FIXED) Tự động BẬT/TẮT cầu dựa trên mức lọc tối thiểu:
-    - BẬT tất cả cầu có tỷ lệ >= AUTO_PRUNE_MIN_RATE (40%) - Mức lọc thấp
-    - TẮT cầu có tỷ lệ < AUTO_PRUNE_MIN_RATE (40%) - Dưới mức tối thiểu
-    
-    LƯU Ý: AUTO_ADD_MIN_RATE (50%) chỉ dùng cho tìm kiếm/thêm cầu mới,
-    không dùng cho quản lý bật/tắt cầu.
-    """
+    """(V7.7) Tự động BẬT/TẮT cầu - Khôi phục nguyên bản"""
     try:
         AUTO_PRUNE_MIN_RATE = SETTINGS.AUTO_PRUNE_MIN_RATE
-    except Exception as e_cfg:
-        print(f"Lỗi đọc config: {e_cfg}. Dùng giá trị mặc định.")
-        AUTO_PRUNE_MIN_RATE = 40.0
+    except: AUTO_PRUNE_MIN_RATE = 40.0
 
-    enabled_count = 0
-    disabled_count = 0
-
-    # Lấy TẤT CẢ cầu (cả enabled và disabled)
+    en, dis = 0, 0
+    skipped_pinned = 0
     try:
-        all_bridges = get_all_managed_bridges(db_name, only_enabled=False)
-        if not all_bridges:
-            return "Lỗi: Không có cầu nào trong database."
-    except Exception as e_db:
-        return f"Lỗi DB khi tải Cầu Đã Lưu: {e_db}"
-
-    print(f"... (Quản Lý Tự Động) Đang kiểm tra {len(all_bridges)} cầu...")
-
-    for bridge in all_bridges:
-        try:
-            bridge_name = bridge["name"]
-            bridge_id = bridge["id"]
-            is_currently_enabled = bridge["is_enabled"]
-            old_desc = bridge["description"]
-
-            # Đọc tỷ lệ từ cache K2N
-            win_rate_str = str(bridge.get("win_rate_text", "0%")).replace("%", "")
-
-            if not win_rate_str or win_rate_str == "N/A":
-                continue
-
-            win_rate = float(win_rate_str)
-
-            # FIXED: Quyết định BẬT hay TẮT dựa trên MỨC LỌC CẦU THẤP (AUTO_PRUNE_MIN_RATE)
-            # Khi BẬT thì BẬT tất cả cầu >= mức lọc thấp, không phải chỉ cầu cao
-            should_enable = win_rate >= AUTO_PRUNE_MIN_RATE
-            should_disable = win_rate < AUTO_PRUNE_MIN_RATE
-
-            # BẬT cầu đạt mức tối thiểu đang TẮT
-            if should_enable and not is_currently_enabled:
-                update_managed_bridge(bridge_id, old_desc, 1, db_name)
-                enabled_count += 1
-
-            # TẮT cầu yếu (dưới mức tối thiểu) đang BẬT
-            elif should_disable and is_currently_enabled:
-                update_managed_bridge(bridge_id, old_desc, 0, db_name)
-                disabled_count += 1
-
-        except Exception as e_row:
-            print(f"Lỗi xử lý cầu: {bridge.get('name', 'Unknown')}, Lỗi: {e_row}")
-
-    return (
-        f"Quản lý tự động hoàn tất.\n"
-        f"✅ Đã BẬT {enabled_count} cầu (Tỷ lệ >= {AUTO_PRUNE_MIN_RATE}%)\n"
-        f"❌ Đã TẮT {disabled_count} cầu yếu (Tỷ lệ < {AUTO_PRUNE_MIN_RATE}%)"
-    )
-
-
-# ===================================================================================
-# IV. HÀM NẠP 756 CẦU BẠC NHỚ (GIAI ĐOẠN 2)
-# ===================================================================================
-
+        bridges = get_all_managed_bridges(db_name, only_enabled=False)
+        for b in bridges:
+            try:
+                # [PHASE 4 - PINNING] Bỏ qua cầu đã ghim
+                is_pinned = b.get("is_pinned", 0)
+                if is_pinned:
+                    skipped_pinned += 1
+                    continue
+                
+                wr = float(str(b.get("win_rate_text", "0")).replace("%", "") if b.get("win_rate_text") else "0")
+                is_on = b["is_enabled"]
+                old_desc = b["description"]
+                
+                if wr >= AUTO_PRUNE_MIN_RATE and not is_on:
+                    update_managed_bridge(b["id"], old_desc, 1, db_name)
+                    en += 1
+                elif wr < AUTO_PRUNE_MIN_RATE and is_on:
+                    update_managed_bridge(b["id"], old_desc, 0, db_name)
+                    dis += 1
+            except: pass
+    except Exception as e: return f"Lỗi auto manage: {e}"
+    
+    msg = f"Quản lý tự động: BẬT {en}, TẮT {dis} (Ngưỡng {AUTO_PRUNE_MIN_RATE}%)."
+    if skipped_pinned > 0:
+        msg += f" Bỏ qua {skipped_pinned} cầu đã ghim."
+    return msg
 
 def init_all_756_memory_bridges_to_db(db_name=DB_NAME, progress_callback=None, enable_all=False):
-    """
-    Sinh 756 cầu Bạc Nhớ và lưu vào database:
-    - 378 cầu Tổng: Tổng(00+01), Tổng(00+02), ...
-    - 378 cầu Hiệu: Hiệu(00-01), Hiệu(00-02), ...
-
-    Mỗi cầu có:
-    - bridge_name: "Tổng(00+01)" hoặc "Hiệu(00-01)" (format với 2 chữ số)
-    - pos1_idx: -1 (đánh dấu là Bạc Nhớ)
-    - pos2_idx: -1
-    - is_enabled: Mặc định False, hoặc True nếu enable_all=True
-
-    Args:
-        db_name: Tên database
-        progress_callback: Hàm callback để báo tiến độ, nhận (current, total, message)
-        enable_all: Nếu True, tất cả cầu sẽ được BẬT để phân tích (mặc định False)
-
-    Returns:
-        tuple: (success: bool, message: str, added_count: int, skipped_count: int)
-    """
+    """(V7.0) Khởi tạo DB Bạc Nhớ - Khôi phục nguyên bản"""
     print("Bắt đầu nạp 756 cầu Bạc Nhớ vào database...")
-
     bridges_to_add = []
     total_bridges = 0
-
-    # Sinh tất cả các cầu Tổng và Hiệu
-    for i in range(27):  # 27 vị trí (00-26)
-        for j in range(i, 27):  # j >= i để tránh trùng lặp
-            # 1. Cầu Tổng
-            bridge_name_sum = f"Tổng({i:02d}+{j:02d})"
-            bridges_to_add.append(
-                (bridge_name_sum, bridge_name_sum, "N/A", db_name, -1, -1)
-            )
+    
+    for i in range(27):
+        for j in range(i, 27):
+            bridges_to_add.append((f"Tổng({i:02d}+{j:02d})", "Tổng", "N/A", db_name, -1, -1))
             total_bridges += 1
-
-            # 2. Cầu Hiệu
-            bridge_name_diff = f"Hiệu({i:02d}-{j:02d})"
-            bridges_to_add.append(
-                (bridge_name_diff, bridge_name_diff, "N/A", db_name, -1, -1)
-            )
+            bridges_to_add.append((f"Hiệu({i:02d}-{j:02d})", "Hiệu", "N/A", db_name, -1, -1))
             total_bridges += 1
-
-    print(f"Đã tạo danh sách {total_bridges} cầu Bạc Nhớ.")
-
-    # Thêm từng cầu vào database
-    added_count = 0
-    skipped_count = 0
-
+            
+    added_count, skipped_count = 0, 0
     for idx, (bridge_name, description, win_rate, db, pos1, pos2) in enumerate(bridges_to_add):
         try:
-            # Gọi upsert_managed_bridge với is_enabled = 0 (tắt mặc định)
-            # Nếu cầu đã tồn tại, sẽ bỏ qua (không cập nhật)
             conn = sqlite3.connect(db_name)
             cursor = conn.cursor()
-
-            # Kiểm tra xem cầu đã tồn tại chưa
             cursor.execute("SELECT id FROM ManagedBridges WHERE name = ?", (bridge_name,))
-            existing = cursor.fetchone()
-
-            if existing:
+            if cursor.fetchone():
                 skipped_count += 1
             else:
-                # Thêm cầu mới với is_enabled = 0 (tắt) hoặc 1 (bật) theo enable_all
-                is_enabled_value = 1 if enable_all else 0
+                is_en = 1 if enable_all else 0
                 cursor.execute(
-                    """
-                    INSERT INTO ManagedBridges
-                    (name, description, win_rate_text, pos1_idx, pos2_idx, is_enabled)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                    """,
-                    (bridge_name, description, win_rate, pos1, pos2, is_enabled_value)
+                    "INSERT INTO ManagedBridges (name, description, win_rate_text, pos1_idx, pos2_idx, is_enabled) VALUES (?, ?, ?, ?, ?, ?)",
+                    (bridge_name, description, win_rate, pos1, pos2, is_en)
                 )
                 conn.commit()
                 added_count += 1
-
             conn.close()
+            
+            if progress_callback and (idx+1)%50==0:
+                progress_callback(idx+1, total_bridges, f"Đã xử lý {idx+1}...")
+        except: skipped_count += 1
 
-            # Gọi callback để báo tiến độ
-            if progress_callback and (idx + 1) % 50 == 0:
-                progress_callback(idx + 1, total_bridges, f"Đã xử lý {idx + 1}/{total_bridges} cầu...")
-
-        except Exception as e:
-            print(f"Lỗi khi thêm cầu {bridge_name}: {e}")
-            skipped_count += 1
-
-    # Báo tiến độ hoàn tất
-    if progress_callback:
-        progress_callback(total_bridges, total_bridges, "Hoàn tất!")
-
-    success_msg = (
-        f"Đã nạp thành công {added_count} cầu Bạc Nhớ mới vào database.\n"
-        f"Bỏ qua {skipped_count} cầu đã tồn tại."
-    )
-    print(success_msg)
-
-    return True, success_msg, added_count, skipped_count
+    return True, f"Đã nạp {added_count} cầu Bạc Nhớ mới. Bỏ qua {skipped_count}.", added_count, skipped_count

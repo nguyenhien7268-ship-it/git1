@@ -36,12 +36,12 @@ FILTER_AI_PROB_THRESHOLD = 60  # Minimum AI probability % (tăng từ 50 → 60)
 # Import DB Logic để lấy dữ liệu cầu
 try:
     from logic.db_manager import DB_NAME
-    from logic.data_repository import get_all_managed_bridges
+    from logic.data_repository import get_managed_bridges_with_prediction
 except ImportError:
     print("LỖI: ui_dashboard.py không thể import DB logic...")
     DB_NAME = "data/xo_so_prizes_all_logic.db"
 
-    def get_all_managed_bridges(db, only_enabled=True):
+    def get_managed_bridges_with_prediction(db_name, current_data=None, only_enabled=True):
         return []
 
 
@@ -465,7 +465,12 @@ class DashboardWindow(ttk.Frame):
 
             # Nạp Bảng 4: Phong Độ 10 Kỳ
             try:
-                all_bridges = get_all_managed_bridges(DB_NAME, only_enabled=True)
+                # Sử dụng hàm mới với tính toán dự đoán tự động
+                all_bridges = get_managed_bridges_with_prediction(
+                    DB_NAME, 
+                    current_data=self.app.all_data_ai if hasattr(self.app, 'all_data_ai') else None,
+                    only_enabled=True
+                )
                 good_bridges = []
                 for b in all_bridges:
                     recent_wins = b.get("recent_win_count_10", 0)

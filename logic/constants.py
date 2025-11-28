@@ -29,6 +29,7 @@ DEFAULT_SETTINGS = {
     "DATA_LIMIT_DASHBOARD": 1000, # 0 = All
     "DATA_LIMIT_RESEARCH": 0,     # 0 = All
     "DATA_LIMIT_SCANNER": 500,    # Giới hạn số kỳ khi Dò Cầu Mới (0 = Full)
+    "DE_MAX_LOSE_THRESHOLD": 20,  # Ngưỡng chuỗi Gãy tối đa cho cầu Đề (Phase 4 - Pruning)
 }
 
 # Database Paths

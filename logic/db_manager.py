@@ -104,6 +104,12 @@ def setup_database(db_name=DB_NAME):
         cursor.execute("ALTER TABLE ManagedBridges ADD COLUMN recent_win_count_10 INTEGER DEFAULT 0")
         print(">>> [DB] Đã thêm cột 'recent_win_count_10' (V78).")
     except sqlite3.OperationalError: pass
+    
+    # [MỚI - PHASE 4] Thêm cột is_pinned (Ghim cầu) để bảo vệ cầu quan trọng
+    try:
+        cursor.execute("ALTER TABLE ManagedBridges ADD COLUMN is_pinned INTEGER DEFAULT 0")
+        print(">>> [DB] Đã thêm cột 'is_pinned' (Phase 4 - Pinning).")
+    except sqlite3.OperationalError: pass
 
     # Indexes
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_results_ky ON results_A_I(ky)")
@@ -244,6 +250,48 @@ def delete_managed_bridge(bridge_id, db_name=DB_NAME):
         if conn: conn.close()
 
 
+def toggle_pin_bridge(bridge_name, db_name=DB_NAME):
+    """
+    Đảo ngược trạng thái ghim của cầu (Phase 4 - Pinning).
+    
+    Args:
+        bridge_name: Tên cầu
+        db_name: Đường dẫn database
+    
+    Returns:
+        tuple: (success: bool, message: str, new_pin_state: bool or None)
+    """
+    conn = None
+    try:
+        conn = sqlite3.connect(db_name)
+        cursor = conn.cursor()
+        
+        # Lấy trạng thái hiện tại
+        cursor.execute("SELECT is_pinned FROM ManagedBridges WHERE name = ?", (bridge_name,))
+        row = cursor.fetchone()
+        
+        if not row:
+            return False, f"Không tìm thấy cầu '{bridge_name}' trong database.", None
+        
+        current_pin = row[0] if row[0] is not None else 0
+        new_pin = 1 if current_pin == 0 else 0
+        
+        # Cập nhật trạng thái ghim
+        cursor.execute(
+            "UPDATE ManagedBridges SET is_pinned = ? WHERE name = ?",
+            (new_pin, bridge_name)
+        )
+        conn.commit()
+        
+        action = "đã ghim" if new_pin == 1 else "đã bỏ ghim"
+        return True, f"Cầu '{bridge_name}' {action}.", bool(new_pin)
+    
+    except Exception as e:
+        return False, f"Lỗi toggle_pin_bridge: {e}", None
+    finally:
+        if conn: conn.close()
+
+
 def upsert_managed_bridge(bridge_name, description, win_rate, db_name=DB_NAME, pos1_idx=None, pos2_idx=None):
     conn = None
     try:
@@ -324,3 +372,21 @@ def update_bridge_win_rate_batch(rate_data_list, db_name=DB_NAME):
         return False, f"Lỗi SQL cập nhật Tỷ Lệ N1: {e}"
     finally:
         if conn: conn.close()
+
+
+# ===================================================================================
+# IV. LỚP DBManager (Placeholder để khắc phục lỗi Import)
+# ===================================================================================
+
+class DBManager:
+    """
+    Lớp Placeholder để khắc phục lỗi Import.
+    
+    Các Service sẽ gọi các hàm cấp module của db_manager thông qua lớp này.
+    Tất cả các hàm cấp module (setup_database, update_managed_bridge, v.v.) 
+    vẫn giữ nguyên để đảm bảo tương thích ngược.
+    
+    Lớp này có thể được mở rộng trong tương lai để cung cấp interface hướng đối tượng
+    cho các thao tác database, nhưng hiện tại chỉ là placeholder.
+    """
+    pass

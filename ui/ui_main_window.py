@@ -379,14 +379,12 @@ class DataAnalysisApp:
         self.task_manager.run_task(self.controller.task_run_parameter_tuning, param_key, val_from, val_to, val_step, tuner_window)
 
     def trigger_bridge_backtest(self, bridge_name):
-        if not bridge_name: return
-        self.logger.log(f"Trigger backtest: {bridge_name}")
-        if "Tổng(" in bridge_name or "Hiệu(" in bridge_name:
-             self.run_backtest_memory()
-        elif bridge_name.startswith("Cầu "):
-             self.run_backtest("K2N")
-        else:
-             pass
+        """Kích hoạt backtest 30 ngày cho một cầu cụ thể"""
+        if not bridge_name:
+            return
+        self.logger.log(f"Đang chạy backtest 30 ngày cho cầu: {bridge_name}")
+        if self.controller:
+            self.controller.trigger_bridge_backtest(bridge_name)
     
     def _save_bridge_from_treeview(self, tree):
         # Hàm hỗ trợ lưu cầu từ bảng kết quả

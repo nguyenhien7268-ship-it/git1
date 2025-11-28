@@ -766,7 +766,12 @@ def BACKTEST_MANAGED_BRIDGES_N1(
         last_lotos = get_27_loto_positions(last_data_row)
 
         for bridge in bridges_to_test:
-            idx1, idx2 = bridge["pos1_idx"], bridge["pos2_idx"]
+            idx1, idx2 = bridge.get("pos1_idx"), bridge.get("pos2_idx")
+
+            # Check if idx1 or idx2 is None
+            if idx1 is None or idx2 is None:
+                finalRow.append("Lỗi: Thiếu vị trí")
+                continue
 
             # Check if this is a Memory Bridge
             if idx1 == -1 and idx2 == -1:
@@ -799,11 +804,25 @@ def BACKTEST_MANAGED_BRIDGES_N1(
                     continue
             else:
                 # V17 Bridge
+                # Kiểm tra last_positions hợp lệ và index trong range
+                if not last_positions or len(last_positions) == 0:
+                    finalRow.append("Lỗi: Không có dữ liệu vị trí")
+                    continue
+                
+                if idx1 >= len(last_positions) or idx2 >= len(last_positions):
+                    finalRow.append("Lỗi: Vị trí ngoài phạm vi")
+                    continue
+                
                 a, b = last_positions[idx1], last_positions[idx2]
                 if a is None or b is None:
                     finalRow.append("Lỗi Vị Trí")
                     continue
-                pred = taoSTL_V30_Bong(a, b)
+                
+                try:
+                    pred = taoSTL_V30_Bong(int(a), int(b))
+                except (ValueError, TypeError):
+                    finalRow.append("Lỗi: Không thể tính STL")
+                    continue
 
             finalRow.append(f"{','.join(pred)} (Dự đoán N1)")
 
@@ -1032,7 +1051,12 @@ def BACKTEST_MANAGED_BRIDGES_K2N(
             if in_frame[j]:
                 finalRow.append(f"{','.join(prediction_in_frame[j])} (Đang chờ N2)")
             else:
-                idx1, idx2 = bridge["pos1_idx"], bridge["pos2_idx"]
+                idx1, idx2 = bridge.get("pos1_idx"), bridge.get("pos2_idx")
+
+                # Check if idx1 or idx2 is None
+                if idx1 is None or idx2 is None:
+                    finalRow.append("Lỗi: Thiếu vị trí")
+                    continue
 
                 # Check if this is a Memory Bridge
                 if idx1 == -1 and idx2 == -1:
@@ -1065,11 +1089,25 @@ def BACKTEST_MANAGED_BRIDGES_K2N(
                         continue
                 else:
                     # V17 Bridge
+                    # Kiểm tra last_positions hợp lệ và index trong range
+                    if not last_positions or len(last_positions) == 0:
+                        finalRow.append("Lỗi: Không có dữ liệu vị trí")
+                        continue
+                    
+                    if idx1 >= len(last_positions) or idx2 >= len(last_positions):
+                        finalRow.append("Lỗi: Vị trí ngoài phạm vi")
+                        continue
+                    
                     a, b = last_positions[idx1], last_positions[idx2]
                     if a is None or b is None:
                         finalRow.append("Lỗi Vị Trí")
                         continue
-                    pred = taoSTL_V30_Bong(a, b)
+                    
+                    try:
+                        pred = taoSTL_V30_Bong(int(a), int(b))
+                    except (ValueError, TypeError):
+                        finalRow.append("Lỗi: Không thể tính STL")
+                        continue
 
                 finalRow.append(f"{','.join(pred)} (Khung mới N1)")
 

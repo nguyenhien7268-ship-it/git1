@@ -8,6 +8,10 @@ from logic.de_utils import (
 )
 
 class DeBridgeScanner:
+    """
+    Bộ quét cầu Đề tự động (Automated DE Bridge Scanner)
+    Phiên bản: V2.1 (Standardized Naming)
+    """
     def __init__(self):
         # [CẤU HÌNH] Điều kiện lọc cầu
         self.min_streak = 3        # Cầu phải ăn thông ít nhất 3 kỳ
@@ -22,17 +26,18 @@ class DeBridgeScanner:
 
         last_row = all_data_ai[-1]
         num_cols = len(last_row)
-        print(f">>> [DE SCANNER] Bắt đầu chế độ 'Dynamic Offset' (V77 Ultimate) trên {num_cols} cột...")
+        print(f">>> [DE SCANNER] Bắt đầu quét (V2.1 Standardized) trên {num_cols} cột...")
         
         found_bridges = []
 
         # 1. QUÉT BIẾN THIÊN ĐỘNG (Dynamic Offset - 10 Biến thể K)
-        # Đây là logic mới thay thế cho logic vét cạn đầu đuôi cũ
+        # Logic: Lấy số cuối của các giải (Prizes) + K biến thiên
         bridges_dynamic = self._scan_dynamic_offset(all_data_ai)
         found_bridges.extend(bridges_dynamic)
 
-        # 2. Quét thuật toán cổ điển (Backup - Giữ nguyên logic cũ)
-        bridges_classic = self._scan_algorithm_sum(all_data_ai, "DE_CHAM", check_cham, "Cầu Bệt")
+        # 2. QUÉT VỊ TRÍ SỐ HỌC (Arithmetic Positions)
+        # Logic: Cộng giá trị của 2 vị trí số cụ thể (Digits) (V17 Shadow supported)
+        bridges_classic = self._scan_algorithm_sum(all_data_ai)
         found_bridges.extend(bridges_classic)
         
         # Sắp xếp theo chuỗi ăn thông giảm dần
@@ -44,17 +49,21 @@ class DeBridgeScanner:
         return len(found_bridges), found_bridges
 
     def _scan_dynamic_offset(self, all_data_ai):
+        """
+        Quét cầu dựa trên biến thiên K của đuôi các giải.
+        Naming Standard: DE_DYN_{Pos1}_{Pos2}_K{k}
+        """
         results = []
         scan_data = all_data_ai[-self.scan_depth:]
         last_row = all_data_ai[-1]
         max_idx = len(last_row)
         
-        # Tạo danh sách cặp vị trí (Quét toàn bộ các cặp có thể)
+        # Tạo danh sách cặp vị trí (Quét toàn bộ các cặp có thể dựa trên cột dữ liệu)
         pairs_to_scan = []
         for i in range(2, max_idx):
             for j in range(i + 1, max_idx):
-                name_i = self._get_col_name(i, max_idx)
-                name_j = self._get_col_name(j, max_idx)
+                name_i = self._get_standard_prize_name(i, max_idx)
+                name_j = self._get_standard_prize_name(j, max_idx)
                 pairs_to_scan.append((i, j, name_i, name_j))
 
         # Duyệt qua từng cặp vị trí
@@ -62,12 +71,11 @@ class DeBridgeScanner:
             best_k_variant = None
             best_k_wins = -1
 
-            # Vòng lặp K từ 0 đến 9 (ĐÚNG KẾ HOẠCH)
-            # Thử mọi biến thể cộng thêm từ 0 đến 9
+            # Vòng lặp K từ 0 đến 9
             for k in range(10):
                 wins_in_window = []
                 
-                # Backtest kiểm tra hiệu quả
+                # Backtest
                 for day in range(len(scan_data) - 1, len(scan_data) - 1 - self.history_check_len, -1):
                     if day < 1: break
                     row_today = scan_data[day]
@@ -76,7 +84,6 @@ class DeBridgeScanner:
 
                     row_prev = scan_data[day-1]
                     try:
-                        # Lấy số tại vị trí (dùng số cuối cùng của giải làm đại diện)
                         v1_str = self._clean_num(row_prev[idx1])
                         v2_str = self._clean_num(row_prev[idx2])
                         if not v1_str or not v2_str: continue
@@ -85,7 +92,6 @@ class DeBridgeScanner:
                         num2 = int(v2_str[-1])
                         base_sum = (num1 + num2) % 10
                         
-                        # Tính 4 chạm theo công thức K (đã có trong de_utils)
                         touches = get_touches_by_offset(base_sum, k)
                         dan_test = generate_dan_de_from_touches(touches)
                         
@@ -94,11 +100,10 @@ class DeBridgeScanner:
 
                 total_wins = sum(wins_in_window)
                 
-                # Tìm K tốt nhất cho cặp này (Best K)
                 if total_wins > best_k_wins:
                     best_k_wins = total_wins
                     if total_wins >= self.min_wins_required:
-                        # Dự đoán tương lai để lưu
+                        # Dự đoán tương lai
                         try:
                             v1_last = self._clean_num(last_row[idx1])
                             v2_last = self._clean_num(last_row[idx2])
@@ -110,30 +115,42 @@ class DeBridgeScanner:
                                 final_touches = get_touches_by_offset(base_last, k)
                                 final_dan = generate_dan_de_from_touches(final_touches)
                                 
+                                # CHUẨN HÓA TÊN V2.1
+                                std_name = f"DE_DYN_{name1}_{name2}_K{k}"
+                                display_desc = f"Đuôi {name1} + Đuôi {name2} (K={k})"
+
                                 best_k_variant = {
-                                    "name": f"{name1}+{name2} (T+{k})", # Tên đúng chuẩn T+K
+                                    "name": std_name,
                                     "type": "DE_DYNAMIC_K",
                                     "streak": total_wins,
                                     "predicted_value": ",".join(map(str, final_touches)),
                                     "full_dan": ",".join(final_dan),
-                                    "win_rate": (total_wins/len(wins_in_window))*100 if wins_in_window else 0
+                                    "win_rate": (total_wins/len(wins_in_window))*100 if wins_in_window else 0,
+                                    "display_desc": display_desc
                                 }
                         except: pass
 
-            # Chỉ lưu biến thể tốt nhất của cặp này vào kết quả
             if best_k_variant:
                 results.append(best_k_variant)
                 
         return results
 
-    def _get_col_name(self, idx, total_cols):
-        # Data compact 10 cột
+    def _get_standard_prize_name(self, idx, total_cols):
+        """
+        Trả về tên giải chuẩn (dùng cho tên cầu).
+        Ví dụ: GDB, G1, G2.1
+        """
+        # Logic mapping cho Data compact 10 cột
         if total_cols <= 11:
-            mapping = {2: "GĐB", 3: "G1", 4: "G2", 5: "G3", 6: "G4", 7: "G5", 8: "G6", 9: "G7"}
-            return mapping.get(idx, f"Cột_{idx}")
-        # Data full 27 cột
+            mapping = {
+                2: "GDB", 3: "G1", 4: "G2", 5: "G3", 
+                6: "G4", 7: "G5", 8: "G6", 9: "G7"
+            }
+            return mapping.get(idx, f"C{idx}")
+        
+        # Logic mapping cho Data full 27 cột
         else:
-            if idx == 2: return "GĐB"
+            if idx == 2: return "GDB"
             if idx == 3: return "G1"
             if 4 <= idx <= 5: return f"G2.{idx-3}"
             if 6 <= idx <= 11: return f"G3.{idx-5}"
@@ -141,16 +158,21 @@ class DeBridgeScanner:
             if 16 <= idx <= 21: return f"G5.{idx-15}"
             if 22 <= idx <= 24: return f"G6.{idx-21}"
             if 25 <= idx <= 28: return f"G7.{idx-24}"
-            return f"Pos_{idx}"
+            return f"Pos{idx}"
 
     def _clean_num(self, val):
         return ''.join(filter(str.isdigit, str(val)))
 
-    def _scan_algorithm_sum(self, all_data_ai, cau_type, check_func, name_prefix):
-        # [Giữ nguyên logic cũ]
+    def _scan_algorithm_sum(self, all_data_ai):
+        """
+        Quét cầu cộng vị trí số (Digits).
+        Naming Standard: DE_POS_{PosName1}_{PosName2}
+        """
         found_bridges = []
         try:
+            # Dùng V17 Shadow để lấy toàn bộ 214 vị trí (Gốc + Bóng)
             sample_pos = getAllPositions_V17_Shadow(all_data_ai[-1])
+            # Giới hạn quét để tối ưu hiệu năng (50 vị trí đầu quan trọng nhất)
             limit_pos = min(len(sample_pos), 50) 
             scan_data = all_data_ai[-self.scan_depth:]
             
@@ -165,27 +187,44 @@ class DeBridgeScanner:
                         
                         if not gdb_today or pos_prev[i] is None or pos_prev[j] is None: break
                         try:
+                            # Logic: Tổng 2 vị trí % 10 -> Ra Chạm
                             pred_val = (int(pos_prev[i]) + int(pos_prev[j])) % 10
-                            if check_func(gdb_today, [pred_val]): current_streak += 1
-                            else: break
+                            if check_cham(gdb_today, [pred_val]): 
+                                current_streak += 1
+                            else: 
+                                break
                         except: break
                     
                     if current_streak >= self.min_streak:
+                        # Lấy tên vị trí chuẩn từ V16/V17
                         pos1_name = getPositionName_V17_Shadow(i)
                         pos2_name = getPositionName_V17_Shadow(j)
+                        
                         try:
-                            next_val = (int(getAllPositions_V17_Shadow(all_data_ai[-1])[i]) + int(getAllPositions_V17_Shadow(all_data_ai[-1])[j])) % 10
+                            val_i = int(getAllPositions_V17_Shadow(all_data_ai[-1])[i])
+                            val_j = int(getAllPositions_V17_Shadow(all_data_ai[-1])[j])
+                            next_val = (val_i + val_j) % 10
+                            
+                            # CHUẨN HÓA TÊN V2.1
+                            # Lưu ý: Chỉ xóa ngoặc [], giữ lại dấu chấm . nếu có (VD: G2.1)
+                            safe_p1 = pos1_name.replace("[", "").replace("]", "")
+                            safe_p2 = pos2_name.replace("[", "").replace("]", "")
+                            
+                            std_name = f"DE_POS_{safe_p1}_{safe_p2}"
+                            display_desc = f"Tổng vị trí: {pos1_name} + {pos2_name}"
+
                             found_bridges.append({
-                                "name": f"{name_prefix} {pos1_name}+{pos2_name}",
-                                "type": cau_type,
+                                "name": std_name,
+                                "type": "DE_POS_SUM", # Loại cầu mới rõ ràng hơn
                                 "streak": current_streak,
                                 "predicted_value": str(next_val),
                                 "full_dan": "",
-                                "win_rate": 100.0
+                                "win_rate": 100.0,
+                                "display_desc": display_desc
                             })
                         except: pass
         except Exception as e:
-            print(f">>> [DEBUG] Lỗi quét cầu cổ điển: {e}")
+            print(f">>> [DEBUG] Lỗi quét cầu số học: {e}")
             
         return sorted(found_bridges, key=lambda x: x['streak'], reverse=True)[:20]
 
@@ -195,25 +234,29 @@ class DeBridgeScanner:
             conn = sqlite3.connect(DB_NAME)
             cursor = conn.cursor()
             
-            # Xóa sạch cầu cũ để cập nhật danh sách mới
-            cursor.execute("DELETE FROM ManagedBridges WHERE type IN ('DE_DYNAMIC_K', 'DE_SMART_FORM', 'DE_CHAM')")
+            # Xóa các loại cầu cũ (bao gồm cả loại cũ và mới để tránh duplicate)
+            cursor.execute("DELETE FROM ManagedBridges WHERE type IN ('DE_DYNAMIC_K', 'DE_POS_SUM', 'DE_CHAM')")
             
-            # Lưu Top 30 cầu tốt nhất
+            count = 0
             for b in bridges[:30]: 
-                desc = b.get('full_dan', '')
-                if desc:
-                    desc = f"Phong độ {b['streak']}/10. Dàn: {desc}"
-                else:
-                    desc = f"Thông {b['streak']} kỳ."
+                # Ưu tiên lấy display_desc nếu có, không thì fallback
+                desc = b.get('display_desc', '')
+                full_dan_info = b.get('full_dan', '')
                 
+                final_desc = desc
+                if full_dan_info:
+                    final_desc += f". Dàn: {full_dan_info}"
+                final_desc += f". Thông {b['streak']} kỳ."
+
                 cursor.execute("""
                     INSERT INTO ManagedBridges 
                     (name, type, description, win_rate_text, current_streak, next_prediction_stl, is_enabled) 
                     VALUES (?, ?, ?, ?, ?, ?, 1)
-                """, (b['name'], b['type'], desc, f"{b['win_rate']:.0f}%", b['streak'], b['predicted_value']))
+                """, (b['name'], b['type'], final_desc, f"{b['win_rate']:.0f}%", b['streak'], b['predicted_value']))
+                count += 1
             
             conn.commit()
-            print(f">>> [DB] Đã lưu thành công {len(bridges[:30])} cầu vào bảng ManagedBridges.")
+            print(f">>> [DB] Đã lưu thành công {count} cầu vào bảng ManagedBridges.")
             conn.close()
         except Exception as e:
             print(f"Lỗi lưu DB: {e}")

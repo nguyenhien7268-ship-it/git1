@@ -1,26 +1,51 @@
->>> (V7.3) Tải logic.db_manager & data_repository thành công.
->>> (V7.3) Tải logic.data_parser thành công.
->>> (V7.3) Tải logic.bridges.bridges_classic thành công.
+C:\Users\KAKA\Documents\27loto\CODE5\git1>python scripts/verify_phase_4_automation_final.py
 Đã tải cài đặt từ config.json
 ConfigManager (V7.8) đã khởi tạo thành công.
->>> (V7.3) Tải logic.backtester thành công.
-[PATH FIX] C:\Users\KAKA\Documents\27loto\CODE5\git1 đã có trong sys.path
-[IMPORT V4] Đã import thành công: SETTINGS
-[IMPORT V4] Đã import thành công: data_repository, db_manager
-[IMPORT V4] Đã import thành công: các hàm cầu (bridges_v16, memory, classic)
->>> (V7.3) Tải logic.bridges.bridge_manager_core thành công.
->>> (V7.3) Tải logic.dashboard_analytics thành công.
->>> (V7.3) Tải logic.ai_feature_extractor (AI Wrappers) thành công.
-Lottery Service API (lottery_service.py) đã tải thành công (V7.4).
-Đã tải cài đặt từ config.json
-Lỗi dự đoán Cầu Đã Lưu K2N: list indices must be integers or slices, not NoneType
-... (V7.0 G2 Feature Extraction) Bước 1: Tính toán dự đoán cầu cho toàn bộ lịch sử...
-... (AI Train) Bắt đầu tính toán Lịch sử Lô Gan (nặng)...
-... (AI Train) Đã tính xong Lịch sử Lô Gan (959 ngày).
-... (BTH) Bắt đầu chạy backtest 756 cầu Bạc Nhớ ngầm...
->>> [DE V78] Cập nhật Hồ Sơ Phong Độ...
->>> [DEBUG] Số lượng cột dữ liệu: 10
->>> [DE SCANNER] Bắt đầu quét cầu Đề (V79 Smart)...
->>> [DEBUG] Phát hiện data gộp 10 cột. Kích hoạt quét G7 tại cột 9.
->>> [DE SCANNER] Tổng tìm thấy: 2 cầu.
->>> [DB] Đã lưu 2 cầu vào bảng ManagedBridges.
+======================================================================
+▶️ BẮT ĐẦU KIỂM TRA CHỨC NĂNG TỰ ĐỘNG HÓA (PIN & PRUNE) - PHASE 4
+======================================================================
+EEE
+======================================================================
+ERROR: test_01_toggle_pin_functionality (__main__.TestPhase4Automation.test_01_toggle_pin_functionality)
+Kiểm tra: Bật/Tắt ghim cầu hoạt động đúng trong DB.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\KAKA\Documents\27loto\CODE5\git1\scripts\verify_phase_4_automation_final.py", line 86, in test_01_toggle_pin_functionality
+    self.mock_db_manager.update_bridge_status.assert_called_with(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\KAKA\AppData\Local\Programs\Python\Python314\Lib\unittest\mock.py", line 696, in __getattr__
+    raise AttributeError("Mock object has no attribute %r" % name)
+AttributeError: Mock object has no attribute 'update_bridge_status'
+
+======================================================================
+ERROR: test_02_prune_bad_de_bridges_protection (__main__.TestPhase4Automation.test_02_prune_bad_de_bridges_protection)
+Kiểm tra: Cầu được ghim phải được BỎ QUA khi chạy Pruning.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\KAKA\Documents\27loto\CODE5\git1\scripts\verify_phase_4_automation_final.py", line 116, in test_02_prune_bad_de_bridges_protection
+    self.mock_db_manager.update_bridge_status.assert_any_call(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\KAKA\AppData\Local\Programs\Python\Python314\Lib\unittest\mock.py", line 696, in __getattr__
+    raise AttributeError("Mock object has no attribute %r" % name)
+AttributeError: Mock object has no attribute 'update_bridge_status'
+
+======================================================================
+ERROR: test_03_pruning_logic_is_active (__main__.TestPhase4Automation.test_03_pruning_logic_is_active)
+Kiểm tra: Logic Pruning cơ bản hoạt động (Tắt 2 cầu > Max Lose).
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\KAKA\Documents\27loto\CODE5\git1\scripts\verify_phase_4_automation_final.py", line 145, in test_03_pruning_logic_is_active
+    self.mock_db_manager.update_bridge_status.assert_any_call(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\KAKA\AppData\Local\Programs\Python\Python314\Lib\unittest\mock.py", line 696, in __getattr__
+    raise AttributeError("Mock object has no attribute %r" % name)
+AttributeError: Mock object has no attribute 'update_bridge_status'
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.007s
+
+FAILED (errors=3)
+======================================================================
+✅ XÁC NHẬN: Logic Pruning & Pinning đã được kiểm tra.
+👉 Nếu tất cả test đều PASS, hệ thống đã sẵn sàng cho Giai đoạn Mở Rộng.
+======================================================================

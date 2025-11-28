@@ -75,7 +75,7 @@ class BridgeManagerWindow:
         frame.columnconfigure(0, weight=1)
         frame.rowconfigure(0, weight=1)
 
-        columns = ("id", "name", "desc", "win_rate", "status", "created_at")
+        columns = ("id", "name", "desc", "win_rate", "status", "pinned", "created_at")
         self.tree = ttk.Treeview(frame, columns=columns, show="headings", selectmode="browse")
         
         self.tree.heading("id", text="ID")
@@ -85,13 +85,16 @@ class BridgeManagerWindow:
         self.tree.column("name", width=150)
         
         self.tree.heading("desc", text="Mô Tả")
-        self.tree.column("desc", width=250)
+        self.tree.column("desc", width=200)
         
         self.tree.heading("win_rate", text="Tỷ lệ thắng (K2N)")
         self.tree.column("win_rate", width=100, anchor="center")
         
         self.tree.heading("status", text="Trạng Thái")
         self.tree.column("status", width=80, anchor="center")
+        
+        self.tree.heading("pinned", text="📌 Ghim")
+        self.tree.column("pinned", width=60, anchor="center")
         
         self.tree.heading("created_at", text="Ngày Tạo")
         self.tree.column("created_at", width=120, anchor="center")
@@ -103,6 +106,13 @@ class BridgeManagerWindow:
         scrollbar.grid(row=0, column=1, sticky="ns")
 
         self.tree.bind("<<TreeviewSelect>>", self.on_bridge_select)
+        
+        # Context menu (right-click) để ghim/bỏ ghim
+        self.context_menu = tk.Menu(self.window, tearoff=0)
+        self.context_menu.add_command(label="📌 Ghim/Bỏ Ghim", command=self.toggle_pin_selected_bridge)
+        self.context_menu.add_separator()
+        self.context_menu.add_command(label="🔍 Xem Backtest 30 Ngày", command=self.run_quick_backtest)
+        self.tree.bind("<Button-3>", self.show_context_menu)  # Right-click
 
     def create_toolbar(self):
         """Tạo thanh công cụ chứa các nút chức năng."""
@@ -115,6 +125,7 @@ class BridgeManagerWindow:
         ttk.Button(frame, text="Thêm Mới", command=self.add_bridge).pack(side=tk.LEFT, padx=2)
         ttk.Button(frame, text="Cập Nhật", command=self.update_selected_bridge).pack(side=tk.LEFT, padx=2)
         ttk.Button(frame, text="Xóa", command=self.delete_selected_bridge).pack(side=tk.LEFT, padx=2)
+        ttk.Button(frame, text="📌 Ghim/Bỏ Ghim", command=self.toggle_pin_selected_bridge).pack(side=tk.LEFT, padx=2)
         ttk.Button(frame, text="Làm Mới List", command=self.refresh_bridge_list).pack(side=tk.LEFT, padx=2)
 
         ttk.Separator(frame, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=10)
@@ -151,7 +162,15 @@ class BridgeManagerWindow:
             
             for b in self.all_bridges_cache:
                 status_text = "Đang Bật" if b['is_enabled'] else "Đã Tắt"
-                tags = ("disabled",) if not b['is_enabled'] else ()
+                is_pinned = b.get('is_pinned', 0)
+                pinned_text = "📌 Có" if is_pinned else "❌ Không"
+                
+                # Tạo tags để tô màu
+                tags = []
+                if not b['is_enabled']:
+                    tags.append("disabled")
+                if is_pinned:
+                    tags.append("pinned")
                 
                 # Dùng .get() an toàn cho các key có thể thiếu
                 created_date = b.get('created_at') or b.get('date_added', 'N/A')
@@ -159,11 +178,12 @@ class BridgeManagerWindow:
                 
                 self.tree.insert(
                     "", tk.END, 
-                    values=(b['id'], b['name'], b['description'], win_rate, status_text, created_date),
-                    tags=tags
+                    values=(b['id'], b['name'], b['description'], win_rate, status_text, pinned_text, created_date),
+                    tags=tuple(tags) if tags else ()
                 )
             
             self.tree.tag_configure("disabled", foreground="gray")
+            self.tree.tag_configure("pinned", background="#fff9c4")  # Màu vàng nhạt cho cầu đã ghim
             
         except Exception as e:
             print(f"Lỗi refresh_bridge_list (Ignored): {e}")
@@ -237,7 +257,56 @@ class BridgeManagerWindow:
 
     def run_quick_backtest(self):
         selected = self.tree.focus()
-        if not selected: return
+        if not selected: 
+            messagebox.showwarning("Chưa chọn cầu", "Vui lòng chọn một cầu từ danh sách.", parent=self.window)
+            return
         
         bridge_name = self.tree.item(selected, "values")[1]
-        self.app.trigger_bridge_backtest(bridge_name)
+        # Xác định loại cầu (Đề hay Lô) dựa trên tên
+        is_de = bridge_name.startswith("DE_") or "Đề" in bridge_name
+        if hasattr(self.app, 'controller') and self.app.controller:
+            self.app.controller.trigger_bridge_backtest(bridge_name, is_de=is_de)
+        else:
+            messagebox.showerror("Lỗi", "Controller không khả dụng.", parent=self.window)
+    
+    def toggle_pin_selected_bridge(self):
+        """Ghim hoặc bỏ ghim cầu được chọn."""
+        selected = self.tree.focus()
+        if not selected:
+            messagebox.showwarning("Chưa chọn cầu", "Vui lòng chọn một cầu từ danh sách để ghim/bỏ ghim.", parent=self.window)
+            return
+        
+        bridge_name = self.tree.item(selected, "values")[1]
+        
+        # Kiểm tra trạng thái hiện tại
+        current_pinned = self.tree.item(selected, "values")[5]
+        action_text = "bỏ ghim" if current_pinned == "📌 Có" else "ghim"
+        
+        if messagebox.askyesno("Xác nhận", f"Bạn có chắc muốn {action_text} cầu '{bridge_name}'?", parent=self.window):
+            # Gọi controller để thực hiện toggle pin
+            if hasattr(self.app, 'controller') and self.app.controller:
+                # Chạy trong background thread
+                import threading
+                def run_toggle_pin():
+                    try:
+                        self.app.controller.task_run_toggle_pin(bridge_name)
+                        # Refresh danh sách sau khi hoàn tất
+                        self.window.after(500, self.refresh_bridge_list)
+                    except Exception as e:
+                        self.window.after(0, lambda: messagebox.showerror("Lỗi", f"Không thể {action_text} cầu: {e}", parent=self.window))
+                
+                thread = threading.Thread(target=run_toggle_pin, daemon=True)
+                thread.start()
+            else:
+                messagebox.showerror("Lỗi", "Controller không khả dụng.", parent=self.window)
+    
+    def show_context_menu(self, event):
+        """Hiển thị context menu khi right-click vào cầu."""
+        item = self.tree.identify_row(event.y)
+        if item:
+            self.tree.selection_set(item)
+            self.tree.focus(item)
+            try:
+                self.context_menu.tk_popup(event.x_root, event.y_root)
+            finally:
+                self.context_menu.grab_release()

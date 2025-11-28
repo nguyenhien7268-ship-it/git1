@@ -154,17 +154,39 @@ def get_top_strongest_sets(bridges):
     Tìm ra các Bộ Số có cầu chạy mạnh nhất (V77).
     Chỉ tính cầu loại 'BO' hoặc cầu trùng khớp bộ.
     """
+    if not bridges:
+        return []
+    
     set_scores = {bo: 0 for bo in BO_SO_DE.keys()}
     
     for bridge in bridges:
-        b_type = str(bridge.get('type', '')).upper()
-        val = str(bridge.get('predicted_value', ''))
-        streak = bridge.get('streak', 1)
-        
-        # Chỉ cộng điểm nếu loại cầu được xác định là BO
-        if 'BO' in b_type and val in set_scores:
-            set_scores[val] += streak
+        try:
+            b_type = str(bridge.get('type', '')).upper()
+            val = str(bridge.get('predicted_value', ''))
+            streak = bridge.get('streak', 1)
+            
+            # Đảm bảo streak là số hợp lệ
+            if not isinstance(streak, (int, float)):
+                try:
+                    streak = float(streak) if streak else 1
+                except (ValueError, TypeError):
+                    streak = 1
+            
+            # Chỉ cộng điểm nếu loại cầu được xác định là BO
+            if 'BO' in b_type and val in set_scores:
+                set_scores[val] += streak
+        except Exception:
+            # Bỏ qua lỗi và tiếp tục với cầu tiếp theo
+            continue
             
     # Lọc bộ có điểm > 0 và sort giảm dần
     sorted_sets = sorted(set_scores.items(), key=lambda x: x[1], reverse=True)
-    return [x[0] for x in sorted_sets if x[1] > 0]
+    result = [x[0] for x in sorted_sets if x[1] > 0]
+    
+    # Đảm bảo luôn trả về ít nhất một kết quả nếu có cầu hoạt động
+    if not result and bridges:
+        # Fallback: Trả về top 3 bộ có điểm cao nhất (kể cả điểm 0)
+        sorted_all = sorted(set_scores.items(), key=lambda x: x[1], reverse=True)
+        result = [x[0] for x in sorted_all[:3]]
+    
+    return result

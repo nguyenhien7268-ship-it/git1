@@ -32,7 +32,8 @@ except ImportError:
         "RECENT_FORM_MIN_MED": 6,
         "RECENT_FORM_MIN_LOW": 5,
         "DATA_LIMIT_DASHBOARD": 2000,
-        "DATA_LIMIT_RESEARCH": 0
+        "DATA_LIMIT_RESEARCH": 0,
+        "DE_MAX_LOSE_THRESHOLD": 20  # Ngưỡng chuỗi Gãy tối đa cho cầu Đề (Phase 4 - Pruning)
     }
 
 CONFIG_FILE = "config.json"

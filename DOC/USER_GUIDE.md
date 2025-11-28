@@ -1,6 +1,6 @@
 # 📘 HƯỚNG DẪN SỬ DỤNG HỆ THỐNG (USER GUIDE)
 
-> **Hệ thống:** XS-DAS V7.7 (Phiên bản Nâng cấp Đặc biệt)
+> **Hệ thống:** XS-DAS V7.9 (Phiên bản Quản Lý Cầu Tự Động)
 > **Đối tượng:** Người sử dụng (User/Analyst)
 > **Mục đích:** Hướng dẫn vận hành các chức năng từ cơ bản đến nâng cao để chốt số hiệu quả.
 
@@ -11,6 +11,7 @@
 2. [Quy Trình Soi Cầu Lô (Hàng Ngày)](#2-quy-trình-soi-cầu-lô-hàng-ngày)
 3. [Quy Trình Soi Cầu Đề (V7.7 Mới)](#3-quy-trình-soi-cầu-đề-v77-mới)
 4. [Quản Lý Dữ Liệu & Hệ Thống](#4-quản-lý-dữ-liệu--hệ-thống)
+5. [Tính Năng Mới V7.9: Quản Lý Cầu Tự Động](#5-tính-năng-mới-v79-quản-lý-cầu-tự-động)
 
 ---
 
@@ -109,4 +110,77 @@ Tập trung vào việc lọc số (Filtering) để tạo ra dàn đề tối �
     * Bật chức năng `Tự động Lọc/Tắt` để hệ thống tự dọn dẹp cầu rác.
 
 ---
+
+## 5. TÍNH NĂNG MỚI V7.9: QUẢN LÝ CẦU TỰ ĐỘNG
+
+Phiên bản V7.9 giới thiệu hệ thống quản lý cầu tự động với 3 tính năng chính:
+
+### 🔍 Double-Click Backtest (Xem Lịch Sử 30 Ngày)
+
+**Mục đích:** Kiểm tra hiệu quả của cầu trước khi quyết định chơi.
+
+**Cách sử dụng:**
+1. Vào Tab `Soi Cầu Đề` hoặc `Quản lý Cầu`.
+2. Tìm cầu bạn muốn kiểm tra trong bảng danh sách.
+3. **Double-click** (click đúp) vào tên cầu.
+4. Một cửa sổ popup sẽ hiển thị:
+   - **30 ngày lịch sử** backtest của cầu đó
+   - **Tỷ lệ thắng** (Ví dụ: "Thắng 18/30 ngày (60%)")
+   - **Chi tiết từng ngày:** Ngày, Dự Đoán, Kết Quả, Trạng Thái (Ăn/Gãy)
+   - **Màu sắc:** Dòng thắng màu xanh, dòng thua màu đỏ
+
+**Lưu ý:**
+- Tính năng này hoạt động cho cả **Cầu Lô** và **Cầu Đề**.
+- Backtest chạy trong luồng nền, không làm đơ giao diện.
+
+### 📌 Ghim Cầu (Pin) - Bảo Vệ Cầu Quan Trọng
+
+**Mục đích:** Bảo vệ các cầu quan trọng khỏi bị tự động loại bỏ bởi hệ thống Pruning.
+
+**Cách sử dụng:**
+1. Vào Tab `Quản lý Cầu (V17)`.
+2. Tìm cầu bạn muốn ghim trong danh sách.
+3. **Click đúp** vào tên cầu (hoặc sử dụng menu context nếu có).
+4. Cầu sẽ được đánh dấu là **"Đã ghim"** (is_pinned = 1).
+5. Cầu đã ghim sẽ:
+   - ✅ **KHÔNG bị** tự động vô hiệu hóa bởi Pruning
+   - ✅ **KHÔNG bị** tự động BẬT/TẮT bởi Auto Manage
+   - ✅ **Được bảo vệ** hoàn toàn khỏi các tác vụ tự động hóa
+
+**Bỏ ghim:**
+- Click đúp lại vào cầu đã ghim để bỏ ghim.
+
+**Lưu ý:**
+- Tính năng này rất hữu ích khi bạn có cầu "tủ" mà không muốn hệ thống tự động xóa.
+- Cầu đã ghim vẫn có thể được xóa thủ công nếu cần.
+
+### ✂️ Loại Bỏ Tự Động (Pruning) - Tự Động Xóa Cầu Yếu
+
+**Mục đích:** Tự động loại bỏ các cầu Đề có rủi ro lịch sử cao (chuỗi gãy quá dài).
+
+**Cách kích hoạt:**
+1. Vào Tab `Điều Khiển`.
+2. Tìm nút **"Loại Bỏ Cầu Đề Yếu"** (hoặc tương tự).
+3. Click để chạy tác vụ.
+
+**Logic hoạt động:**
+- Hệ thống sẽ:
+  1. Lấy tất cả cầu Đề từ database.
+  2. Tính toán **chuỗi Gãy Lâu Nhất (Max Lose Streak)** cho mỗi cầu.
+  3. So sánh với **ngưỡng** (mặc định: 20 ngày, có thể cấu hình trong `config.json`).
+  4. Nếu `Max Lose > Ngưỡng`: Tự động vô hiệu hóa cầu (is_enabled = 0).
+  5. **Bỏ qua** các cầu đã ghim (is_pinned = 1).
+
+**Cấu hình:**
+- Ngưỡng mặc định: `DE_MAX_LOSE_THRESHOLD = 20` (trong `config.json`).
+- Có thể điều chỉnh theo nhu cầu (ví dụ: 15 ngày cho chặt chẽ hơn, 30 ngày cho lỏng hơn).
+
+**Lưu ý:**
+- Tính năng này chỉ áp dụng cho **Cầu Đề** (DE_POS, DE_DYN).
+- Cầu đã ghim sẽ **KHÔNG bị** ảnh hưởng.
+- Tác vụ chạy trong luồng nền, không làm đơ giao diện.
+- Kết quả sẽ được hiển thị trong log (ví dụ: "Đã vô hiệu hóa 3 cầu Đề (Max Lose > 20 ngày)").
+
+---
+
 *Tài liệu hướng dẫn nội bộ - Vui lòng không chia sẻ ra ngoài.*
