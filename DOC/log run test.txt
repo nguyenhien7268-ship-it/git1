@@ -1,51 +1,27 @@
-C:\Users\KAKA\Documents\27loto\CODE5\git1>python scripts/verify_phase_4_automation_final.py
 Đã tải cài đặt từ config.json
 ConfigManager (V7.8) đã khởi tạo thành công.
+F
 ======================================================================
-▶️ BẮT ĐẦU KIỂM TRA CHỨC NĂNG TỰ ĐỘNG HÓA (PIN & PRUNE) - PHASE 4
-======================================================================
-EEE
-======================================================================
-ERROR: test_01_toggle_pin_functionality (__main__.TestPhase4Automation.test_01_toggle_pin_functionality)
-Kiểm tra: Bật/Tắt ghim cầu hoạt động đúng trong DB.
+FAIL: test_recent_form_calculation_is_correct (__main__.TestRecentFormCalculation.test_recent_form_calculation_is_correct)
+Kiểm tra xem Phong Độ 10 Kỳ có tính toán đúng 5/10 không.
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "C:\Users\KAKA\Documents\27loto\CODE5\git1\scripts\verify_phase_4_automation_final.py", line 86, in test_01_toggle_pin_functionality
-    self.mock_db_manager.update_bridge_status.assert_called_with(
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "C:\Users\KAKA\AppData\Local\Programs\Python\Python314\Lib\unittest\mock.py", line 696, in __getattr__
-    raise AttributeError("Mock object has no attribute %r" % name)
-AttributeError: Mock object has no attribute 'update_bridge_status'
-
-======================================================================
-ERROR: test_02_prune_bad_de_bridges_protection (__main__.TestPhase4Automation.test_02_prune_bad_de_bridges_protection)
-Kiểm tra: Cầu được ghim phải được BỎ QUA khi chạy Pruning.
-----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "C:\Users\KAKA\Documents\27loto\CODE5\git1\scripts\verify_phase_4_automation_final.py", line 116, in test_02_prune_bad_de_bridges_protection
-    self.mock_db_manager.update_bridge_status.assert_any_call(
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "C:\Users\KAKA\AppData\Local\Programs\Python\Python314\Lib\unittest\mock.py", line 696, in __getattr__
-    raise AttributeError("Mock object has no attribute %r" % name)
-AttributeError: Mock object has no attribute 'update_bridge_status'
-
-======================================================================
-ERROR: test_03_pruning_logic_is_active (__main__.TestPhase4Automation.test_03_pruning_logic_is_active)
-Kiểm tra: Logic Pruning cơ bản hoạt động (Tắt 2 cầu > Max Lose).
-----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "C:\Users\KAKA\Documents\27loto\CODE5\git1\scripts\verify_phase_4_automation_final.py", line 145, in test_03_pruning_logic_is_active
-    self.mock_db_manager.update_bridge_status.assert_any_call(
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "C:\Users\KAKA\AppData\Local\Programs\Python\Python314\Lib\unittest\mock.py", line 696, in __getattr__
-    raise AttributeError("Mock object has no attribute %r" % name)
-AttributeError: Mock object has no attribute 'update_bridge_status'
+  File "C:\Users\KAKA\AppData\Local\Programs\Python\Python314\Lib\unittest\mock.py", line 1432, in patched
+    return func(*newargs, **newkeywargs)
+  File "C:\Users\KAKA\Documents\27loto\CODE5\git1\scripts\test_recent_form_calculation.py", line 107, in test_recent_form_calculation_is_correct
+    self.assertEqual(actual_recent_form, expected_recent_form,
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        f"Lỗi tính toán Phong Độ 10 Kỳ. Thực tế: {actual_recent_form}, Mong đợi: {expected_recent_form}.")
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '0/10' != '5/10'
+- 0/10
+? ^
++ 5/10
+? ^
+ : Lỗi tính toán Phong Độ 10 Kỳ. Thực tế: 0/10, Mong đợi: 5/10.
 
 ----------------------------------------------------------------------
-Ran 3 tests in 0.007s
+Ran 1 test in 0.003s
 
-FAILED (errors=3)
-======================================================================
-✅ XÁC NHẬN: Logic Pruning & Pinning đã được kiểm tra.
-👉 Nếu tất cả test đều PASS, hệ thống đã sẵn sàng cho Giai đoạn Mở Rộng.
-======================================================================
+FAILED (failures=1)
+[Finished in 200ms]

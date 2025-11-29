@@ -29,6 +29,21 @@ except ImportError:
         def taoSTL_V30_Bong(p1, p2):
             return ["00", "00"]
 
+# Import các hàm xử lý Memory Bridge (Bạc Nhớ)
+try:
+    from logic.bridges.bridges_memory import calculate_bridge_stl, get_27_loto_positions
+except ImportError:
+    try:
+        from bridges.bridges_memory import calculate_bridge_stl, get_27_loto_positions
+    except ImportError:
+        def calculate_bridge_stl(loto1, loto2, algorithm_type):
+            return ["00", "00"]
+        def get_27_loto_positions(row):
+            return ["00"] * 27
+
+# Import re cho parsing bridge name
+import re
+
 def load_data_ai_from_db(db_name=DB_NAME):
     """Tải toàn bộ dữ liệu A:I từ DB (10 cột). Trả về (rows, message)"""
     
@@ -214,16 +229,54 @@ def get_managed_bridges_with_prediction(db_name=DB_NAME, current_data=None, only
         # Lấy positions từ dòng cuối
         positions = getAllPositions_V17_Shadow(last_row)
         
+        # Lấy lotos từ dòng cuối cho Memory Bridge
+        last_lotos = get_27_loto_positions(last_row)
+        
         # Duyệt qua từng cầu và tính toán dự đoán
         for bridge in bridges:
             pos1_idx = bridge.get("pos1_idx")
             pos2_idx = bridge.get("pos2_idx")
             
-            # Bỏ qua nếu không có vị trí hoặc là memory bridge (idx = -1)
-            if pos1_idx is None or pos2_idx is None or pos1_idx == -1 or pos2_idx == -1:
+            # Khởi tạo next_prediction_stl từ DB (nếu có)
+            if "next_prediction_stl" not in bridge or not bridge.get("next_prediction_stl"):
+                bridge["next_prediction_stl"] = "N/A"
+            
+            # Bỏ qua nếu không có vị trí
+            if pos1_idx is None or pos2_idx is None:
                 continue
             
             try:
+                # Kiểm tra Memory Bridge (Bạc Nhớ)
+                if pos1_idx == -1 and pos2_idx == -1:
+                    bridge_name = bridge.get("name", "")
+                    pred_stl = None
+                    
+                    # Parse và tính toán cho Memory Bridge
+                    if "Tổng(" in bridge_name:
+                        match = re.search(r'Tổng\((\d+)\+(\d+)\)', bridge_name)
+                        if match:
+                            pos1, pos2 = int(match.group(1)), int(match.group(2))
+                            if pos1 < len(last_lotos) and pos2 < len(last_lotos):
+                                loto1, loto2 = last_lotos[pos1], last_lotos[pos2]
+                                if loto1 and loto2:
+                                    pred_stl = calculate_bridge_stl(loto1, loto2, "sum")
+                    elif "Hiệu(" in bridge_name:
+                        match = re.search(r'Hiệu\((\d+)-(\d+)\)', bridge_name)
+                        if match:
+                            pos1, pos2 = int(match.group(1)), int(match.group(2))
+                            if pos1 < len(last_lotos) and pos2 < len(last_lotos):
+                                loto1, loto2 = last_lotos[pos1], last_lotos[pos2]
+                                if loto1 and loto2:
+                                    pred_stl = calculate_bridge_stl(loto1, loto2, "diff")
+                    
+                    if pred_stl and isinstance(pred_stl, list) and len(pred_stl) >= 2:
+                        # Chuyển đổi thành chuỗi (VD: ['12', '21'] -> "12,21")
+                        pred_str = ",".join(str(x) for x in pred_stl if x)
+                        if pred_str:
+                            bridge["next_prediction_stl"] = pred_str
+                    continue
+                
+                # V17 Bridge (original logic)
                 # Kiểm tra index hợp lệ
                 if pos1_idx < len(positions) and pos2_idx < len(positions):
                     p1 = positions[pos1_idx]
@@ -237,16 +290,13 @@ def get_managed_bridges_with_prediction(db_name=DB_NAME, current_data=None, only
                     pred_stl = taoSTL_V30_Bong(int(p1), int(p2))
                     
                     # Chuyển đổi thành chuỗi (VD: ['12', '21'] -> "12,21")
-                    if isinstance(pred_stl, list):
+                    if isinstance(pred_stl, list) and len(pred_stl) >= 2:
                         pred_str = ",".join(str(x) for x in pred_stl if x)
-                    else:
-                        pred_str = str(pred_stl) if pred_stl else "N/A"
-                    
-                    # Cập nhật next_prediction_stl
-                    bridge["next_prediction_stl"] = pred_str
+                        if pred_str:
+                            bridge["next_prediction_stl"] = pred_str
             except (ValueError, TypeError, IndexError) as e:
-                # Bỏ qua lỗi tính toán cho cầu này
-                continue
+                # Giữ nguyên giá trị từ DB nếu có lỗi
+                pass
     except Exception as e:
         # Nếu có lỗi khi tính toán, vẫn trả về danh sách cầu (không có dự đoán)
         print(f"Lỗi khi tính toán dự đoán cầu: {e}")

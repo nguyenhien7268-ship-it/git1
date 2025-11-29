@@ -26,6 +26,7 @@ class AnalysisService:
                 run_ai_prediction_for_dashboard,
                 run_ai_training_threaded,
                 run_and_update_all_bridge_K2N_cache,
+                run_and_update_all_bridge_rates,
             )
             self.BACKTEST_15_CAU_K2N = BACKTEST_15_CAU_K2N_V30_AI_V8
             self.BACKTEST_15_CAU_N1 = BACKTEST_15_CAU_N1_V31_AI_V8
@@ -37,6 +38,7 @@ class AnalysisService:
             self.run_ai_prediction_for_dashboard = run_ai_prediction_for_dashboard
             self.run_ai_training_threaded = run_ai_training_threaded
             self.run_and_update_all_bridge_K2N_cache = run_and_update_all_bridge_K2N_cache
+            self.run_and_update_all_bridge_rates = run_and_update_all_bridge_rates
         except ImportError as e:
             self._log(f"Lỗi import backtest functions: {e}")
         
@@ -279,7 +281,7 @@ class AnalysisService:
             next_ky = f"Kỳ {last_row[0]} (Next)"
         
         # Thống kê
-        self._log(f"... (1/5) Đang thống kê Loto Về Nhiều ({n_days_stats} ngày)...")
+        self._log(f"... (1/6) Đang thống kê Loto Về Nhiều ({n_days_stats} ngày)...")
         try:
             stats_n_day = self.get_loto_stats_last_n_days(all_data_ai, n=n_days_stats)
             if stats_n_day is None:
@@ -292,7 +294,7 @@ class AnalysisService:
             stats_n_day = []
         
         # K2N Cache
-        self._log("... (2/5) Đang chạy hàm Cập nhật K2N Cache...")
+        self._log("... (2/6) Đang chạy hàm Cập nhật K2N Cache...")
         try:
             pending_k2n_data, _, cache_message = self.run_and_update_all_bridge_K2N_cache(all_data_ai, self.db_name)
             if pending_k2n_data is None:
@@ -302,10 +304,21 @@ class AnalysisService:
             self._log(f"Lỗi Cache K2N: {e}")
             pending_k2n_data = {}
         
-        # Consensus & High Win
-        self._log("... (3/5) Đang đọc Consensus và Cầu Tỷ lệ Cao từ cache...")
+        # K1N Rates & Recent Win Count (Phong Độ 10 Kỳ)
+        self._log("... (2.5/6) Đang cập nhật Tỷ Lệ và Phong Độ 10 Kỳ từ K1N...")
         try:
-            consensus = self.get_prediction_consensus()
+            count, rate_message = self.run_and_update_all_bridge_rates(all_data_ai, self.db_name)
+            self._log(f"... (K1N Rates) {rate_message}")
+        except Exception as e:
+            self._log(f"Lỗi cập nhật K1N Rates: {e}")
+            import traceback
+            self._log(traceback.format_exc())
+        
+        # Consensus & High Win
+        self._log("... (3/6) Đang đọc Consensus và Cầu Tỷ lệ Cao từ cache...")
+        try:
+            # Truyền last_row để tính toán trực tiếp (ưu tiên hơn cache)
+            consensus = self.get_prediction_consensus(last_row=last_row, db_name=self.db_name)
             if consensus is None:
                 consensus = []
             self._log(f"... (Consensus) Đã đọc được {len(consensus)} cặp có vote")
@@ -324,7 +337,7 @@ class AnalysisService:
             high_win = []
         
         # Gan stats
-        self._log(f"... (4/5) Đang tìm Lô Gan (trên {n_days_gan} kỳ)...")
+        self._log(f"... (4/6) Đang tìm Lô Gan (trên {n_days_gan} kỳ)...")
         try:
             gan_stats = self.get_loto_gan_stats(all_data_ai, n_days=n_days_gan)
             if gan_stats is None:
@@ -334,7 +347,7 @@ class AnalysisService:
             gan_stats = []
         
         # AI predictions
-        self._log("... (5/5) Đang chạy dự đoán AI...")
+        self._log("... (5/6) Đang chạy dự đoán AI...")
         try:
             ai_result = self.run_ai_prediction_for_dashboard()
             if ai_result and isinstance(ai_result, tuple) and len(ai_result) >= 2:
@@ -536,7 +549,9 @@ class AnalysisService:
                 log_callback("... (Chạy Cache K2N một lần để lấy dữ liệu nền)...")
                 pending_k2n, _, _ = self.run_and_update_all_bridge_K2N_cache(all_data_ai, self.db_name)
                 stats_n_day = self.get_loto_stats_last_n_days(all_data_ai)
-                consensus = self.get_prediction_consensus()
+                # Truyền last_row nếu có để tính toán trực tiếp
+                test_last_row = all_data_ai[-1] if all_data_ai else None
+                consensus = self.get_prediction_consensus(last_row=test_last_row, db_name=self.db_name)
                 high_win = self.get_high_win_rate_predictions()
                 gan_stats = self.get_loto_gan_stats(all_data_ai)
                 top_memory = self.get_top_memory_bridge_predictions(all_data_ai, last_row)

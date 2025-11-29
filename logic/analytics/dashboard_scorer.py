@@ -184,30 +184,125 @@ def _standardize_pair(stl_list):
     return f"{sorted_pair[0]}-{sorted_pair[1]}"
 
 def get_prediction_consensus(last_row=None, db_name=DB_NAME):
-    """Lấy dự đoán từ "15 Cầu" (cache) và "Cầu Đã Lưu" (cache) để đếm vote THEO CẶP."""
+    """Lấy dự đoán từ "15 Cầu" và "Cầu Đã Lưu" để đếm vote THEO CẶP.
+    Nếu có last_row, tính toán trực tiếp. Nếu không, lấy từ cache (next_prediction_stl trong DB)."""
     try:
         prediction_sources = {}
-        managed_bridges = get_all_managed_bridges(db_name, only_enabled=True)
-        if not managed_bridges:
-            return []
-        for bridge in managed_bridges:
+        
+        def get_pair_key(stl_list):
+            """Chuẩn hóa 1 cặp STL. Ví dụ ['30', '03'] -> '03-30'"""
+            if not stl_list or len(stl_list) != 2:
+                return None
+            sorted_pair = sorted(stl_list)
+            return f"{sorted_pair[0]}-{sorted_pair[1]}"
+        
+        # Nếu có last_row, tính toán trực tiếp (ưu tiên)
+        if last_row and len(last_row) >= 10:
             try:
-                prediction_stl_str = bridge.get("next_prediction_stl")
-                if (not prediction_stl_str or "N2" in prediction_stl_str or "LỖI" in prediction_stl_str or "," not in prediction_stl_str):
-                    continue
-                stl = prediction_stl_str.split(",")
-                pair_key = _standardize_pair(stl)
-                if not pair_key:
-                    continue
-                source_name = bridge["name"]
-                if source_name.startswith("Cầu "):
-                    source_name = f"C{source_name.split(' ')[1]}"
-                if pair_key not in prediction_sources:
-                    prediction_sources[pair_key] = []
-                if source_name not in prediction_sources[pair_key]:
-                    prediction_sources[pair_key].append(source_name)
+                # Import các hàm cần thiết (đã import ở đầu file, chỉ cần dùng)
+                # getAllPositions_V16, taoSTL_V30_Bong, calculate_bridge_stl, get_27_loto_positions, ALL_15_BRIDGE_FUNCTIONS_V5 đã có
+                import re
+                
+                # 1. Lấy từ 15 Cầu Cổ Điển
+                for i, bridge_func in enumerate(ALL_15_BRIDGE_FUNCTIONS_V5):
+                    try:
+                        stl = bridge_func(last_row)
+                        pair_key = get_pair_key(stl)
+                        if pair_key:
+                            source_name = f"C{i + 1}"
+                            if pair_key not in prediction_sources:
+                                prediction_sources[pair_key] = []
+                            if source_name not in prediction_sources[pair_key]:
+                                prediction_sources[pair_key].append(source_name)
+                    except Exception:
+                        pass
+                
+                # 2. Lấy từ Cầu Đã Lưu (tính toán trực tiếp)
+                managed_bridges = get_all_managed_bridges(db_name, only_enabled=True)
+                if managed_bridges:
+                    # Dùng getAllPositions_V17_Shadow (đã import) thay vì getAllPositions_V16
+                    last_positions = getAllPositions_V17_Shadow(last_row)
+                    last_lotos = get_27_loto_positions(last_row)
+                    
+                    for bridge in managed_bridges:
+                        try:
+                            idx1, idx2 = bridge.get("pos1_idx"), bridge.get("pos2_idx")
+                            
+                            # Memory Bridge
+                            if idx1 == -1 and idx2 == -1:
+                                bridge_name = bridge.get("name", "")
+                                stl = None
+                                
+                                if "Tổng(" in bridge_name:
+                                    match = re.search(r'Tổng\((\d+)\+(\d+)\)', bridge_name)
+                                    if match:
+                                        pos1, pos2 = int(match.group(1)), int(match.group(2))
+                                        if pos1 < len(last_lotos) and pos2 < len(last_lotos):
+                                            loto1, loto2 = last_lotos[pos1], last_lotos[pos2]
+                                            if loto1 and loto2:
+                                                stl = calculate_bridge_stl(loto1, loto2, "sum")
+                                elif "Hiệu(" in bridge_name:
+                                    match = re.search(r'Hiệu\((\d+)-(\d+)\)', bridge_name)
+                                    if match:
+                                        pos1, pos2 = int(match.group(1)), int(match.group(2))
+                                        if pos1 < len(last_lotos) and pos2 < len(last_lotos):
+                                            loto1, loto2 = last_lotos[pos1], last_lotos[pos2]
+                                            if loto1 and loto2:
+                                                stl = calculate_bridge_stl(loto1, loto2, "diff")
+                                
+                                if stl:
+                                    pair_key = get_pair_key(stl)
+                                    if pair_key:
+                                        source_name = bridge["name"]
+                                        if pair_key not in prediction_sources:
+                                            prediction_sources[pair_key] = []
+                                        if source_name not in prediction_sources[pair_key]:
+                                            prediction_sources[pair_key].append(source_name)
+                                continue
+                            
+                            # V17 Bridge
+                            if idx1 is not None and idx2 is not None and idx1 >= 0 and idx2 >= 0:
+                                if idx1 < len(last_positions) and idx2 < len(last_positions):
+                                    a, b = last_positions[idx1], last_positions[idx2]
+                                    if a is not None and b is not None:
+                                        stl = taoSTL_V30_Bong(a, b)
+                                        pair_key = get_pair_key(stl)
+                                        if pair_key:
+                                            source_name = bridge["name"]
+                                            if pair_key not in prediction_sources:
+                                                prediction_sources[pair_key] = []
+                                            if source_name not in prediction_sources[pair_key]:
+                                                prediction_sources[pair_key].append(source_name)
+                        except Exception:
+                            pass
             except Exception as e:
-                print(f"Lỗi dự đoán Cầu (consensus cache) {bridge.get('name')}: {e}")
+                print(f"Lỗi tính toán consensus từ last_row: {e}")
+                # Fallback: dùng cache
+                last_row = None
+        
+        # Nếu không có last_row hoặc tính toán thất bại, lấy từ cache
+        if not last_row or len(prediction_sources) == 0:
+            managed_bridges = get_all_managed_bridges(db_name, only_enabled=True)
+            if managed_bridges:
+                for bridge in managed_bridges:
+                    try:
+                        prediction_stl_str = bridge.get("next_prediction_stl")
+                        if (not prediction_stl_str or "N2" in prediction_stl_str or "LỖI" in prediction_stl_str or "," not in prediction_stl_str):
+                            continue
+                        stl = prediction_stl_str.split(",")
+                        pair_key = get_pair_key(stl)
+                        if not pair_key:
+                            continue
+                        source_name = bridge["name"]
+                        if source_name.startswith("Cầu "):
+                            source_name = f"C{source_name.split(' ')[1]}"
+                        if pair_key not in prediction_sources:
+                            prediction_sources[pair_key] = []
+                        if source_name not in prediction_sources[pair_key]:
+                            prediction_sources[pair_key].append(source_name)
+                    except Exception as e:
+                        print(f"Lỗi dự đoán Cầu (consensus cache) {bridge.get('name')}: {e}")
+        
         consensus_list = []
         for pair_key, sources in prediction_sources.items():
             count = len(sources)

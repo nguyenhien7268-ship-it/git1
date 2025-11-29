@@ -337,17 +337,24 @@ def upsert_managed_bridge(bridge_name, description, win_rate, db_name=DB_NAME, p
 
 
 def update_bridge_k2n_cache_batch(cache_data_list, db_name=DB_NAME):
+    """
+    Cập nhật Cache K2N cho Cầu Đã Lưu.
+    LƯU Ý: KHÔNG cập nhật recent_win_count_10 ở đây - trường này chỉ được cập nhật từ K1N.
+    """
     updated_count = 0
     conn = None
     try:
         conn = sqlite3.connect(db_name)
         cursor = conn.cursor()
+        # [FIX] Loại bỏ recent_win_count_10 khỏi cập nhật K2N - chỉ cập nhật từ K1N
         sql_update = """
         UPDATE ManagedBridges
-        SET win_rate_text = ?, current_streak = ?, next_prediction_stl = ?, max_lose_streak_k2n = ?, recent_win_count_10 = ?
+        SET win_rate_text = ?, current_streak = ?, next_prediction_stl = ?, max_lose_streak_k2n = ?
         WHERE name = ?
         """
-        cursor.executemany(sql_update, cache_data_list)
+        # Chỉ lấy 5 phần tử đầu (bỏ recent_win_count_10 ở vị trí thứ 5)
+        cache_data_list_fixed = [(row[0], row[1], row[2], row[3], row[5]) for row in cache_data_list]
+        cursor.executemany(sql_update, cache_data_list_fixed)
         updated_count = cursor.rowcount
         conn.commit()
         return True, f"Đã cập nhật cache K2N cho {updated_count} cầu."
@@ -370,6 +377,24 @@ def update_bridge_win_rate_batch(rate_data_list, db_name=DB_NAME):
         return True, f"Đã cập nhật Tỷ Lệ N1 cho {updated_count} cầu (BN)."
     except Exception as e:
         return False, f"Lỗi SQL cập nhật Tỷ Lệ N1: {e}"
+    finally:
+        if conn: conn.close()
+
+
+def update_bridge_recent_win_count_batch(recent_win_data_list, db_name=DB_NAME):
+    """Cập nhật recent_win_count_10 cho Cầu Đã Lưu từ kết quả K1N"""
+    updated_count = 0
+    conn = None
+    try:
+        conn = sqlite3.connect(db_name)
+        cursor = conn.cursor()
+        sql_update = "UPDATE ManagedBridges SET recent_win_count_10 = ? WHERE name = ?"
+        cursor.executemany(sql_update, recent_win_data_list)
+        updated_count = cursor.rowcount
+        conn.commit()
+        return True, f"Đã cập nhật Phong Độ 10 Kỳ (K1N) cho {updated_count} cầu."
+    except Exception as e:
+        return False, f"Lỗi SQL cập nhật Phong Độ 10 Kỳ: {e}"
     finally:
         if conn: conn.close()
 

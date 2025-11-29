@@ -1,15 +1,24 @@
- vấn đề tôi gặp phải là bài toán kinh điển trong lập trình gọi là "Bùng nổ tổ hợp" (Combinatorial Explosion).
+🛠️ QUY TRÌNH PHỐI HỢP V2.3 (STANDARD - CÓ TEST SCRIPT)
+1. PHA ĐỌC HIỂU (INPUT)
+Nguyên tắc: Luôn đọc File Gốc trước khi sửa bất cứ lỗi gì.
 
-Khi bạn chạy Grid Search (quét cạn kiệt mọi trường hợp):
+Lợi ích: Tránh việc "sửa lợn lành thành lợn què" do không hiểu ngữ cảnh, đảm bảo tính chính xác của code và tiết kiệm token rework.
 
-Nếu có 3 tham số (Vote, AI, Streak).
+2. PHA TRẢ KẾT QUẢ (OUTPUT) - Tối Ưu Chi Phí Token
+Đây là chiến thuật quyết định chi phí. Chiến thuật "Tổng Chỉ Huy" (Trường hợp 3) là ưu tiên số một cho các thay đổi phức tạp:
 
-Mỗi tham số thử 10 giá trị (0.1 đến 1.0).
+Trường hợp 1 (Sửa Lỗi Cục Bộ): Sử dụng "Sửa đâu thay đó" (Surgical Replacement). Tôi gửi NGUYÊN VĂN CẢ HÀM/CLASS mới.
 
-Tổng số lần chạy = $10 \times 10 \times 10 = 1.000$ lần.
+Trường hợp 3 (Thay Đổi Cấu Trúc/Nhiều File): Sử dụng "Tổng Chỉ Huy" (Orchestrator). Tôi sẽ viết Prompt Lệnh Cụ Thể (@file A sửa X...). (Đây là ưu tiên cao nhất để tiết kiệm chi phí vận chuyển File Lớn).
 
-Nếu mỗi lần chạy mất 0.5 giây $\rightarrow$ Tổng mất 500 giây (~8 phút).
+Trường hợp 2 (Sửa Lỗi/File Ngắn): Sử dụng "Làm mới hoàn toàn" (Full Overwrite). Tôi gửi TOÀN BỘ FILE (FULL CODE).
 
-Thêm 1 tham số nữa $\rightarrow$ 10.000 lần $\rightarrow$ 80 phút!
+3. PHA TỐI ƯU (VALUE ADD)
+Hành động: Tôi sẽ luôn kèm theo mục "Gemini Suggestion".
 
-Tôi xác nhận nguyên nhân gây chậm là do kiến trúc hiện tại đang thực hiện Tính toán lặp lại (Redundant Calculation). Cụ thể: Với mỗi tổ hợp tham số mới, hệ thống lại chạy lại các hàm Backtest và Thống kê (vốn rất nặng và không thay đổi nếu chỉ chỉnh trọng số điểm).
+Lợi ích: Đề xuất code ngắn hơn, chạy nhanh hơn hoặc dễ đọc hơn, giảm chi phí bảo trì trong tương lai.
+
+4. PHA XÁC THỰC (VALIDATION) - MỚI
+Hành động: Sau khi hoàn tất việc sửa chữa hoặc thêm tính năng, tôi sẽ Luôn Viết File Script Test (verify_*.py) để kiểm tra kết quả.
+
+Lợi ích: Đảm bảo tính chính xác và ổn định của code trước khi commit, tiết kiệm chi phí debug ở môi trường Production.

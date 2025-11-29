@@ -9,7 +9,8 @@ try:
         analyze_market_trends, 
         get_de_consensus, 
         calculate_number_scores, 
-        get_top_strongest_sets
+        get_top_strongest_sets,
+        calculate_top_touch_combinations
     )
     from logic.bridges.de_bridge_scanner import run_de_scanner
     from logic.bridges.bridge_manager_de import de_manager
@@ -24,6 +25,7 @@ class UiDeDashboard(ttk.Frame):
         self.scores = []
         self.strong_sets = []
         self.top_touches = []
+        self.touch_combos = []  # Lưu kết quả phân tích tổ hợp 4 chạm
         self.init_ui()
         
     def init_ui(self):
@@ -205,111 +207,103 @@ class UiDeDashboard(ttk.Frame):
         self.scores = calculate_number_scores(bridges)
         self.strong_sets = get_top_strongest_sets(bridges)
         
-        # Top 4 Chạm (Consensus)
+        # Top 4 Chạm (Consensus) - Giữ nguyên để fallback
         consensus = get_de_consensus(bridges)
         top_cham_list = consensus.get('consensus_cham', [])[:4]
         self.top_touches = [str(item[0]) for item in top_cham_list]
+        
+        # Tính toán tổ hợp 4 chạm (Combinatorial Touch Analysis)
+        try:
+            self.touch_combos = calculate_top_touch_combinations(data, num_touches=4, days=10)
+        except Exception as e:
+            print(f"[ERROR] Lỗi khi tính toán tổ hợp 4 chạm: {e}")
+            import traceback
+            traceback.print_exc()
+            self.touch_combos = []
+        
         self.after(0, self._update_scan_ui)
         
     def _update_scan_ui(self):
         for row in self.tree_bridges.get_children(): self.tree_bridges.delete(row)
         
-        # Đảm bảo self.strong_sets được khởi tạo
         if not hasattr(self, 'strong_sets') or self.strong_sets is None:
             self.strong_sets = []
         
-        best_thong_val = None
-        best_rate_val = None
-        max_streak_found = -1
-        max_rate_found = -1.0  # Sử dụng float để so sánh win_rate
-        
-        # Helper: Chuyển tên Bộ thành chuỗi chạm (VD: Bộ 01 -> "0,1,5,6")
-        def expand_bo_to_touch(bo_name):
-            if bo_name in BO_SO_DE:
-                digits = set()
-                for n in BO_SO_DE[bo_name]: digits.add(n[0]); digits.add(n[1])
-                return ",".join(sorted(list(digits)))
-            return bo_name
-
-        # DUYỆT CẦU ĐỂ HIỂN THỊ VÀ TÌM BEST
+        # --- HIỂN THỊ TREEVIEW CẦU (GIỮ NGUYÊN) ---
         for i, b in enumerate(self.found_bridges):
             try:
                 p_val = b.get('predicted_value', '')
                 b_type = str(b.get('type', '')).upper()
+                streak = b.get('streak', 0)
+                win_rate = b.get('win_rate', 0)
                 
                 lbl_type = "Cầu Thông"
                 if 'BO' in b_type: lbl_type = "Cầu Bộ"
                 elif 'TI_LE' in b_type: lbl_type = "Cầu Tỉ Lệ"
-                
                 p_text = f"Bộ {p_val}" if 'BO' in b_type else f"Chạm {p_val}"
-                info = f"{b.get('streak', 0)} kỳ" if 'THONG' in b_type else f"{b.get('win_rate', 0):.0f}%"
-                if 'BO' in b_type and 'THONG' in b_type: info += " (🔥)"
                 
-                # For old format compatibility
                 wins_10 = b.get('wins_10', 0)
+                if 'THONG' in b_type:
+                    info = f"{streak} kỳ"
+                elif wins_10 > 0:
+                    info = f"{wins_10}/10"
+                else:
+                    info = f"{win_rate:.0f}%"
+
                 hp = b.get('hp', 3)
-                form_show = f"{wins_10}/10" if wins_10 > 0 else info
+                form_show = info
                 hp_show = "❤️" * hp if hp <= 3 else str(hp)
                 
-                self.tree_bridges.insert("", "end", iid=i, values=(b.get('name', ''), p_text, b.get('streak', 0), form_show, hp_show))
-                
-                # --- LOGIC TÌM BEST (FIXED) ---
-                # 1. Tìm Chạm Thông Tốt Nhất (Ưu tiên Streak cao nhất)
-                # Đảm bảo streak là số hợp lệ
-                streak = b.get('streak', 0)
-                if not isinstance(streak, (int, float)):
-                    try:
-                        streak = float(streak) if streak else 0
-                    except (ValueError, TypeError):
-                        streak = 0
-                
-                if streak > max_streak_found:
-                    max_streak_found = streak
-                    if 'BO' in b_type:
-                        best_thong_val = expand_bo_to_touch(p_val) # Bung Bộ ra chạm
-                    else:
-                        best_thong_val = str(p_val) if p_val else None
-                
-                # 2. Tìm Chạm Tỉ Lệ Tốt Nhất (Ưu tiên WinRate cao nhất)
-                # Đảm bảo win_rate là số hợp lệ và >= 0
-                win_rate = b.get('win_rate', 0)
-                if not isinstance(win_rate, (int, float)):
-                    try:
-                        win_rate = float(win_rate) if win_rate else 0
-                    except (ValueError, TypeError):
-                        win_rate = 0
-                
-                if win_rate >= 0 and win_rate > max_rate_found:
-                    max_rate_found = win_rate
-                    if 'BO' in b_type:
-                        best_rate_val = expand_bo_to_touch(p_val)
-                    else:
-                        best_rate_val = str(p_val) if p_val else None
+                self.tree_bridges.insert("", "end", iid=i, values=(b.get('name', ''), p_text, streak, form_show, hp_show))
             except Exception as e:
-                # Bỏ qua lỗi và tiếp tục với cầu tiếp theo
                 print(f"Lỗi xử lý cầu {i}: {e}")
                 continue
 
-        # Nếu không tìm thấy tỉ lệ (hiếm), fallback
-        if not best_rate_val and best_thong_val:
-            best_rate_val = best_thong_val
+        # --- LOGIC MỚI: PHÂN TÍCH TỔ HỢP 4 CHẠM ---
         
-        # Đảm bảo giá trị không None trước khi hiển thị
-        cham_thong_display = best_thong_val if best_thong_val else '...'
-        cham_rate_display = best_rate_val if best_rate_val else '...'
+        # 1. Chạm Thông: Top 3 Max Streak từ touch_combos
+        cham_thong_list = []
+        if hasattr(self, 'touch_combos') and self.touch_combos:
+            # Lấy Top 3 tổ hợp có Max Streak cao nhất
+            top_streak_combos = self.touch_combos[:3]  # Đã được sắp xếp theo streak giảm dần
+            
+            for combo in top_streak_combos:
+                touches_str = ''.join(map(str, combo['touches']))  # VD: [0,1,2,3] -> "0123"
+                streak = combo['streak']
+                if streak > 0:  # Chỉ hiển thị nếu có streak > 0
+                    cham_thong_list.append(f"{touches_str} ({streak} kỳ)")
         
+        cham_thong_display = ', '.join(cham_thong_list) if cham_thong_list else '...'
         self.lbl_cham_thong.config(text=f"💎 Chạm Thông: {cham_thong_display}")
+        
+        # 2. Chạm Tỉ Lệ: Top 3 có Tỉ lệ >= 80% từ touch_combos
+        cham_rate_list = []
+        if hasattr(self, 'touch_combos') and self.touch_combos:
+            # Lọc các tổ hợp có rate_percent >= 80%
+            high_rate_combos = [c for c in self.touch_combos if c['rate_percent'] >= 80.0]
+            # Lấy Top 3
+            top_rate_combos = high_rate_combos[:3]
+            
+            for combo in top_rate_combos:
+                touches_str = ''.join(map(str, combo['touches']))  # VD: [3,5,7,9] -> "3579"
+                rate_hits = combo['rate_hits']
+                rate_total = combo['rate_total']
+                cham_rate_list.append(f"{touches_str} ({rate_hits}/{rate_total} kỳ)")
+        
+        # Fallback về Top 4 Consensus nếu không có tổ hợp nào >= 80%
+        if not cham_rate_list:
+            cham_rate_display = ', '.join(self.top_touches) if self.top_touches else '...'
+        else:
+            cham_rate_display = ', '.join(cham_rate_list)
+        
         self.lbl_cham_rate.config(text=f"⭐ Chạm Tỉ Lệ: {cham_rate_display}")
         
-        # Đảm bảo self.strong_sets tồn tại và là list
-        if not hasattr(self, 'strong_sets') or not isinstance(self.strong_sets, list):
-            self.strong_sets = []
-        
+        # 3. Bộ Đẹp (Giữ nguyên)
         top3_sets = self.strong_sets[:3] if self.strong_sets else []
         bo_dep_display = ', '.join(top3_sets) if top3_sets else '...'
         self.lbl_bo_dep.config(text=f"📦 Bộ Đẹp: {bo_dep_display}")
 
-        # Update Dàn
+        # Update Dàn (Logic tính toán Dàn 65, Top 10, Tứ Thủ giữ nguyên)
         if self.scores:
             top_65_list = [x[0] for x in self.scores[:65]]
             priority_nums = []
@@ -331,7 +325,6 @@ class UiDeDashboard(ttk.Frame):
             self.txt_4.delete("1.0", tk.END); self.txt_4.insert("1.0", ",".join(dan_4))
             
         self.lbl_status.config(text=f"Xong. Tìm thấy {len(self.found_bridges)} cầu.", foreground="green")
-
     def _update_ui_final(self):
         for r in self.tree_bridges.get_children(): self.tree_bridges.delete(r)
         best_rank, best_form = None, None

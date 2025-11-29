@@ -32,6 +32,7 @@ try:
         DB_NAME,
         update_bridge_k2n_cache_batch,
         update_bridge_win_rate_batch,
+        update_bridge_recent_win_count_batch,
     )
 except ImportError:
     print("Lỗi: Không thể import db_manager trong backtester.py")
@@ -44,6 +45,9 @@ except ImportError:
         return False, "Lỗi Import"
     
     def update_bridge_k2n_cache_batch(r, d):
+        return False, "Lỗi Import"
+    
+    def update_bridge_recent_win_count_batch(r, d):
         return False, "Lỗi Import"
 
 # Import bridge functions
@@ -126,13 +130,14 @@ from .backtester_core import (
     BACKTEST_15_CAU_N1_V31_AI_V8,
     BACKTEST_CUSTOM_CAU_V16,
     BACKTEST_MANAGED_BRIDGES_N1,
+    BACKTEST_MANAGED_BRIDGES_K1N,
     BACKTEST_MANAGED_BRIDGES_K2N,
     BACKTEST_MEMORY_BRIDGES,
 )
 
 # Update functions (kept here as they're relatively small)
 def run_and_update_all_bridge_rates(all_data_ai, db_name=DB_NAME):
-    """Cập nhật Tỷ lệ (Win Rate) cho Cầu Đã Lưu"""
+    """Cập nhật Tỷ lệ (Win Rate) và Phong Độ 10 Kỳ (recent_win_count_10) cho Cầu Đã Lưu - Dùng logic K1N"""
     try:
         if not all_data_ai:
             return 0, "Không có dữ liệu A:I để chạy backtest."
@@ -140,21 +145,24 @@ def run_and_update_all_bridge_rates(all_data_ai, db_name=DB_NAME):
         ky_bat_dau = 2
         ky_ket_thuc = len(all_data_ai) + (ky_bat_dau - 1)
 
-        results_n1 = BACKTEST_MANAGED_BRIDGES_N1(
-            all_data_ai, ky_bat_dau, ky_ket_thuc, db_name
+        # Sử dụng K1N để tính toán chính xác (không có khung 2 ngày)
+        results_k1n = BACKTEST_MANAGED_BRIDGES_K1N(
+            all_data_ai, ky_bat_dau, ky_ket_thuc, db_name, history=False
         )
 
-        if not results_n1 or len(results_n1) < 2 or "LỖI" in str(results_n1[0][0]):
-            if not results_n1:
-                return 0, "Backtest N1 không trả về kết quả."
-            if "Không có cầu nào" in str(results_n1[0][1]):
+        if not results_k1n or len(results_k1n) < 4 or "LỖI" in str(results_k1n[0][0]):
+            if not results_k1n:
+                return 0, "Backtest K1N không trả về kết quả."
+            if "Không có cầu nào" in str(results_k1n[0][1] if len(results_k1n) > 0 else ""):
                 return 0, "Không có cầu nào được Bật để cập nhật."
-            return 0, f"Lỗi khi chạy Backtest N1: {results_n1[0]}"
+            return 0, f"Lỗi khi chạy Backtest K1N: {results_k1n[0] if results_k1n else 'Unknown'}"
 
-        headers = results_n1[0]
-        rates = results_n1[1]
+        headers = results_k1n[0]
+        rates = results_k1n[1] if len(results_k1n) > 1 else []
+        recent_form = results_k1n[3] if len(results_k1n) > 3 else []  # Hàng "Phong Độ 10 Kỳ"
 
         rate_data_list = []
+        recent_win_data_list = []
         num_bridges = len(headers) - 1
 
         if num_bridges == 0:
@@ -162,16 +170,39 @@ def run_and_update_all_bridge_rates(all_data_ai, db_name=DB_NAME):
 
         for i in range(1, num_bridges + 1):
             bridge_name = str(headers[i])
-            win_rate_text = str(rates[i])
+            win_rate_text = str(rates[i]) if rates and i < len(rates) else "0.00%"
             rate_data_list.append((win_rate_text, bridge_name))
+            
+            # Parse recent_win_count_10 từ hàng "Phong Độ 10 Kỳ"
+            if recent_form and i < len(recent_form):
+                recent_form_text = str(recent_form[i])
+                try:
+                    if "/" in recent_form_text:
+                        recent_win_count = int(recent_form_text.split("/")[0].strip())
+                    else:
+                        recent_win_count = int(recent_form_text.strip())
+                except (ValueError, IndexError):
+                    recent_win_count = 0
+            else:
+                recent_win_count = 0
+            
+            recent_win_data_list.append((recent_win_count, bridge_name))
 
         if not rate_data_list:
             return 0, "Không trích xuất được dữ liệu tỷ lệ."
 
+        # Cập nhật win_rate_text
         success, message = update_bridge_win_rate_batch(rate_data_list, db_name)
+        if not success:
+            return 0, message
+
+        # Cập nhật recent_win_count_10 từ kết quả K1N
+        success_recent, message_recent = update_bridge_recent_win_count_batch(recent_win_data_list, db_name)
+        if not success_recent:
+            print(f"Cảnh báo: Không thể cập nhật recent_win_count_10: {message_recent}")
 
         if success:
-            return len(rate_data_list), message
+            return len(rate_data_list), f"{message} (Đã cập nhật Phong Độ 10 Kỳ từ K1N)"
         else:
             return 0, message
 

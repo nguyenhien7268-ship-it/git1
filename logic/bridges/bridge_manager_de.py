@@ -115,17 +115,37 @@ class DeBridgeManager:
                 new_streak = streak + 1 if is_win else 0
                 new_hp = self.max_health if is_win else current_hp - 1
                 
-                # 2. Backtest 10 kỳ
+                # 2. Backtest 10 kỳ (từ kỳ mới nhất lùi về 10 kỳ)
                 wins_10 = 0
-                for k in range(len(data_window) - 1):
-                    row_k = data_window[k]; row_n = data_window[k+1]
-                    g_next = get_gdb_last_2(row_n)
-                    if not g_next: continue
-                    p_k = getAllPositions_V17_Shadow(row_k)
-                    d_k = self._calculate_dan_logic(p_k, idx1, idx2, k_offset, mode, return_string=False)
-                    if g_next in d_k: wins_10 += 1
-                if is_win: wins_10 += 1
-                wins_10 = min(wins_10, 10)
+                # Lấy 11 kỳ gần nhất (để có thể backtest 10 kỳ: từ kỳ mới nhất lùi về 10 kỳ)
+                # Cần 11 kỳ vì: để backtest kỳ mới nhất, ta cần dữ liệu kỳ trước đó
+                recent_data = all_data_ai[-11:] if len(all_data_ai) >= 11 else all_data_ai
+                
+                # Đếm từ kỳ mới nhất (cuối cùng) lùi về 10 kỳ
+                # Logic: recent_data[-1] là kỳ mới nhất, recent_data[-2] là kỳ trước đó
+                # Backtest: dự đoán từ recent_data[-2] cho kỳ recent_data[-1]
+                # Backtest: dự đoán từ recent_data[-3] cho kỳ recent_data[-2]
+                # ...
+                # Chỉ đếm tối đa 10 kỳ (từ kỳ mới nhất lùi về)
+                for i in range(min(10, len(recent_data) - 1)):
+                    # i = 0: backtest kỳ mới nhất (recent_data[-1])
+                    # i = 1: backtest kỳ thứ 2 từ cuối (recent_data[-2])
+                    # ...
+                    idx_today = len(recent_data) - 1 - i
+                    idx_prev = idx_today - 1
+                    
+                    if idx_prev < 0:
+                        break
+                    
+                    row_today = recent_data[idx_today]
+                    row_prev = recent_data[idx_prev]
+                    g_today = get_gdb_last_2(row_today)
+                    if not g_today: 
+                        continue
+                    p_prev = getAllPositions_V17_Shadow(row_prev)
+                    d_prev = self._calculate_dan_logic(p_prev, idx1, idx2, k_offset, mode, return_string=False)
+                    if g_today in d_prev:
+                        wins_10 += 1
 
                 # 3. Sinh tồn & Xếp hạng
                 is_enabled = 1 if new_hp > 0 else 0

@@ -1,5 +1,6 @@
 # Tên file: logic/de_analytics.py
 from collections import Counter
+from itertools import combinations
 try:
     from .de_utils import BO_SO_DE, get_gdb_last_2, check_cham, check_tong
 except ImportError:
@@ -190,3 +191,87 @@ def get_top_strongest_sets(bridges):
         result = [x[0] for x in sorted_all[:3]]
     
     return result
+
+# --- PHÂN TÍCH TỔ HỢP 4 CHẠM (COMBINATORIAL TOUCH ANALYSIS) ---
+
+def calculate_top_touch_combinations(all_data, num_touches=4, days=10):
+    """
+    Tính toán Max Streak và Win Rate cho TẤT CẢ các tổ hợp 4 chạm khả thi (210 tổ hợp).
+    
+    Args:
+        all_data: Toàn bộ dữ liệu A:I
+        num_touches: Số lượng chạm trong mỗi tổ hợp (mặc định: 4)
+        days: Số ngày dữ liệu gần nhất để phân tích (mặc định: 10)
+    
+    Returns:
+        list: Danh sách các tổ hợp đã được xếp hạng, mỗi phần tử là dict:
+            {
+                'touches': [0, 1, 2, 3],  # Danh sách 4 chạm
+                'streak': 5,               # Max Streak (chuỗi thắng liên tiếp dài nhất)
+                'rate_hits': 8,            # Số lần thắng
+                'rate_total': 10,          # Tổng số kỳ
+                'rate_percent': 80.0       # Tỉ lệ thắng (%)
+            }
+    """
+    if not all_data or len(all_data) < 2:
+        return []
+    
+    # Lấy dữ liệu gần nhất (days ngày)
+    recent_data = all_data[-days:] if len(all_data) > days else all_data
+    
+    # Tạo tất cả các tổ hợp 4 chạm từ 0-9 (C(10,4) = 210)
+    all_touches = list(range(10))  # [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+    touch_combinations = list(combinations(all_touches, num_touches))
+    
+    results = []
+    
+    # Duyệt qua từng tổ hợp 4 chạm
+    for touch_combo in touch_combinations:
+        touch_list = sorted(list(touch_combo))  # Chuyển tuple thành list đã sắp xếp
+        
+        # Backtest trên dữ liệu gần nhất
+        wins = []  # Danh sách kết quả: True (thắng) hoặc False (thua)
+        current_streak = 0
+        max_streak = 0
+        
+        # Duyệt qua từng ngày trong recent_data
+        for i in range(len(recent_data)):
+            row = recent_data[i]
+            de = get_gdb_last_2(row)
+            
+            if de:
+                # Kiểm tra xem số đề có dính chạm không
+                is_win = check_cham(de, touch_list)
+                wins.append(is_win)
+                
+                # Cập nhật streak
+                if is_win:
+                    current_streak += 1
+                    max_streak = max(max_streak, current_streak)
+                else:
+                    current_streak = 0
+            else:
+                # Nếu không có dữ liệu đề, coi như thua
+                wins.append(False)
+                current_streak = 0
+        
+        # Tính toán thống kê
+        rate_hits = sum(wins)  # Số lần thắng
+        rate_total = len(wins)  # Tổng số kỳ
+        rate_percent = (rate_hits / rate_total * 100) if rate_total > 0 else 0.0
+        
+        # Lưu kết quả
+        results.append({
+            'touches': touch_list,
+            'streak': max_streak,
+            'rate_hits': rate_hits,
+            'rate_total': rate_total,
+            'rate_percent': rate_percent
+        })
+    
+    # Sắp xếp kết quả:
+    # 1. Ưu tiên theo Max Streak (giảm dần)
+    # 2. Nếu Streak bằng nhau, ưu tiên theo Win Rate (giảm dần)
+    results.sort(key=lambda x: (x['streak'], x['rate_percent']), reverse=True)
+    
+    return results
