@@ -2,6 +2,7 @@ import datetime
 
 # --- 1. ĐỊNH NGHĨA DỮ LIỆU CƠ BẢN ---
 # Các bộ số đề cơ bản (Mapping từ Tên Bộ -> Danh sách số)
+# ⚡ FIX: Đảm bảo BO_SO_DE luôn được khởi tạo đúng
 BO_SO_DE = {
     "01": ["01", "06", "10", "15", "51", "60", "56", "65"],
     "02": ["02", "07", "20", "70", "25", "52", "57", "75"],
@@ -19,6 +20,13 @@ BO_SO_DE = {
     "33": ["33", "38", "83", "88"],
     "44": ["44", "49", "94", "99"]
 }
+
+# ⚡ DEBUG: Kiểm tra BO_SO_DE sau khi khởi tạo
+if not BO_SO_DE or len(BO_SO_DE) == 0:
+    print("[ERROR de_utils] BO_SO_DE is EMPTY after initialization!")
+    raise ValueError("BO_SO_DE cannot be empty!")
+else:
+    print(f"[DEBUG de_utils] BO_SO_DE initialized successfully: {len(BO_SO_DE)} sets")
 
 # Bóng dương: 0->5, 1->6...
 BONG_DUONG_MAP = {0: 5, 1: 6, 2: 7, 3: 8, 4: 9, 5: 0, 6: 1, 7: 2, 8: 3, 9: 4}
@@ -63,6 +71,32 @@ def get_bo_name_by_pair(n1, n2):
     pair_str = f"{n1}{n2}"
     for bo_name, nums in BO_SO_DE.items():
         if pair_str in nums: return bo_name
+    return None
+
+def get_set_name_of_number(number_str):
+    """
+    Tìm tên bộ số đại diện từ một số đề.
+    
+    Args:
+        number_str: Một số dạng chuỗi (vd: "05", "50", "55")
+    
+    Returns:
+        str: Tên đại diện của bộ đó (VD: "00" nếu thuộc 'Bo 00'). 
+             None nếu không tìm thấy.
+    """
+    if not number_str or len(number_str) < 2:
+        return None
+    
+    # Đảm bảo số có 2 chữ số
+    number_str = number_str.zfill(2)
+    if len(number_str) > 2:
+        number_str = number_str[-2:]
+    
+    # Tìm trong BO_SO_DE
+    for bo_name, nums in BO_SO_DE.items():
+        if number_str in nums:
+            return bo_name
+    
     return None
 
 def get_touches_by_offset(base_val, k, logic_type="TONG"):

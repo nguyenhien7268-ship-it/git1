@@ -4,7 +4,8 @@ from logic.db_manager import DB_NAME
 from logic.bridges.bridges_v16 import getAllPositions_V17_Shadow, getPositionName_V17_Shadow
 from logic.de_utils import (
     get_gdb_last_2, check_cham, check_tong, 
-    get_touches_by_offset, generate_dan_de_from_touches
+    get_touches_by_offset, generate_dan_de_from_touches,
+    get_set_name_of_number, BO_SO_DE
 )
 
 class DeBridgeScanner:
@@ -15,6 +16,7 @@ class DeBridgeScanner:
     def __init__(self):
         # [CẤU HÌNH] Điều kiện lọc cầu
         self.min_streak = 3        # Cầu phải ăn thông ít nhất 3 kỳ
+        self.min_streak_bo = 2     # Cầu Bộ phải ăn thông ít nhất 2 kỳ (thấp hơn vì khó đạt hơn)
         self.scan_depth = 30       # Quét trong 30 kỳ gần nhất
         self.history_check_len = 10 # Kiểm tra phong độ trong 10 kỳ gần đây
         self.min_wins_required = 4  # Cần thắng ít nhất 4/10 kỳ (40%)
@@ -40,8 +42,18 @@ class DeBridgeScanner:
         bridges_classic = self._scan_algorithm_sum(all_data_ai)
         found_bridges.extend(bridges_classic)
         
-        # Sắp xếp theo chuỗi ăn thông giảm dần
-        found_bridges.sort(key=lambda x: x['streak'], reverse=True)
+        # 3. QUÉT CẦU BỘ (Set Bridges)
+        # Logic: Ghép 2 vị trí thành số -> Tìm Bộ -> Check kết quả hôm sau có thuộc Bộ đó không
+        bridges_set = self._scan_set_bridges(all_data_ai)
+        print(f">>> [DE SCANNER] Quét cầu Bộ: Tìm thấy {len(bridges_set)} cầu")
+        found_bridges.extend(bridges_set)
+        
+        # Sắp xếp: Ưu tiên cầu Bộ (type='BO'), sau đó sắp xếp theo streak giảm dần
+        # Điều này đảm bảo cầu Bộ được hiển thị rõ ràng hơn
+        found_bridges.sort(key=lambda x: (
+            0 if str(x.get('type', '')).upper() == 'BO' else 1,  # Cầu Bộ lên trước
+            -x.get('streak', 0)  # Sau đó sắp xếp theo streak giảm dần
+        ))
         
         print(f">>> [DE SCANNER] Tổng tìm thấy: {len(found_bridges)} cầu (Đã lọc Best K).")
         
@@ -228,6 +240,138 @@ class DeBridgeScanner:
             
         return sorted(found_bridges, key=lambda x: x['streak'], reverse=True)[:20]
 
+    def _scan_set_bridges(self, all_data_ai):
+        """
+        Quét cầu Bộ (Set Bridges).
+        Logic: Ghép 2 vị trí thành số -> Tìm Bộ của số đó -> Check kết quả hôm sau có thuộc Bộ đó không.
+        Naming Standard: G[vt1] + G[vt2] (Bộ)
+        """
+        print(f">>> [SCAN SET BRIDGES] === BẮT ĐẦU QUÉT CẦU BỘ ===")
+        found_bridges = []
+        total_pairs_checked = 0
+        pairs_with_set = 0
+        pairs_with_streak = 0
+        
+        try:
+            if not all_data_ai or len(all_data_ai) < self.scan_depth:
+                print(f">>> [SCAN SET BRIDGES] Dữ liệu không đủ: {len(all_data_ai) if all_data_ai else 0} < {self.scan_depth}")
+                return []
+            # Dùng V17 Shadow để lấy toàn bộ 214 vị trí (Gốc + Bóng)
+            sample_pos = getAllPositions_V17_Shadow(all_data_ai[-1])
+            # Giới hạn quét để tối ưu hiệu năng (50 vị trí đầu quan trọng nhất)
+            limit_pos = min(len(sample_pos), 50)
+            scan_data = all_data_ai[-self.scan_depth:]
+            
+            print(f">>> [SCAN SET BRIDGES] Bắt đầu quét {limit_pos} vị trí, scan_depth={len(scan_data)}")
+            
+            for i in range(limit_pos):
+                for j in range(i + 1, limit_pos):  # j > i để tránh trùng lặp
+                    total_pairs_checked += 1
+                    current_streak = 0
+                    start_date = None
+                    
+                    # Tính streak từ hiện tại về quá khứ
+                    for k in range(len(scan_data) - 1, 0, -1):
+                        row_today = scan_data[k]
+                        gdb_today = get_gdb_last_2(row_today)
+                        row_prev = scan_data[k-1]
+                        pos_prev = getAllPositions_V17_Shadow(row_prev)
+                        
+                        if not gdb_today or pos_prev[i] is None or pos_prev[j] is None:
+                            break
+                        
+                        try:
+                            # Ghép 2 vị trí thành số 2 chữ số
+                            val_i = int(pos_prev[i])
+                            val_j = int(pos_prev[j])
+                            combined_number = f"{val_i}{val_j}"
+                            
+                            # Tìm Bộ của số ghép
+                            set_name = get_set_name_of_number(combined_number)
+                            if not set_name:
+                                break  # Không tìm thấy bộ, dừng streak
+                            
+                            pairs_with_set += 1
+                            
+                            # Lấy danh sách số trong bộ đó
+                            set_numbers = BO_SO_DE.get(set_name, [])
+                            if not set_numbers:
+                                break
+                            
+                            # Check kết quả hôm sau (gdb_today) có thuộc Bộ đó không
+                            if gdb_today in set_numbers:
+                                current_streak += 1
+                                if start_date is None:
+                                    # Lưu ngày bắt đầu streak (ngày gần nhất)
+                                    try:
+                                        start_date = scan_data[k][0] if len(scan_data[k]) > 0 else None
+                                    except:
+                                        start_date = None
+                            else:
+                                break  # Không ăn, dừng streak
+                        except Exception as e:
+                            # Log lỗi chi tiết để debug
+                            print(f">>> [SCAN SET BRIDGES] Lỗi khi xử lý pair ({i},{j}) tại k={k}: {e}")
+                            break
+                    
+                    # Nếu streak đủ điều kiện, thêm vào danh sách
+                    # Sử dụng min_streak_bo cho cầu Bộ (thấp hơn vì khó đạt hơn)
+                    if current_streak >= self.min_streak_bo:
+                        pairs_with_streak += 1
+                        # Lấy tên vị trí chuẩn từ V16/V17
+                        pos1_name = getPositionName_V17_Shadow(i)
+                        pos2_name = getPositionName_V17_Shadow(j)
+                        
+                        try:
+                            # Tính dự đoán cho ngày tiếp theo
+                            val_i_last = int(getAllPositions_V17_Shadow(all_data_ai[-1])[i])
+                            val_j_last = int(getAllPositions_V17_Shadow(all_data_ai[-1])[j])
+                            combined_last = f"{val_i_last}{val_j_last}"
+                            predicted_set = get_set_name_of_number(combined_last)
+                            
+                            if predicted_set:
+                                # CHUẨN HÓA TÊN V2.1: G[vt1] + G[vt2] (Bộ)
+                                # Lưu ý: Chỉ xóa ngoặc [], giữ lại dấu chấm . nếu có (VD: G2.1)
+                                safe_p1 = pos1_name.replace("[", "").replace("]", "")
+                                safe_p2 = pos2_name.replace("[", "").replace("]", "")
+                                
+                                # Format: G[vt1] + G[vt2] (Bộ) - đặt tên vị trí trong ngoặc vuông
+                                std_name = f"G[{safe_p1}] + G[{safe_p2}] (Bộ)"
+                                display_desc = f"Bộ: {pos1_name} + {pos2_name}"
+                                
+                                found_bridges.append({
+                                    "name": std_name,
+                                    "type": "BO",  # Quan trọng: Type phải là "BO" để Analytics nhận diện x2 điểm
+                                    "streak": current_streak,
+                                    "predicted_value": predicted_set,  # Tên bộ đại diện (vd "00")
+                                    "full_dan": ",".join(BO_SO_DE.get(predicted_set, [])),
+                                    "win_rate": 100.0,
+                                    "display_desc": display_desc,
+                                    "start_date": start_date
+                                })
+                                print(f">>> [SCAN SET BRIDGES] Tìm thấy cầu: {std_name}, streak={current_streak}, predicted={predicted_set}")
+                            else:
+                                print(f">>> [SCAN SET BRIDGES] Pair ({i},{j}) có streak={current_streak} nhưng không tìm thấy predicted_set cho combined_last={combined_last}")
+                        except Exception as e:
+                            print(f">>> [SCAN SET BRIDGES] Lỗi khi tạo bridge cho pair ({i},{j}): {e}")
+                            import traceback
+                            traceback.print_exc()
+                    elif current_streak > 0:
+                        # Log các cầu gần đạt để debug (không thêm vào danh sách)
+                        if total_pairs_checked % 500 == 0:  # Chỉ log mỗi 500 cặp để không spam
+                            print(f">>> [SCAN SET BRIDGES] Pair ({i},{j}) có streak={current_streak} < min_streak_bo={self.min_streak_bo} (bỏ qua)")
+            
+            print(f">>> [SCAN SET BRIDGES] Hoàn tất: Đã kiểm tra {total_pairs_checked} cặp, {pairs_with_set} có bộ, {pairs_with_streak} đạt min_streak_bo={self.min_streak_bo}, tìm thấy {len(found_bridges)} cầu")
+        except Exception as e:
+            print(f">>> [SCAN SET BRIDGES] ⚠️ LỖI NGHIÊM TRỌNG khi quét cầu Bộ: {e}")
+            import traceback
+            traceback.print_exc()
+            print(f">>> [SCAN SET BRIDGES] Trả về danh sách rỗng do lỗi")
+        
+        result = sorted(found_bridges, key=lambda x: x['streak'], reverse=True)[:20]
+        print(f">>> [SCAN SET BRIDGES] === KẾT THÚC: Trả về {len(result)} cầu ===")
+        return result
+
     def _save_to_db(self, bridges):
         if not bridges: return
         try:
@@ -235,7 +379,7 @@ class DeBridgeScanner:
             cursor = conn.cursor()
             
             # Xóa các loại cầu cũ (bao gồm cả loại cũ và mới để tránh duplicate)
-            cursor.execute("DELETE FROM ManagedBridges WHERE type IN ('DE_DYNAMIC_K', 'DE_POS_SUM', 'DE_CHAM')")
+            cursor.execute("DELETE FROM ManagedBridges WHERE type IN ('DE_DYNAMIC_K', 'DE_POS_SUM', 'DE_CHAM', 'BO')")
             
             count = 0
             for b in bridges[:30]: 

@@ -3,6 +3,7 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 
 # Import các hàm logic cần thiết
+from logic.config_manager import SETTINGS
 try:
     from lottery_service import (
         add_managed_bridge,
@@ -68,6 +69,40 @@ class BridgeManagerWindow:
         self.desc_entry = ttk.Entry(frame)
         self.desc_entry.grid(row=1, column=1, columnspan=2, sticky="ew", padx=5, pady=5)
 
+    def _setup_treeview_columns(self):
+        """
+        Thiết lập tên cột và kích thước cho Treeview Cầu Đã Lưu.
+        Sử dụng MANAGER_RATE_MODE để đặt tiêu đề động.
+        """
+        # ⚡ LOGIC SỬA LỖI UI: Đọc chế độ Backtest hiện tại từ cấu hình
+        try:
+            rate_mode = SETTINGS.MANAGER_RATE_MODE
+            rate_header = f"Tỷ lệ thắng ({rate_mode.upper()})"
+        except Exception:
+            rate_header = "Tỷ lệ thắng (K1N)" # Fallback an toàn
+        
+        # Thiết lập các cột với tiêu đề động
+        self.tree.heading("id", text="ID")
+        self.tree.column("id", width=40, anchor="center")
+        
+        self.tree.heading("name", text="Tên Cầu")
+        self.tree.column("name", width=150, anchor=tk.W)
+        
+        self.tree.heading("desc", text="Mô Tả")
+        self.tree.column("desc", width=200, anchor=tk.W)
+        
+        self.tree.heading("win_rate", text=rate_header)
+        self.tree.column("win_rate", width=120, anchor="center")
+        
+        self.tree.heading("status", text="Trạng Thái")
+        self.tree.column("status", width=80, anchor="center")
+        
+        self.tree.heading("pinned", text="📌 Ghim")
+        self.tree.column("pinned", width=60, anchor="center")
+        
+        self.tree.heading("created_at", text="Ngày Tạo")
+        self.tree.column("created_at", width=120, anchor="center")
+
     def create_bridge_list(self):
         """Tạo bảng danh sách cầu."""
         frame = ttk.Frame(self.window)
@@ -78,26 +113,8 @@ class BridgeManagerWindow:
         columns = ("id", "name", "desc", "win_rate", "status", "pinned", "created_at")
         self.tree = ttk.Treeview(frame, columns=columns, show="headings", selectmode="browse")
         
-        self.tree.heading("id", text="ID")
-        self.tree.column("id", width=40, anchor="center")
-        
-        self.tree.heading("name", text="Tên Cầu")
-        self.tree.column("name", width=150)
-        
-        self.tree.heading("desc", text="Mô Tả")
-        self.tree.column("desc", width=200)
-        
-        self.tree.heading("win_rate", text="Tỷ lệ thắng (K2N)")
-        self.tree.column("win_rate", width=100, anchor="center")
-        
-        self.tree.heading("status", text="Trạng Thái")
-        self.tree.column("status", width=80, anchor="center")
-        
-        self.tree.heading("pinned", text="📌 Ghim")
-        self.tree.column("pinned", width=60, anchor="center")
-        
-        self.tree.heading("created_at", text="Ngày Tạo")
-        self.tree.column("created_at", width=120, anchor="center")
+        # Thiết lập cột với tiêu đề động dựa trên MANAGER_RATE_MODE
+        self._setup_treeview_columns()
 
         scrollbar = ttk.Scrollbar(frame, orient=tk.VERTICAL, command=self.tree.yview)
         self.tree.configure(yscrollcommand=scrollbar.set)
@@ -174,11 +191,21 @@ class BridgeManagerWindow:
                 
                 # Dùng .get() an toàn cho các key có thể thiếu
                 created_date = b.get('created_at') or b.get('date_added', 'N/A')
-                win_rate = b.get('win_rate_text', 'N/A')
+                
+                # LÔGIC HIỂN THỊ MỚI: Hiển thị Tỷ lệ Chuẩn VÀ Tỷ lệ Tối ưu
+                win_rate_text_display = b.get('win_rate_text', 'N/A')
+                
+                # ⚡ HIỂN THỊ TỶ LỆ TỐI ƯU (search_rate_text) nếu khác và không phải là 0.00%
+                search_rate = b.get("search_rate_text", "0.00%")
+                search_period = b.get("search_period", 0)
+                
+                # Kiểm tra nếu Tỷ lệ Tối ưu khác Tỷ lệ Chuẩn và không phải là 0.00%
+                if search_rate != win_rate_text_display and search_rate != "0.00%":
+                    win_rate_text_display = f"{win_rate_text_display} (Tối ưu: {search_rate} / {search_period} kỳ)"
                 
                 self.tree.insert(
                     "", tk.END, 
-                    values=(b['id'], b['name'], b['description'], win_rate, status_text, pinned_text, created_date),
+                    values=(b['id'], b['name'], b['description'], win_rate_text_display, status_text, pinned_text, created_date),
                     tags=tuple(tags) if tags else ()
                 )
             

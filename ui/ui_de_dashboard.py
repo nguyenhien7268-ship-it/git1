@@ -14,8 +14,28 @@ try:
     )
     from logic.bridges.de_bridge_scanner import run_de_scanner
     from logic.bridges.bridge_manager_de import de_manager
-except ImportError:
-    pass
+    
+    # ⚡ DEBUG: Kiểm tra BO_SO_DE sau khi import
+    if not BO_SO_DE or len(BO_SO_DE) == 0:
+        print("[ERROR UI_DE_DASHBOARD] BO_SO_DE is EMPTY after import!")
+    else:
+        print(f"[DEBUG UI_DE_DASHBOARD] BO_SO_DE loaded successfully: {len(BO_SO_DE)} sets")
+except ImportError as e:
+    print(f"[ERROR UI_DE_DASHBOARD] Import failed: {e}")
+    import traceback
+    traceback.print_exc()
+    # Tạo fallback functions để tránh crash
+    BO_SO_DE = {}
+    def check_cham(*args): return False
+    def check_tong(*args): return False
+    def get_gdb_last_2(*args): return None
+    def analyze_market_trends(*args): return {}
+    def get_de_consensus(*args): return {}
+    def calculate_number_scores(*args): return []
+    def get_top_strongest_sets(*args): return []
+    def calculate_top_touch_combinations(*args): return []
+    def run_de_scanner(*args): return 0, []
+    de_manager = None
 
 class UiDeDashboard(ttk.Frame):
     def __init__(self, parent, controller):
@@ -185,7 +205,29 @@ class UiDeDashboard(ttk.Frame):
             count, active_bridges = de_manager.update_daily_stats(data)
             self.found_bridges = active_bridges
             self.scores = calculate_number_scores(active_bridges)
-            self.strong_sets = get_top_strongest_sets(active_bridges)
+            
+            # ⚡ KẾT HỢP THỐNG KÊ THỊ TRƯỜNG: Tính tần suất/gan bộ số
+            market_stats = None
+            try:
+                if 'analyze_market_trends' in globals():
+                    market_stats = analyze_market_trends(data, n_days=30)
+                    print(f"[DEBUG on_analyze_click] Market stats calculated: freq_bo={len(market_stats.get('freq_bo', {}))}, gan_bo={len(market_stats.get('gan_bo', {}))}")
+            except Exception as e:
+                print(f"[WARNING on_analyze_click] Không thể tính thống kê thị trường: {e}")
+                market_stats = None
+            
+            # ⚡ FIX: Thêm error handling cho get_top_strongest_sets
+            try:
+                # Lấy last_row để ghép cầu vị trí thành bộ số
+                last_row = data[-1] if data and len(data) > 0 else None
+                print(f"[DEBUG on_analyze_click] Calling get_top_strongest_sets with {len(active_bridges)} bridges + market_stats + last_row")
+                self.strong_sets = get_top_strongest_sets(active_bridges, market_stats=market_stats, last_row=last_row)
+                print(f"[DEBUG on_analyze_click] get_top_strongest_sets returned: {self.strong_sets}")
+            except Exception as e:
+                print(f"[ERROR on_analyze_click] Lỗi khi gọi get_top_strongest_sets: {e}")
+                import traceback
+                traceback.print_exc()
+                self.strong_sets = []
             self.after(0, self._update_ui_final)
 
     def _update_history_ui(self, data):
@@ -205,16 +247,45 @@ class UiDeDashboard(ttk.Frame):
         count, bridges = run_de_scanner(data)
         self.found_bridges = bridges
         self.scores = calculate_number_scores(bridges)
-        self.strong_sets = get_top_strongest_sets(bridges)
+        
+        # ⚡ KẾT HỢP THỐNG KÊ THỊ TRƯỜNG: Tính tần suất/gan bộ số
+        market_stats = None
+        try:
+            if 'analyze_market_trends' in globals():
+                market_stats = analyze_market_trends(data, n_days=30)
+                print(f"[DEBUG _run_scan] Market stats calculated: freq_bo={len(market_stats.get('freq_bo', {}))}, gan_bo={len(market_stats.get('gan_bo', {}))}")
+        except Exception as e:
+            print(f"[WARNING _run_scan] Không thể tính thống kê thị trường: {e}")
+            market_stats = None
+        
+        # ⚡ FIX: Thêm error handling cho get_top_strongest_sets
+        try:
+            # Lấy last_row để ghép cầu vị trí thành bộ số
+            last_row = data[-1] if data and len(data) > 0 else None
+            print(f"[DEBUG _run_scan] Calling get_top_strongest_sets with {len(bridges)} bridges + market_stats + last_row")
+            self.strong_sets = get_top_strongest_sets(bridges, market_stats=market_stats, last_row=last_row)
+            print(f"[DEBUG _run_scan] get_top_strongest_sets returned: {self.strong_sets}")
+        except Exception as e:
+            print(f"[ERROR _run_scan] Lỗi khi gọi get_top_strongest_sets: {e}")
+            import traceback
+            traceback.print_exc()
+            self.strong_sets = []
         
         # Top 4 Chạm (Consensus) - Giữ nguyên để fallback
         consensus = get_de_consensus(bridges)
         top_cham_list = consensus.get('consensus_cham', [])[:4]
         self.top_touches = [str(item[0]) for item in top_cham_list]
         
-        # Tính toán tổ hợp 4 chạm (Combinatorial Touch Analysis)
+        # Tính toán tổ hợp 4 chạm (Combinatorial Touch Analysis) - KẾT HỢP THỐNG KÊ
         try:
-            self.touch_combos = calculate_top_touch_combinations(data, num_touches=4, days=10)
+            # Truyền market_stats vào để kết hợp tần suất/gan chạm
+            self.touch_combos = calculate_top_touch_combinations(
+                data, 
+                num_touches=4, 
+                days=10, 
+                market_stats=market_stats  # ⚡ KẾT HỢP THỐNG KÊ
+            )
+            print(f"[DEBUG _run_scan] Calculated {len(self.touch_combos)} touch combinations with market stats")
         except Exception as e:
             print(f"[ERROR] Lỗi khi tính toán tổ hợp 4 chạm: {e}")
             import traceback
@@ -229,7 +300,14 @@ class UiDeDashboard(ttk.Frame):
         if not hasattr(self, 'strong_sets') or self.strong_sets is None:
             self.strong_sets = []
         
+        # DEBUG: Đếm số cầu Bộ
+        bo_bridges = [b for b in self.found_bridges if str(b.get('type', '')).upper() == 'BO']
+        print(f">>> [UI DEBUG] Tổng số cầu: {len(self.found_bridges)}, Số cầu Bộ: {len(bo_bridges)}")
+        if bo_bridges:
+            print(f">>> [UI DEBUG] Các cầu Bộ đầu tiên: {[b.get('name') for b in bo_bridges[:5]]}")
+        
         # --- HIỂN THỊ TREEVIEW CẦU (GIỮ NGUYÊN) ---
+        bo_count = 0
         for i, b in enumerate(self.found_bridges):
             try:
                 p_val = b.get('predicted_value', '')
@@ -238,7 +316,9 @@ class UiDeDashboard(ttk.Frame):
                 win_rate = b.get('win_rate', 0)
                 
                 lbl_type = "Cầu Thông"
-                if 'BO' in b_type: lbl_type = "Cầu Bộ"
+                if 'BO' in b_type: 
+                    lbl_type = "Cầu Bộ"
+                    bo_count += 1
                 elif 'TI_LE' in b_type: lbl_type = "Cầu Tỉ Lệ"
                 p_text = f"Bộ {p_val}" if 'BO' in b_type else f"Chạm {p_val}"
                 
@@ -255,17 +335,25 @@ class UiDeDashboard(ttk.Frame):
                 hp_show = "❤️" * hp if hp <= 3 else str(hp)
                 
                 self.tree_bridges.insert("", "end", iid=i, values=(b.get('name', ''), p_text, streak, form_show, hp_show))
+                
+                # DEBUG: Log cầu Bộ khi insert
+                if 'BO' in b_type:
+                    print(f">>> [UI DEBUG] Đã insert cầu Bộ: {b.get('name')}, streak={streak}, predicted={p_val}")
             except Exception as e:
                 print(f"Lỗi xử lý cầu {i}: {e}")
+                import traceback
+                traceback.print_exc()
                 continue
+        
+        print(f">>> [UI DEBUG] Đã hiển thị {bo_count} cầu Bộ trong treeview")
 
         # --- LOGIC MỚI: PHÂN TÍCH TỔ HỢP 4 CHẠM ---
         
-        # 1. Chạm Thông: Top 3 Max Streak từ touch_combos
+        # 1. Chạm Thông: Top 3 Max Streak từ touch_combos (đã kết hợp thống kê)
         cham_thong_list = []
         if hasattr(self, 'touch_combos') and self.touch_combos:
-            # Lấy Top 3 tổ hợp có Max Streak cao nhất
-            top_streak_combos = self.touch_combos[:3]  # Đã được sắp xếp theo streak giảm dần
+            # Lấy Top 3 tổ hợp có Max Streak cao nhất (đã sắp xếp theo adjusted_streak)
+            top_streak_combos = self.touch_combos[:3]  # Đã được sắp xếp theo adjusted_streak giảm dần
             
             for combo in top_streak_combos:
                 touches_str = ''.join(map(str, combo['touches']))  # VD: [0,1,2,3] -> "0123"
@@ -279,23 +367,34 @@ class UiDeDashboard(ttk.Frame):
         # 2. Chạm Tỉ Lệ: Top 3 có Tỉ lệ >= 80% từ touch_combos
         cham_rate_list = []
         if hasattr(self, 'touch_combos') and self.touch_combos:
+            # ⚡ FIX: Tạo bản sao và sắp xếp lại TOÀN BỘ theo rate_percent (không dùng adjusted_streak)
+            # Để đảm bảo Chạm Tỉ Lệ khác với Chạm Thông
+            all_combos_sorted_by_rate = sorted(
+                self.touch_combos, 
+                key=lambda x: (x['rate_percent'], x.get('rate_hits', 0)), 
+                reverse=True
+            )
+            
             # Lọc các tổ hợp có rate_percent >= 80%
-            high_rate_combos = [c for c in self.touch_combos if c['rate_percent'] >= 80.0]
-            # Lấy Top 3
+            high_rate_combos = [c for c in all_combos_sorted_by_rate if c['rate_percent'] >= 80.0]
+            
+            # Lấy Top 3 (đã được sắp xếp theo rate_percent)
             top_rate_combos = high_rate_combos[:3]
             
             for combo in top_rate_combos:
                 touches_str = ''.join(map(str, combo['touches']))  # VD: [3,5,7,9] -> "3579"
                 rate_hits = combo['rate_hits']
                 rate_total = combo['rate_total']
-                cham_rate_list.append(f"{touches_str} ({rate_hits}/{rate_total} kỳ)")
-        
-        # Fallback về Top 4 Consensus nếu không có tổ hợp nào >= 80%
+                # Đảm bảo chỉ hiển thị khi có hit (tránh 0/10)
+                if rate_hits > 0:
+                    cham_rate_list.append(f"{touches_str} ({rate_hits}/{rate_total} kỳ)")
+
+        # Fallback về Top 4 Consensus nếu không có tổ hợp nào thỏa mãn (rate >= 80% và hits > 0)
         if not cham_rate_list:
             cham_rate_display = ', '.join(self.top_touches) if self.top_touches else '...'
         else:
             cham_rate_display = ', '.join(cham_rate_list)
-        
+
         self.lbl_cham_rate.config(text=f"⭐ Chạm Tỉ Lệ: {cham_rate_display}")
         
         # 3. Bộ Đẹp (Giữ nguyên)

@@ -33,7 +33,8 @@ except ImportError:
         "RECENT_FORM_MIN_LOW": 5,
         "DATA_LIMIT_DASHBOARD": 2000,
         "DATA_LIMIT_RESEARCH": 0,
-        "DE_MAX_LOSE_THRESHOLD": 20  # Ngưỡng chuỗi Gãy tối đa cho cầu Đề (Phase 4 - Pruning)
+        "DE_MAX_LOSE_THRESHOLD": 20,  # Ngưỡng chuỗi Gãy tối đa cho cầu Đề (Phase 4 - Pruning)
+        "MANAGER_RATE_MODE": "K1N"  # Chế độ backtest cho Tỷ lệ cầu trong Manager (K1N/K2N)
     }
 
 CONFIG_FILE = "config.json"

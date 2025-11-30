@@ -239,174 +239,367 @@ class AnalysisService:
             return False, error_msg
     
     def prepare_dashboard_data(self, all_data_ai, data_limit=None):
+
         """
+
         Chuẩn bị dữ liệu cho dashboard (phân tích toàn diện).
+
         
+
         Args:
+
             all_data_ai: Dữ liệu A:I
-            data_limit: Giới hạn số kỳ (None = toàn bộ)
+
+            data_limit: Giới hạn số kỳ (None = lấy từ Config DATA_LIMIT_DASHBOARD)
+
         
+
         Returns:
+
             dict: Dữ liệu đã phân tích với các keys: next_ky, stats, consensus, etc.
+
         """
+
         if not all_data_ai or len(all_data_ai) < 2:
+
             return None
+
         
-        # Áp dụng data limit
-        if data_limit and data_limit > 0 and len(all_data_ai) > data_limit:
-            all_data_ai = all_data_ai[-data_limit:]
-            self._log(f"⚡ HIỆU NĂNG: Đang phân tích {data_limit} kỳ gần nhất.")
-        else:
-            self._log(f"⚡ Chế độ Full Data: Đang phân tích toàn bộ {len(all_data_ai)} kỳ.")
-        
-        last_row = all_data_ai[-1]
-        
-        # Load settings
+
+        # Load settings VÀ xác định giới hạn dữ liệu
+
+        data_limit_dashboard = 0 # Default (no limit)
+
         try:
+
             from logic.config_manager import SETTINGS
+
             SETTINGS.load_settings()
+
             n_days_stats = SETTINGS.STATS_DAYS
+
             n_days_gan = SETTINGS.GAN_DAYS
+
             high_win_thresh = SETTINGS.HIGH_WIN_THRESHOLD
+
+            # Lấy giới hạn từ config (hiện đang là 500) nếu không được truyền vào
+
+            data_limit_dashboard = SETTINGS.DATA_LIMIT_DASHBOARD
+
         except:
+
             n_days_stats = 7
+
             n_days_gan = 15
+
             high_win_thresh = 47.0
+
         
+
+        # Xác định giới hạn cuối cùng
+
+        final_data_limit = data_limit if data_limit is not None else data_limit_dashboard
+
+
+
+        # ⚡ ÁP DỤNG GIỚI HẠN DỮ LIỆU TỪ CONFIG (500 KỲ GẦN NHẤT)
+
+        # Dữ liệu all_data_ai sau bước này là 500 kỳ gần nhất, đảm bảo tính toán K1N chỉ trên 500 kỳ.
+
+        if final_data_limit > 0 and len(all_data_ai) > final_data_limit:
+
+            all_data_ai = all_data_ai[-final_data_limit:]
+
+            self._log(f"⚡ HIỆU NĂNG: Đang phân tích {final_data_limit} kỳ gần nhất.")
+
+        else:
+
+            final_data_limit = len(all_data_ai)
+
+            self._log(f"⚡ Chế độ Full Data: Đang phân tích toàn bộ {final_data_limit} kỳ.")
+
+            
+
+        last_row = all_data_ai[-1]
+
+        
+
         # Tính next_ky
+
         try:
+
             ky_int = int(last_row[0])
+
             next_ky = f"Kỳ {ky_int + 1}"
+
         except (ValueError, TypeError):
+
             next_ky = f"Kỳ {last_row[0]} (Next)"
+
         
+
         # Thống kê
+
         self._log(f"... (1/6) Đang thống kê Loto Về Nhiều ({n_days_stats} ngày)...")
+
         try:
+
             stats_n_day = self.get_loto_stats_last_n_days(all_data_ai, n=n_days_stats)
+
             if stats_n_day is None:
+
                 stats_n_day = []
+
             self._log(f"... (Stats) Đã tính được {len(stats_n_day)} loto hot")
+
         except Exception as e:
+
             self._log(f"Lỗi thống kê Loto: {e}")
+
             import traceback
+
             self._log(traceback.format_exc())
+
             stats_n_day = []
+
         
+
         # K2N Cache
+
+        # Chú ý: all_data_ai ở đây đã được cắt lát 500 kỳ
+
         self._log("... (2/6) Đang chạy hàm Cập nhật K2N Cache...")
+
         try:
+
+            # run_and_update_all_bridge_K2N_cache sẽ chạy backtest K2N trên 500 kỳ
+
             pending_k2n_data, _, cache_message = self.run_and_update_all_bridge_K2N_cache(all_data_ai, self.db_name)
+
             if pending_k2n_data is None:
+
                 pending_k2n_data = {}
+
             self._log(f"... (Cache K2N) {cache_message}")
+
         except Exception as e:
+
             self._log(f"Lỗi Cache K2N: {e}")
+
             pending_k2n_data = {}
+
         
+
         # K1N Rates & Recent Win Count (Phong Độ 10 Kỳ)
+
+        # Yêu cầu của bạn: K1N trên 500 kỳ đã được đảm bảo vì all_data_ai đã cắt lát
+
         self._log("... (2.5/6) Đang cập nhật Tỷ Lệ và Phong Độ 10 Kỳ từ K1N...")
+
         try:
+
+            # run_and_update_all_bridge_rates sẽ chạy backtest K1N trên 500 kỳ
+
             count, rate_message = self.run_and_update_all_bridge_rates(all_data_ai, self.db_name)
+
             self._log(f"... (K1N Rates) {rate_message}")
+
         except Exception as e:
+
             self._log(f"Lỗi cập nhật K1N Rates: {e}")
+
             import traceback
+
             self._log(traceback.format_exc())
+
         
+
         # Consensus & High Win
+
         self._log("... (3/6) Đang đọc Consensus và Cầu Tỷ lệ Cao từ cache...")
+
         try:
+
             # Truyền last_row để tính toán trực tiếp (ưu tiên hơn cache)
+
             consensus = self.get_prediction_consensus(last_row=last_row, db_name=self.db_name)
+
             if consensus is None:
+
                 consensus = []
+
             self._log(f"... (Consensus) Đã đọc được {len(consensus)} cặp có vote")
+
         except Exception as e:
+
             self._log(f"Lỗi đọc Consensus: {e}")
+
             import traceback
+
             self._log(traceback.format_exc())
+
             consensus = []
+
         
+
         try:
+
             high_win = self.get_high_win_rate_predictions(threshold=high_win_thresh)
+
             if high_win is None:
+
                 high_win = []
+
         except Exception as e:
+
             self._log(f"Lỗi đọc High Win: {e}")
+
             high_win = []
+
         
+
         # Gan stats
+
         self._log(f"... (4/6) Đang tìm Lô Gan (trên {n_days_gan} kỳ)...")
+
         try:
+
             gan_stats = self.get_loto_gan_stats(all_data_ai, n_days=n_days_gan)
+
             if gan_stats is None:
+
                 gan_stats = []
+
         except Exception as e:
+
             self._log(f"Lỗi tìm Lô Gan: {e}")
+
             gan_stats = []
+
         
+
         # AI predictions
+
         self._log("... (5/6) Đang chạy dự đoán AI...")
+
         try:
+
             ai_result = self.run_ai_prediction_for_dashboard()
+
             if ai_result and isinstance(ai_result, tuple) and len(ai_result) >= 2:
+
                 ai_predictions, ai_message = ai_result[0], ai_result[1]
+
             else:
+
                 ai_predictions, ai_message = None, "Không có dự đoán AI"
+
             if ai_predictions is None:
+
                 ai_predictions = []
+
             self._log(f"... (AI) {ai_message}")
+
         except Exception as e:
+
             self._log(f"Lỗi dự đoán AI: {e}")
+
             ai_predictions = []
+
         
+
         # Top memory bridges
+
         try:
+
             top_memory_bridges = self.get_top_memory_bridge_predictions(all_data_ai, last_row, top_n=5)
+
             if top_memory_bridges is None:
+
                 top_memory_bridges = []
+
         except Exception as e:
+
             self._log(f"Lỗi tính Cầu Bạc Nhớ: {e}")
+
             top_memory_bridges = []
+
         
+
         # Top scored pairs
+
         try:
+
             self._log(f"... (Top Scores) Đang tính điểm với: stats={len(stats_n_day)}, consensus={len(consensus)}, high_win={len(high_win)}, pending_k2n={len(pending_k2n_data)}, gan={len(gan_stats)}, memory={len(top_memory_bridges)}, ai={len(ai_predictions)}")
+
             top_scores = self.get_top_scored_pairs(
+
                 stats_n_day, consensus, high_win, pending_k2n_data,
+
                 gan_stats, top_memory_bridges, ai_predictions
+
             )
+
             if top_scores is None:
+
                 top_scores = []
+
             self._log(f"... (Top Scores) Đã tính được {len(top_scores)} cặp có điểm")
+
         except Exception as e:
+
             self._log(f"Lỗi tính Điểm Tổng Lực: {e}")
+
             import traceback
+
             self._log(traceback.format_exc())
+
             top_scores = []
+
         
+
         # Prepare DE dashboard data
+
         df_de = None
+
         try:
+
             cols = ["NB", "NGAY", "GDB", "G1", "G2", "G3", "G4", "G5", "G6", "G7"]
+
             data_for_df = [r[:10] for r in all_data_ai if r and len(r) >= 10]
+
             df_de = pd.DataFrame(data_for_df, columns=cols)
+
         except Exception as e:
+
             self._log(f"Cảnh báo: Lỗi tạo DataFrame cho DE: {e}")
+
         
+
         return {
+
             "next_ky": next_ky,
+
             "stats_n_day": stats_n_day,
+
             "n_days_stats": n_days_stats,
+
             "consensus": consensus,
+
             "high_win": high_win,
+
             "pending_k2n_data": pending_k2n_data,
+
             "gan_stats": gan_stats,
+
             "top_scores": top_scores,
+
             "top_memory_bridges": top_memory_bridges,
+
             "ai_predictions": ai_predictions,
+
             "df_de": df_de,
+
         }
     
     def train_ai(self, callback=None):

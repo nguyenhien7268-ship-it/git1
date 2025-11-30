@@ -1308,6 +1308,7 @@ def BACKTEST_MANAGED_BRIDGES_K2N(
                 idx1, idx2 = bridge.get("pos1_idx"), bridge.get("pos2_idx")
                 pred = []
                 
+                # ⚡ FIX: Kiểm tra idx1 và idx2 không phải None trước khi sử dụng
                 if idx1 == -1 and idx2 == -1: # Memory Bridge
                     bridge_name = bridge["name"]
                     if "Tổng(" in bridge_name:
@@ -1322,10 +1323,12 @@ def BACKTEST_MANAGED_BRIDGES_K2N(
                             pos1, pos2 = int(match.group(1)), int(match.group(2))
                             loto1, loto2 = last_lotos[pos1], last_lotos[pos2]
                             pred = calculate_bridge_stl(loto1, loto2, "diff")
-                else: # V17 Bridge
-                    a, b = last_positions[idx1], last_positions[idx2]
-                    if a is not None and b is not None:
-                        pred = taoSTL_V30_Bong(int(a), int(b))
+                elif idx1 is not None and idx2 is not None and isinstance(idx1, int) and isinstance(idx2, int): # V17 Bridge
+                    # Kiểm tra index hợp lệ trước khi truy cập
+                    if 0 <= idx1 < len(last_positions) and 0 <= idx2 < len(last_positions):
+                        a, b = last_positions[idx1], last_positions[idx2]
+                        if a is not None and b is not None:
+                            pred = taoSTL_V30_Bong(int(a), int(b))
 
                 if pred:
                     finalRow.append(f"{','.join(pred)} (Khung mới N1)")

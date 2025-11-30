@@ -1,6 +1,7 @@
 # Tên file: logic/analytics/dashboard_scorer.py
 # (MOVED FROM logic/dashboard_analytics.py - Phase 1 & 2 Refactoring)
 from collections import Counter
+import itertools
 
 # Import SETTINGS
 try:
@@ -315,29 +316,79 @@ def get_prediction_consensus(last_row=None, db_name=DB_NAME):
         return []
 
 def get_high_win_rate_predictions(last_row=None, threshold=None, db_name=DB_NAME):
-    """Lấy dự đoán từ Cầu Đã Lưu CÓ TỶ LỆ CAO (dựa trên cache K2N)."""
+    """
+    Lấy dự đoán từ Cầu Đã Lưu CÓ TỶ LỆ CAO (dựa trên cache K2N).
+    
+    - Cầu LÔ (LOTO): Lọc theo win_rate_text >= threshold
+    - Cầu ĐỀ (DE): Lọc theo recent_win_count_10 >= DE_HIGH_RATE_MIN_WINS_10
+    
+    Returns:
+        list: List of dicts với keys: {'name': str, 'value': str, 'rate': str, 'type': str}
+    """
     try:
         if threshold is None:
             threshold = getattr(SETTINGS, "HIGH_WIN_THRESHOLD", 47.0)
-        high_win_bridges = []
+        de_min_wins = getattr(SETTINGS, "DE_HIGH_RATE_MIN_WINS_10", 7)
+        
+        predictions = []
         managed_bridges = get_all_managed_bridges(db_name, only_enabled=True)
         if not managed_bridges:
             return []
+        
         for bridge in managed_bridges:
             try:
-                rate_str = str(bridge.get("win_rate_text", "0%")).replace("%", "")
-                if not rate_str or rate_str == "N/A":
+                bridge_type = bridge.get("type", "").upper()
+                prediction_stl_str = bridge.get("next_prediction_stl")
+                
+                if not prediction_stl_str or "N2" in prediction_stl_str or "LỖI" in prediction_stl_str or "," not in prediction_stl_str:
                     continue
-                win_rate = float(rate_str)
-                if win_rate >= threshold:
-                    prediction_stl_str = bridge.get("next_prediction_stl")
-                    if (not prediction_stl_str or "N2" in prediction_stl_str or "LỖI" in prediction_stl_str or "," not in prediction_stl_str):
+                
+                stl = prediction_stl_str.split(",")
+                
+                # Xử lý cầu ĐỀ (DE)
+                if bridge_type in ["DE", "DE_DYNAMIC_K", "DE_POS_SUM"]:
+                    recent_wins = bridge.get("recent_win_count_10", 0)
+                    if isinstance(recent_wins, str):
+                        try:
+                            recent_wins = int(recent_wins)
+                        except ValueError:
+                            recent_wins = 0
+                    
+                    if recent_wins >= de_min_wins:
+                        # Chuyển đổi STL sang Dàn Đề
+                        try:
+                            from logic.de_utils import generate_dan_de_from_touches
+                            de_values = generate_dan_de_from_touches(stl)
+                            for de_value in de_values:
+                                predictions.append({
+                                    "name": bridge["name"],
+                                    "value": de_value,
+                                    "rate": f"{recent_wins}/10",
+                                    "type": "DE"
+                                })
+                        except Exception as e:
+                            print(f"Lỗi chuyển đổi DE cho cầu {bridge['name']}: {e}")
+                
+                # Xử lý cầu LÔ (LOTO)
+                else:
+                    rate_str = str(bridge.get("win_rate_text", "0%")).replace("%", "")
+                    if not rate_str or rate_str == "N/A":
                         continue
-                    stl = prediction_stl_str.split(",")
-                    high_win_bridges.append({"name": bridge["name"], "stl": stl, "rate": f"{win_rate:.2f}%"})
+                    win_rate = float(rate_str)
+                    
+                    if win_rate >= threshold:
+                        # Thêm từng giá trị STL như một prediction riêng
+                        for stl_value in stl:
+                            predictions.append({
+                                "name": bridge["name"],
+                                "value": stl_value.strip(),
+                                "rate": f"{win_rate:.2f}%",
+                                "type": "LOTO"
+                            })
             except Exception as e:
-                print(f"Lỗi kiểm tra tỷ lệ cầu {bridge['name']}: {e}")
-        return high_win_bridges
+                print(f"Lỗi kiểm tra tỷ lệ cầu {bridge.get('name', 'Unknown')}: {e}")
+        
+        return predictions
     except Exception as e:
         print(f"Lỗi get_high_win_rate_predictions: {e}")
         return []
@@ -419,14 +470,50 @@ def get_top_scored_pairs(stats, consensus, high_win, pending_k2n, gan_stats, top
             scores[pair_key]["reasons"].append(f"Vote x{count} (+{vote_score:.1f})")
             scores[pair_key]["sources"] += 1
         high_win_bonus = getattr(SETTINGS, "HIGH_WIN_SCORE_BONUS", 2.5)
+        
+        # ⚡ FIX: Xử lý cả format cũ (có 'stl') và format mới (có 'value')
+        # Group values by bridge name để tạo pairs từ format mới
+        bridge_values_map = {}
         for bridge in high_win:
-            pair_key = _standardize_pair(bridge["stl"])
-            if pair_key:
-                if pair_key not in scores:
-                    scores[pair_key] = {"score": 0.0, "reasons": [], "is_gan": False, "gan_days": 0, "gan_loto": "", "sources": 0}
-                scores[pair_key]["score"] += high_win_bonus
-                scores[pair_key]["reasons"].append(f"Cao ({bridge['rate']})")
-                scores[pair_key]["sources"] += 1
+            # Format cũ: có 'stl' (list of values)
+            if "stl" in bridge:
+                pair_key = _standardize_pair(bridge["stl"])
+                if pair_key:
+                    if pair_key not in scores:
+                        scores[pair_key] = {"score": 0.0, "reasons": [], "is_gan": False, "gan_days": 0, "gan_loto": "", "sources": 0}
+                    scores[pair_key]["score"] += high_win_bonus
+                    scores[pair_key]["reasons"].append(f"Cao ({bridge.get('rate', 'N/A')})")
+                    scores[pair_key]["sources"] += 1
+            # Format mới: có 'value' (individual value) - cần group theo bridge name
+            elif "value" in bridge:
+                bridge_name = bridge.get("name", "unknown")
+                if bridge_name not in bridge_values_map:
+                    bridge_values_map[bridge_name] = {"values": [], "rate": bridge.get("rate", "N/A")}
+                bridge_values_map[bridge_name]["values"].append(bridge["value"])
+        
+        # Xử lý format mới: tạo pairs từ các values cùng bridge
+        for bridge_name, data in bridge_values_map.items():
+            values = data["values"]
+            rate = data["rate"]
+            # Nếu có đúng 2 values, tạo pair
+            if len(values) == 2:
+                pair_key = _standardize_pair(values)
+                if pair_key:
+                    if pair_key not in scores:
+                        scores[pair_key] = {"score": 0.0, "reasons": [], "is_gan": False, "gan_days": 0, "gan_loto": "", "sources": 0}
+                    scores[pair_key]["score"] += high_win_bonus
+                    scores[pair_key]["reasons"].append(f"Cao ({rate})")
+                    scores[pair_key]["sources"] += 1
+            # Nếu có nhiều hơn 2 values, tạo pairs từ tất cả combinations
+            elif len(values) > 2:
+                for val1, val2 in itertools.combinations(values, 2):
+                    pair_key = _standardize_pair([val1, val2])
+                    if pair_key:
+                        if pair_key not in scores:
+                            scores[pair_key] = {"score": 0.0, "reasons": [], "is_gan": False, "gan_days": 0, "gan_loto": "", "sources": 0}
+                        scores[pair_key]["score"] += high_win_bonus
+                        scores[pair_key]["reasons"].append(f"Cao ({rate})")
+                        scores[pair_key]["sources"] += 1
         K2N_RISK_PROGRESSIVE = getattr(SETTINGS, "K2N_RISK_PROGRESSIVE", True)
         k2n_risks = {}
         for bridge_name, data in pending_k2n.items():

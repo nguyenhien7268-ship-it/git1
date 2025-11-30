@@ -263,17 +263,29 @@ def TIM_CAU_TOT_NHAT_V16(
                         f"{current_streak} (Max {max_streak})",
                     ]
                 )
+                # ⚡ CẬP NHẬT: Tạo dictionary data để lưu TỶ LỆ TỐI ƯU vào cột mới
+                bridge_data_dict = {
+                    "pos1_idx": idx1,
+                    "pos2_idx": idx2,
+                    "search_rate_text": rate_str,  # ⚡ LƯU TỶ LỆ TỐI ƯU VÀO CỘT MỚI
+                    "search_period": totalTestDays, # ⚡ LƯU SỐ KỲ TỐI ƯU
+                    "win_rate_text": "0.00%",       # Tỷ lệ chuẩn (sẽ được cập nhật sau)
+                    "is_enabled": 1 if rate >= AUTO_ADD_MIN_RATE else 0 # Auto-enable if found
+                }
+                
+                # Cấu trúc cũ: (n, d, r, db, i1, i2) được thay thế bằng list 7 phần tử
                 bridges_to_add.append(
-                    (bridge_name, bridge_name, rate_str, db_name, idx1, idx2)
+                    (bridge_name, bridge_name, rate_str, db_name, idx1, idx2, bridge_data_dict) 
                 )
 
     if bridges_to_add:
         print(f"Dò cầu V17: Tự động thêm/cập nhật {len(bridges_to_add)} cầu...")
         try:
-            # Dùng list comprehension để batch update
+            # ⚡ CẬP NHẬT GỌI HÀM: Truyền dictionary data để upsert_managed_bridge xử lý cột mới
             [
-                upsert_managed_bridge(n, d, r, db, i1, i2)
-                for n, d, r, db, i1, i2 in bridges_to_add
+                # Truyền data_dict làm tham số cuối cùng (bridge_data)
+                upsert_managed_bridge(n, d, r, db, i1, i2, data_dict)
+                for n, d, r, db, i1, i2, data_dict in bridges_to_add
             ]
         except Exception as e_db:
             print(f"Lỗi khi batch update cầu V17: {e_db}")
@@ -378,15 +390,29 @@ def TIM_CAU_BAC_NHO_TOT_NHAT(
                         f"{current_streak} (Max {max_streak})",
                     ]
                 )
-                # Bạc nhớ (V17) có pos1_idx = -1
-                bridges_to_add.append((alg_name, alg_name, rate_str, db_name, -1, -1))
+                # ⚡ CẬP NHẬT: Tạo dictionary data để lưu TỶ LỆ TỐI ƯU vào cột mới
+                bridge_data_dict = {
+                    "pos1_idx": -1,
+                    "pos2_idx": -1,
+                    "search_rate_text": rate_str,  # ⚡ LƯU TỶ LỆ TỐI ƯU VÀO CỘT MỚI
+                    "search_period": totalTestDays, # ⚡ LƯU SỐ KỲ TỐI ƯU
+                    "win_rate_text": "0.00%",       # Tỷ lệ chuẩn (sẽ được cập nhật sau)
+                    "is_enabled": 1 if rate >= AUTO_ADD_MIN_RATE else 0
+                }
+                
+                # Cấu trúc cũ: (n, d, r, db, i1, i2) được thay thế bằng list 7 phần tử
+                bridges_to_add.append(
+                    (alg_name, alg_name, rate_str, db_name, -1, -1, bridge_data_dict)
+                )
 
     if bridges_to_add:
         print(f"Dò cầu Bạc Nhớ: Tự động thêm/cập nhật {len(bridges_to_add)} cầu...")
         try:
+            # ⚡ CẬP NHẬT GỌI HÀM: Truyền dictionary data để upsert_managed_bridge xử lý cột mới
             [
-                upsert_managed_bridge(n, d, r, db, i1, i2)
-                for n, d, r, db, i1, i2 in bridges_to_add
+                # Truyền data_dict làm tham số cuối cùng (bridge_data)
+                upsert_managed_bridge(n, d, r, db, i1, i2, data_dict)
+                for n, d, r, db, i1, i2, data_dict in bridges_to_add
             ]
         except Exception as e_db:
             print(f"Lỗi khi batch update cầu Bạc Nhớ: {e_db}")
