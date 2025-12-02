@@ -7,7 +7,7 @@ import sqlite3
 import re
 
 # Import các tài nguyên chung
-from logic.de_utils import get_touches_by_offset, generate_dan_de_from_touches, get_bo_name_by_pair, BO_SO_DE, get_gdb_last_2
+from logic.de_utils import get_touches_by_offset, generate_dan_de_from_touches, get_bo_name_by_pair, BO_SO_DE, get_gdb_last_2, get_set_name_of_number
 try:
     from logic.config_manager import SETTINGS
     # Import DB_NAME và hàm upsert từ db_manager
@@ -211,6 +211,22 @@ class DeBridgeManager:
                     idx1 = self._map_safe_name_to_index(p1_str)
                     idx2 = self._map_safe_name_to_index(p2_str)
                     return idx1, idx2, 0, "POS_SUM"
+            
+            elif "DE_SET" in name or b_type == "DE_SET":
+                match = re.search(r"DE_SET_(.+)_([^_]+)", name)
+                if match:
+                    p1_str, p2_str = match.groups()
+                    
+                    # 1. Thử map theo kiểu có chỉ số (GDB4, G19...)
+                    idx1 = self._map_safe_name_to_index(p1_str)
+                    idx2 = self._map_safe_name_to_index(p2_str)
+                    
+                    # 2. [FIX] Fallback: Nếu null, thử map theo kiểu tên chuẩn (GDB, G1...)
+                    if idx1 is None: idx1 = self._map_std_name_to_index(p1_str)
+                    if idx2 is None: idx2 = self._map_std_name_to_index(p2_str)
+                    
+                    if idx1 is not None and idx2 is not None:
+                        return idx1, idx2, 0, "SET"
                     
         except: return None
         return None
@@ -258,6 +274,22 @@ class DeBridgeManager:
                 base_sum = (v1 + v2) % 10
             elif mode == "POS_SUM" or mode == "LEGACY_V17":
                 base_sum = (v1 + v2) % 10
+            elif mode == "SET":
+                # Ghép giá trị v1 và v2 thành chuỗi số
+                combined_number = f"{v1}{v2}"
+                set_name = get_set_name_of_number(combined_number)
+                if set_name:
+                    set_numbers = BO_SO_DE.get(set_name, [])
+                    if display_mode:
+                        # Return tên bộ (VD: "Bộ 03")
+                        return f"Bộ {set_name}"
+                    if return_string:
+                        # Return dãy số (VD: "03,30,08,80...")
+                        return ",".join(set_numbers)
+                    else:
+                        return set_numbers
+                else:
+                    return [] if not return_string else ""
             
             # Tính các chạm (Touch)
             touches = []

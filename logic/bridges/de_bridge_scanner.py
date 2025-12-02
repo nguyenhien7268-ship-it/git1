@@ -48,10 +48,10 @@ class DeBridgeScanner:
         print(f">>> [DE SCANNER] Quét cầu Bộ: Tìm thấy {len(bridges_set)} cầu")
         found_bridges.extend(bridges_set)
         
-        # Sắp xếp: Ưu tiên cầu Bộ (type='BO'), sau đó sắp xếp theo streak giảm dần
+        # Sắp xếp: Ưu tiên cầu Bộ (type='DE_SET'), sau đó sắp xếp theo streak giảm dần
         # Điều này đảm bảo cầu Bộ được hiển thị rõ ràng hơn
         found_bridges.sort(key=lambda x: (
-            0 if str(x.get('type', '')).upper() == 'BO' else 1,  # Cầu Bộ lên trước
+            0 if str(x.get('type', '')).upper() == 'DE_SET' else 1,  # Cầu Bộ lên trước
             -x.get('streak', 0)  # Sau đó sắp xếp theo streak giảm dần
         ))
         
@@ -330,18 +330,18 @@ class DeBridgeScanner:
                             predicted_set = get_set_name_of_number(combined_last)
                             
                             if predicted_set:
-                                # CHUẨN HÓA TÊN V2.1: G[vt1] + G[vt2] (Bộ)
+                                # CHUẨN HÓA TÊN V2.1: DE_SET_{safe_p1}_{safe_p2}
                                 # Lưu ý: Chỉ xóa ngoặc [], giữ lại dấu chấm . nếu có (VD: G2.1)
                                 safe_p1 = pos1_name.replace("[", "").replace("]", "")
                                 safe_p2 = pos2_name.replace("[", "").replace("]", "")
                                 
-                                # Format: G[vt1] + G[vt2] (Bộ) - đặt tên vị trí trong ngoặc vuông
-                                std_name = f"G[{safe_p1}] + G[{safe_p2}] (Bộ)"
-                                display_desc = f"Bộ: {pos1_name} + {pos2_name}"
+                                # Format: DE_SET_{safe_p1}_{safe_p2}
+                                std_name = f"DE_SET_{safe_p1}_{safe_p2}"
+                                display_desc = f"Bộ: {pos1_name} + {pos2_name} (Bộ {predicted_set})"
                                 
                                 found_bridges.append({
                                     "name": std_name,
-                                    "type": "BO",  # Quan trọng: Type phải là "BO" để Analytics nhận diện x2 điểm
+                                    "type": "DE_SET",  # Quan trọng: Type phải là "DE_SET" để Analytics nhận diện x2 điểm
                                     "streak": current_streak,
                                     "predicted_value": predicted_set,  # Tên bộ đại diện (vd "00")
                                     "full_dan": ",".join(BO_SO_DE.get(predicted_set, [])),
@@ -379,7 +379,7 @@ class DeBridgeScanner:
             cursor = conn.cursor()
             
             # Xóa các loại cầu cũ (bao gồm cả loại cũ và mới để tránh duplicate)
-            cursor.execute("DELETE FROM ManagedBridges WHERE type IN ('DE_DYNAMIC_K', 'DE_POS_SUM', 'DE_CHAM', 'BO')")
+            cursor.execute("DELETE FROM ManagedBridges WHERE type IN ('DE_DYNAMIC_K', 'DE_POS_SUM', 'DE_CHAM', 'BO', 'DE_SET')")
             
             count = 0
             for b in bridges[:30]: 

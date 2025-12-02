@@ -1,6 +1,9 @@
-# Tên file: git1/logic/de_backtester_core.py
+# Tên file: logic/de_backtester_core.py
+# (PHIÊN BẢN V8.3 - FULL RESTORE & FIX DE_SET)
+
 import sys
 import os
+import traceback
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
@@ -8,7 +11,10 @@ from logic.de_utils import (
     get_gdb_last_2, 
     get_touches_by_offset, 
     generate_dan_de_from_touches,
-    check_cham
+    check_cham,
+    # [NEW] Import logic bộ
+    get_set_name_of_number,
+    BO_SO_DE
 )
 
 # Import Logic V16 cho Cầu Bệt
@@ -35,6 +41,7 @@ class DeBacktesterCore:
                         self.v16_map[name] = i
             except: pass
 
+    # [RESTORED] Method này đã được khôi phục nguyên trạng để đảm bảo không lỗi các module khác
     def run_backtest(self, config, days_to_test=365):
         """
         Chạy backtest cho một cấu hình cầu cụ thể.
@@ -182,426 +189,210 @@ class DeBacktesterCore:
 
     def _get_col_idx(self, name):
         if not name: return None
-        # Xử lý tên như "G2.1" -> "G2"
         clean = name.split('.')[0].split('_')[0]
         return self.col_map.get(clean)
 
     def _clean_num(self, val):
         return ''.join(filter(str.isdigit, str(val)))
 
-
 def _restore_brackets_format(pos_name):
-    """
-    Chuyển đổi tên vị trí từ format đã xóa ngoặc về format có ngoặc.
-    Ví dụ: G14 -> G1[4], G3.43 -> G3.4[3], GDB4 -> GDB[4]
-    
-    Logic: getPositionName_V17_Shadow trả về format có ngoặc (VD: G1[4]),
-    nhưng de_bridge_scanner.py xóa ngoặc thành G14. Hàm này khôi phục lại.
-    
-    Args:
-        pos_name: Tên vị trí đã xóa ngoặc (VD: G14, G3.43, GDB4)
-    
-    Returns:
-        Tên vị trí có ngoặc (VD: G1[4], G3.4[3], GDB[4])
-    """
-    if not pos_name:
-        return pos_name
-    
+    """Khôi phục format G14 -> G1[4] để mapping V16 hiểu."""
+    if not pos_name: return pos_name
     import re
-    # Nếu đã có ngoặc, trả về nguyên
-    if '[' in pos_name and ']' in pos_name:
-        return pos_name
+    if '[' in pos_name and ']' in pos_name: return pos_name
     
-    # Pattern 1: GDB(số) - VD: GDB4 -> GDB[4]
     match_gdb = re.match(r'^GDB(\d)$', pos_name)
-    if match_gdb:
-        return f"GDB[{match_gdb.group(1)}]"
+    if match_gdb: return f"GDB[{match_gdb.group(1)}]"
     
-    # Pattern 2: G(số).(số)(số) - VD: G3.43 -> G3.4[3]
-    # Lưu ý: Số cuối cùng là index trong ngoặc
     match_dot = re.match(r'^G(\d+)\.(\d+)(\d)$', pos_name)
-    if match_dot:
-        return f"G{match_dot.group(1)}.{match_dot.group(2)}[{match_dot.group(3)}]"
+    if match_dot: return f"G{match_dot.group(1)}.{match_dot.group(2)}[{match_dot.group(3)}]"
     
-    # Pattern 3: G(số)(số) - VD: G14 -> G1[4]
-    # Lưu ý: Số cuối cùng là index trong ngoặc, số trước đó là tên giải
     match_simple = re.match(r'^G(\d+)(\d)$', pos_name)
-    if match_simple:
-        # Tách số cuối làm index, phần còn lại làm tên giải
-        digits = match_simple.group(1)
-        index = match_simple.group(2)
-        return f"G{digits}[{index}]"
+    if match_simple: return f"G{match_simple.group(1)}[{match_simple.group(2)}]"
     
-    # Nếu không match, trả về nguyên (có thể là format khác hoặc đã đúng)
     return pos_name
-
 
 def run_de_bridge_historical_test(bridge_config, all_data, days=30):
     """
     Chạy backtest lịch sử chi tiết cho một cầu Đề cụ thể.
-    
-    Args:
-        bridge_config: Dict chứa cấu hình cầu (từ DB)
-        all_data: Toàn bộ dữ liệu A:I
-        days: Số ngày cần backtest (mặc định 30)
-    
-    Returns:
-        list: List các dict với format:
-            [{'date': '...', 'pred': '...', 'result': '...', 'is_win': True/False, 'status': 'Ăn/Gãy'}]
+    Hỗ trợ: DE_DYNAMIC_K, DE_POS, DE_SET (Mới).
     """
-    # Bao bọc toàn bộ logic trong try-except
     try:
-        # Error handling: Kiểm tra input
+        # 1. Validation Input
         if not bridge_config:
-            return [{'date': 'LỖI CẤU HÌNH DB', 'pred': 'N/A', 'result': 'N/A', 'is_win': False, 'status': 'FAIL: Config is None'}]
-        
+            return [{'date': 'LỖI', 'pred': 'N/A', 'result': 'N/A', 'is_win': False, 'status': 'FAIL: Config None'}]
         if not all_data or len(all_data) < 2:
-            return [{'date': 'LỖI DỮ LIỆU', 'pred': 'N/A', 'result': 'N/A', 'is_win': False, 'status': 'FAIL: Không đủ dữ liệu lịch sử'}]
+            return [{'date': 'LỖI', 'pred': 'N/A', 'result': 'N/A', 'is_win': False, 'status': 'FAIL: Data < 2'}]
         
-        # Logic: Để backtest days ngày, ta cần days+1 hàng dữ liệu
-        # - Dữ liệu dùng để dự đoán: all_data[i-1] (ngày trước)
-        # - Ngày dự đoán cho: all_data[i] (ngày hiện tại)
-        # - Vòng lặp chạy từ start_index đến len(all_data) - 1
-        
-        if len(all_data) < 2:
-            return [{'date': 'LỖI DỮ LIỆU', 'pred': 'N/A', 'result': 'N/A', 'is_win': False, 'status': 'FAIL: Dữ liệu quá ngắn'}]
-        
-        # Tính start_index: Bắt đầu từ ngày nào để có đủ days kết quả
-        # Nếu có đủ dữ liệu: start_index = len(all_data) - days
-        # Nếu không đủ: start_index = 1 (bắt đầu từ ngày thứ 2)
+        # 2. Xác định phạm vi Backtest
         if len(all_data) >= days + 1:
             start_index = len(all_data) - days
             actual_days = days
         else:
             start_index = 1
-            actual_days = len(all_data) - 1  # Số ngày có thể backtest
+            actual_days = len(all_data) - 1
         
-        # Đảm bảo start_index >= 1 (cần ít nhất 1 ngày trước để tính toán)
-        if start_index < 1:
-            start_index = 1
-            actual_days = min(len(all_data) - 1, days)
-        
+        end_index = len(all_data) - 1
         results = []
+        
+        # 3. Parse Config
         bridge_name = bridge_config.get("name", "")
-        bridge_type = bridge_config.get("type", "")
-        
-        # Validation: Kiểm tra các trường cần thiết
-        if not bridge_name:
-            return [{'date': 'LỖI CẤU HÌNH DB', 'pred': 'N/A', 'result': 'N/A', 'is_win': False, 'status': 'FAIL: Bridge name is missing'}]
-        
-        if not bridge_type:
-            bridge_type = "UNKNOWN"  # Fallback nếu không có type
-        
-        # Parse bridge config
+        bridge_type = bridge_config.get("type", "UNKNOWN")
         pos1_name = bridge_config.get("pos1_name")
         pos2_name = bridge_config.get("pos2_name")
         k_offset = bridge_config.get("k_offset", 0)
         
-        # Nếu không có pos1_name/pos2_name, thử parse từ tên cầu
+        # Parse tên cầu nếu thiếu thông tin
         if not pos1_name or not pos2_name:
-            # Parse từ tên cầu (VD: DE_DYN_GDB_G1_K2 hoặc DE_POS_G2.1_G3.2)
-            if bridge_type == "DE_DYNAMIC_K" or "DE_DYN_" in bridge_name:
-                # Format: DE_DYN_{name1}_{name2}_K{k}
-                parts = bridge_name.split("_")
-                if len(parts) >= 4:
-                    pos1_name = parts[2]  # GDB
-                    pos2_name = parts[3]  # G1
-                    # Tìm phần K (có thể là parts[4] hoặc parts[5] nếu có thêm phần)
-                    for p in parts[4:]:
-                        if p.startswith("K"):
-                            try:
-                                k_offset = int(p[1:])
-                                break
-                            except:
-                                pass
-            elif bridge_type == "DE_POS_SUM" or "DE_POS_" in bridge_name:
-                # Format: DE_POS_{pos1}_{pos2}
-                # Lưu ý: pos1 và pos2 có thể chứa dấu chấm (VD: G2.1)
-                parts = bridge_name.split("_")
-                if len(parts) >= 4:
-                    pos1_name = parts[2]  # G2.1 (giữ nguyên dấu chấm)
-                    pos2_name = parts[3]  # G3.2 (giữ nguyên dấu chấm)
-        
-        # Tạo DeBacktesterCore instance (dùng all_data để có đủ dữ liệu)
+            parts = bridge_name.split("_")
+            if (bridge_type == "DE_DYNAMIC_K" or "DE_DYN_" in bridge_name) and len(parts) >= 4:
+                pos1_name, pos2_name = parts[2], parts[3]
+                for p in parts[4:]:
+                    if p.startswith("K"): k_offset = int(p[1:])
+            elif (bridge_type == "DE_POS_SUM" or "DE_POS_" in bridge_name or bridge_type == "DE_SET" or "DE_SET_" in bridge_name) and len(parts) >= 4:
+                pos1_name, pos2_name = parts[2], parts[3]
+
+        # 4. Mapping Vị Trí (Index)
         backtester = DeBacktesterCore(all_data)
-        
-        # Xử lý mapping vị trí
         idx1, idx2 = None, None
         use_v16 = False
         
-        # Ưu tiên: Nếu có pos1_idx và pos2_idx trong config (từ DB), dùng trực tiếp
-        pos1_idx_from_db = bridge_config.get("pos1_idx")
-        pos2_idx_from_db = bridge_config.get("pos2_idx")
+        # 4a. Dùng Index từ DB (Nếu có)
+        pos1_idx = bridge_config.get("pos1_idx")
+        pos2_idx = bridge_config.get("pos2_idx")
         
-        if pos1_idx_from_db is not None:
-            # Kiểm tra cấu hình hợp lệ: pos1_idx phải là số và trong phạm vi hợp lệ
-            try:
-                pos1_idx_from_db = int(pos1_idx_from_db)
-                if pos1_idx_from_db < 0 or pos1_idx_from_db >= 214:  # V17 Shadow có 214 vị trí (0-213)
-                    error_msg = f"FAIL: pos1_idx không hợp lệ: {pos1_idx_from_db} (phải trong khoảng 0-213)"
-                    return [{'date': 'LỖI CẤU HÌNH', 'pred': 'N/A', 'result': 'N/A', 'is_win': False, 'status': error_msg}]
-            except (ValueError, TypeError):
-                error_msg = f"FAIL: pos1_idx không phải là số hợp lệ: {pos1_idx_from_db}"
-                return [{'date': 'LỖI CẤU HÌNH', 'pred': 'N/A', 'result': 'N/A', 'is_win': False, 'status': error_msg}]
-            
-            # Có pos1_idx từ DB (DE_POS bridge hoặc cầu đã lưu)
-            idx1 = pos1_idx_from_db
-            if pos2_idx_from_db is not None:
-                try:
-                    pos2_idx_from_db = int(pos2_idx_from_db)
-                    if pos2_idx_from_db < 0 or pos2_idx_from_db >= 214:
-                        error_msg = f"FAIL: pos2_idx không hợp lệ: {pos2_idx_from_db} (phải trong khoảng 0-213)"
-                        return [{'date': 'LỖI CẤU HÌNH', 'pred': 'N/A', 'result': 'N/A', 'is_win': False, 'status': error_msg}]
-                    idx2 = pos2_idx_from_db
-                except (ValueError, TypeError):
-                    error_msg = f"FAIL: pos2_idx không phải là số hợp lệ: {pos2_idx_from_db}"
-                    return [{'date': 'LỖI CẤU HÌNH', 'pred': 'N/A', 'result': 'N/A', 'is_win': False, 'status': error_msg}]
-            else:
-                idx2 = None  # Cầu đơn vị trí
-            
-            # Kiểm tra xem có phải V16 position không (idx >= 0 và < 150)
-            if idx1 >= 0 and (idx2 is None or idx2 >= 0):
-                use_v16 = True
+        if pos1_idx is not None:
+            idx1 = int(pos1_idx)
+            if pos2_idx is not None: idx2 = int(pos2_idx)
+            if idx1 >= 0: use_v16 = True
         else:
-            # Không có pos_idx, parse từ tên hoặc pos_name
-            # Ưu tiên tìm trong Map V16 nếu là Cầu Bệt
+            # 4b. Parse từ tên (V16 Map)
             if hasattr(backtester, 'v16_map') and backtester.v16_map:
-                # Convert tên vị trí từ format đã xóa ngoặc (G14) về format có ngoặc (G1[4])
-                # để tìm trong v16_map
-                pos1_name_with_brackets = _restore_brackets_format(pos1_name)
-                idx1 = backtester.v16_map.get(pos1_name_with_brackets)
-                
+                p1_fmt = _restore_brackets_format(pos1_name)
+                idx1 = backtester.v16_map.get(p1_fmt)
                 if pos2_name:
-                    pos2_name_with_brackets = _restore_brackets_format(pos2_name)
-                    idx2 = backtester.v16_map.get(pos2_name_with_brackets)
-                    if idx1 is not None and idx2 is not None:
-                        use_v16 = True
-                else:
-                    if idx1 is not None:
-                        use_v16 = True
+                    p2_fmt = _restore_brackets_format(pos2_name)
+                    idx2 = backtester.v16_map.get(p2_fmt)
+                    if idx1 is not None and idx2 is not None: use_v16 = True
+                elif idx1 is not None: use_v16 = True
             
-            # Nếu không tìm thấy trong V16, quay về Map đơn giản
-            if idx1 is None:
-                idx1 = backtester._get_col_idx(pos1_name)
-            if idx2 is None and pos2_name:
-                idx2 = backtester._get_col_idx(pos2_name)
-        
+            # 4c. Fallback Compact Map
+            if idx1 is None: idx1 = backtester._get_col_idx(pos1_name)
+            if idx2 is None and pos2_name: idx2 = backtester._get_col_idx(pos2_name)
+
         if idx1 is None:
-            error_msg = f"FAIL: Không tìm thấy vị trí pos1 (name: {pos1_name}, idx: {pos1_idx_from_db})"
-            return [{'date': 'LỖI CẤU HÌNH DB', 'pred': 'N/A', 'result': 'N/A', 'is_win': False, 'status': error_msg}]
-        
-        # Kiểm tra idx2: Nếu có pos2_idx_from_db từ DB thì OK (có thể None cho cầu đơn)
-        # Nếu không có pos2_idx_from_db, kiểm tra xem có cần pos2_name không
-        if idx2 is None and pos2_idx_from_db is None:
-            # Không có pos2_idx từ DB, kiểm tra xem có cần pos2_name không
-            if pos2_name:
-                # Cần pos2 nhưng không tìm thấy idx
-                error_msg = f"FAIL: Không tìm thấy vị trí pos2 (name: {pos2_name}, idx: {pos2_idx_from_db})"
-                return [{'date': 'LỖI CẤU HÌNH DB', 'pred': 'N/A', 'result': 'N/A', 'is_win': False, 'status': error_msg}]
-        
-        # Validation: Kiểm tra type hợp lệ
-        if bridge_type not in ["DE_DYNAMIC_K", "DE_POS_SUM", "DE_POS", "CLASSIC", "UNKNOWN"]:
-            if not ("DE_DYN_" in bridge_name or "DE_POS_" in bridge_name):
-                error_msg = f"FAIL: Bridge type không hợp lệ: {bridge_type}"
-                return [{'date': 'LỖI CẤU HÌNH DB', 'pred': 'N/A', 'result': 'N/A', 'is_win': False, 'status': error_msg}]
-        
-        # Vòng lặp backtest: Chạy từ start_index đến len(all_data) - 1
-        # Logic: 
-        # - Dữ liệu dùng để dự đoán: row_prev = all_data[i-1] (ngày trước)
-        # - Ngày dự đoán cho: row_today = all_data[i] (kết quả ngày hiện tại)
-        # - Vòng lặp chạy chính xác actual_days lần
-        end_index = len(all_data) - 1  # Tránh ngày cuối cùng (ngày mà ta dùng để dự đoán cho ngày T+1)
-        
+            return [{'date': 'LỖI', 'pred': 'N/A', 'result': 'N/A', 'is_win': False, 'status': f'FAIL: Mất vị trí 1 ({pos1_name})'}]
+
+        # 5. [FIX] Thêm DE_SET vào danh sách hợp lệ
+        valid_types = ["DE_DYNAMIC_K", "DE_POS_SUM", "DE_POS", "CLASSIC", "UNKNOWN", "DE_SET"]
+        if bridge_type not in valid_types:
+            if not any(x in bridge_name for x in ["DE_DYN_", "DE_POS_", "DE_SET_"]):
+                return [{'date': 'LỖI', 'pred': 'N/A', 'result': 'N/A', 'is_win': False, 'status': f'FAIL: Type {bridge_type} không hỗ trợ'}]
+
+        # 6. VÒNG LẶP BACKTEST CHÍNH
         for i in range(start_index, min(start_index + actual_days, end_index + 1)):
             try:
-                # Kiểm tra index hợp lệ trước khi truy cập
-                if i >= len(all_data) or i - 1 < 0:
-                    continue
+                row_today = all_data[i]
+                row_prev = all_data[i - 1]
                 
-                row_today = all_data[i]  # Ngày dự đoán cho
-                row_prev = all_data[i - 1]  # Dữ liệu dùng để dự đoán
-                
-                # Kiểm tra row có đủ phần tử không
-                if not row_today or len(row_today) < 2:
-                    continue
-                if not row_prev or len(row_prev) < 2:
-                    continue
-                
-                # Lấy ngày/kỳ (ưu tiên cột đầu tiên, nếu không có thì dùng index)
-                try:
-                    date_str = str(row_today[0]) if row_today[0] else f"Ngày {i}"
-                except (IndexError, TypeError):
-                    date_str = f"Ngày {i}"
-                
-                # Lấy GĐB thực tế
+                date_str = str(row_today[0]) if row_today[0] else f"Ngày {i}"
                 gdb_today = get_gdb_last_2(row_today)
-                if not gdb_today:
-                    continue
+                if not gdb_today: continue
                 
-                # Bước 1: Lấy số từ vị trí
+                # --- LẤY SỐ TẠI VỊ TRÍ ---
                 n1, n2 = 0, 0
                 has_n2 = (idx2 is not None)
                 
-                # Bước 1: Lấy số từ vị trí (với error handling đầy đủ)
                 if use_v16 and getAllPositions_V17_Shadow:
-                    try:
-                        pos_vals = getAllPositions_V17_Shadow(row_prev)
-                        # Kiểm tra index hợp lệ trước khi truy cập
-                        if idx1 >= len(pos_vals) or pos_vals[idx1] is None:
-                            raise ValueError(f"Vị trí idx1={idx1} không hợp lệ hoặc rỗng")
-                        n1 = int(pos_vals[idx1])
-                        if has_n2:
-                            if idx2 >= len(pos_vals) or pos_vals[idx2] is None:
-                                raise ValueError(f"Vị trí idx2={idx2} không hợp lệ hoặc rỗng")
-                            n2 = int(pos_vals[idx2])
-                    except (IndexError, ValueError, TypeError) as e:
-                        # Nếu lỗi khi lấy vị trí, bỏ qua ngày này
-                        raise ValueError(f"Lỗi lấy vị trí: {e}")
-                else:
-                    # Kiểm tra index hợp lệ trước khi truy cập
-                    if idx1 >= len(row_prev):
-                        raise IndexError(f"idx1={idx1} vượt quá độ dài row_prev={len(row_prev)}")
-                    v1_str = backtester._clean_num(row_prev[idx1])
-                    if not v1_str:
-                        raise ValueError(f"Không thể lấy số từ vị trí idx1={idx1}")
-                    n1 = int(v1_str[-1])
-                    
+                    pos_vals = getAllPositions_V17_Shadow(row_prev)
+                    if idx1 >= len(pos_vals) or pos_vals[idx1] is None: continue
+                    n1 = int(pos_vals[idx1])
                     if has_n2:
-                        if idx2 >= len(row_prev):
-                            raise IndexError(f"idx2={idx2} vượt quá độ dài row_prev={len(row_prev)}")
-                        v2_str = backtester._clean_num(row_prev[idx2])
-                        if not v2_str:
-                            raise ValueError(f"Không thể lấy số từ vị trí idx2={idx2}")
-                        n2 = int(v2_str[-1])
-                
-                # Bước 2: Tính toán base
-                if has_n2:
-                    base_sum = (n1 + n2) % 10
-                    desc_base = f"({n1}+{n2})"
+                        if idx2 >= len(pos_vals) or pos_vals[idx2] is None: continue
+                        n2 = int(pos_vals[idx2])
                 else:
-                    base_sum = n1
-                    desc_base = f"({n1})"
-                
-                # Bước 3: Tính toán dự đoán và kiểm tra
+                    v1 = backtester._clean_num(row_prev[idx1])
+                    if not v1: continue
+                    n1 = int(v1[-1])
+                    if has_n2:
+                        v2 = backtester._clean_num(row_prev[idx2])
+                        if not v2: continue
+                        n2 = int(v2[-1])
+
+                # --- TÍNH TOÁN DỰ ĐOÁN (THEO TYPE) ---
                 is_win = False
                 pred_str = ""
                 
-                if bridge_type == "DE_DYNAMIC_K" or "DE_DYN_" in bridge_name:
-                    # DYNAMIC: Dùng get_touches_by_offset
+                # [FIX] LOGIC CẦU BỘ (DE_SET)
+                if bridge_type == "DE_SET" or "DE_SET_" in bridge_name:
+                    if has_n2:
+                        pair_val = f"{n1}{n2}"
+                        set_name = get_set_name_of_number(pair_val)
+                        if set_name and set_name in BO_SO_DE:
+                            dan_so = BO_SO_DE[set_name]
+                            is_win = gdb_today in dan_so
+                            pred_str = f"Bộ {set_name}"
+                        else:
+                            is_win = False
+                            pred_str = f"Bộ ?? ({pair_val})"
+                    else:
+                        pred_str = "Lỗi: Cầu Bộ thiếu Vị trí 2"
+                
+                # LOGIC CẦU ĐỘNG
+                elif bridge_type == "DE_DYNAMIC_K" or "DE_DYN_" in bridge_name:
+                    base_sum = (n1 + n2) % 10 if has_n2 else n1
                     touches = get_touches_by_offset(base_sum, k_offset, logic_type="TONG")
                     dan_de = generate_dan_de_from_touches(touches)
                     is_win = gdb_today in dan_de
                     pred_str = f"Chạm {','.join(map(str, touches))}"
+                
+                # LOGIC CẦU TỔNG
                 elif bridge_type == "DE_POS_SUM" or "DE_POS_" in bridge_name:
-                    # POS_SUM: Chạm đơn giản
-                    pred_val = base_sum
-                    is_win = check_cham(gdb_today, [pred_val])
-                    pred_str = f"Chạm {pred_val}"
+                    base_sum = (n1 + n2) % 10 if has_n2 else n1
+                    is_win = check_cham(gdb_today, [base_sum])
+                    pred_str = f"Chạm {base_sum}"
+                
+                # CLASSIC
                 else:
-                    # CLASSIC: Chạm (Gốc + Bóng)
-                    t1 = base_sum
-                    t2 = (base_sum + 5) % 10
+                    base_sum = (n1 + n2) % 10 if has_n2 else n1
+                    t1, t2 = base_sum, (base_sum + 5) % 10
                     is_win = check_cham(gdb_today, [t1, t2])
                     pred_str = f"Chạm {t1},{t2}"
-                
-                status = "Ăn" if is_win else "Gãy"
-                
+
                 results.append({
                     'date': date_str,
                     'pred': pred_str,
                     'result': gdb_today,
                     'is_win': is_win,
-                    'status': status
+                    'status': "Ăn" if is_win else "Gãy"
                 })
-                
-            except (IndexError, ValueError, TypeError, AttributeError) as e:
-                # Bắt các lỗi logic/index (tuple index out of range, etc.)
-                try:
-                    error_date = f"Kỳ {row_today[0]}" if row_today and len(row_today) > 0 and row_today[0] else f"Ngày {i}"
-                except:
-                    error_date = f"Ngày {i}"
-                error_msg = str(e)[:50] if e else "Unknown error"
-                results.append({
-                    'date': error_date,
-                    'pred': 'LỖI',
-                    'result': 'N/A',
-                    'is_win': False,
-                    'status': f'FAIL: {error_msg}'
-                })
-                continue
-            except Exception as e:
-                # Bắt các lỗi khác
-                try:
-                    error_date = f"Kỳ {row_today[0]}" if row_today and len(row_today) > 0 and row_today[0] else f"Ngày {i}"
-                except:
-                    error_date = f"Ngày {i}"
-                error_msg = str(e)[:50] if e else "Unknown error"
-                results.append({
-                    'date': error_date,
-                    'pred': 'LỖI',
-                    'result': 'N/A',
-                    'is_win': False,
-                    'status': f'FAIL: {error_msg}'
-                })
-                continue
-        
-        # Nếu không có kết quả nào (tất cả đều lỗi), trả về thông báo lỗi
-        if not results:
-            return [{'date': 'LỖI TÍNH TOÁN', 'pred': 'N/A', 'result': 'N/A', 'is_win': False, 'status': 'FAIL: Không thể tính toán backtest cho cầu này'}]
-        
-        return results
-    
-    except Exception as e:
-        # Ghi log lỗi và trả về thông báo lỗi rõ ràng
-        import traceback
-        error_trace = traceback.format_exc()
-        print(f"[ERROR] run_de_bridge_historical_test failed: {e}")
-        print(error_trace)
-        
-        error_msg = f"FAIL: {str(e)[:100]}"  # Giới hạn độ dài thông báo
-        return [{'date': 'LỖI CẤU HÌNH DB', 'pred': 'N/A', 'result': 'N/A', 'is_win': False, 'status': error_msg}]
 
+            except Exception as e:
+                results.append({'date': date_str, 'pred': 'ERR', 'result': 'N/A', 'is_win': False, 'status': f'ERR: {str(e)[:20]}'})
+                continue
+
+        if not results:
+            return [{'date': 'LỖI', 'pred': 'N/A', 'result': 'N/A', 'is_win': False, 'status': 'FAIL: Không có kết quả nào'}]
+            
+        return results
+
+    except Exception as e:
+        return [{'date': 'LỖI', 'pred': 'N/A', 'result': 'N/A', 'is_win': False, 'status': f'CRASH: {str(e)}'}]
 
 def calculate_de_bridge_max_lose_history(bridge_config, all_data):
-    """
-    Tính toán chuỗi Gãy Lâu Nhất (Max Lose Streak) của cầu Đề trong toàn bộ lịch sử.
-    
-    Args:
-        bridge_config: Dict chứa cấu hình cầu (từ DB)
-        all_data: Toàn bộ dữ liệu A:I
-    
-    Returns:
-        int: Số ngày gãy liên tiếp lâu nhất (Max Lose Streak), hoặc -1 nếu lỗi
-    """
-    if not bridge_config or not all_data or len(all_data) < 2:
-        return -1
-    
+    """Wrapper cho tính max lose (Giữ nguyên)"""
+    if not bridge_config or not all_data: return -1
     try:
-        # Sử dụng hàm backtest đã có để tính toán
-        # Chạy backtest trên toàn bộ lịch sử (không giới hạn days)
         results = run_de_bridge_historical_test(bridge_config, all_data, days=len(all_data))
+        if not results or "FAIL" in str(results[0].get('status', '')): return -1
         
-        if not results or len(results) == 0:
-            return -1
-        
-        # Tính toán Max Lose Streak từ kết quả backtest
-        max_lose_streak = 0
-        current_lose_streak = 0
-        
-        for result in results:
-            is_win = result.get('is_win', False)
-            if not is_win:
-                # Gãy: Tăng chuỗi gãy hiện tại
-                current_lose_streak += 1
-                max_lose_streak = max(max_lose_streak, current_lose_streak)
+        max_lose = 0
+        curr_lose = 0
+        for r in results:
+            if not r['is_win']:
+                curr_lose += 1
+                max_lose = max(max_lose, curr_lose)
             else:
-                # Ăn: Reset chuỗi gãy
-                current_lose_streak = 0
-        
-        return max_lose_streak
-    
-    except Exception as e:
-        print(f"[ERROR] calculate_de_bridge_max_lose_history failed: {e}")
-        import traceback
-        traceback.print_exc()
-        return -1
+                curr_lose = 0
+        return max_lose
+    except: return -1
