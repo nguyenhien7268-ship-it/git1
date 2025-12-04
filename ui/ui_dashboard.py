@@ -1,7 +1,6 @@
-# Tên file: git3/ui/ui_dashboard.py
-#
-# (NỘI DUNG THAY THẾ TOÀN BỘ - THÊM POPUP CHI TIẾT KHI CLICK BẢNG ĐIỂM)
-#
+# Tên file: code6/ui/ui_dashboard.py
+# (PHIÊN BẢN ĐÃ FIX: Lọc Cầu Đề khỏi bảng Thông 10 Kỳ)
+
 import datetime
 import tkinter as tk
 import traceback
@@ -473,6 +472,12 @@ class DashboardWindow(ttk.Frame):
                 )
                 good_bridges = []
                 for b in all_bridges:
+                    # [CLEAN CODE FIX] Filter out DE bridges to avoid pollution in Loto table
+                    # Chỉ lấy cầu Lô, bỏ qua các type bắt đầu bằng "DE" (DE_DYNAMIC, DE_SET,...)
+                    bridge_type = str(b.get("type", "")).upper()
+                    if bridge_type.startswith("DE"):
+                        continue 
+
                     recent_wins = b.get("recent_win_count_10", 0)
                     if isinstance(recent_wins, str):
                         try:

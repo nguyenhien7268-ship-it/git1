@@ -1,7 +1,8 @@
+
 🛠️ QUY TRÌNH PHỐI HỢP V2.3 (STANDARD - CÓ TEST SCRIPT)
 1. PHA ĐỌC HIỂU (INPUT)
 Nguyên tắc: Luôn đọc File Gốc trước khi sửa bất cứ lỗi gì.
-
+CHECK FILE GỐC TRƯỚC KHI SỬA CHƯA. ĐẢM BẢO KHÔNG ẢNH HƯỞNG TỚI MODULE /CHỨC NĂNG KHÁC
 Lợi ích: Tránh việc "sửa lợn lành thành lợn què" do không hiểu ngữ cảnh, đảm bảo tính chính xác của code và tiết kiệm token rework.
 
 2. PHA TRẢ KẾT QUẢ (OUTPUT) - Tối Ưu Chi Phí Token
@@ -14,6 +15,7 @@ Trường hợp 3 (Thay Đổi Cấu Trúc/Nhiều File): Sử dụng "Tổng Ch
 Trường hợp 2 (Sửa Lỗi/File Ngắn): Sử dụng "Làm mới hoàn toàn" (Full Overwrite). Tôi gửi TOÀN BỘ FILE (FULL CODE).
 
 3. PHA TỐI ƯU (VALUE ADD)
+code phải  xây dựng theo quy tắc clean code 
 Hành động: Tôi sẽ luôn kèm theo mục "Gemini Suggestion".
 
 Lợi ích: Đề xuất code ngắn hơn, chạy nhanh hơn hoặc dễ đọc hơn, giảm chi phí bảo trì trong tương lai.

@@ -114,6 +114,12 @@ except ImportError:
         """Fallback function for get_27_loto_positions"""
         return []
 
+# Import De Manager for sync update
+try:
+    from .bridges.bridge_manager_de import de_manager
+except ImportError:
+    de_manager = None
+
 # Import refactored modules (parse_k2n_results moved to backtester_core)
 from .backtester_core import parse_k2n_results as _parse_k2n_results
 
@@ -250,6 +256,15 @@ def run_and_update_all_bridge_K2N_cache(
 
         all_cache_data = cache_classic + cache_managed
         all_pending = {**pending_classic, **pending_managed}
+
+        # [FIX CRITICAL V8.7] Gọi cập nhật Cầu Đề tại đây
+        if de_manager:
+            try:
+                # Update DE bridges (writes directly to DB)
+                count_de, _ = de_manager.update_daily_stats(all_data_ai)
+                print(f">>> [Backtester] Đã đồng bộ cập nhật {count_de} Cầu Đề.")
+            except Exception as e:
+                print(f"Lỗi cập nhật Cầu Đề trong K2N Cache: {e}")
 
         if not all_cache_data:
             return {}, 0, "Không trích xuất được dữ liệu cache K2N."

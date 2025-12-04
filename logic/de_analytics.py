@@ -4,9 +4,9 @@ from itertools import combinations
 import re
 
 try:
-    from .de_utils import BO_SO_DE, get_gdb_last_2, check_cham, check_tong
+    from .de_utils import BO_SO_DE, get_gdb_last_2, check_cham, check_tong, get_set_name_of_number
 except ImportError:
-    from de_utils import BO_SO_DE, get_gdb_last_2, check_cham, check_tong
+    from de_utils import BO_SO_DE, get_gdb_last_2, check_cham, check_tong, get_set_name_of_number
 
 # --- GIỮ NGUYÊN LOGIC THỐNG KÊ CŨ ---
 def analyze_market_trends(all_data_ai, n_days=30):
@@ -158,42 +158,126 @@ def get_de_consensus(bridges):
                 
     return {"consensus_cham": vote_cham.most_common()}
 
-def calculate_number_scores(bridges):
+def calculate_number_scores(bridges, market_stats=None):
     """
-    Chấm điểm 00-99 (V77 Ultimate).
-    Ưu tiên Cầu Bộ: Điểm x 2.
+    V3.8 ULTIMATE SCORING ENGINE:
+    Tính điểm số học dựa trên công thức:
+    Final Score = (Attack Score) - (Defense Penalty) + (Market Bonus)
+    
+    Args:
+        bridges: Danh sách cầu (bao gồm cả Positive và Killer)
+        market_stats: Thống kê thị trường (để cộng điểm Bonus)
     """
-    scores = {f"{i:02d}": 0 for i in range(100)}
+    # Khởi tạo bảng điểm 00-99
+    scores = {f"{i:02d}": 0.0 for i in range(100)}
+    
+    # Chuẩn bị dữ liệu thống kê bonus
+    freq_cham = market_stats.get('freq_cham', {}) if market_stats else {}
+    freq_bo = market_stats.get('freq_bo', {}) if market_stats else {}
+    max_freq_cham = max(freq_cham.values()) if freq_cham else 1
+    
+    # 1. DUYỆT CẦU (BRIDGES) - TẤN CÔNG & PHÒNG THỦ
     for bridge in bridges:
         b_type = str(bridge.get('type', '')).upper()
         val = str(bridge.get('predicted_value', ''))
-        streak = bridge.get('streak', 1)
+        # Đảm bảo streak là số thực
+        try:
+            streak = float(bridge.get('streak', 1))
+        except (ValueError, TypeError):
+            streak = 1.0
+            
+        weight = streak # Trọng số cơ bản dựa trên độ thông cầu
         
-        if not val: continue
-        
-        if 'BO' in b_type:
-            # FIX: Chuẩn hóa key bộ
-            bo_key = _normalize_bo_key(val)
-            if bo_key:
-                for s in BO_SO_DE[bo_key]: 
-                    scores[s] += streak * 2.0 
-        else:
-            # Cầu chạm/tổng thường
-            parts = []
-            if ',' in val:
-                parts = [int(v) for v in val.split(',') if v.strip().isdigit()]
-            elif val.isdigit():
-                parts = [int(val)]
+        # --- LOGIC PHÒNG THỦ (CẦU LOẠI - KILLER) ---
+        if 'KILLER' in b_type or 'LOAI' in b_type:
+            # Phạt cực nặng (gấp 3 lần điểm tấn công) để "giết" số xấu
+            penalty = weight * 3.0
+            
+            # Xử lý Loại Chạm (VD: "LOẠI CHẠM 1")
+            if 'CHAM' in val or 'CHẠM' in val:
+                try:
+                    digit_char = val.split(" ")[-1]
+                    if digit_char.isdigit():
+                        digit = int(digit_char)
+                        for s in scores:
+                            if check_cham(s, [digit]):
+                                scores[s] -= penalty
+                except Exception: pass
                 
-            if not parts: continue
+            # Xử lý Loại Tổng (VD: "LOẠI TỔNG 5")
+            elif 'TONG' in val or 'TỔNG' in val:
+                try:
+                    t_char = val.split(" ")[-1]
+                    if t_char.isdigit():
+                        t = int(t_char)
+                        for s in scores:
+                            if check_tong(s, [t]):
+                                scores[s] -= penalty
+                except Exception: pass
+            
+            # Xử lý Loại Bộ (VD: "LOẠI BỘ 01")
+            elif 'BO' in val or 'BỘ' in val:
+                 bo_key = _normalize_bo_key(val)
+                 if bo_key and bo_key in BO_SO_DE:
+                     for s in BO_SO_DE[bo_key]:
+                         scores[s] -= penalty
 
-            if 'CHAM' in b_type or 'VITRI' in b_type:
-                for s in scores:
-                    if check_cham(s, parts): scores[s] += streak
-            elif 'TONG' in b_type:
-                for s in scores:
-                    if check_tong(s, parts): scores[s] += streak
+        # --- LOGIC TẤN CÔNG (CẦU CHỐT - POSITIVE) ---
+        else:
+            if not val: continue
+            
+            # Ưu tiên 1: Cầu Bộ (Set) -> Điểm x 2.0
+            if 'BO' in b_type:
+                bo_key = _normalize_bo_key(val)
+                if bo_key and bo_key in BO_SO_DE:
+                    for s in BO_SO_DE[bo_key]:
+                        scores[s] += (weight * 2.0)
+            
+            # Ưu tiên 2: Các loại cầu khác (Chạm, Tổng, Pascal, Memory...) -> Điểm x 1.0
+            else:
+                parts = []
+                # Parse giá trị (VD: "2,3" hoặc "2")
+                if ',' in val:
+                    parts = [int(v) for v in val.split(',') if v.strip().isdigit()]
+                elif val.strip().isdigit():
+                    parts = [int(val.strip())]
                 
+                if not parts: continue
+
+                # Xử lý Cầu Tổng
+                if 'TONG' in b_type or 'TỔNG' in b_type:
+                    for s in scores:
+                        if check_tong(s, parts): 
+                            scores[s] += weight
+                
+                # Mặc định (CHAM, PASCAL, MEMORY, VITRI...): Coi là Cầu Chạm
+                # Logic này bao quát được mọi loại cầu trả về số đơn (0-9)
+                else:
+                    for s in scores:
+                        if check_cham(s, parts): 
+                            scores[s] += weight
+
+    # 2. CỘNG ĐIỂM THỊ TRƯỜNG (MARKET BONUS)
+    # Cộng điểm nhỏ cho các số Hot để làm yếu tố phụ (Tie-breaker)
+    if market_stats:
+        for s in scores:
+            n1, n2 = int(s[0]), int(s[1])
+            
+            # Bonus Chạm Hot (Tối đa 2.0 điểm)
+            f1 = freq_cham.get(n1, 0)
+            f2 = freq_cham.get(n2, 0)
+            avg_freq = (f1 + f2) / 2
+            # Normalize theo max_freq
+            stats_bonus = (avg_freq / max_freq_cham) * 2.0 if max_freq_cham > 0 else 0
+            
+            # Bonus Bộ Hot (Tối đa 1.0 điểm)
+            my_set = get_set_name_of_number(s)
+            if my_set in freq_bo:
+                stats_bonus += 1.0
+            
+            scores[s] += stats_bonus
+
+    # Trả về danh sách đã sắp xếp giảm dần theo điểm: [('88', 25.5), ('01', -10.0), ...]
     return sorted(scores.items(), key=lambda x: x[1], reverse=True)
 
 def get_top_strongest_sets(bridges, market_stats=None, last_row=None):

@@ -1,554 +1,375 @@
-# Tên file: git1/ui/ui_de_dashboard.py
+# Tên file: code6/ui/ui_de_dashboard.py
+# (PHIÊN BẢN V3.7 - ULTIMATE: ANALYTICS + FINAL FORECAST)
+
 import tkinter as tk
 from tkinter import ttk, messagebox
 import threading
 
+# --- IMPORTS ---
 try:
-    from logic.de_utils import BO_SO_DE, check_cham, check_tong, get_gdb_last_2
+    from logic.de_utils import BO_SO_DE, check_cham, get_gdb_last_2, get_set_name_of_number
     from logic.de_analytics import (
-        analyze_market_trends, 
-        get_de_consensus, 
-        calculate_number_scores, 
+        analyze_market_trends,
+        calculate_number_scores,
         get_top_strongest_sets,
         calculate_top_touch_combinations
     )
     from logic.bridges.de_bridge_scanner import run_de_scanner
-    from logic.bridges.bridge_manager_de import de_manager
-    
-    # ⚡ DEBUG: Kiểm tra BO_SO_DE sau khi import
-    if not BO_SO_DE or len(BO_SO_DE) == 0:
-        print("[ERROR UI_DE_DASHBOARD] BO_SO_DE is EMPTY after import!")
-    else:
-        print(f"[DEBUG UI_DE_DASHBOARD] BO_SO_DE loaded successfully: {len(BO_SO_DE)} sets")
+    print(f"[DEBUG UI_DE_DASHBOARD] Imports thành công. BO_SO_DE size: {len(BO_SO_DE)}")
 except ImportError as e:
     print(f"[ERROR UI_DE_DASHBOARD] Import failed: {e}")
-    import traceback
-    traceback.print_exc()
-    # Tạo fallback functions để tránh crash
+    # Fallback definitions
     BO_SO_DE = {}
-    def check_cham(*args): return False
-    def check_tong(*args): return False
-    def get_gdb_last_2(*args): return None
-    def analyze_market_trends(*args): return {}
-    def get_de_consensus(*args): return {}
-    def calculate_number_scores(*args): return []
-    def get_top_strongest_sets(*args): return []
-    def calculate_top_touch_combinations(*args): return []
+    def get_set_name_of_number(n): return "00"
     def run_de_scanner(*args): return 0, []
-    de_manager = None
+    def analyze_market_trends(*args, **kwargs): return {}
+    def calculate_number_scores(*args): return []
+    def get_top_strongest_sets(*args, **kwargs): return []
+    def calculate_top_touch_combinations(*args, **kwargs): return []
+    def get_gdb_last_2(r): return r[2][-2:] if len(r)>2 else ""
 
 class UiDeDashboard(ttk.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent)
         self.controller = controller
         self.found_bridges = []
-        self.scores = []
-        self.strong_sets = []
-        self.top_touches = []
-        self.touch_combos = []  # Lưu kết quả phân tích tổ hợp 4 chạm
-        self.init_ui()
-        
-    def init_ui(self):
-        # TOOLBAR
+        self._init_ui()
+
+    def _init_ui(self):
+        # 1. TOOLBAR
         toolbar = ttk.Frame(self, padding=5)
         toolbar.pack(fill=tk.X)
-        ttk.Button(toolbar, text="🚀 1. Cập Nhật Phong Độ (V78)", command=self.on_update_cache_click).pack(side=tk.LEFT, padx=2)
-        ttk.Button(toolbar, text="🔄 2. Phân Tích Thị Trường", command=self.on_analyze_click).pack(side=tk.LEFT, padx=2)
-        ttk.Button(toolbar, text="🔍 3. Quét Cầu & Chốt Số (V77)", command=self.on_scan_click).pack(side=tk.LEFT, padx=2)
+        btn_scan = ttk.Button(toolbar, text="🚀 QUÉT & CHỐT SỐ (V3.7)", command=self.on_scan_click)
+        btn_scan.pack(side=tk.LEFT, padx=5)
         self.lbl_status = ttk.Label(toolbar, text="Sẵn sàng", foreground="blue")
         self.lbl_status.pack(side=tk.LEFT, padx=10)
 
-        # MAIN LAYOUT
+        # 2. MAIN LAYOUT (3 CỘT)
         paned = ttk.PanedWindow(self, orient=tk.HORIZONTAL)
         paned.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
-        # --- COL 1: THỐNG KÊ (LEFT) ---
-        frame_left = ttk.LabelFrame(paned, text="📊 Dữ Liệu", padding=5)
-        paned.add(frame_left, weight=1)
-        nb_left = ttk.Notebook(frame_left)
-        nb_left.pack(fill=tk.BOTH, expand=True)
+        # --- CỘT 1: THỐNG KÊ (20%) ---
+        frame_stats = ttk.LabelFrame(paned, text="📊 Thị Trường", padding=2)
+        paned.add(frame_stats, weight=1)
         
-        tab_history = ttk.Frame(nb_left)
-        nb_left.add(tab_history, text="Lịch Sử")
-        self.tree_history = ttk.Treeview(tab_history, columns=("date", "gdb", "de"), show="headings", height=15)
+        nb_stats = ttk.Notebook(frame_stats)
+        nb_stats.pack(fill=tk.BOTH, expand=True)
+        
+        # Tab Lịch Sử
+        tab_history = ttk.Frame(nb_stats)
+        nb_stats.add(tab_history, text="Lịch Sử")
+        self.tree_history = ttk.Treeview(tab_history, columns=("date", "de"), show="headings")
         self.tree_history.heading("date", text="Ngày"); self.tree_history.column("date", width=80)
-        self.tree_history.heading("gdb", text="GĐB"); self.tree_history.column("gdb", width=70)
         self.tree_history.heading("de", text="Đề"); self.tree_history.column("de", width=40, anchor="center")
         self.tree_history.pack(fill=tk.BOTH, expand=True)
-
-        self._init_stat_tabs(nb_left)
-
-        # --- COL 2: KẾT QUẢ QUÉT (CENTER) ---
-        frame_mid = ttk.LabelFrame(paned, text="🌉 Kết Quả Quét", padding=5)
-        paned.add(frame_mid, weight=2)
         
-        cols = ("name", "predict", "streak", "form", "hp")
-        self.tree_bridges = ttk.Treeview(frame_mid, columns=cols, show="headings", selectmode="extended")
-        self.tree_bridges.heading("name", text="Vị Trí (Quy luật)")
-        self.tree_bridges.column("name", width=140)
-        self.tree_bridges.heading("predict", text="Báo Số")
-        self.tree_bridges.column("predict", width=100, anchor="center")
-        self.tree_bridges.heading("streak", text="Thông")
-        self.tree_bridges.column("streak", width=60, anchor="center")
-        self.tree_bridges.heading("form", text="Phong Độ")
-        self.tree_bridges.column("form", width=80, anchor="center")
-        self.tree_bridges.heading("hp", text="Máu")
-        self.tree_bridges.column("hp", width=60, anchor="center")
+        # Tab Chạm/Bộ
+        self.tree_cham_stat = self._create_stat_tab(nb_stats, "Chạm")
+        self.tree_bo_stat = self._create_stat_tab(nb_stats, "Bộ")
+
+        # --- CỘT 2: SCANNER (45%) ---
+        frame_scan = ttk.Frame(paned, width=450)
+        paned.add(frame_scan, weight=3)
         
-        self.tree_bridges.pack(fill=tk.BOTH, expand=True)
-        # Bind double-click event
+        paned_vertical = ttk.PanedWindow(frame_scan, orient=tk.VERTICAL)
+        paned_vertical.pack(fill=tk.BOTH, expand=True)
+
+        # A. Cầu Chốt
+        frame_pos = ttk.LabelFrame(paned_vertical, text="🎯 Cầu Chốt (Pascal, Memory...)", padding=2)
+        paned_vertical.add(frame_pos, weight=3)
+        cols_br = ("name", "type", "streak", "pred", "win")
+        self.tree_bridges = ttk.Treeview(frame_pos, columns=cols_br, show="headings")
+        self.tree_bridges.heading("name", text="Tên Cầu"); self.tree_bridges.column("name", width=140)
+        self.tree_bridges.heading("type", text="Loại"); self.tree_bridges.column("type", width=70)
+        self.tree_bridges.heading("streak", text="Thông"); self.tree_bridges.column("streak", width=50, anchor="center")
+        self.tree_bridges.heading("pred", text="Dự Đoán"); self.tree_bridges.column("pred", width=100)
+        self.tree_bridges.heading("win", text="Win10"); self.tree_bridges.column("win", width=50, anchor="center")
+        
+        sb_pos = ttk.Scrollbar(frame_pos, orient=tk.VERTICAL, command=self.tree_bridges.yview)
+        self.tree_bridges.configure(yscrollcommand=sb_pos.set)
+        sb_pos.pack(side=tk.RIGHT, fill=tk.Y)
+        self.tree_bridges.pack(fill=tk.BOTH, expand=True, side=tk.LEFT)
+        
+        self.tree_bridges.tag_configure("pascal", foreground="#00008B", font=("Arial", 9, "bold"))
+        self.tree_bridges.tag_configure("memory", foreground="#800080", font=("Arial", 9, "bold"))
         self.tree_bridges.bind("<Double-1>", self.on_bridge_double_click)
-        # Test: Bind cả Button-1 để debug
-        self.tree_bridges.bind("<Button-1>", lambda e: print(f"[DEBUG] Button-1 clicked on tree_bridges"))
-        print("[DEBUG] Double-click event đã được bind vào tree_bridges")
 
-        # --- COL 3: CHỐT SỐ (RIGHT) ---
-        frame_right = ttk.Frame(paned)
+        # B. Cầu Loại
+        frame_kill = ttk.LabelFrame(paned_vertical, text="💀 Cầu Loại (Killer)", padding=2)
+        paned_vertical.add(frame_kill, weight=1)
+        cols_kill = ("name", "streak", "pred")
+        self.tree_killer = ttk.Treeview(frame_kill, columns=cols_kill, show="headings")
+        self.tree_killer.heading("name", text="Tên Cầu"); self.tree_killer.column("name", width=140)
+        self.tree_killer.heading("streak", text="Gãy"); self.tree_killer.column("streak", width=50, anchor="center")
+        self.tree_killer.heading("pred", text="Loại"); self.tree_killer.column("pred", width=120)
+        self.tree_killer.pack(fill=tk.BOTH, expand=True, side=tk.LEFT)
+        self.tree_killer.tag_configure("killer", foreground="red", font=("Arial", 9, "bold"))
+
+        # --- CỘT 3: ANALYTICS & CHỐT SỐ (35%) ---
+        frame_right = ttk.LabelFrame(paned, text="🔮 Phân Tích & Chốt Số", padding=2)
         paned.add(frame_right, weight=2)
         
-        # 1. Manual Tool
-        grp_manual = ttk.LabelFrame(frame_right, text="🛠️ Tạo Dàn Thủ Công", padding=5)
-        grp_manual.pack(fill=tk.X, pady=(0, 5))
-        f_input = ttk.Frame(grp_manual)
-        f_input.pack(fill=tk.X)
-        ttk.Label(f_input, text="Nhập Chạm:").pack(side=tk.LEFT)
-        self.ent_cham = ttk.Entry(f_input, width=15)
-        self.ent_cham.pack(side=tk.LEFT, padx=5)
-        self.ent_cham.insert(0, "05")
-        ttk.Button(f_input, text="⚡ Tạo Dàn", command=self.manual_gen_cham).pack(side=tk.LEFT, padx=5)
-        self.txt_manual = tk.Text(grp_manual, height=3, width=30)
-        self.txt_manual.pack(fill=tk.X, pady=5)
+        nb_right = ttk.Notebook(frame_right)
+        nb_right.pack(fill=tk.BOTH, expand=True)
         
-        # 2. Final Score
-        grp_score = ttk.LabelFrame(frame_right, text="🏆 CHỐT SỐ FINAL (V77 Ultimate)", padding=5)
-        grp_score.pack(fill=tk.BOTH, expand=True)
+        # TAB 1: PHÂN TÍCH (Analysis)
+        tab_analysis = ttk.Frame(nb_right)
+        nb_right.add(tab_analysis, text="Phân Tích")
         
-        f_ind = ttk.Frame(grp_score)
-        f_ind.pack(fill=tk.X, pady=5)
-        self.lbl_cham_thong = ttk.Label(f_ind, text="💎 Chạm Thông: ...", foreground="red", font=("Arial", 10, "bold"))
-        self.lbl_cham_thong.pack(anchor="w")
-        self.lbl_cham_rate = ttk.Label(f_ind, text="⭐ Chạm Tỉ Lệ: ...", foreground="blue", font=("Arial", 10, "bold"))
-        self.lbl_cham_rate.pack(anchor="w")
-        self.lbl_bo_dep = ttk.Label(f_ind, text="📦 Bộ Đẹp: ...", foreground="green", font=("Arial", 10, "bold"))
-        self.lbl_bo_dep.pack(anchor="w")
-
-        self.nb_result = ttk.Notebook(grp_score)
-        self.nb_result.pack(fill=tk.BOTH, expand=True)
+        # Top Chạm & Bộ (Grid)
+        f_top = ttk.Frame(tab_analysis)
+        f_top.pack(fill=tk.BOTH, expand=True)
+        f_top.columnconfigure(0, weight=1); f_top.columnconfigure(1, weight=1)
         
-        self.tab_65 = ttk.Frame(self.nb_result); self.nb_result.add(self.tab_65, text="Dàn 65")
-        self.txt_65 = tk.Text(self.tab_65, wrap=tk.WORD); self.txt_65.pack(fill=tk.BOTH, expand=True)
+        # Bảng Top Chạm
+        ttk.Label(f_top, text="Top Chạm:").grid(row=0, column=0, sticky="w")
+        self.tree_touch = ttk.Treeview(f_top, columns=("val", "score"), show="headings", height=5)
+        self.tree_touch.heading("val", text="Chạm"); self.tree_touch.column("val", width=40, anchor="center")
+        self.tree_touch.heading("score", text="Điểm"); self.tree_touch.column("score", width=40, anchor="center")
+        self.tree_touch.grid(row=1, column=0, sticky="nsew", padx=2)
         
-        self.tab_10 = ttk.Frame(self.nb_result); self.nb_result.add(self.tab_10, text="Top 10")
-        self.txt_10 = tk.Text(self.tab_10, wrap=tk.WORD, font=("Arial", 11)); self.txt_10.pack(fill=tk.BOTH, expand=True)
+        # Bảng Top Bộ
+        ttk.Label(f_top, text="Top Bộ:").grid(row=0, column=1, sticky="w")
+        self.tree_set = ttk.Treeview(f_top, columns=("val", "score"), show="headings", height=5)
+        self.tree_set.heading("val", text="Bộ"); self.tree_set.column("val", width=40, anchor="center")
+        self.tree_set.heading("score", text="Điểm"); self.tree_set.column("score", width=40, anchor="center")
+        self.tree_set.grid(row=1, column=1, sticky="nsew", padx=2)
+
+        # Bảng Tổ Hợp Chạm Thông (NEW)
+        ttk.Label(tab_analysis, text="Tổ Hợp Chạm Thông (Hot):").pack(anchor="w", pady=(5,0))
+        self.tree_combos = ttk.Treeview(tab_analysis, columns=("combo", "info"), show="headings", height=5)
+        self.tree_combos.heading("combo", text="Tổ Hợp"); self.tree_combos.column("combo", width=80)
+        self.tree_combos.heading("info", text="Thông/Tỉ Lệ"); self.tree_combos.column("info", width=120)
+        self.tree_combos.pack(fill=tk.BOTH, expand=True, padx=2)
+
+        # TAB 2: CHỐT SỐ (Forecast)
+        tab_forecast = ttk.Frame(nb_right)
+        nb_right.add(tab_forecast, text="Chốt Số")
         
-        self.tab_4 = ttk.Frame(self.nb_result); self.nb_result.add(self.tab_4, text="Tứ Thủ")
-        self.txt_4 = tk.Text(self.tab_4, wrap=tk.WORD, font=("Arial", 14, "bold"), fg="red"); self.txt_4.pack(fill=tk.BOTH, expand=True)
+        # Dàn 65
+        ttk.Label(tab_forecast, text="Dàn 65 Số (Lọc AI):", font=("Arial", 9, "bold")).pack(anchor="w")
+        self.txt_65 = tk.Text(tab_forecast, height=4, width=30, wrap=tk.WORD, font=("Arial", 9))
+        self.txt_65.pack(fill=tk.X, padx=2, pady=2)
         
-        ttk.Button(grp_score, text="📋 Copy", command=self.copy_current_tab).pack(fill=tk.X, pady=5)
-
-    def _init_stat_tabs(self, nb):
-        for label, suffix in [("Chạm", "cham"), ("Tổng", "tong"), ("Bộ", "bo")]:
-            tab = ttk.Frame(nb)
-            nb.add(tab, text=label)
-            tree = ttk.Treeview(tab, columns=("val", "freq", "gan"), show="headings")
-            tree.heading("val", text=label); tree.column("val", width=35, anchor="center")
-            tree.heading("freq", text="Về"); tree.column("freq", width=35, anchor="center")
-            tree.heading("gan", text="Gan"); tree.column("gan", width=35, anchor="center")
-            tree.pack(fill=tk.BOTH, expand=True)
-            tree.tag_configure("hot", background="#C3FDB8"); tree.tag_configure("cold", foreground="red")
-            setattr(self, f"tree_{suffix}", tree)
-
-    def get_data(self): return self.controller.all_data_ai if hasattr(self.controller, 'all_data_ai') else []
+        # Top 10
+        ttk.Label(tab_forecast, text="Top 10 (Tinh Hoa):", font=("Arial", 9, "bold")).pack(anchor="w")
+        self.txt_10 = tk.Text(tab_forecast, height=2, width=30, wrap=tk.WORD, font=("Arial", 10))
+        self.txt_10.pack(fill=tk.X, padx=2, pady=2)
         
-    def update_data(self, df): self.on_analyze_click()
+        # Tứ Thủ
+        ttk.Label(tab_forecast, text="Tứ Thủ Đề (Vip):", font=("Arial", 9, "bold"), foreground="red").pack(anchor="w")
+        self.txt_4 = tk.Text(tab_forecast, height=1, width=30, wrap=tk.WORD, font=("Arial", 12, "bold"))
+        self.txt_4.pack(fill=tk.X, padx=2, pady=2)
+        
+        # Nút Copy
+        btn_copy = ttk.Button(tab_forecast, text="📋 Copy Tứ Thủ & Top 10", command=self.copy_forecast)
+        btn_copy.pack(fill=tk.X, pady=5, padx=2)
 
-    def on_analyze_click(self):
-        if 'analyze_market_trends' not in globals(): return
-        data = self.get_data()
-        if not data: return
-        for r in self.tree_history.get_children(): self.tree_history.delete(r)
-        for r in reversed(data[-30:]):
-            g = str(r[2]); d = get_gdb_last_2(r)
-            self.tree_history.insert("", "end", values=(r[0], g, d if d else ""))
-        stats = analyze_market_trends(data)
-        self._populate_sorted_tree(self.tree_cham, stats.get('freq_cham', {}), stats.get('gan_cham', {}), range(10))
-        self._populate_sorted_tree(self.tree_tong, stats.get('freq_tong', {}), stats.get('gan_tong', {}), range(10))
-        self._populate_sorted_tree(self.tree_bo, stats.get('freq_bo', {}), stats.get('gan_bo', {}), BO_SO_DE.keys())
-        self.lbl_status.config(text="Đã cập nhật.", foreground="green")
-
-    def _populate_sorted_tree(self, tree, freq_dict, gan_dict, keys):
-        for row in tree.get_children(): tree.delete(row)
-        data_list = []
-        for k in keys:
-            f = freq_dict.get(k, 0); g = gan_dict.get(k, 0)
-            data_list.append((k, f, g))
-        data_list.sort(key=lambda x: x[2])
-        for item in data_list:
-            val, f, g = item
-            tags = ()
-            # SỬA LỖI SYNTAX Ở ĐÂY
-            if g < 3: 
-                tags = ("hot",)
-            elif g > 10: 
-                tags = ("cold",)
-            tree.insert("", "end", values=(val, f, g), tags=tags)
-
-    def on_update_cache_click(self):
-        data = self.get_data()
-        if not data: return
-        self.lbl_status.config(text="Đang cập nhật Hồ sơ Phong độ...", foreground="blue")
-        threading.Thread(target=self._run_cache_update, args=(data,)).start()
-
-    def _run_cache_update(self, data):
-        self.after(0, lambda: self._update_history_ui(data))
-        if 'de_manager' in globals():
-            count, active_bridges = de_manager.update_daily_stats(data)
-            self.found_bridges = active_bridges
-            self.scores = calculate_number_scores(active_bridges)
-            
-            # ⚡ KẾT HỢP THỐNG KÊ THỊ TRƯỜNG: Tính tần suất/gan bộ số
-            market_stats = None
-            try:
-                if 'analyze_market_trends' in globals():
-                    market_stats = analyze_market_trends(data, n_days=30)
-                    print(f"[DEBUG on_analyze_click] Market stats calculated: freq_bo={len(market_stats.get('freq_bo', {}))}, gan_bo={len(market_stats.get('gan_bo', {}))}")
-            except Exception as e:
-                print(f"[WARNING on_analyze_click] Không thể tính thống kê thị trường: {e}")
-                market_stats = None
-            
-            # ⚡ FIX: Thêm error handling cho get_top_strongest_sets
-            try:
-                # Lấy last_row để ghép cầu vị trí thành bộ số
-                last_row = data[-1] if data and len(data) > 0 else None
-                print(f"[DEBUG on_analyze_click] Calling get_top_strongest_sets with {len(active_bridges)} bridges + market_stats + last_row")
-                self.strong_sets = get_top_strongest_sets(active_bridges, market_stats=market_stats, last_row=last_row)
-                print(f"[DEBUG on_analyze_click] get_top_strongest_sets returned: {self.strong_sets}")
-            except Exception as e:
-                print(f"[ERROR on_analyze_click] Lỗi khi gọi get_top_strongest_sets: {e}")
-                import traceback
-                traceback.print_exc()
-                self.strong_sets = []
-            self.after(0, self._update_ui_final)
-
-    def _update_history_ui(self, data):
-        for r in self.tree_history.get_children(): self.tree_history.delete(r)
-        for r in reversed(data[-30:]):
-            g = str(r[2]); d = get_gdb_last_2(r)
-            self.tree_history.insert("", "end", values=(r[0], g, d if d else ""))
+    def _create_stat_tab(self, notebook, title):
+        frame = ttk.Frame(notebook)
+        notebook.add(frame, text=title)
+        cols = ("val", "freq", "gan")
+        tree = ttk.Treeview(frame, columns=cols, show="headings")
+        tree.heading("val", text=title); tree.column("val", width=35, anchor="center")
+        tree.heading("freq", text="Về"); tree.column("freq", width=35, anchor="center")
+        tree.heading("gan", text="Gan"); tree.column("gan", width=35, anchor="center")
+        tree.pack(fill=tk.BOTH, expand=True)
+        tree.tag_configure("hot", background="#90EE90")
+        tree.tag_configure("cold", foreground="red")
+        return tree
 
     def on_scan_click(self):
-        if 'run_de_scanner' not in globals(): messagebox.showerror("Lỗi", "Chưa tải Scanner."); return
-        data = self.get_data()
-        if not data: return
-        self.lbl_status.config(text="Đang Vét Cạn...", foreground="orange")
-        threading.Thread(target=self._run_scan, args=(data,)).start()
+        if not hasattr(self.controller, 'all_data_ai') or not self.controller.all_data_ai:
+            messagebox.showwarning("Lỗi", "Chưa có dữ liệu. Vui lòng nạp dữ liệu trước.")
+            return
         
-    def _run_scan(self, data):
-        count, bridges = run_de_scanner(data)
+        self.lbl_status.config(text="⏳ Đang chạy Full Analysis (Scanner + Stats + Forecast)...", foreground="orange")
+        threading.Thread(target=self._run_full_analysis, args=(self.controller.all_data_ai,), daemon=True).start()
+
+    def _run_full_analysis(self, data):
+        try:
+            # 1. Quét cầu (Gồm cả Positive và Killer)
+            count, bridges = run_de_scanner(data)
+            
+            # 2. Thống kê thị trường (60 ngày)
+            market_stats = analyze_market_trends(data, n_days=60)
+            
+            # 3. Tính điểm số học (V3.8 ULTIMATE) [UPDATED]
+            # Truyền market_stats vào để tính Bonus
+            scores = calculate_number_scores(bridges, market_stats=market_stats)
+            
+            # 4. Tìm bộ số mạnh nhất (Vẫn giữ tham khảo)
+            last_row = data[-1] if data else None
+            strong_sets = get_top_strongest_sets(bridges, market_stats, last_row)
+            
+            # 5. Phân tích tổ hợp chạm
+            touch_combos = calculate_top_touch_combinations(data, num_touches=4, days=10, market_stats=market_stats)
+            
+            # Update UI
+            self.after(0, lambda: self._update_ui_full(data, bridges, market_stats, scores, strong_sets, touch_combos))
+            
+        except Exception as e:
+            print(f"[ERROR] Full analysis error: {e}")
+            import traceback
+            traceback.print_exc()
+            self.after(0, lambda: self.lbl_status.config(text="❌ Lỗi phân tích!", foreground="red"))
+
+    def _update_ui_full(self, data, bridges, market_stats, scores, strong_sets, touch_combos):
         self.found_bridges = bridges
-        self.scores = calculate_number_scores(bridges)
+        self.lbl_status.config(text=f"✅ Hoàn tất. Tìm thấy {len(bridges)} cầu.", foreground="green")
         
-        # ⚡ KẾT HỢP THỐNG KÊ THỊ TRƯỜNG: Tính tần suất/gan bộ số
-        market_stats = None
-        try:
-            if 'analyze_market_trends' in globals():
-                market_stats = analyze_market_trends(data, n_days=30)
-                print(f"[DEBUG _run_scan] Market stats calculated: freq_bo={len(market_stats.get('freq_bo', {}))}, gan_bo={len(market_stats.get('gan_bo', {}))}")
-        except Exception as e:
-            print(f"[WARNING _run_scan] Không thể tính thống kê thị trường: {e}")
-            market_stats = None
-        
-        # ⚡ FIX: Thêm error handling cho get_top_strongest_sets
-        try:
-            # Lấy last_row để ghép cầu vị trí thành bộ số
-            last_row = data[-1] if data and len(data) > 0 else None
-            print(f"[DEBUG _run_scan] Calling get_top_strongest_sets with {len(bridges)} bridges + market_stats + last_row")
-            self.strong_sets = get_top_strongest_sets(bridges, market_stats=market_stats, last_row=last_row)
-            print(f"[DEBUG _run_scan] get_top_strongest_sets returned: {self.strong_sets}")
-        except Exception as e:
-            print(f"[ERROR _run_scan] Lỗi khi gọi get_top_strongest_sets: {e}")
-            import traceback
-            traceback.print_exc()
-            self.strong_sets = []
-        
-        # Top 4 Chạm (Consensus) - Giữ nguyên để fallback
-        consensus = get_de_consensus(bridges)
-        top_cham_list = consensus.get('consensus_cham', [])[:4]
-        self.top_touches = [str(item[0]) for item in top_cham_list]
-        
-        # Tính toán tổ hợp 4 chạm (Combinatorial Touch Analysis) - KẾT HỢP THỐNG KÊ
-        try:
-            # Truyền market_stats vào để kết hợp tần suất/gan chạm
-            self.touch_combos = calculate_top_touch_combinations(
-                data, 
-                num_touches=4, 
-                days=10, 
-                market_stats=market_stats  # ⚡ KẾT HỢP THỐNG KÊ
-            )
-            print(f"[DEBUG _run_scan] Calculated {len(self.touch_combos)} touch combinations with market stats")
-        except Exception as e:
-            print(f"[ERROR] Lỗi khi tính toán tổ hợp 4 chạm: {e}")
-            import traceback
-            traceback.print_exc()
-            self.touch_combos = []
-        
-        self.after(0, self._update_scan_ui)
-        
-    def _update_scan_ui(self):
-        for row in self.tree_bridges.get_children(): self.tree_bridges.delete(row)
-        
-        if not hasattr(self, 'strong_sets') or self.strong_sets is None:
-            self.strong_sets = []
-        
-        # DEBUG: Đếm số cầu Bộ
-        bo_bridges = [b for b in self.found_bridges if str(b.get('type', '')).upper() == 'BO']
-        print(f">>> [UI DEBUG] Tổng số cầu: {len(self.found_bridges)}, Số cầu Bộ: {len(bo_bridges)}")
-        if bo_bridges:
-            print(f">>> [UI DEBUG] Các cầu Bộ đầu tiên: {[b.get('name') for b in bo_bridges[:5]]}")
-        
-        # --- HIỂN THỊ TREEVIEW CẦU (GIỮ NGUYÊN) ---
-        bo_count = 0
-        for i, b in enumerate(self.found_bridges):
-            try:
-                p_val = b.get('predicted_value', '')
-                b_type = str(b.get('type', '')).upper()
-                streak = b.get('streak', 0)
-                win_rate = b.get('win_rate', 0)
-                
-                lbl_type = "Cầu Thông"
-                if 'BO' in b_type: 
-                    lbl_type = "Cầu Bộ"
-                    bo_count += 1
-                elif 'TI_LE' in b_type: lbl_type = "Cầu Tỉ Lệ"
-                p_text = f"Bộ {p_val}" if 'BO' in b_type else f"Chạm {p_val}"
-                
-                wins_10 = b.get('wins_10', 0)
-                if 'THONG' in b_type:
-                    info = f"{streak} kỳ"
-                elif wins_10 > 0:
-                    info = f"{wins_10}/10"
-                else:
-                    info = f"{win_rate:.0f}%"
+        # --- A. CỘT 1: LỊCH SỬ & THỐNG KÊ ---
+        for i in self.tree_history.get_children(): self.tree_history.delete(i)
+        for row in reversed(data[-20:]):
+            date = row[0]; de = get_gdb_last_2(row)
+            self.tree_history.insert("", "end", values=(date, de))
+            
+        self._fill_stat_tree(self.tree_cham_stat, market_stats.get('freq_cham',{}), market_stats.get('gan_cham',{}), range(10))
+        self._fill_stat_tree(self.tree_bo_stat, market_stats.get('freq_bo',{}), market_stats.get('gan_bo',{}), BO_SO_DE.keys())
 
-                hp = b.get('hp', 3)
-                form_show = info
-                hp_show = "❤️" * hp if hp <= 3 else str(hp)
-                
-                self.tree_bridges.insert("", "end", iid=i, values=(b.get('name', ''), p_text, streak, form_show, hp_show))
-                
-                # DEBUG: Log cầu Bộ khi insert
-                if 'BO' in b_type:
-                    print(f">>> [UI DEBUG] Đã insert cầu Bộ: {b.get('name')}, streak={streak}, predicted={p_val}")
-            except Exception as e:
-                print(f"Lỗi xử lý cầu {i}: {e}")
-                import traceback
-                traceback.print_exc()
-                continue
-        
-        print(f">>> [UI DEBUG] Đã hiển thị {bo_count} cầu Bộ trong treeview")
+        # --- B. CỘT 2: CẦU (LIST) ---
+        for t in [self.tree_bridges, self.tree_killer]:
+            for i in t.get_children(): t.delete(i)
+            
+        pos_bridges, kill_bridges = [], []
+        for b in bridges:
+            (kill_bridges if b.get('type') == 'DE_KILLER' else pos_bridges).append(b)
 
-        # --- LOGIC MỚI: PHÂN TÍCH TỔ HỢP 4 CHẠM ---
-        
-        # 1. Chạm Thông: Top 3 Max Streak từ touch_combos (đã kết hợp thống kê)
-        cham_thong_list = []
-        if hasattr(self, 'touch_combos') and self.touch_combos:
-            # Lấy Top 3 tổ hợp có Max Streak cao nhất (đã sắp xếp theo adjusted_streak)
-            top_streak_combos = self.touch_combos[:3]  # Đã được sắp xếp theo adjusted_streak giảm dần
-            
-            for combo in top_streak_combos:
-                touches_str = ''.join(map(str, combo['touches']))  # VD: [0,1,2,3] -> "0123"
-                streak = combo['streak']
-                if streak > 0:  # Chỉ hiển thị nếu có streak > 0
-                    cham_thong_list.append(f"{touches_str} ({streak} kỳ)")
-        
-        cham_thong_display = ', '.join(cham_thong_list) if cham_thong_list else '...'
-        self.lbl_cham_thong.config(text=f"💎 Chạm Thông: {cham_thong_display}")
-        
-        # 2. Chạm Tỉ Lệ: Top 3 có Tỉ lệ >= 80% từ touch_combos
-        cham_rate_list = []
-        if hasattr(self, 'touch_combos') and self.touch_combos:
-            # ⚡ FIX: Tạo bản sao và sắp xếp lại TOÀN BỘ theo rate_percent (không dùng adjusted_streak)
-            # Để đảm bảo Chạm Tỉ Lệ khác với Chạm Thông
-            all_combos_sorted_by_rate = sorted(
-                self.touch_combos, 
-                key=lambda x: (x['rate_percent'], x.get('rate_hits', 0)), 
-                reverse=True
-            )
-            
-            # Lọc các tổ hợp có rate_percent >= 80%
-            high_rate_combos = [c for c in all_combos_sorted_by_rate if c['rate_percent'] >= 80.0]
-            
-            # Lấy Top 3 (đã được sắp xếp theo rate_percent)
-            top_rate_combos = high_rate_combos[:3]
-            
-            for combo in top_rate_combos:
-                touches_str = ''.join(map(str, combo['touches']))  # VD: [3,5,7,9] -> "3579"
-                rate_hits = combo['rate_hits']
-                rate_total = combo['rate_total']
-                # Đảm bảo chỉ hiển thị khi có hit (tránh 0/10)
-                if rate_hits > 0:
-                    cham_rate_list.append(f"{touches_str} ({rate_hits}/{rate_total} kỳ)")
+        for b in pos_bridges:
+            tag = "pascal" if b['type'] == 'DE_PASCAL' else ("memory" if b['type'] == 'DE_MEMORY' else "")
+            self.tree_bridges.insert("", "end", values=(
+                b['name'], b['type'], b['streak'], b['predicted_value'], f"{b.get('win_rate',0):.0f}%"
+            ), tags=(tag,))
 
-        # Fallback về Top 4 Consensus nếu không có tổ hợp nào thỏa mãn (rate >= 80% và hits > 0)
-        if not cham_rate_list:
-            cham_rate_display = ', '.join(self.top_touches) if self.top_touches else '...'
-        else:
-            cham_rate_display = ', '.join(cham_rate_list)
+        for k in kill_bridges:
+            self.tree_killer.insert("", "end", values=(k['name'], k['streak'], k['predicted_value']), tags=("killer",))
 
-        self.lbl_cham_rate.config(text=f"⭐ Chạm Tỉ Lệ: {cham_rate_display}")
+        # --- C. CỘT 3: PHÂN TÍCH & CHỐT SỐ ---
         
-        # 3. Bộ Đẹp (Giữ nguyên)
-        top3_sets = self.strong_sets[:3] if self.strong_sets else []
-        bo_dep_display = ', '.join(top3_sets) if top3_sets else '...'
-        self.lbl_bo_dep.config(text=f"📦 Bộ Đẹp: {bo_dep_display}")
+        # 1. Top Chạm & Bộ (Tính lại điểm hiển thị)
+        self._update_analytics_tab(pos_bridges, kill_bridges, market_stats, touch_combos)
+        
+        # 2. Chốt Số (Forecast)
+        self._update_forecast_tab(scores, strong_sets)
 
-        # Update Dàn (Logic tính toán Dàn 65, Top 10, Tứ Thủ giữ nguyên)
-        if self.scores:
-            top_65_list = [x[0] for x in self.scores[:65]]
-            priority_nums = []
-            backup_nums = []
+    def _update_analytics_tab(self, pos_bridges, kill_bridges, market_stats, touch_combos):
+        # Clear
+        for t in [self.tree_touch, self.tree_set, self.tree_combos]:
+            for i in t.get_children(): t.delete(i)
             
-            for num in top_65_list:
-                found_bo = None
-                for bn, bl in BO_SO_DE.items():
-                    if num in bl: found_bo = bn; break
-                if found_bo and found_bo in top3_sets: priority_nums.append(num)
-                else: backup_nums.append(num)
-            
-            final_sorted = priority_nums + backup_nums
-            dan_10 = sorted(final_sorted[:10])
-            dan_4 = sorted(final_sorted[:4])
-            
-            self.txt_65.delete("1.0", tk.END); self.txt_65.insert("1.0", ",".join(sorted(top_65_list)))
-            self.txt_10.delete("1.0", tk.END); self.txt_10.insert("1.0", ",".join(dan_10))
-            self.txt_4.delete("1.0", tk.END); self.txt_4.insert("1.0", ",".join(dan_4))
-            
-        self.lbl_status.config(text=f"Xong. Tìm thấy {len(self.found_bridges)} cầu.", foreground="green")
-    def _update_ui_final(self):
-        for r in self.tree_bridges.get_children(): self.tree_bridges.delete(r)
-        best_rank, best_form = None, None
-        
-        for b in self.found_bridges:
-            p_val = b['predicted_value']
-            p_show = f"Bộ {p_val}" if "Bộ" in b.get('name','') else f"Chạm {p_val}"
-            
-            wins_10 = b.get('wins_10', 0)
-            form_show = f"{wins_10}/10" + (" 🔥" if wins_10 >= 8 else "")
-            hp = b.get('hp', 3)
-            hp_show = "❤️❤️❤️"[:hp] if hp <= 3 else str(hp)
-            
-            self.tree_bridges.insert("", "end", values=(b['name'], p_show, b['streak'], form_show, hp_show))
-            
-            if not best_rank: best_rank = p_val
-            if (not best_form or wins_10 > 8) and wins_10 >= 5: 
-                if not best_form: best_form = p_val
-
-        self.lbl_cham_thong.config(text=f"💎 Top Rank: {best_rank or '...'}")
-        self.lbl_cham_rate.config(text=f"⭐ Top Form: {best_form or '...'}")
-        
-        # Đảm bảo self.strong_sets tồn tại và là list
-        if not hasattr(self, 'strong_sets') or not isinstance(self.strong_sets, list):
-            self.strong_sets = []
-        
-        top3_sets_final = self.strong_sets[:3] if self.strong_sets else []
-        bo_dep_final = ', '.join(top3_sets_final) if top3_sets_final else '...'
-        self.lbl_bo_dep.config(text=f"📦 Bộ Đẹp: {bo_dep_final}")
-        
-        # Update text widgets
-        if self.scores:
-            top_65 = [x[0] for x in self.scores[:65]]
-            self.txt_65.delete("1.0", tk.END); self.txt_65.insert("1.0", ",".join(sorted(top_65)))
-            
-            priority_nums = []
-            backup_nums = []
-            top3_sets = self.strong_sets[:3]
-            for num in top_65:
-                found_bo = None
-                for bn, bl in BO_SO_DE.items():
-                    if num in bl: found_bo = bn; break
-                if found_bo and found_bo in top3_sets: priority_nums.append(num)
-                else: backup_nums.append(num)
-            
-            final_sorted = priority_nums + backup_nums
-            dan_10 = sorted(final_sorted[:10])
-            dan_4 = sorted(final_sorted[:4])
-            self.txt_10.delete("1.0", tk.END); self.txt_10.insert("1.0", ",".join(dan_10))
-            self.txt_4.delete("1.0", tk.END); self.txt_4.insert("1.0", ",".join(dan_4))
-        
-        self.lbl_status.config(text=f"V78: Đang nuôi {len(self.found_bridges)} cầu.", foreground="green")
-
-    def manual_gen_cham(self):
-        if 'check_cham' not in globals(): return
-        inp = self.ent_cham.get().strip()
-        if not inp: return
-        final_set = set()
-        digits = [int(c) for c in inp if c.isdigit()]
-        for d in digits:
-            for i in range(100):
-                s = f"{i:02d}"
-                if check_cham(s, [d]): final_set.add(s)
-        result = sorted(list(final_set))
-        self.txt_manual.delete("1.0", tk.END); self.txt_manual.insert("1.0", ",".join(result))
-
-    def on_bridge_select(self, event): pass
-    
-    def on_bridge_double_click(self, event):
-        """Xử lý double-click trên cầu để mở backtest popup."""
-        print(f"[DEBUG] on_bridge_double_click được gọi! Event: {event}")
-        try:
-            # Kiểm tra controller có tồn tại không
-            if not hasattr(self, 'controller') or self.controller is None:
-                print("[ERROR] Controller chưa được khởi tạo.")
-                messagebox.showwarning("Lỗi", "Controller chưa được khởi tạo. Vui lòng đợi một chút và thử lại.")
-                return
-            
-            print(f"[DEBUG] Controller OK: {type(self.controller)}")
-            
-            # Lấy item được chọn từ event (giống như ui_dashboard.py)
-            widget = event.widget
-            print(f"[DEBUG] Widget: {widget}, Tree bridges: {self.tree_bridges}")
-            
-            # Sử dụng focus() để lấy item được chọn (giống ui_dashboard.py)
-            item_id = widget.focus()
-            print(f"[DEBUG] Item ID từ focus: {item_id}")
-            
-            if not item_id:
-                print("[DEBUG] Không có item được chọn.")
-                return
-            
-            # Lấy giá trị từ item
-            item = widget.item(item_id)
-            values = item.get("values", [])
-            print(f"[DEBUG] Values: {values}")
-            
-            if not values or len(values) == 0:
-                print("[DEBUG] Values rỗng.")
-                return
-            
-            # Lấy tên cầu từ cột đầu tiên (name)
-            bridge_name = values[0] if values else ""
-            print(f"[DEBUG] Bridge name: '{bridge_name}'")
-            
-            if bridge_name:
-                # Gọi Controller với cờ báo hiệu là cầu Đề
-                if hasattr(self.controller, 'trigger_bridge_backtest'):
-                    print(f"[DEBUG] Gọi trigger_bridge_backtest với bridge_name='{bridge_name}', is_de=True")
-                    self.controller.trigger_bridge_backtest(bridge_name, is_de=True)
-                    print("[DEBUG] trigger_bridge_backtest đã được gọi.")
-                else:
-                    print(f"[ERROR] Controller không có method trigger_bridge_backtest.")
-                    messagebox.showerror("Lỗi", "Controller không có method trigger_bridge_backtest.")
+        # Logic tính điểm nhanh cho Top Chạm/Bộ
+        touch_scores, set_scores = {}, {}
+        for b in pos_bridges:
+            pred = str(b.get('predicted_value', ''))
+            score = float(b.get('ranking_score', 1.0))
+            # (Giản lược: Tự động cộng điểm chạm/bộ từ predicted_value)
+            if "CHẠM" in pred and "LOẠI" not in pred:
+                try: touch_scores[int(pred.split(" ")[1])] = touch_scores.get(int(pred.split(" ")[1]), 0) + score
+                except: pass
             else:
-                print("[DEBUG] Bridge name rỗng.")
-        except Exception as e:
-            print(f"[ERROR] Lỗi khi double-click cầu: {e}")
-            import traceback
-            traceback.print_exc()
-            messagebox.showerror("Lỗi", f"Lỗi khi double-click: {e}")
+                nums = pred.replace(',', ' ').split()
+                if nums:
+                    unit = score/len(nums)
+                    for n in nums:
+                        if len(n)==2 and n.isdigit():
+                            d1, d2 = int(n[0]), int(n[1])
+                            touch_scores[d1] = touch_scores.get(d1,0)+unit
+                            touch_scores[d2] = touch_scores.get(d2,0)+unit
+                            sn = get_set_name_of_number(n)
+                            if sn: set_scores[sn] = set_scores.get(sn,0)+unit
 
-    def copy_current_tab(self):
+        # Trừ điểm Killer
+        for k in kill_bridges:
+            if "LOẠI CHẠM" in str(k.get('predicted_value','')):
+                try: 
+                    d = int(k['predicted_value'].split(" ")[-1])
+                    if d in touch_scores: touch_scores[d] -= (k['streak'] * 2)
+                except: pass
+
+        # Fill Top Chạm
+        for t, s in sorted(touch_scores.items(), key=lambda x:x[1], reverse=True)[:5]:
+            gan = market_stats.get('gan_cham', {}).get(t, 0)
+            self.tree_touch.insert("", "end", values=(f"C{t} (Gan {gan})", f"{s:.1f}"))
+            
+        # Fill Top Bộ
+        for s, sc in sorted(set_scores.items(), key=lambda x:x[1], reverse=True)[:5]:
+            gan = market_stats.get('gan_bo', {}).get(s, 0)
+            self.tree_set.insert("", "end", values=(f"B{s} (Gan {gan})", f"{sc:.1f}"))
+            
+        # Fill Tổ Hợp Chạm Thông (Combos)
+        if touch_combos:
+            # Sort theo rate_percent
+            for c in sorted(touch_combos, key=lambda x: x['rate_percent'], reverse=True)[:5]:
+                touches = "".join(map(str, c['touches']))
+                info = f"{c['streak']} kỳ | {c['rate_percent']:.0f}%"
+                self.tree_combos.insert("", "end", values=(touches, info))
+
+    def _update_forecast_tab(self, scores, strong_sets):
+        self.txt_65.delete("1.0", tk.END)
+        self.txt_10.delete("1.0", tk.END)
+        self.txt_4.delete("1.0", tk.END)
+        
+        if not scores: return
+        
+        # --- LOGIC V3.8: DỰA TRÊN ĐIỂM SỐ TỔNG HỢP (SCORING DRIVEN) ---
+        
+        # 1. Dàn 65 (Lấy Top 65 điểm cao nhất)
+        # Các số bị Killer "giết" (điểm âm) sẽ tự động bị đẩy xuống đáy -> Loại bỏ hiệu quả.
+        top_65_list = [x[0] for x in scores[:65]]
+        
+        # Hiển thị sorted để user dễ dò
+        self.txt_65.insert("1.0", ",".join(sorted(top_65_list)))
+        
+        # 2. Top 10 & Tứ Thủ (Hybrid Strategy)
+        # Lấy 15 số điểm cao nhất làm "vùng ứng viên" (Candidate Zone)
+        candidates = scores[:15] 
+        candidate_nums = [x[0] for x in candidates]
+        
+        top_sets = strong_sets[:3] if strong_sets else []
+        
+        prioritized = []
+        others = []
+        
+        # Trong vùng ứng viên, ưu tiên đưa các số thuộc "Top Bộ" lên đầu
+        for num in candidate_nums:
+            my_set = get_set_name_of_number(num)
+            if my_set and my_set in top_sets:
+                prioritized.append(num)
+            else:
+                others.append(num)
+        
+        # Ghép lại: [Ưu Tiên (trong Top Bộ)] + [Các số điểm cao còn lại]
+        final_top = prioritized + others
+        
+        # Chốt Top 10 và Tứ Thủ
+        dan_10 = sorted(final_top[:10])
+        dan_4 = sorted(final_top[:4])
+        
+        self.txt_10.insert("1.0", ",".join(dan_10))
+        self.txt_4.insert("1.0", ",".join(dan_4))
+
+    def _fill_stat_tree(self, tree, freq_dict, gan_dict, keys):
+        for i in tree.get_children(): tree.delete(i)
+        items = [(k, freq_dict.get(k,0), gan_dict.get(k,0)) for k in keys]
+        items.sort(key=lambda x: x[2], reverse=True) # Sort gan
+        for k, f, g in items:
+            tag = "cold" if g > 15 else ("hot" if g < 3 else "")
+            tree.insert("", "end", values=(k, f, g), tags=(tag,))
+
+    def on_bridge_double_click(self, event):
+        item = self.tree_bridges.selection()
+        if not item: return
+        val = self.tree_bridges.item(item[0], "values")
+        name = val[0].split(" ")[-1] if " " in val[0] else val[0]
+        if hasattr(self.controller, 'trigger_bridge_backtest'):
+            self.controller.trigger_bridge_backtest(name, is_de=True)
+
+    def copy_forecast(self):
         try:
+            t10 = self.txt_10.get("1.0", tk.END).strip()
+            t4 = self.txt_4.get("1.0", tk.END).strip()
+            content = f"TOP 10: {t10}\nTỨ THỦ: {t4}"
             self.clipboard_clear()
-            self.clipboard_append(self.nb_result.nametowidget(self.nb_result.select()).winfo_children()[0].get("1.0", tk.END).strip())
-            messagebox.showinfo("Copy", "Đã copy!")
+            self.clipboard_append(content)
+            messagebox.showinfo("Copy", "Đã copy Top 10 & Tứ Thủ!")
         except: pass

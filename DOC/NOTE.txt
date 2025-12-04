@@ -4,6 +4,12 @@ pip install pandas matplotlib seaborn scikit-learn joblib xgboost
 
   git config --global user.name "Jason"
 
+del /s /q *.pyc
+rmdir /s /q __pycache__
+for /d /r . %d in (__pycache__) do @if exist "%d" rd /s /q "%d"
+
+
+
 Sau khi đã cài đặt Git và Git LFS, bạn cần thực hiện 2 bước sau để Git nhận diện được LFS và tải file lớn về:
 
 Khởi tạo Git LFS: Bạn cần chạy lệnh này trong terminal (chỉ cần chạy một lần cho hệ thống):

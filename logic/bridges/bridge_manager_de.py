@@ -147,6 +147,10 @@ class DeBridgeManager:
                     if g_today in d_prev:
                         wins_10 += 1
 
+                # [FIX V8.5] Tính Search Rate (K2N)
+                search_rate_val = (wins_10 / 10.0) * 100
+                new_search_rate = f"{search_rate_val:.0f}%"
+
                 # 3. Sinh tồn & Xếp hạng
                 is_enabled = 1 if new_hp > 0 else 0
                 rank_score = (new_streak * 10) + (wins_10 * 5)
@@ -157,12 +161,15 @@ class DeBridgeManager:
                     # Gọi hàm tính toán với display_mode=True để lấy chuỗi số gọn
                     pred_display = self._calculate_dan_logic(pos_today, idx1, idx2, k_offset, mode, return_string=True, display_mode=True)
                 
-                # 5. Cập nhật DB
+                # 5. Cập nhật DB (CHỈ GHI VÀO search_rate_text)
                 new_desc = desc.split(".")[0] if desc and "." in desc else (desc or name)
                 new_desc += f". HP:{new_hp}/{self.max_health} | Win10:{wins_10}"
                 
-                cursor.execute("UPDATE ManagedBridges SET current_streak=?, recent_win_count_10=?, is_enabled=?, next_prediction_stl=?, description=? WHERE id=?", 
-                              (new_streak, wins_10, is_enabled, pred_display, new_desc, br_id))
+                cursor.execute("""
+                    UPDATE ManagedBridges 
+                    SET current_streak=?, recent_win_count_10=?, is_enabled=?, next_prediction_stl=?, description=?, search_rate_text=? 
+                    WHERE id=?""", 
+                    (new_streak, wins_10, is_enabled, pred_display, new_desc, new_search_rate, br_id))
                 
                 if is_enabled:
                     # [SHOTGUN FIX] Thêm nhiều Key để đảm bảo UI nhận được dữ liệu
