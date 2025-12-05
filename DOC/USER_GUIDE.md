@@ -33,6 +33,31 @@ Tập trung vào việc lọc số (Filtering) để tạo ra dàn đề tối �
 * **Thống Kê Thông Minh:** Sắp xếp Chạm/Tổng theo độ Gan (độ lì) tăng dần.
 * **Phễu Lọc 3 Lớp:** Tự động tạo Dàn 65 số -> Lọc Top 10 -> Chốt Top 4.
 
+## [CẬP NHẬT V3.8] Hướng Dẫn Sử Dụng Dashboard Phân Tích & Chốt Số
+
+### 1. Tính Năng "Quét & Chốt Số" (Lô & Đề)
+Tại tab **Dashboard**, quy trình phân tích hiện tại hoạt động như sau:
+1.  Bấm nút **"Làm Mới Dữ Liệu"** (Góc trên bên phải).
+2.  Chờ hệ thống hiển thị trạng thái: `⏳ Đang phân tích đa chiều...`.
+3.  Kết quả sẽ tự động xuất hiện sau 1-3 giây.
+
+### 2. Khu Vực "Kết Quả Phân Tích & Cảnh Báo"
+Đây là khu vực quan trọng nhất (nằm ở dưới cùng màn hình Dashboard), cung cấp cái nhìn tổng quan nhanh:
+
+- **🏆 TOP 10 LÔ ĐIỂM CAO:**
+  - Là danh sách 10 con lô được thuật toán V3.8 đánh giá cao nhất.
+  - Định dạng hiển thị: `Số (Điểm)`. Ví dụ: `68 (12.5đ)`.
+  - **Lời khuyên:** Nên ưu tiên xem xét 3-5 số đầu bảng.
+
+- **⛔ CẢNH BÁO LÔ GAN:**
+  - Hệ thống tự động lọc và bêu tên các lô đang gan trên 15 ngày.
+  - **Lời khuyên:** Đây là vùng "Tử địa". Hạn chế hoặc tránh tuyệt đối các số nằm trong danh sách này để bảo toàn vốn, trừ khi bạn có phương pháp bắt gan chuyên biệt.
+
+### 3. Xử Lý Sự Cố Thường Gặp
+- **Lỗi Timeout:** Nếu thấy thông báo `⚠️ Quá thời gian chờ...` hoặc `⏳ Đang đợi nạp dữ liệu...` treo quá lâu (>30s):
+  - Kiểm tra lại kết nối Database.
+  - Thử khởi động lại ứng dụng (`main_app.py`).
+  - Đảm bảo máy tính không bị quá tải.
 ---
 
 ## 2. QUY TRÌNH SOI CẦU LÔ (HÀNG NGÀY)

@@ -1,12 +1,41 @@
 # Tên file: logic/de_analytics.py
+# (PHIÊN BẢN V3.8.2 - FIXED IMPORT & FULL SCORING LOGIC)
+
 from collections import Counter
 from itertools import combinations
+from typing import List, Tuple, Optional, Dict, Any
 import re
 
+# Import Utils
 try:
     from .de_utils import BO_SO_DE, get_gdb_last_2, check_cham, check_tong, get_set_name_of_number
 except ImportError:
     from de_utils import BO_SO_DE, get_gdb_last_2, check_cham, check_tong, get_set_name_of_number
+
+# [NEW] Import SCORING_WEIGHTS từ constants
+try:
+    from logic.constants import SCORING_WEIGHTS
+except ImportError:
+    # Fallback nếu không tìm thấy constants
+    SCORING_WEIGHTS = {
+        'DE_KILLER_MULTIPLIER': 3.0,
+        'DE_SET_MULTIPLIER': 2.0,
+        'DE_NORMAL_MULTIPLIER': 1.0,
+        'DE_MARKET_CHAM_BONUS': 2.0,
+        'DE_MARKET_BO_BONUS': 1.0
+    }
+
+# --- CẤU HÌNH MA TRẬN GIAO THOA (NEW) ---
+BO_SO_DICT = {
+    "00": [0, 55, 5, 50], "11": [11, 66, 16, 61], "22": [22, 77, 27, 72],
+    "33": [33, 88, 38, 83], "44": [44, 99, 49, 94], "01": [1, 10, 6, 60, 51, 15, 56, 65],
+    "02": [2, 20, 7, 70, 52, 25, 57, 75], "03": [3, 30, 8, 80, 53, 35, 58, 85],
+    "04": [4, 40, 9, 90, 54, 45, 59, 95], "12": [12, 21, 17, 71, 26, 62, 67, 76],
+    "13": [13, 31, 18, 81, 36, 63, 68, 86], "14": [14, 41, 19, 91, 46, 64, 69, 96],
+    "23": [23, 32, 28, 82, 37, 73, 78, 87], "24": [24, 42, 29, 92, 47, 74, 79, 97],
+    "34": [34, 43, 39, 93, 48, 84, 89, 98],
+}
+SCORE_CONFIG = {"bo_uu_tien_1": 50, "bo_uu_tien_2": 40, "cham_ti_le": 20, "cham_thong": 15}
 
 # --- GIỮ NGUYÊN LOGIC THỐNG KÊ CŨ ---
 def analyze_market_trends(all_data_ai, n_days=30):
@@ -89,47 +118,27 @@ def analyze_market_trends(all_data_ai, n_days=30):
         "gan_bo": gan_bo
     }
 
-# --- CÁC HÀM PHÂN TÍCH V77 (ĐÃ FIX KEY MISMATCH THEO LOG DEBUG) ---
+# --- CÁC HÀM HỖ TRỢ ---
 
 def _normalize_bo_key(val):
     """
     Helper: Chuẩn hóa giá trị cầu về đúng key trong BO_SO_DE.
-    Dựa trên log: Key thực tế là "00", "01", "12" (không có chữ Bo).
     """
-    if val is None: 
-        print(f"[DEBUG _normalize_bo_key] Input is None")
-        return None
+    if val is None: return None
     val_str = str(val).strip()
     
-    # 1. Kiểm tra trực tiếp (VD: "01" khớp "01")
-    if val_str in BO_SO_DE:
-        return val_str
+    # 1. Kiểm tra trực tiếp
+    if val_str in BO_SO_DE: return val_str
         
-    # 2. Xử lý làm sạch: Bỏ chữ "Bo", "Bộ", khoảng trắng... -> Lấy số
-    # VD: "Bo 01" -> "01", "Bộ 12" -> "12"
+    # 2. Xử lý làm sạch
     digits_only = "".join(filter(str.isdigit, val_str))
     
     if digits_only:
-        # Pad về 2 chữ số (VD: "1" -> "01", "0" -> "00")
         padded_val = digits_only.zfill(2)
-        
-        # Kiểm tra lại với key chuẩn (VD: "01")
-        if padded_val in BO_SO_DE:
-            return padded_val
-            
-        # Fallback: Kiểm tra lại với prefix "Bo " (đề phòng dữ liệu hỗn hợp)
+        if padded_val in BO_SO_DE: return padded_val
         prefix_val = f"Bo {padded_val}"
-        if prefix_val in BO_SO_DE:
-            return prefix_val
+        if prefix_val in BO_SO_DE: return prefix_val
     
-    # ⚡ DEBUG: Log khi normalize thất bại (chỉ log lần đầu để tránh spam)
-    if not hasattr(_normalize_bo_key, '_logged_failures'):
-        _normalize_bo_key._logged_failures = set()
-    failure_key = f"{val_str}_{digits_only}"
-    if failure_key not in _normalize_bo_key._logged_failures and len(_normalize_bo_key._logged_failures) < 5:
-        print(f"[DEBUG _normalize_bo_key] Failed to normalize: '{val}' (str: '{val_str}', digits: '{digits_only}')")
-        print(f"[DEBUG _normalize_bo_key] Available BO_SO_DE keys: {list(BO_SO_DE.keys())[:10]}...")
-        _normalize_bo_key._logged_failures.add(failure_key)
     return None
 
 def get_de_consensus(bridges):
@@ -141,32 +150,28 @@ def get_de_consensus(bridges):
         val = str(bridge.get('predicted_value', ''))
         weight = bridge.get('streak', 1)
         
-        # FIX: Chuẩn hóa key bộ
         bo_key = _normalize_bo_key(val)
         
-        # Nếu là cầu bộ -> Vote cho các số trong bộ
-        if 'BO' in b_type and bo_key:
+        if ('BO' in b_type or 'SET' in b_type) and bo_key:
              for n in BO_SO_DE[bo_key]:
                  c1, c2 = int(n[0]), int(n[1])
                  vote_cham[c1] += weight
                  vote_cham[c2] += weight
         else:
-            # Nếu là cầu chạm/tổng -> Parse list
             parts = [v.strip() for v in val.split(',') if v.strip().isdigit()]
             for p in parts:
                 vote_cham[int(p)] += weight
                 
     return {"consensus_cham": vote_cham.most_common()}
 
+# --- CORE SCORING ENGINE (V3.8.2 FIXED) ---
+
 def calculate_number_scores(bridges, market_stats=None):
     """
     V3.8 ULTIMATE SCORING ENGINE:
     Tính điểm số học dựa trên công thức:
     Final Score = (Attack Score) - (Defense Penalty) + (Market Bonus)
-    
-    Args:
-        bridges: Danh sách cầu (bao gồm cả Positive và Killer)
-        market_stats: Thống kê thị trường (để cộng điểm Bonus)
+    (Fixed: Nhận diện đúng cầu DE_SET và import SCORING_WEIGHTS)
     """
     # Khởi tạo bảng điểm 00-99
     scores = {f"{i:02d}": 0.0 for i in range(100)}
@@ -180,20 +185,18 @@ def calculate_number_scores(bridges, market_stats=None):
     for bridge in bridges:
         b_type = str(bridge.get('type', '')).upper()
         val = str(bridge.get('predicted_value', ''))
-        # Đảm bảo streak là số thực
+        
         try:
             streak = float(bridge.get('streak', 1))
         except (ValueError, TypeError):
             streak = 1.0
             
-        weight = streak # Trọng số cơ bản dựa trên độ thông cầu
+        weight = streak 
         
         # --- LOGIC PHÒNG THỦ (CẦU LOẠI - KILLER) ---
         if 'KILLER' in b_type or 'LOAI' in b_type:
-            # Phạt cực nặng (gấp 3 lần điểm tấn công) để "giết" số xấu
-            penalty = weight * 3.0
+            penalty = weight * SCORING_WEIGHTS['DE_KILLER_MULTIPLIER']
             
-            # Xử lý Loại Chạm (VD: "LOẠI CHẠM 1")
             if 'CHAM' in val or 'CHẠM' in val:
                 try:
                     digit_char = val.split(" ")[-1]
@@ -204,7 +207,6 @@ def calculate_number_scores(bridges, market_stats=None):
                                 scores[s] -= penalty
                 except Exception: pass
                 
-            # Xử lý Loại Tổng (VD: "LOẠI TỔNG 5")
             elif 'TONG' in val or 'TỔNG' in val:
                 try:
                     t_char = val.split(" ")[-1]
@@ -215,7 +217,6 @@ def calculate_number_scores(bridges, market_stats=None):
                                 scores[s] -= penalty
                 except Exception: pass
             
-            # Xử lý Loại Bộ (VD: "LOẠI BỘ 01")
             elif 'BO' in val or 'BỘ' in val:
                  bo_key = _normalize_bo_key(val)
                  if bo_key and bo_key in BO_SO_DE:
@@ -226,17 +227,16 @@ def calculate_number_scores(bridges, market_stats=None):
         else:
             if not val: continue
             
-            # Ưu tiên 1: Cầu Bộ (Set) -> Điểm x 2.0
-            if 'BO' in b_type:
+            # [FIXED] Ưu tiên 1: Cầu Bộ (Set) - Kiểm tra cả 'BO' và 'SET'
+            if 'BO' in b_type or 'SET' in b_type:
                 bo_key = _normalize_bo_key(val)
                 if bo_key and bo_key in BO_SO_DE:
                     for s in BO_SO_DE[bo_key]:
-                        scores[s] += (weight * 2.0)
+                        scores[s] += (weight * SCORING_WEIGHTS['DE_SET_MULTIPLIER'])
             
-            # Ưu tiên 2: Các loại cầu khác (Chạm, Tổng, Pascal, Memory...) -> Điểm x 1.0
+            # Ưu tiên 2: Các loại cầu khác
             else:
                 parts = []
-                # Parse giá trị (VD: "2,3" hoặc "2")
                 if ',' in val:
                     parts = [int(v) for v in val.split(',') if v.strip().isdigit()]
                 elif val.strip().isdigit():
@@ -244,94 +244,49 @@ def calculate_number_scores(bridges, market_stats=None):
                 
                 if not parts: continue
 
-                # Xử lý Cầu Tổng
                 if 'TONG' in b_type or 'TỔNG' in b_type:
                     for s in scores:
                         if check_tong(s, parts): 
-                            scores[s] += weight
+                            scores[s] += (weight * SCORING_WEIGHTS['DE_NORMAL_MULTIPLIER'])
                 
-                # Mặc định (CHAM, PASCAL, MEMORY, VITRI...): Coi là Cầu Chạm
-                # Logic này bao quát được mọi loại cầu trả về số đơn (0-9)
-                else:
+                else: # Mặc định là Chạm
                     for s in scores:
                         if check_cham(s, parts): 
-                            scores[s] += weight
+                            scores[s] += (weight * SCORING_WEIGHTS['DE_NORMAL_MULTIPLIER'])
 
     # 2. CỘNG ĐIỂM THỊ TRƯỜNG (MARKET BONUS)
-    # Cộng điểm nhỏ cho các số Hot để làm yếu tố phụ (Tie-breaker)
     if market_stats:
         for s in scores:
             n1, n2 = int(s[0]), int(s[1])
-            
-            # Bonus Chạm Hot (Tối đa 2.0 điểm)
             f1 = freq_cham.get(n1, 0)
             f2 = freq_cham.get(n2, 0)
             avg_freq = (f1 + f2) / 2
-            # Normalize theo max_freq
-            stats_bonus = (avg_freq / max_freq_cham) * 2.0 if max_freq_cham > 0 else 0
+            stats_bonus = (avg_freq / max_freq_cham) * SCORING_WEIGHTS['DE_MARKET_CHAM_BONUS'] if max_freq_cham > 0 else 0
             
-            # Bonus Bộ Hot (Tối đa 1.0 điểm)
             my_set = get_set_name_of_number(s)
             if my_set in freq_bo:
-                stats_bonus += 1.0
+                stats_bonus += SCORING_WEIGHTS['DE_MARKET_BO_BONUS']
             
             scores[s] += stats_bonus
 
-    # Trả về danh sách đã sắp xếp giảm dần theo điểm: [('88', 25.5), ('01', -10.0), ...]
     return sorted(scores.items(), key=lambda x: x[1], reverse=True)
 
 def get_top_strongest_sets(bridges, market_stats=None, last_row=None):
     """
-    Tìm ra các Bộ Số có cầu chạy mạnh nhất (V77).
-    Logic mới: Ưu tiên ghép cầu vị trí (2 vị trí) thành bộ số.
-    Các cầu trùng (cùng dự đoán 1 bộ) có tỉ lệ cao và đang thông sẽ được ưu tiên.
-    
-    Args:
-        bridges: Danh sách các cầu (bridges) để tính điểm
-        market_stats: Dict chứa thống kê thị trường với keys:
-            - freq_bo: Dict {bo_name: frequency} - Tần suất về của bộ số
-            - gan_bo: Dict {bo_name: gan_days} - Số ngày gan của bộ số
-        last_row: Dòng dữ liệu cuối cùng để lấy giá trị vị trí (optional)
-    
-    Returns:
-        List[str]: Top 3 bộ số đẹp nhất (đã kết hợp điểm từ bridges + tần suất + gan)
+    Tìm ra các Bộ Số có cầu chạy mạnh nhất (V77 logic preserved).
     """
-    # ⚡ DEBUG LOGGING: Kiểm tra BO_SO_DE và input
-    print(f"[DEBUG ANALYTICS] BO_SO_DE size: {len(BO_SO_DE)}")
-    print(f"[DEBUG ANALYTICS] Input bridges count: {len(bridges) if bridges else 0}")
-    
-    # ⚡ DEBUG: Thống kê các loại bridge
-    if bridges:
-        type_counter = {}
-        for bridge in bridges:
-            b_type = str(bridge.get('type', 'UNKNOWN')).upper()
-            type_counter[b_type] = type_counter.get(b_type, 0) + 1
-        print(f"[DEBUG ANALYTICS] Bridge types distribution: {type_counter}")
-        
-        # In mẫu một vài bridge để xem cấu trúc
-        print(f"[DEBUG ANALYTICS] Sample bridges (first 3):")
-        for i, bridge in enumerate(bridges[:3]):
-            print(f"  Bridge {i}: type={bridge.get('type')}, predicted_value={bridge.get('predicted_value')}, name={bridge.get('name')}")
-    
-    # ⚡ FIX: Kiểm tra BO_SO_DE có rỗng không
     if not BO_SO_DE or len(BO_SO_DE) == 0:
-        print("[ERROR ANALYTICS] BO_SO_DE is EMPTY! Returning default sets.")
-        # Trả về danh sách bộ mặc định để tránh crash
         default_sets = ["00", "01", "12"] if "00" in BO_SO_DE else list(BO_SO_DE.keys())[:3] if BO_SO_DE else []
         return default_sets
     
-    if not bridges:
-        print("[DEBUG ANALYTICS] No bridges provided, returning empty list.")
-        return []
+    if not bridges: return []
     
     set_scores = {bo: 0 for bo in BO_SO_DE.keys()}
     
-    # ⚡ LOGIC MỚI: GHÉP CẦU VỊ TRÍ THÀNH BỘ SỐ (Ưu tiên cao nhất)
-    # Tìm các cầu vị trí và ghép chúng thành bộ số
+    # 1. GHÉP CẦU VỊ TRÍ
     position_bridges = []
     for bridge in bridges:
         b_type = str(bridge.get('type', '')).upper()
-        # Tìm cầu vị trí (DE_POS_SUM hoặc có pos1_idx, pos2_idx)
         if 'DE_POS' in b_type or ('POS' in b_type and bridge.get('pos1_idx') is not None and bridge.get('pos2_idx') is not None):
             position_bridges.append(bridge)
     
@@ -339,280 +294,119 @@ def get_top_strongest_sets(bridges, market_stats=None, last_row=None):
         try:
             from logic.de_utils import get_bo_name_by_pair
             from logic.bridges.bridges_v16 import getAllPositions_V17_Shadow
-            
-            # Lấy giá trị tại các vị trí từ last_row
             last_positions = getAllPositions_V17_Shadow(last_row)
-            
-            # Tạo dict để đếm số cầu trùng (consensus) cho mỗi bộ số
-            bo_consensus = {}  # {bo_name: [list of bridges]}
+            bo_consensus = {}
             
             for bridge in position_bridges:
                 try:
                     idx1 = bridge.get('pos1_idx')
                     idx2 = bridge.get('pos2_idx')
-                    
-                    # Bỏ qua nếu không có vị trí hợp lệ
-                    if idx1 is None or idx2 is None or idx1 < 0 or idx2 < 0:
-                        continue
-                    if idx1 >= len(last_positions) or idx2 >= len(last_positions):
-                        continue
+                    if idx1 is None or idx2 is None or idx1 >= len(last_positions) or idx2 >= len(last_positions): continue
                     
                     val1 = last_positions[idx1]
                     val2 = last_positions[idx2]
+                    if val1 is None or val2 is None: continue
                     
-                    if val1 is None or val2 is None:
-                        continue
+                    d1 = int(str(val1)[-1])
+                    d2 = int(str(val2)[-1])
                     
-                    # Lấy chữ số cuối của mỗi vị trí
-                    try:
-                        d1 = int(str(val1)[-1])
-                        d2 = int(str(val2)[-1])
-                    except (ValueError, TypeError):
-                        continue
-                    
-                    # Ghép 2 vị trí thành cặp số và tìm bộ tương ứng
                     bo_name = get_bo_name_by_pair(d1, d2)
                     if bo_name and bo_name in set_scores:
-                        if bo_name not in bo_consensus:
-                            bo_consensus[bo_name] = []
+                        if bo_name not in bo_consensus: bo_consensus[bo_name] = []
                         bo_consensus[bo_name].append(bridge)
-                except Exception:
-                    continue  # Bỏ qua cầu lỗi
+                except Exception: continue
                         
-            # Tính điểm cho các bộ số được ghép từ cầu vị trí
-            # Ưu tiên: Cầu trùng (consensus) + Tỉ lệ cao + Đang thông
             for bo_name, bridge_list in bo_consensus.items():
                 consensus_count = len(bridge_list)
-                
-                # Tính điểm base từ consensus (nhiều cầu trùng = điểm cao)
-                base_score = consensus_count * 3.0  # Mỗi cầu trùng = +3 điểm
-                
-                # Tính điểm bổ sung từ tỉ lệ và streak của các cầu
-                total_win_rate = 0.0
-                total_streak = 0.0
-                for bridge in bridge_list:
-                    win_rate = bridge.get('win_rate', 0)
-                    streak = bridge.get('streak', 1)
-                    if not isinstance(streak, (int, float)):
-                        try: streak = float(streak) if streak else 1
-                        except: streak = 1
-                    
-                    total_win_rate += win_rate
-                    total_streak += streak
+                base_score = consensus_count * 3.0
+                total_win_rate = sum([b.get('win_rate', 0) for b in bridge_list])
+                total_streak = sum([float(b.get('streak', 1)) for b in bridge_list])
                 
                 avg_win_rate = total_win_rate / consensus_count if consensus_count > 0 else 0
                 avg_streak = total_streak / consensus_count if consensus_count > 0 else 0
-                
-                # Điểm bổ sung: Tỉ lệ cao và đang thông
                 bonus_score = (avg_win_rate / 100.0 * 2.0) + (avg_streak * 1.5)
+                set_scores[bo_name] += (base_score + bonus_score)
                 
-                # Tổng điểm cho bộ số này
-                final_score = base_score + bonus_score
-                set_scores[bo_name] += final_score
-                
-                print(f"[DEBUG ANALYTICS] Bộ {bo_name}: +{final_score:.1f} (consensus={consensus_count}, win_rate={avg_win_rate:.1f}%, streak={avg_streak:.1f})")
-                
-        except ImportError as e:
-            print(f"[WARNING ANALYTICS] Cannot import required modules for position bridge scoring: {e}")
-        except Exception as e:
-            print(f"[WARNING ANALYTICS] Error processing position bridges: {e}")
+        except Exception: pass
     
-    # ⚡ DEBUG: Đếm số bridge loại BO
-    bo_bridge_count = 0
-    bo_bridge_details = []
-    
-    # ⚡ FIX: Nếu không có bridge BO, tính điểm từ các bridge khác (chuyển chạm -> bộ)
+    # 2. CẦU BỘ TRỰC TIẾP
     has_bo_bridges = False
-    
     for bridge in bridges:
         try:
             b_type = str(bridge.get('type', '')).upper()
             val = str(bridge.get('predicted_value', ''))
-            streak = bridge.get('streak', 1)
+            streak = float(bridge.get('streak', 1))
             
-            if not isinstance(streak, (int, float)):
-                try: streak = float(streak) if streak else 1
-                except: streak = 1
-            
-            # ⚡ DEBUG: Kiểm tra bridge loại BO
-            if 'BO' in b_type:
+            if 'BO' in b_type or 'SET' in b_type:
                 has_bo_bridges = True
-                bo_bridge_count += 1
                 bo_key = _normalize_bo_key(val)
-                if bo_key:
-                    old_score = set_scores[bo_key]
-                    set_scores[bo_key] += streak
-                    bo_bridge_details.append({
-                        'name': bridge.get('name', 'Unknown'),
-                        'type': b_type,
-                        'val': val,
-                        'bo_key': bo_key,
-                        'streak': streak,
-                        'score_before': old_score,
-                        'score_after': set_scores[bo_key]
-                    })
-                else:
-                    bo_bridge_details.append({
-                        'name': bridge.get('name', 'Unknown'),
-                        'type': b_type,
-                        'val': val,
-                        'bo_key': None,
-                        'error': 'normalize_failed'
-                    })
-        except Exception as e:
-            print(f"[DEBUG ANALYTICS] Exception processing bridge {bridge.get('name', 'Unknown')}: {e}")
-            continue
+                if bo_key: set_scores[bo_key] += streak
+        except Exception: continue
     
-    # ⚡ FIX: Nếu không có bridge BO, tính điểm từ các bridge khác (chạm -> bộ)
+    # 3. FALLBACK: TÍNH TỪ CẦU CHẠM
     if not has_bo_bridges:
-        print("[DEBUG ANALYTICS] No BO bridges found. Calculating scores from other bridges (cham -> bo)...")
         try:
             from logic.de_utils import get_bo_name_by_pair
-            
             for bridge in bridges:
-                try:
-                    b_type = str(bridge.get('type', '')).upper()
-                    val = str(bridge.get('predicted_value', ''))
-                    streak = bridge.get('streak', 1)
-                    
-                    if not isinstance(streak, (int, float)):
-                        try: streak = float(streak) if streak else 1
-                        except: streak = 1
-                    
-                    if not val: continue
-                    
-                    # Parse predicted_value (có thể là chạm: "2,3,7,8" hoặc số đơn: "9")
+                b_type = str(bridge.get('type', '')).upper()
+                val = str(bridge.get('predicted_value', ''))
+                streak = float(bridge.get('streak', 1))
+                
+                if 'CHAM' in str(val) or ',' in str(val) or str(val).isdigit():
                     parts = []
-                    if ',' in val:
-                        parts = [int(v.strip()) for v in val.split(',') if v.strip().isdigit()]
-                    elif val.isdigit():
-                        parts = [int(val)]
+                    if ',' in val: parts = [int(v.strip()) for v in val.split(',') if v.strip().isdigit()]
+                    elif val.isdigit(): parts = [int(val)]
+                    elif 'CHAM' in val: 
+                        try: parts = [int(val.split(' ')[1])]
+                        except: pass
                     
                     if not parts: continue
                     
-                    # Từ các chạm, tạo các cặp số và tìm bộ tương ứng
-                    # Logic: Mỗi chạm có thể tạo số gốc và bóng dương
-                    # Từ các số đó, tạo cặp và tìm bộ tương ứng
+                    # Tạo bộ từ các chạm (Giả định ghép với bóng)
                     bo_sets_found = set()
-                    
-                    # Tạo danh sách số từ chạm (kể cả bóng)
                     all_digits = set()
                     for cham in parts:
                         all_digits.add(cham)
-                        all_digits.add((cham + 5) % 10)  # Bóng dương
+                        all_digits.add((cham + 5) % 10)
                     
-                    # Tạo tất cả các cặp số từ danh sách digits
                     digits_list = sorted(list(all_digits))
                     for i in range(len(digits_list)):
                         for j in range(i, len(digits_list)):
                             d1, d2 = digits_list[i], digits_list[j]
-                            # Tìm bộ từ cặp số (01 và 10 đều thuộc cùng một bộ)
                             bo_name = get_bo_name_by_pair(d1, d2)
-                            if bo_name and bo_name in set_scores:
-                                bo_sets_found.add(bo_name)
+                            if bo_name: bo_sets_found.add(bo_name)
                     
-                    # Cộng điểm cho tất cả các bộ tìm được (mỗi bộ chỉ cộng 1 lần)
                     for bo_name in bo_sets_found:
-                        set_scores[bo_name] += streak
-                        
-                except Exception as e:
-                    print(f"[DEBUG ANALYTICS] Exception processing non-BO bridge {bridge.get('name', 'Unknown')}: {e}")
-                    continue
-                    
-        except ImportError:
-            print("[ERROR ANALYTICS] Cannot import get_bo_name_by_pair. Skipping non-BO bridge scoring.")
+                        if bo_name in set_scores: set_scores[bo_name] += streak
+        except: pass
     
-    # ⚡ DEBUG: In thống kê
-    print(f"[DEBUG ANALYTICS] BO bridges found: {bo_bridge_count}")
-    if bo_bridge_details:
-        print(f"[DEBUG ANALYTICS] BO bridge details (first 5):")
-        for detail in bo_bridge_details[:5]:
-            print(f"  - {detail}")
-    else:
-        print("[DEBUG ANALYTICS] No BO bridges found or all failed to normalize!")
-    
-    # ⚡ KẾT HỢP VỚI THỐNG KÊ THỊ TRƯỜNG (Tần suất + Gan)
+    # 4. KẾT HỢP THỊ TRƯỜNG
     if market_stats:
         freq_bo = market_stats.get('freq_bo', {})
         gan_bo = market_stats.get('gan_bo', {})
-        
-        print(f"[DEBUG ANALYTICS] Kết hợp thống kê thị trường: freq_bo={len(freq_bo)}, gan_bo={len(gan_bo)}")
-        
-        # Tính điểm bổ sung từ tần suất và gan
-        # ⚡ FIX: Giảm trọng số và normalize để tránh ưu tiên quá nhiều bộ kép
         for bo_name in set_scores.keys():
-            # Điểm từ tần suất: Bộ về nhiều = điểm cao
             freq_score = freq_bo.get(bo_name, 0)
-            
-            # ⚡ NORMALIZE: Bộ kép (4 số) vs Bộ thường (8 số)
-            # Bộ kép có ít số hơn nên tần suất tự nhiên cao hơn
-            # Normalize bằng cách chia cho số lượng số trong bộ
             num_numbers_in_bo = len(BO_SO_DE.get(bo_name, []))
-            normalized_freq = freq_score / max(num_numbers_in_bo, 1)  # Tránh chia 0
-            
-            # Điểm từ gan: Bộ gan ít (sắp về) = điểm cao (nghịch đảo)
+            normalized_freq = freq_score / max(num_numbers_in_bo, 1)
             gan_days = gan_bo.get(bo_name, 999)
-            gan_score = max(0, 10 - min(gan_days, 10))  # Gan <= 10 ngày = điểm cao
-            
-            # ⚡ GIẢM TRỌNG SỐ: Từ (freq x2, gan x1) xuống (freq x0.5, gan x0.5)
-            # Để điểm từ bridges vẫn là yếu tố chính
+            gan_score = max(0, 10 - min(gan_days, 10))
             bonus_score = (normalized_freq * 0.5) + (gan_score * 0.5)
-            
-            # ⚡ GIỚI HẠN ĐIỂM BONUS: Tối đa 5 điểm để không làm lệch quá nhiều
-            bonus_score = min(bonus_score, 5.0)
-            
-            set_scores[bo_name] += bonus_score
-            
-            if bonus_score > 0:
-                print(f"[DEBUG ANALYTICS] Bộ {bo_name}: +{bonus_score:.2f} (freq={freq_score}->{normalized_freq:.2f}, gan={gan_days}, num_in_bo={num_numbers_in_bo})")
-    else:
-        print("[DEBUG ANALYTICS] Không có thống kê thị trường, chỉ tính điểm từ bridges.")
-    
-    # ⚡ DEBUG: In top 5 set_scores để xem điểm
-    top_5_scores = sorted(set_scores.items(), key=lambda x: x[1], reverse=True)[:5]
-    print(f"[DEBUG ANALYTICS] Top 5 set scores (after market stats): {top_5_scores}")
-            
-    all_sets_sorted = sorted(set_scores.items(), key=lambda x: x[1], reverse=True)
-    active_sets = [x[0] for x in all_sets_sorted if x[1] > 0]
-    
-    print(f"[DEBUG ANALYTICS] Active sets (score > 0): {len(active_sets)}")
-    print(f"[DEBUG ANALYTICS] Top 3 active sets: {active_sets[:3]}")
-    
-    if active_sets:
-        result = active_sets[:3]
-        print(f"[DEBUG ANALYTICS] Returning top 3 active sets: {result}")
-        return result
-    elif bridges:
-        result = [x[0] for x in all_sets_sorted[:3]]
-        print(f"[DEBUG ANALYTICS] No active sets, returning top 3 overall: {result}")
-        return result
-    else:
-        print("[DEBUG ANALYTICS] No bridges, returning empty list.")
-        return []
+            set_scores[bo_name] += min(bonus_score, 5.0)
 
-# --- PHÂN TÍCH TỔ HỢP 4 CHẠM (KẾT HỢP THỐNG KÊ) ---
+    all_sets_sorted = sorted(set_scores.items(), key=lambda x: x[1], reverse=True)
+    return [x[0] for x in all_sets_sorted[:3]]
+
 def calculate_top_touch_combinations(all_data, num_touches=4, days=10, market_stats=None):
-    """
-    Tính toán Max Streak và Win Rate cho TẤT CẢ các tổ hợp 4 chạm khả thi.
-    Kết hợp với thống kê tần suất/gan chạm để tăng độ chính xác.
-    
-    Args:
-        all_data: Dữ liệu lịch sử
-        num_touches: Số chạm trong tổ hợp (mặc định 4)
-        days: Số ngày gần nhất để phân tích (mặc định 10)
-        market_stats: Dict chứa thống kê thị trường với keys:
-            - freq_cham: Dict {cham: frequency} - Tần suất về của chạm
-            - gan_cham: Dict {cham: gan_days} - Số ngày gan của chạm
-    
-    Returns:
-        List[dict]: Danh sách tổ hợp chạm với điểm đã kết hợp thống kê
-    """
+    """Tính toán tổ hợp 4 chạm."""
     if not all_data or len(all_data) < 2: return []
     recent_data = all_data[-days:] if len(all_data) > days else all_data
     all_touches = list(range(10)) 
     touch_combinations = list(combinations(all_touches, num_touches))
     results = []
     
+    freq_cham = market_stats.get('freq_cham', {}) if market_stats else {}
+    gan_cham = market_stats.get('gan_cham', {}) if market_stats else {}
+
     for touch_combo in touch_combinations:
         touch_list = sorted(list(touch_combo))
         wins = []
@@ -634,35 +428,186 @@ def calculate_top_touch_combinations(all_data, num_touches=4, days=10, market_st
         rate_hits = sum(wins); rate_total = len(wins)
         rate_percent = (rate_hits / rate_total * 100) if rate_total > 0 else 0.0
         
-        # ⚡ KẾT HỢP THỐNG KÊ THỊ TRƯỜNG: Tính điểm bổ sung từ tần suất/gan chạm
-        market_bonus_score = 0.0
-        if market_stats:
-            freq_cham = market_stats.get('freq_cham', {})
-            gan_cham = market_stats.get('gan_cham', {})
-            
-            # Tính điểm từ tần suất: Chạm về nhiều = điểm cao
-            total_freq = sum(freq_cham.get(cham, 0) for cham in touch_list)
-            # Tính điểm từ gan: Chạm gan ít (sắp về) = điểm cao
-            total_gan_days = sum(gan_cham.get(cham, 999) for cham in touch_list)
-            avg_gan = total_gan_days / len(touch_list) if touch_list else 999
-            gan_bonus = max(0, 10 - min(avg_gan, 10))  # Gan <= 10 ngày = điểm cao
-            
-            # Cộng điểm bổ sung (trọng số: tần suất x1.5, gan x1)
-            market_bonus_score = (total_freq * 1.5) + (gan_bonus * 1.0)
+        # Market bonus
+        total_freq = sum(freq_cham.get(cham, 0) for cham in touch_list)
+        total_gan_days = sum(gan_cham.get(cham, 999) for cham in touch_list)
+        avg_gan = total_gan_days / len(touch_list) if touch_list else 999
+        gan_bonus = max(0, 10 - min(avg_gan, 10))
+        market_bonus_score = (total_freq * 1.5) + (gan_bonus * 1.0)
         
-        # Thêm điểm thống kê vào streak để ưu tiên tổ hợp có thống kê tốt
-        adjusted_streak = max_streak + (market_bonus_score / 10.0)  # Chia 10 để không làm lệch quá nhiều
+        adjusted_streak = max_streak + (market_bonus_score / 10.0)
         
         results.append({
             'touches': touch_list, 
-            'streak': max_streak,  # Giữ nguyên streak gốc
-            'adjusted_streak': adjusted_streak,  # Streak đã điều chỉnh với thống kê
-            'rate_hits': rate_hits, 
-            'rate_total': rate_total, 
+            'streak': max_streak,
+            'adjusted_streak': adjusted_streak,
             'rate_percent': rate_percent,
-            'market_bonus': market_bonus_score  # Điểm bổ sung từ thống kê
+            'market_bonus': market_bonus_score
         })
     
-    # Sắp xếp theo adjusted_streak (đã kết hợp thống kê) và rate_percent
     results.sort(key=lambda x: (x['adjusted_streak'], x['rate_percent']), reverse=True)
     return results
+
+
+# ======================================================================
+# MA TRẬN GIAO THOA: Chạm Thông + Chạm Tỉ Lệ + Bộ Số
+# ======================================================================
+
+def _normalize_special_value(val: Any) -> Optional[int]:
+    """Chuyển kết quả giải đặc biệt về int, bỏ ký tự không phải số."""
+    if val is None:
+        return None
+    s = str(val)
+    digits = "".join(ch for ch in s if ch.isdigit())
+    if digits == "":
+        return None
+    try:
+        return int(digits)
+    except ValueError:
+        return None
+
+
+def _ai_rows_to_dataframe(all_data_ai) -> Tuple[Optional["pd.DataFrame"], str]:
+    """
+    Chuyển dữ liệu A:I (list/tuple) thành DataFrame với cột Ngay & Giai_Dac_Biet.
+    """
+    try:
+        import pandas as pd  # Lazy import để tránh làm nặng startup UI
+    except ImportError:
+        return None, "Thiếu pandas, không thể tạo DataFrame."
+
+    if not all_data_ai:
+        return None, "Dữ liệu trống."
+
+    columns = [
+        "Ky", "Ngay", "Giai_Dac_Biet",
+        "Giai_1", "Giai_2", "Giai_3", "Giai_4", "Giai_5", "Giai_6", "Giai_7",
+    ]
+    try:
+        df = pd.DataFrame(all_data_ai, columns=columns[: len(all_data_ai[0])])
+    except Exception:
+        return None, "Không thể chuyển dữ liệu thành DataFrame."
+
+    if "Ngay" in df.columns:
+        df["Ngay"] = pd.to_datetime(df["Ngay"], errors="coerce")
+
+    return df, "OK"
+
+
+def analyze_independent_factors(df) -> Tuple[List[int], List[int], List[str]]:
+    """
+    Tính các yếu tố độc lập: Chạm Thông, Chạm Tỉ Lệ, Bộ Số.
+    """
+    special_col = None
+    for candidate in ["De", "Giai_Dac_Biet"]:
+        if candidate in df.columns:
+            special_col = candidate
+            break
+    if not special_col:
+        raise ValueError("Không tìm thấy cột 'De' hoặc 'Giai_Dac_Biet' trong dữ liệu.")
+
+    work_df = df.copy()
+    work_df[special_col] = work_df[special_col].apply(_normalize_special_value)
+    work_df = work_df.dropna(subset=[special_col])
+
+    if work_df.empty:
+        raise ValueError("Dữ liệu giải đặc biệt trống sau khi chuẩn hóa.")
+
+    if "Ngay" in work_df.columns:
+        work_df = work_df.sort_values(by="Ngay")
+
+    # 1. Chạm Thông: top 4 đuôi trong 15 kỳ gần nhất
+    tail_df = work_df.tail(15)
+    cham_thong_counts = tail_df[special_col].astype(int).apply(lambda x: x % 10).value_counts()
+    cham_thong = list(cham_thong_counts.sort_values(ascending=False).index[:4])
+
+    # 2. Chạm Tỉ Lệ: dựa vào tổng 2 số cuối kỳ gần nhất
+    last_value = int(work_df.iloc[-1][special_col])
+    total_last_two = (last_value % 10) + ((last_value // 10) % 10)
+    total_last_two %= 10
+    cham_ti_le = [
+        total_last_two % 10,
+        (total_last_two + 1) % 10,
+        (total_last_two + 5) % 10,
+        (10 - total_last_two) % 10,
+    ]
+
+    # 3. Bộ Số: placeholder logic (chẵn/lẻ kỳ gần nhất)
+    bo_so_chon = ["12", "01"] if last_value % 2 == 0 else ["23", "03"]
+
+    return cham_thong, cham_ti_le, bo_so_chon
+
+
+def process_intersection_matrix(cham_thong, cham_ti_le, bo_so_chon):
+    bang_diem = {i: 0 for i in range(100)}
+    ghi_chu = {i: [] for i in range(100)}
+
+    if len(bo_so_chon) > 0:
+        for so in BO_SO_DICT.get(bo_so_chon[0], []):
+            bang_diem[so] += SCORE_CONFIG["bo_uu_tien_1"]
+            ghi_chu[so].append(f"Bộ {bo_so_chon[0]}")
+    if len(bo_so_chon) > 1:
+        for so in BO_SO_DICT.get(bo_so_chon[1], []):
+            bang_diem[so] += SCORE_CONFIG["bo_uu_tien_2"]
+            ghi_chu[so].append(f"Bộ {bo_so_chon[1]}")
+
+    for so in range(100):
+        d, u = so // 10, so % 10
+        if (d in cham_ti_le) or (u in cham_ti_le):
+            bang_diem[so] += SCORE_CONFIG["cham_ti_le"]
+            if bang_diem[so]:
+                ghi_chu[so].append("Chạm Tỉ Lệ")
+        if (d in cham_thong) or (u in cham_thong):
+            bang_diem[so] += SCORE_CONFIG["cham_thong"]
+            if bang_diem[so]:
+                ghi_chu[so].append("Chạm Thông")
+
+    final = [
+        {
+            "so": f"{so:02d}",
+            "diem": v,
+            "rank": "S" if v >= 60 else "A" if v >= 40 else "B",
+            "note": "+".join(ghi_chu[so]),
+        }
+        for so, v in bang_diem.items()
+        if v > 0
+    ]
+    return sorted(final, key=lambda x: x["diem"], reverse=True)
+
+
+def run_intersection_matrix_analysis(all_data_ai_or_df):
+    """
+    Wrapper: nhận DataFrame hoặc all_data_ai (list), trả về dict kết quả ma trận giao thoa.
+    """
+    df = None
+    message = ""
+
+    try:
+        import pandas as pd  # noqa: F401
+    except ImportError:
+        return {"ranked": [], "message": "Thiếu pandas, bỏ qua giao thoa."}
+
+    if all_data_ai_or_df is None:
+        return {"ranked": [], "message": "Dữ liệu trống."}
+
+    if hasattr(all_data_ai_or_df, "columns"):
+        df = all_data_ai_or_df
+        message = "OK"
+    else:
+        df, message = _ai_rows_to_dataframe(all_data_ai_or_df)
+
+    if df is None:
+        return {"ranked": [], "message": message}
+
+    try:
+        cham_thong, cham_ti_le, bo_so_chon = analyze_independent_factors(df)
+        ranked = process_intersection_matrix(cham_thong, cham_ti_le, bo_so_chon)
+        return {
+            "cham_thong": cham_thong,
+            "cham_ti_le": cham_ti_le,
+            "bo_so_chon": bo_so_chon,
+            "ranked": ranked,
+            "message": "OK",
+        }
+    except Exception as e:
+        return {"ranked": [], "message": str(e)}

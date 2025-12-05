@@ -8,6 +8,12 @@ del /s /q *.pyc
 rmdir /s /q __pycache__
 for /d /r . %d in (__pycache__) do @if exist "%d" rd /s /q "%d"
 
+generate_digest.py
+Khi bắt đầu một phiên chat mới với Gemini.
+
+Bạn chỉ cần upload duy nhất file PROJECT_FULL_CONTEXT.txt này.
+
+Kèm câu lệnh: "Đây là toàn bộ source code dự án. Hãy đọc hiểu cấu trúc và logic Scoring Engine V3.8 để hỗ trợ tôi."
 
 
 Sau khi đã cài đặt Git và Git LFS, bạn cần thực hiện 2 bước sau để Git nhận diện được LFS và tải file lớn về:

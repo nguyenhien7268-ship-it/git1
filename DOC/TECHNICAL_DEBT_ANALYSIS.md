@@ -819,3 +819,8 @@ metrics:
 **Last Updated:** 2025-12-XX (V7.9)  
 **Review Frequency:** Weekly  
 **Status:** ✅ All Technical Debt Resolved
+
+## [RESOLVED] Circular Dependency in Services (Đã xử lý V3.8)
+- **Vấn đề cũ:** `AnalysisService` import `DataRepository`, trong khi `DataRepository` lại phụ thuộc các module khác, gây lỗi vòng lặp và crash âm thầm.
+- **Giải pháp:** Chuyển sang mô hình **Direct SQL Injection**. `AnalysisService` tự quản lý kết nối SQLite cục bộ để lấy dữ liệu cầu (`ManagedBridges`), cắt đứt sự phụ thuộc vào `DataRepository`.
+- **Trạng thái:** ✅ Đã giải quyết triệt để.

@@ -50,3 +50,30 @@ MAX_LINES = 100_000
 
 # Allowed File Extensions
 ALLOWED_FILE_EXTENSIONS = ['.txt', '.json']
+
+# [NEW V3.8] SCORING ENGINE WEIGHTS (TỐI ƯU HÓA ĐIỂM SỐ)
+SCORING_WEIGHTS = {
+    # --- LÔ SCORING ---
+    'LO_STREAK_MULTIPLIER': 1.0,      # Hệ số nhân cho chuỗi thông (Attack)
+    'LO_WINRATE_DIVISOR': 20.0,       # Hệ số chia cho WinRate (Attack) -> 100% / 20 = 5 điểm
+    'LO_MEMORY_DIVISOR': 10.0,        # Hệ số chia cho Confidence Bạc nhớ
+    
+    # Phạt Lô Gan (Defense)
+    'LO_GAN_PENALTY_LOW': 2.0,        # Gan > 10 ngày
+    'LO_GAN_PENALTY_MED': 5.0,        # Gan > 15 ngày
+    'LO_GAN_PENALTY_HIGH': 15.0,      # Gan > 25 ngày (Sát thủ)
+    
+    # Thưởng Tần Suất (Bonus)
+    'LO_FREQ_BONUS_MAX': 3.0,         # Điểm thưởng tối đa cho Lô về nhiều
+
+    # --- ĐỀ SCORING ---
+    'DE_SET_MULTIPLIER': 2.0,         # Hệ số nhân cho Cầu Bộ (Ưu tiên cao nhất)
+    'DE_NORMAL_MULTIPLIER': 1.0,      # Hệ số nhân cho Cầu Chạm/Tổng
+    
+    # Phạt Cầu Loại (Killer)
+    'DE_KILLER_MULTIPLIER': 3.0,      # Hệ số phạt cực nặng để loại số
+    
+    # Thưởng Thị Trường
+    'DE_MARKET_CHAM_BONUS': 2.0,      # Max bonus cho Chạm Hot
+    'DE_MARKET_BO_BONUS': 1.0,        # Max bonus cho Bộ Hot
+}

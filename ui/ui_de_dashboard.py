@@ -12,7 +12,8 @@ try:
         analyze_market_trends,
         calculate_number_scores,
         get_top_strongest_sets,
-        calculate_top_touch_combinations
+        calculate_top_touch_combinations,
+        run_intersection_matrix_analysis,
     )
     from logic.bridges.de_bridge_scanner import run_de_scanner
     print(f"[DEBUG UI_DE_DASHBOARD] Imports thành công. BO_SO_DE size: {len(BO_SO_DE)}")
@@ -23,9 +24,10 @@ except ImportError as e:
     def get_set_name_of_number(n): return "00"
     def run_de_scanner(*args): return 0, []
     def analyze_market_trends(*args, **kwargs): return {}
-    def calculate_number_scores(*args): return []
+    def calculate_number_scores(*args, **kwargs): return []
     def get_top_strongest_sets(*args, **kwargs): return []
     def calculate_top_touch_combinations(*args, **kwargs): return []
+    def run_intersection_matrix_analysis(*args, **kwargs): return {"ranked": []}
     def get_gdb_last_2(r): return r[2][-2:] if len(r)>2 else ""
 
 class UiDeDashboard(ttk.Frame):
@@ -39,7 +41,7 @@ class UiDeDashboard(ttk.Frame):
         # 1. TOOLBAR
         toolbar = ttk.Frame(self, padding=5)
         toolbar.pack(fill=tk.X)
-        btn_scan = ttk.Button(toolbar, text="🚀 QUÉT & CHỐT SỐ (V3.7)", command=self.on_scan_click)
+        btn_scan = ttk.Button(toolbar, text="🚀 QUÉT & CHỐT SỐ (V3.8)", command=self.on_scan_click)
         btn_scan.pack(side=tk.LEFT, padx=5)
         self.lbl_status = ttk.Label(toolbar, text="Sẵn sàng", foreground="blue")
         self.lbl_status.pack(side=tk.LEFT, padx=10)
@@ -160,6 +162,11 @@ class UiDeDashboard(ttk.Frame):
         ttk.Label(tab_forecast, text="Tứ Thủ Đề (Vip):", font=("Arial", 9, "bold"), foreground="red").pack(anchor="w")
         self.txt_4 = tk.Text(tab_forecast, height=1, width=30, wrap=tk.WORD, font=("Arial", 12, "bold"))
         self.txt_4.pack(fill=tk.X, padx=2, pady=2)
+
+        # [NEW] Danh sách Killer (Số bị loại)
+        ttk.Label(tab_forecast, text="⛔ Số Bị Loại (Killer):", font=("Arial", 8, "italic"), foreground="gray").pack(anchor="w", pady=(5,0))
+        self.txt_killed = tk.Text(tab_forecast, height=2, width=30, wrap=tk.WORD, font=("Arial", 8), foreground="gray")
+        self.txt_killed.pack(fill=tk.X, padx=2, pady=0)
         
         # Nút Copy
         btn_copy = ttk.Button(tab_forecast, text="📋 Copy Tứ Thủ & Top 10", command=self.copy_forecast)
@@ -204,9 +211,14 @@ class UiDeDashboard(ttk.Frame):
             
             # 5. Phân tích tổ hợp chạm
             touch_combos = calculate_top_touch_combinations(data, num_touches=4, days=10, market_stats=market_stats)
+
+            # 6. Ma trận giao thoa (Chạm Thông + Chạm Tỉ Lệ + Bộ Số)
+            matrix_result = run_intersection_matrix_analysis(data)
             
             # Update UI
-            self.after(0, lambda: self._update_ui_full(data, bridges, market_stats, scores, strong_sets, touch_combos))
+            self.after(0, lambda: self._update_ui_full(
+                data, bridges, market_stats, scores, strong_sets, touch_combos, matrix_result
+            ))
             
         except Exception as e:
             print(f"[ERROR] Full analysis error: {e}")
@@ -214,7 +226,7 @@ class UiDeDashboard(ttk.Frame):
             traceback.print_exc()
             self.after(0, lambda: self.lbl_status.config(text="❌ Lỗi phân tích!", foreground="red"))
 
-    def _update_ui_full(self, data, bridges, market_stats, scores, strong_sets, touch_combos):
+    def _update_ui_full(self, data, bridges, market_stats, scores, strong_sets, touch_combos, matrix_result):
         self.found_bridges = bridges
         self.lbl_status.config(text=f"✅ Hoàn tất. Tìm thấy {len(bridges)} cầu.", foreground="green")
         
@@ -250,7 +262,7 @@ class UiDeDashboard(ttk.Frame):
         self._update_analytics_tab(pos_bridges, kill_bridges, market_stats, touch_combos)
         
         # 2. Chốt Số (Forecast)
-        self._update_forecast_tab(scores, strong_sets)
+        self._update_forecast_tab(scores, strong_sets, matrix_result)
 
     def _update_analytics_tab(self, pos_bridges, kill_bridges, market_stats, touch_combos):
         # Clear
@@ -283,7 +295,7 @@ class UiDeDashboard(ttk.Frame):
             if "LOẠI CHẠM" in str(k.get('predicted_value','')):
                 try: 
                     d = int(k['predicted_value'].split(" ")[-1])
-                    if d in touch_scores: touch_scores[d] -= (k['streak'] * 2)
+                    if d in touch_scores: touch_scores[d] -= (k['streak'] * 1)
                 except: pass
 
         # Fill Top Chạm
@@ -304,49 +316,66 @@ class UiDeDashboard(ttk.Frame):
                 info = f"{c['streak']} kỳ | {c['rate_percent']:.0f}%"
                 self.tree_combos.insert("", "end", values=(touches, info))
 
-    def _update_forecast_tab(self, scores, strong_sets):
+    def _update_forecast_tab(self, scores, strong_sets, matrix_result=None):
         self.txt_65.delete("1.0", tk.END)
         self.txt_10.delete("1.0", tk.END)
         self.txt_4.delete("1.0", tk.END)
+        self.txt_killed.delete("1.0", tk.END) # Clear Killer box
         
-        if not scores: return
+        # Ưu tiên chốt theo Ma Trận Giao Thoa
+        ranked = matrix_result.get("ranked") if matrix_result else []
+        if ranked:
+            dan_full = [x["so"] for x in ranked]
+            note = f"CT {matrix_result.get('cham_thong', [])} | TL {matrix_result.get('cham_ti_le', [])} | B{matrix_result.get('bo_so_chon', [])}"
+            
+            # Dàn 65
+            self.txt_65.insert("1.0", f"{note}\n" + ",".join(dan_full[:65]))
+            
+            # Top 10 & Tứ thủ
+            dan_10 = sorted(dan_full[:10])
+            dan_4 = sorted(dan_full[:4])
+            self.txt_10.insert("1.0", ",".join(dan_10))
+            self.txt_4.insert("1.0", ",".join(dan_4))
+            
+            # Killer giữ nguyên từ scores (nếu có)
+            killed_nums = [x[0] for x in scores if x[1] < -2.0] if scores else []
+            if killed_nums:
+                self.txt_killed.insert("1.0", ",".join(sorted(killed_nums)))
+            else:
+                self.txt_killed.insert("1.0", "(Không có số bị loại)")
+            return
         
-        # --- LOGIC V3.8: DỰA TRÊN ĐIỂM SỐ TỔNG HỢP (SCORING DRIVEN) ---
+        # Fallback: giữ logic V3.8 nếu chưa có ma trận
+        if not scores: 
+            self.txt_killed.insert("1.0", "(Không có dữ liệu)")
+            return
         
-        # 1. Dàn 65 (Lấy Top 65 điểm cao nhất)
-        # Các số bị Killer "giết" (điểm âm) sẽ tự động bị đẩy xuống đáy -> Loại bỏ hiệu quả.
         top_65_list = [x[0] for x in scores[:65]]
-        
-        # Hiển thị sorted để user dễ dò
         self.txt_65.insert("1.0", ",".join(sorted(top_65_list)))
         
-        # 2. Top 10 & Tứ Thủ (Hybrid Strategy)
-        # Lấy 15 số điểm cao nhất làm "vùng ứng viên" (Candidate Zone)
         candidates = scores[:15] 
         candidate_nums = [x[0] for x in candidates]
-        
         top_sets = strong_sets[:3] if strong_sets else []
-        
         prioritized = []
         others = []
-        
-        # Trong vùng ứng viên, ưu tiên đưa các số thuộc "Top Bộ" lên đầu
         for num in candidate_nums:
             my_set = get_set_name_of_number(num)
             if my_set and my_set in top_sets:
                 prioritized.append(num)
             else:
                 others.append(num)
-        
-        # Ghép lại: [Ưu Tiên (trong Top Bộ)] + [Các số điểm cao còn lại]
         final_top = prioritized + others
-        
-        # Chốt Top 10 và Tứ Thủ
         dan_10 = sorted(final_top[:10])
         dan_4 = sorted(final_top[:4])
-        
         self.txt_10.insert("1.0", ",".join(dan_10))
         self.txt_4.insert("1.0", ",".join(dan_4))
+        
+        killed_nums = [x[0] for x in scores if x[1] < -2.0]
+        if killed_nums:
+            killed_display = ",".join(sorted(killed_nums))
+            self.txt_killed.insert("1.0", killed_display)
+        else:
+             self.txt_killed.insert("1.0", "(Không có số bị loại)")
 
     def _fill_stat_tree(self, tree, freq_dict, gan_dict, keys):
         for i in tree.get_children(): tree.delete(i)
@@ -373,3 +402,5 @@ class UiDeDashboard(ttk.Frame):
             self.clipboard_append(content)
             messagebox.showinfo("Copy", "Đã copy Top 10 & Tứ Thủ!")
         except: pass
+
+    

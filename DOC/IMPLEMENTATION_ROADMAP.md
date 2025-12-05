@@ -924,7 +924,11 @@ Status: V7.9 - All Technical Debt Resolved
 - [x] Documentation
 - [x] Knowledge transfer
 
----
+## [COMPLETED] Phase V3.8: Ultimate Scoring & Stability (Tháng 12/2025)
+- [x] **Core Logic:** Phát triển Scoring Engine đa chiều (Attack - Defense - Bonus) cho Lô & Đề.
+- [x] **Architecture:** Triển khai kết nối Direct SQL cho `AnalysisService` để loại bỏ Circular Import.
+- [x] **UI/UX:** Thêm cơ chế Smart Polling (Chờ dữ liệu 30s) và khung Log kết quả trực quan trên Dashboard.
+- [x] **Performance:** Tối ưu hóa tốc độ nạp dữ liệu và xử lý đa luồng.
 
 **STATUS: READY TO EXECUTE**
 

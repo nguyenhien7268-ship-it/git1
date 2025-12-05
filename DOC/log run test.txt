@@ -1,17 +1,47 @@
-C:\Users\KAKA\Documents\27loto\code6>python scripts/setup_v33_db.py
-Checking DB at: C:\Users\KAKA\Documents\27loto\code6\data\xo_so_prizes_all_logic.db
-Current columns: ['id', 'name', 'description', 'is_enabled', 'date_added', 'win_rate_text', 'current_streak', 'next_prediction_stl', 'pos1_idx', 'pos2_idx', 'max_lose_streak_k2n', 'recent_win_count_10', 'search_rate_text', 'search_period', 'is_pinned', 'type']
-✅ ĐÃ KHỞI TẠO DATABASE THÀNH CÔNG!
-
-C:\Users\KAKA\Documents\27loto\code6>python scripts/diagnose_set_bridge.py
+Đã tải cài đặt từ config.json
+ConfigManager (V7.8) đã khởi tạo thành công.
 [DEBUG de_utils] BO_SO_DE initialized successfully: 15 sets
-✅ Đã nạp BO_SO_DE: 15 bộ số.
 
---- BẮT ĐẦU CHẨN ĐOÁN CẦU BỘ ---
-[*] Cấu hình hiện tại: Streak >= 2, Wins10 >= 4
+==================================================
+🚀 KIỂM TRA SCORING LÔ V3.8 (REAL DATA)
+==================================================
+... Đang tải dữ liệu từ DB...
+✅ Đã tải 500 kỳ. Kỳ cuối: 2511100480
+... Đang tính toán Features (Stats, Consensus, K2N)...
+... (BTH) Bắt đầu chạy backtest 756 cầu Bạc Nhớ ngầm...
+... Đang chạy Scoring Engine...
+✅ Tính toán xong trong 0.55s.
 
-[*] Đang chạy test trên dữ liệu giả lập (Lý tưởng)...
- -> Kết quả giả lập: Tìm thấy 16 cầu bộ.
-    Ví dụ: DE_SET_GDB[0_GDB[4 | Streak: 29
+🏆 TOP 5 LÔ ĐIỂM CAO NHẤT:
+Cặp Số     | Điểm     | Lý do chính
+------------------------------------------------------------
+01-10      | 31.8     | Vote x7 (+0.8), Rủi ro K2N (5kh) -0.5), BN (48.10%...
+33-88      | 28.9     | Vote x10 (+0.9), Phong độ (x17) +25.0, Loto Hot, V...
+44-99      | 28.9     | Vote x22 (+1.4), Cao (48.70%), Phong độ (x18) +24....
+19-91      | 27.6     | Vote x13 (+1.1), Cao (47.70%), Phong độ (x12) +21....
+03-30      | 27.1     | Vote x14 (+1.1), Phong độ (x19) +25.0, Loto Hot
 
-[!] Không tìm thấy file data/kqxs_data.json. Bỏ qua test dữ liệu thực.
+==================================================
+🚀 KIỂM TRA SCORING ĐỀ V3.8 (REAL DATA)
+==================================================
+... Đang quét cầu Đề & Phân tích thị trường...
+>>> [DE SCANNER V3.3] Bắt đầu quét trên 10 cột dữ liệu...
+>>> [DE SCANNER] Bạc Nhớ tìm thấy: 0
+>>> [DE SCANNER] Cầu Loại tìm thấy: 15
+>>> [DB] Đã lưu thành công 150 cầu vào bảng ManagedBridges.
+>>> [DE SCANNER] Tổng cộng: 288 cầu.
+✅ Tìm thấy 288 cầu Đề (Scanner V3.3).
+... Đang chạy Scoring Engine Đề...
+
+🏆 TOP 5 SỐ ĐỀ ĐIỂM CAO NHẤT:
+Số     | Điểm     | Ghi chú
+----------------------------------------
+03     | 1357.5   |
+30     | 1357.5   |
+35     | 1301.5   |
+53     | 1301.5   |
+79     | 1294.8   |
+
+==================================================
+👉 NẾU KẾT QUẢ HIỆN RA ĐẦY ĐỦ -> HỆ THỐNG ĐÃ SẴN SÀNG 100%.
+[Finished in 4.0s]

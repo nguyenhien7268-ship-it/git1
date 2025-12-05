@@ -6,40 +6,67 @@
 
 CẤU TRÚC THƯ MỤC
 root/
-├── data/
-│   └── xo_so_prizes_all_logic.db    # Cơ sở dữ liệu chính
-├── DOC/                             # Tài liệu dự án
-├── logic/                           # BACKEND LOGIC
-│   ├── bridges/                     # Các thuật toán soi cầu
-│   │   ├── bridge_manager_de.py     # ✅ Quản lý cầu Đề (V7.9: Complete)
-│   │   ├── de_bridge_scanner.py     # ✅ Quét cầu Đề (V7.9: Complete)
-│   │   └── ... (các file cầu Lô)
-│   ├── ml_model_files/              # File mô hình AI
-│   ├── backtester_core.py           # Lõi kiểm thử (Dùng chung)
-│   ├── de_backtester_core.py        # (V7.9) 🟢 Backtest cầu Đề 30 ngày
-│   ├── db_manager.py                # ✅ Quản lý kết nối DB (V7.9: +Pin/Prune)
-│   ├── de_analytics.py              # ✅ Phân tích thị trường Đề
-│   ├── de_utils.py                  # ✅ Tiện ích & Adapter Đề
-│   └── ... (các file logic Lô)
-├── services/                        # (V7.9) 🟢 SERVICE LAYER
-│   ├── analysis_service.py          # Phân tích & Backtest
-│   ├── bridge_service.py            # Quản lý cầu (Pin/Prune)
-│   └── data_service.py              # Quản lý dữ liệu
-├── ui/                              # GIAO DIỆN NGƯỜI DÙNG
-│   ├── ui_de_dashboard.py           # ✅ Màn hình Soi Cầu Đề (V7.9: +Double-click)
-│   ├── ui_dashboard.py              # Màn hình Soi Cầu Lô
-│   ├── popups/                      # (V7.9) 🟢 Popup Windows
-│   │   └── ui_backtest_popup.py     # Popup hiển thị backtest 30 ngày
+├── main_app.py                 # File khởi chạy chính
+├── app_controller.py           # Controller trung tâm (MVC)
+├── config.json                 # Cấu hình hệ thống
+├── requirements.txt            # Các thư viện phụ thuộc
+│
+├── DOC/                        # Tài liệu dự án
+│   ├── V38_SCORING_ENGINE.md   # [MỚI] Tài liệu thuật toán chấm điểm V3.8
+│   ├── USER_GUIDE.md           # Hướng dẫn sử dụng (Đã cập nhật)
+│   ├── ... (các file cũ)
+│
+├── logic/                      # Logic xử lý nghiệp vụ (Core)
+│   ├── lo_analytics.py         # [MỚI] Scoring Engine cho Lô (Attack-Defense-Bonus)
+│   ├── de_analytics.py         # Scoring Engine cho Đề
+│   ├── db_manager.py           # Quản lý kết nối SQLite
+│   ├── data_repository.py      # Truy xuất dữ liệu cầu
+│   ├── analytics/              # Module phân tích nâng cao
+│   │   └── dashboard_scorer.py
+│   └── bridges/                # Các chiến thuật cầu (Bridge Strategies)
+│       ├── de_bridge_scanner.py
+│       ├── bridges_classic.py
+│       └── ...
+│
+├── services/                   # Lớp dịch vụ (Service Layer)
+│   ├── analysis_service.py     # [UPDATED] Phân tích dữ liệu & Scoring (Direct SQL)
+│   ├── bridge_service.py       # Quản lý cầu
+│   └── data_service.py         # Xử lý dữ liệu thô
+│
+├── ui/                         # Giao diện người dùng (Tkinter)
+│   ├── ui_dashboard.py         # [UPDATED] Màn hình chính (Top 10 & Cảnh báo)
+│   ├── ui_de_dashboard.py      # [UPDATED] Màn hình Đề (Top Chạm/Bộ)
+│   ├── ui_main_window.py       # Cửa sổ chính
 │   └── ...
-├── app_controller.py                # ✅ Bộ điều phối chính (V7.9: <500 LOC)
-├── main_app.py                      # File chạy chương trình
-└── ...
+│
+├── scripts/                    # Script tiện ích & Sửa lỗi
+│   ├── fix_v38_final.py        # [MỚI] Script sửa lỗi tự động V3.8
+│   ├── fix_db.py               # Sửa lỗi Database
+│   └── ...
+│
+├── tests/                      # Unit Tests & Verification
+│   ├── verify_final_integration.py
+│   └── ...
+│
+└── data/                       # Dữ liệu (Database)
+    └── xo_so_prizes_all_logic.db
 
 ## 🎯 Giới Thiệu
 
 Đây là Hệ thống Phân tích Dữ liệu Xổ Số (XS-DAS), được thiết kế để tự động backtest, phân tích chuyên sâu các chiến lược dò cầu, quản lý chiến lược và đưa ra dự đoán dựa trên AI. Hệ thống cung cấp các công cụ trực quan để tinh chỉnh và tối ưu hóa tham số đầu tư.
 
----
+## 🚀 Phiên Bản Hiện Tại: V3.8 (Ultimate Scoring)
+
+**Cập nhật mới nhất:**
+- **Scoring Engine Đa Chiều:** Áp dụng thuật toán chấm điểm (Tấn công - Phòng thủ - Bonus) cho cả module Lô và Đề.
+- **Smart Defense:** Tự động phát hiện và trừ điểm nặng các số Lô Gan nguy hiểm (>15 ngày).
+- **Robust Architecture:** Khắc phục triệt để lỗi xung đột dữ liệu và import vòng bằng cơ chế kết nối SQL độc lập.
+- **UI/UX Mới:** Bổ sung khung Log "Kết Quả & Cảnh Báo" trực quan ngay trên Dashboard chính.
+
+**Trạng thái hệ thống:**
+- ✅ Core Logic: Ổn định (Scoring V3.8).
+- ✅ UI Dashboard: Đã cập nhật hiển thị Top 10 & Cảnh báo Gan.
+- ✅ Hiệu suất: Tối ưu hóa luồng tải dữ liệu (Smart Polling).
 
 ## 🚀 CẬP NHẬT MỚI (V7.9 - AUTOMATED BRIDGE MANAGEMENT)
 

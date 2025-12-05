@@ -1010,3 +1010,51 @@ class AnalysisService:
             self._log(traceback.format_exc())
             return None
 
+    def calculate_lo_scoring_engine(self, all_data_ai):
+        """
+        [NEW V3.8 - ROBUST] Chạy Scoring Engine cho Lô.
+        Sử dụng kết nối SQL trực tiếp để tránh lỗi import vòng (Circular Import).
+        """
+        try:
+            # Import logic tính điểm
+            from logic.lo_analytics import calculate_lo_scores
+            import sqlite3
+            
+            self._log("--- Bắt đầu Scoring Engine Lô (Direct SQL Mode) ---")
+
+            # 1. Lấy dữ liệu Cầu (Managed Bridges) - QUAN TRỌNG: Dùng SQL trực tiếp
+            bridges = []
+            try:
+                # Kết nối trực tiếp DB để lấy cầu active
+                conn = sqlite3.connect(self.db_name)
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                cursor.execute("SELECT * FROM ManagedBridges WHERE is_enabled = 1")
+                rows = cursor.fetchall()
+                # Convert row object to dict
+                bridges = [dict(row) for row in rows]
+                conn.close()
+                self._log(f"-> [SQL] Đã tải {len(bridges)} cầu hoạt động.")
+            except Exception as e:
+                self._log(f"⚠️ Lỗi kết nối DB lấy cầu: {e}")
+                bridges = []
+            
+            # 2. Lấy dữ liệu Thống kê (Gan & Tần suất)
+            gan_stats = self.get_loto_gan_stats(all_data_ai, n_days=10) or []
+            freq_stats = self.get_loto_stats_last_n_days(all_data_ai, n=30) or []
+            
+            # 3. Lấy Bạc nhớ
+            last_row = all_data_ai[-1] if all_data_ai else None
+            top_memory = self.get_top_memory_bridge_predictions(all_data_ai, last_row, top_n=5) or []
+            
+            # 4. Tính điểm
+            scores = calculate_lo_scores(bridges, gan_stats, freq_stats, top_memory)
+            self._log(f"-> Tính điểm xong. Top 1: {scores[0] if scores else 'None'}")
+            
+            return scores, gan_stats
+            
+        except Exception as e:
+            self._log(f"❌ LỖI CRITICAL Scoring Engine: {e}")
+            import traceback
+            self._log(traceback.format_exc())
+            return [], []
