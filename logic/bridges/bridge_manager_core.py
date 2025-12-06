@@ -1,5 +1,5 @@
 # Tên file: code6/logic/bridges/bridge_manager_core.py
-# (PHIÊN BẢN V8.6 - FIX TRIỆT ĐỂ LỖI N/A CHO CẢ CẦU MỚI VÀ CŨ)
+# (PHIÊN BẢN V9.0 - FINAL FIX: BẮT BUỘC CẬP NHẬT CẦU CŨ + FIX SỐ 0)
 
 import os
 import sqlite3
@@ -29,11 +29,15 @@ except ImportError:
 try:
     # Import hàm lấy danh sách cầu để bảo toàn dữ liệu cũ
     from logic.data_repository import get_all_managed_bridges
-    from logic.db_manager import DB_NAME, update_managed_bridge, upsert_managed_bridge
+    from logic.db_manager import (
+        DB_NAME, update_managed_bridge, upsert_managed_bridge, 
+        update_bridge_k2n_cache_batch
+    )
 except ImportError:
     DB_NAME = "data/xo_so_prizes_all_logic.db"
     def upsert_managed_bridge(*args, **kwargs): return False, "Lỗi Import"
     def update_managed_bridge(*args, **kwargs): return False, "Lỗi Import"
+    def update_bridge_k2n_cache_batch(*args, **kwargs): return False, "Lỗi Import"
     def get_all_managed_bridges(*args, **kwargs): return []
 
 try:
@@ -83,7 +87,6 @@ def _ensure_core_db_columns(cursor):
         cursor.execute("PRAGMA table_info(ManagedBridges)")
         columns = [info[1] for info in cursor.fetchall()]
         if "type" not in columns: cursor.execute("ALTER TABLE ManagedBridges ADD COLUMN type TEXT DEFAULT 'UNKNOWN'")
-        # Ensure search columns exist (failsafe)
         if "search_rate_text" not in columns: cursor.execute("ALTER TABLE ManagedBridges ADD COLUMN search_rate_text TEXT DEFAULT ''")
     except: pass
 
@@ -91,21 +94,26 @@ def _get_existing_bridges_map(db_name) -> Dict:
     """Helper: Lấy toàn bộ cầu hiện có để tra cứu K1N cũ."""
     try:
         bridges = get_all_managed_bridges(db_name)
-        # Map: { "LO_POS_...": "55%" } (Giá trị là win_rate_text hiện tại)
+        # Trả về Set các tên cầu để check nhanh
         return {b['name']: b.get('win_rate_text', 'N/A') for b in bridges}
     except Exception:
         return {}
 
 # ===================================================================================
-# I. HÀM DÒ CẦU V17 SHADOW (MODIFIED: PRESERVE K1N + AUTO HEAL N/A)
+# I. HÀM DÒ CẦU V17 SHADOW (FIXED: FORCE UPDATE OLD BRIDGES)
 # ===================================================================================
 def TIM_CAU_TOT_NHAT_V16(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra, db_name=DB_NAME):
-    print("Bắt đầu Dò Cầu Lô Vị Trí (V17 Shadow) - Logic Bảo Toàn K1N...")
+    print("Bắt đầu Dò Cầu Lô Vị Trí (V17 Shadow) - Chế độ Force Update...")
     allData, finalEndRow, startCheckRow, offset = toan_bo_A_I, ky_ket_thuc_kiem_tra, ky_bat_dau_kiem_tra + 1, ky_bat_dau_kiem_tra
     headers = ["STT", "Cầu (V17)", "Vị Trí", "Tỷ Lệ K2N (Scan)", "Chuỗi"]
     results = [headers]
 
-    # [BƯỚC 1] Lấy danh sách cầu hiện tại để bảo vệ K1N
+    last_row_real = allData[-1]
+    try:
+        last_positions = getAllPositions_V17_Shadow(last_row_real)
+    except: return results
+
+    # Danh sách cầu đang có trong DB (để ép cập nhật)
     existing_bridges_map = _get_existing_bridges_map(db_name)
 
     try:
@@ -130,9 +138,18 @@ def TIM_CAU_TOT_NHAT_V16(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra,
         })
 
     AUTO_ADD_MIN_RATE = SETTINGS.AUTO_ADD_MIN_RATE
-    bridges_to_add = []
+    bridges_to_upsert = []
+    bridges_to_cache = []
 
     for idx1, idx2 in algorithms:
+        # 1. Tạo tên cầu trước để check tồn tại
+        pos1_name = getPositionName_V17_Shadow(idx1)
+        pos2_name = getPositionName_V17_Shadow(idx2)
+        safe_p1 = _sanitize_name_v2(pos1_name)
+        safe_p2 = _sanitize_name_v2(pos2_name)
+        std_id = f"LO_POS_{safe_p1}_{safe_p2}"
+
+        # 2. Tính toán hiệu suất quá khứ
         win_count, current_streak, max_streak = 0, 0, 0
         for dayData in processedData:
             a, b = dayData["prevPositions"][idx1], dayData["prevPositions"][idx2]
@@ -140,7 +157,6 @@ def TIM_CAU_TOT_NHAT_V16(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra,
                 current_streak = 0
                 continue
             
-            # ĐÂY LÀ LOGIC K2N
             if "✅" in checkHitSet_V30_K2N(taoSTL_V30_Bong(a, b), dayData["actualLotoSet"]):
                 win_count += 1; current_streak += 1
             else: current_streak = 0
@@ -149,44 +165,54 @@ def TIM_CAU_TOT_NHAT_V16(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra,
         totalTestDays = len(processedData)
         if totalTestDays > 0:
             scan_rate = (win_count / totalTestDays) * 100
-            if scan_rate >= AUTO_ADD_MIN_RATE:
-                pos1_name = getPositionName_V17_Shadow(idx1)
-                pos2_name = getPositionName_V17_Shadow(idx2)
-                
-                safe_p1 = _sanitize_name_v2(pos1_name)
-                safe_p2 = _sanitize_name_v2(pos2_name)
-                std_id = f"LO_POS_{safe_p1}_{safe_p2}"
-                display_desc = f"Vị trí: {pos1_name} + {pos2_name}"
-                scan_rate_str = f"{scan_rate:.2f}%"
+            scan_rate_str = f"{scan_rate:.2f}%"
 
-                results.append([len(results), std_id, f"{pos1_name}+{pos2_name}", scan_rate_str, f"{current_streak}"])
+            # 3. QUYẾT ĐỊNH CÓ LƯU KHÔNG?
+            # Lưu nếu: (Tỷ lệ cao) HOẶC (Cầu đã có trong DB cần update số liệu mới)
+            is_good_bridge = (scan_rate >= AUTO_ADD_MIN_RATE)
+            is_existing_bridge = (std_id in existing_bridges_map)
+
+            if is_good_bridge or is_existing_bridge:
                 
-                # [FIX V8.6] Logic K1N thông minh (Auto Heal)
-                # Nếu cầu đã có và K1N hợp lệ -> Giữ nguyên
-                # Nếu cầu MỚI hoặc cầu CŨ đang bị N/A -> Lấy luôn Scan Rate làm K1N (để không bị trống)
-                preserved_k1n = scan_rate_str 
-                
-                if std_id in existing_bridges_map:
+                # Tính dự đoán (Fix N/A do số 0)
+                try:
+                    p1_val = last_positions[idx1]
+                    p2_val = last_positions[idx2]
+                    
+                    if p1_val is not None and p2_val is not None and str(p1_val) != "" and str(p2_val) != "":
+                        next_stl = taoSTL_V30_Bong(p1_val, p2_val)
+                        next_pred_str = ",".join(next_stl)
+                    else:
+                        next_pred_str = "N/A"
+                except: next_pred_str = "Error"
+
+                # Logic K1N
+                preserved_k1n = scan_rate_str
+                if is_existing_bridge:
                     old_k1n = existing_bridges_map[std_id]
-                    if old_k1n and old_k1n != 'N/A' and old_k1n != '':
+                    if old_k1n and old_k1n not in ['N/A', '', None]:
                          preserved_k1n = old_k1n
 
+                # Chỉ thêm vào results hiển thị nếu là cầu tốt (để log đỡ rác)
+                if is_good_bridge:
+                    results.append([len(results), std_id, f"{pos1_name}+{pos2_name}", scan_rate_str, f"{current_streak}"])
+
+                # NHƯNG luôn đẩy vào queue cập nhật DB
                 bridge_data_dict = {
                     "pos1_idx": idx1, "pos2_idx": idx2,
-                    "search_rate_text": scan_rate_str,  # <-- CẬP NHẬT K2N VÀO ĐÂY
+                    "search_rate_text": scan_rate_str,
                     "search_period": totalTestDays,
                     "is_enabled": 1,
                     "type": "LO_POS"
                 }
-                
-                # Tham số thứ 3 (win_rate) truyền preserved_k1n để bảo toàn hoặc tự vá lỗi
-                bridges_to_add.append((std_id, display_desc, preserved_k1n, db_name, idx1, idx2, bridge_data_dict))
+                bridges_to_upsert.append((std_id, f"Vị trí: {pos1_name} + {pos2_name}", preserved_k1n, db_name, idx1, idx2, bridge_data_dict))
+                bridges_to_cache.append((scan_rate_str, current_streak, next_pred_str, max_streak, std_id))
 
-    if bridges_to_add:
-        print(f"Dò cầu V17: Đang lưu {len(bridges_to_add)} cầu (Cập nhật Scan Rate)...")
+    if bridges_to_upsert:
+        print(f"Dò cầu V17: Đang cập nhật {len(bridges_to_upsert)} cầu (bao gồm cầu cũ)...")
         try:
-            [upsert_managed_bridge(n, d, r, db, i1, i2, data_dict) for n, d, r, db, i1, i2, data_dict in bridges_to_add]
-            # Bulk Update Type
+            [upsert_managed_bridge(n, d, r, db, i1, i2, data_dict) for n, d, r, db, i1, i2, data_dict in bridges_to_upsert]
+            update_bridge_k2n_cache_batch(bridges_to_cache, db_name)
             conn = sqlite3.connect(db_name)
             conn.execute("UPDATE ManagedBridges SET type='LO_POS' WHERE name LIKE 'LO_POS_%'")
             conn.commit(); conn.close()
@@ -195,15 +221,19 @@ def TIM_CAU_TOT_NHAT_V16(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra,
     return results
 
 # ===================================================================================
-# II. HÀM DÒ CẦU BẠC NHỚ (MODIFIED: PRESERVE K1N + AUTO HEAL N/A)
+# II. HÀM DÒ CẦU BẠC NHỚ (FIXED: FORCE UPDATE OLD BRIDGES)
 # ===================================================================================
 def TIM_CAU_BAC_NHO_TOT_NHAT(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra, db_name=DB_NAME):
-    print("Bắt đầu Dò Cầu Bạc Nhớ - Logic Bảo Toàn K1N...")
+    print("Bắt đầu Dò Cầu Bạc Nhớ - Chế độ Force Update...")
     allData, finalEndRow, startCheckRow, offset = toan_bo_A_I, ky_ket_thuc_kiem_tra, ky_bat_dau_kiem_tra + 1, ky_bat_dau_kiem_tra
     loto_names = get_27_loto_names()
     processedData = []
     
-    # [BƯỚC 1] Lấy danh sách cầu hiện tại
+    last_row_real = allData[-1]
+    try:
+        last_lotos = get_27_loto_positions(last_row_real)
+    except: return []
+
     existing_bridges_map = _get_existing_bridges_map(db_name)
 
     for k in range(startCheckRow, finalEndRow + 1):
@@ -215,7 +245,8 @@ def TIM_CAU_BAC_NHO_TOT_NHAT(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_
         })
 
     AUTO_ADD_MIN_RATE = SETTINGS.AUTO_ADD_MIN_RATE
-    bridges_to_add = []
+    bridges_to_upsert = []
+    bridges_to_cache = []
     results = [["STT", "Cầu (Bạc Nhớ)", "Vị Trí", "Tỷ Lệ K2N", "Chuỗi"]]
 
     algorithms = []
@@ -241,32 +272,47 @@ def TIM_CAU_BAC_NHO_TOT_NHAT(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_
         totalTestDays = len(processedData)
         if totalTestDays > 0:
             scan_rate = (win_count / totalTestDays) * 100
-            if scan_rate >= AUTO_ADD_MIN_RATE:
-                scan_rate_str = f"{scan_rate:.2f}%"
-                results.append([len(results), std_id, desc, scan_rate_str, f"{current_streak}"])
-                
-                # [FIX V8.6] Logic K1N thông minh (Auto Heal)
+            scan_rate_str = f"{scan_rate:.2f}%"
+            
+            is_good = (scan_rate >= AUTO_ADD_MIN_RATE)
+            is_exist = (std_id in existing_bridges_map)
+
+            if is_good or is_exist:
+                try:
+                    val1 = last_lotos[idx1]
+                    val2 = last_lotos[idx2]
+                    if val1 is not None and val2 is not None:
+                        next_stl = calculate_bridge_stl(val1, val2, alg_type)
+                        next_pred_str = ",".join(next_stl)
+                    else:
+                        next_pred_str = "N/A"
+                except: next_pred_str = "Error"
+
                 preserved_k1n = scan_rate_str 
-                
-                if std_id in existing_bridges_map:
+                if is_exist:
                     old_k1n = existing_bridges_map[std_id]
-                    if old_k1n and old_k1n != 'N/A' and old_k1n != '':
+                    if old_k1n and old_k1n not in ['N/A', '', None]:
                         preserved_k1n = old_k1n
+
+                if is_good:
+                    results.append([len(results), std_id, desc, scan_rate_str, f"{current_streak}"])
 
                 bridge_data = {
                     "pos1_idx": -1, "pos2_idx": -1,
-                    "search_rate_text": scan_rate_str, # Cập nhật K2N
+                    "search_rate_text": scan_rate_str,
                     "search_period": totalTestDays,
                     "is_enabled": 1,
                     "type": "LO_MEM"
                 }
-                # Truyền preserved_k1n vào win_rate argument
-                bridges_to_add.append((std_id, desc, preserved_k1n, db_name, -1, -1, bridge_data))
+                
+                bridges_to_upsert.append((std_id, desc, preserved_k1n, db_name, -1, -1, bridge_data))
+                bridges_to_cache.append((scan_rate_str, current_streak, next_pred_str, max_streak, std_id))
 
-    if bridges_to_add:
-        print(f"Dò Bạc Nhớ: Đang lưu {len(bridges_to_add)} cầu chuẩn (Cập nhật Scan Rate)...")
+    if bridges_to_upsert:
+        print(f"Dò Bạc Nhớ: Đang cập nhật {len(bridges_to_upsert)} cầu (bao gồm cầu cũ)...")
         try:
-            [upsert_managed_bridge(n, d, r, db, i1, i2, data_dict) for n, d, r, db, i1, i2, data_dict in bridges_to_add]
+            [upsert_managed_bridge(n, d, r, db, i1, i2, data_dict) for n, d, r, db, i1, i2, data_dict in bridges_to_upsert]
+            update_bridge_k2n_cache_batch(bridges_to_cache, db_name)
             conn = sqlite3.connect(db_name)
             conn.execute("UPDATE ManagedBridges SET type='LO_MEM' WHERE name LIKE 'LO_MEM_%'")
             conn.commit(); conn.close()
@@ -274,19 +320,11 @@ def TIM_CAU_BAC_NHO_TOT_NHAT(toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_
 
     return results
 
-# ===================================================================================
-# III. HÀM QUẢN LÝ 15 CẦU LÔ CỐ ĐỊNH (UPDATE K1N - CHÍNH CHỦ)
-# ===================================================================================
 def _update_fixed_lo_bridges(all_data_ai, db_name):
-    """
-    (V2.2 FIXED) Tính toán hiệu quả 15 Cầu Lô Cố Định -> Cập nhật cả K1N và K2N
-    """
     print(">>> [LO MANAGER] Đang cập nhật 15 Cầu Lô Cố Định (Phase C - Fix N/A)...")
     if not all_data_ai or len(all_data_ai) < 10: return 0
     
-    # Cấu hình check: 10 kỳ gần nhất
     check_days = 10 
-    # Lấy buffer dữ liệu đủ để check
     scan_data = all_data_ai[- (check_days + 5):]
     
     updated_count = 0
@@ -302,17 +340,13 @@ def _update_fixed_lo_bridges(all_data_ai, db_name):
         wins = 0
         current_streak = 0
         
-        # Backtest nhanh
         for i in range(len(scan_data) - 1 - check_days, len(scan_data) - 1):
             if i < 0: continue
             row_prev = scan_data[i]
             row_next = scan_data[i+1]
-            
             try:
-                stl = func(row_prev) # Dự đoán
-                lotos_next = set(getAllLoto_V30(row_next)) # Kết quả
-                
-                # Check K1N (Đánh giá theo ngày)
+                stl = func(row_prev)
+                lotos_next = set(getAllLoto_V30(row_next))
                 if "✅" in checkHitSet_V30_K2N(stl, lotos_next):
                     wins += 1
                     current_streak += 1
@@ -320,7 +354,6 @@ def _update_fixed_lo_bridges(all_data_ai, db_name):
                     current_streak = 0
             except: pass
             
-        # Dự đoán tương lai
         last_row = all_data_ai[-1]
         try:
             next_stl = func(last_row)
@@ -330,23 +363,18 @@ def _update_fixed_lo_bridges(all_data_ai, db_name):
             
         win_rate = (wins / check_days) * 100
         full_desc = f"{desc}. Phong độ {wins}/{check_days}."
-        
-        # [FIX QUAN TRỌNG] Dùng chung giá trị cho cả Search Rate và Win Rate để hết N/A
         rate_str = f"{win_rate:.0f}%"
         
         try:
-            # Upsert
             cursor.execute("SELECT count(*) FROM ManagedBridges WHERE name=?", (bridge_id,))
             exists = cursor.fetchone()[0] > 0
             
             if not exists:
-                # Nếu mới thêm: Ghi cả win_rate_text và search_rate_text
                 cursor.execute("""
-                    INSERT INTO ManagedBridges (name, description, win_rate_text, search_rate_text, current_streak, next_prediction_stl, is_enabled, type, db_name)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (bridge_id, full_desc, rate_str, rate_str, current_streak, pred_val, 1 if win_rate>=40 else 0, 'LO_STL_FIXED', db_name))
+                    INSERT INTO ManagedBridges (name, description, win_rate_text, search_rate_text, current_streak, next_prediction_stl, is_enabled, type)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """, (bridge_id, full_desc, rate_str, rate_str, current_streak, pred_val, 1 if win_rate>=40 else 0, 'LO_STL_FIXED'))
             else:
-                # Nếu đã có: Cập nhật đè cả win_rate_text để đảm bảo không bị N/A
                 cursor.execute("""
                     UPDATE ManagedBridges 
                     SET description=?, win_rate_text=?, search_rate_text=?, current_streak=?, next_prediction_stl=?, is_enabled=?, type='LO_STL_FIXED'
@@ -359,25 +387,19 @@ def _update_fixed_lo_bridges(all_data_ai, db_name):
     conn.commit(); conn.close()
     return updated_count
 
-# ===================================================================================
-# IV. WRAPPER CHUNG
-# ===================================================================================
 def find_and_auto_manage_bridges(all_data_ai, db_name=DB_NAME):
     try:
         if not all_data_ai: return "Lỗi: Không có dữ liệu."
         msg = []
         
-        # 1. Dò tìm cầu K2N -> Update vào Search Rate (Giữ K1N)
         print("... [Auto] Dò V17 Shadow (K2N Scan) ...")
         res_v17 = TIM_CAU_TOT_NHAT_V16(all_data_ai, 2, len(all_data_ai)+1, db_name)
         msg.append(f"V17 (Scan): {len(res_v17)-1 if res_v17 else 0} cầu")
         
-        # 2. Dò tìm Bạc nhớ K2N -> Update vào Search Rate (Giữ K1N)
         print("... [Auto] Dò Bạc Nhớ (K2N Scan) ...")
         res_bn = TIM_CAU_BAC_NHO_TOT_NHAT(all_data_ai, 2, len(all_data_ai)+1, db_name)
         msg.append(f"Bạc Nhớ (Scan): {len(res_bn)-1 if res_bn else 0} cầu")
         
-        # 3. Cập nhật cầu Fixed K1N -> Update vào Win Rate (Đúng chuẩn)
         print("... [Auto] Cập nhật Fixed (K1N Real) ...")
         c_fix = _update_fixed_lo_bridges(all_data_ai, db_name)
         msg.append(f"Fixed (K1N): {c_fix} cầu")
@@ -385,7 +407,6 @@ def find_and_auto_manage_bridges(all_data_ai, db_name=DB_NAME):
         return " | ".join(msg)
     except Exception as e: return f"Lỗi: {e}"
 
-# ... (Các hàm prune/init giữ nguyên như cũ) ...
 def prune_bad_bridges(all_data_ai, db_name=DB_NAME):
     try:
         AUTO_PRUNE_MIN_RATE = SETTINGS.AUTO_PRUNE_MIN_RATE
@@ -399,50 +420,27 @@ def prune_bad_bridges(all_data_ai, db_name=DB_NAME):
         
         for b in bridges:
             try:
-                # 1. Bỏ qua cầu ghim
                 is_pinned = b.get("is_pinned", 0)
                 if is_pinned:
                     skipped_pinned += 1
                     continue
                 
-                # 2. Lấy các tỷ lệ
-                # K2N (Search Rate) - Ưu tiên số 1 để đánh giá tiềm năng hiện tại
                 k2n_str = str(b.get("search_rate_text", "0")).replace("%", "")
                 try: k2n_val = float(k2n_str)
                 except: k2n_val = 0.0
                 
-                # K1N (Win Rate) - Ưu tiên số 2 (Thành tích thực tế)
                 k1n_str = str(b.get("win_rate_text", "0")).replace("%", "")
                 try: k1n_val = float(k1n_str)
                 except: k1n_val = 0.0
 
-                # 3. Logic Quyết Định: CHỈ TẮT KHI CẢ HAI ĐỀU TỆ
-                # Nếu K2N tốt (>= 40%) -> GIỮ (Tiềm năng)
-                # Nếu K1N tốt (>= 40%) -> GIỮ (Đang ăn thực tế)
-                # Chỉ tắt khi: K2N < 40% VÀ K1N < 40%
-                
-                # Trường hợp đặc biệt: Cầu mới tinh (K2N=0, K1N=N/A hoặc 0)
-                # Để tránh tắt nhầm cầu chưa kịp chạy, ta có thể kiểm tra thêm:
-                # Nếu K2N == 0.0 và K1N == 0.0 -> Có thể là cầu chưa có dữ liệu -> BỎ QUA (Không tắt)
-                # Hoặc nếu muốn nghiêm ngặt: Tắt luôn. 
-                # Đề xuất: Nếu cả 2 đều bằng 0, coi như chưa có dữ liệu, không tắt.
-                
                 should_disable = False
                 
                 if k2n_val > 0 or k1n_val > 0:
-                    # Có ít nhất 1 dữ liệu để đánh giá
-                    # Nếu cả hai đều dưới ngưỡng -> Tắt
-                    # (Lưu ý: Nếu k2n=0 nhưng k1n=100 -> Giữ. Nếu k2n=30, k1n=0 -> Tắt)
-                    
-                    # Logic: Giữ lại nếu có BẤT KỲ chỉ số nào đạt chuẩn
                     is_k2n_ok = (k2n_val >= AUTO_PRUNE_MIN_RATE)
                     is_k1n_ok = (k1n_val >= AUTO_PRUNE_MIN_RATE)
-                    
                     if not is_k2n_ok and not is_k1n_ok:
                         should_disable = True
                 else:
-                    # Cả 2 đều = 0 (Cầu mới hoặc lỗi data)
-                    # Tùy chọn: Không làm gì để an toàn
                     should_disable = False
 
                 if should_disable:
@@ -461,7 +459,7 @@ def prune_bad_bridges(all_data_ai, db_name=DB_NAME):
     return msg
 
 def auto_manage_bridges(all_data_ai, db_name=DB_NAME):
-    return prune_bad_bridges(all_data_ai, db_name) # Redirect to prune for simplicity
+    return prune_bad_bridges(all_data_ai, db_name)
 
 def init_all_756_memory_bridges_to_db(db_name=DB_NAME, progress_callback=None, enable_all=False):
     print("Khởi tạo Bạc Nhớ chuẩn V2.1...")

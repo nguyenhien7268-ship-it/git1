@@ -667,7 +667,7 @@ class DashboardWindow(ttk.Frame):
 
         for b in bridges:
             wins = b.get("recent_win_count_10", 0)
-            pred = b.get("prediction") or b.get("next_prediction_stl", "N/A")
+            pred = b.get("next_prediction_stl", "N/A")
             
             tags = ()
             if wins >= 8:

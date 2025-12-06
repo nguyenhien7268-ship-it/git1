@@ -1,47 +1,39 @@
+>>> (V7.3) Tải logic.db_manager & data_repository thành công.
+>>> (V7.3) Tải logic.data_parser thành công.
+>>> (V7.3) Tải logic.bridges.bridges_classic thành công.
 Đã tải cài đặt từ config.json
 ConfigManager (V7.8) đã khởi tạo thành công.
 [DEBUG de_utils] BO_SO_DE initialized successfully: 15 sets
-
-==================================================
-🚀 KIỂM TRA SCORING LÔ V3.8 (REAL DATA)
-==================================================
-... Đang tải dữ liệu từ DB...
-✅ Đã tải 500 kỳ. Kỳ cuối: 2511100480
-... Đang tính toán Features (Stats, Consensus, K2N)...
+>>> (V7.3) Tải logic.backtester thành công.
+>>> (V7.3) Tải logic.bridges.bridge_manager_core thành công.
+>>> (V7.3) Tải logic.dashboard_analytics thành công.
+>>> (V7.3) Tải logic.ai_feature_extractor (AI Wrappers) thành công.
+Lottery Service API (lottery_service.py) đã tải thành công (V7.4).
+Đã tải cài đặt từ config.json
+>>> [DE MANAGER V2.5] Cập nhật Hồ Sơ Phong Độ (Fix Missing Column)...
+>>> [Backtester] Đã đồng bộ cập nhật 121 Cầu Đề.
+>>> Bắt đầu Backtest K1N cho 817 cầu Lô...
+... (V7.0 G2 Feature Extraction) Bước 1: Tính toán dự đoán cầu cho toàn bộ lịch sử...
+... (AI Train) Bắt đầu tính toán Lịch sử Lô Gan (nặng)...
+... (AI Train) Đã tính xong Lịch sử Lô Gan (3204 ngày).
 ... (BTH) Bắt đầu chạy backtest 756 cầu Bạc Nhớ ngầm...
-... Đang chạy Scoring Engine...
-✅ Tính toán xong trong 0.55s.
-
-🏆 TOP 5 LÔ ĐIỂM CAO NHẤT:
-Cặp Số     | Điểm     | Lý do chính
-------------------------------------------------------------
-01-10      | 31.8     | Vote x7 (+0.8), Rủi ro K2N (5kh) -0.5), BN (48.10%...
-33-88      | 28.9     | Vote x10 (+0.9), Phong độ (x17) +25.0, Loto Hot, V...
-44-99      | 28.9     | Vote x22 (+1.4), Cao (48.70%), Phong độ (x18) +24....
-19-91      | 27.6     | Vote x13 (+1.1), Cao (47.70%), Phong độ (x12) +21....
-03-30      | 27.1     | Vote x14 (+1.1), Phong độ (x19) +25.0, Loto Hot
-
-==================================================
-🚀 KIỂM TRA SCORING ĐỀ V3.8 (REAL DATA)
-==================================================
-... Đang quét cầu Đề & Phân tích thị trường...
+>>> [DE SCANNER V3.3] Bắt đầu quét trên 10 cột dữ liệu...
+>>> [DE SCANNER] Bạc Nhớ tìm thấy: 2
+>>> [DE SCANNER] Cầu Loại tìm thấy: 15
+>>> [DB] Đã lưu thành công 150 cầu vào bảng ManagedBridges.
+>>> [DE SCANNER] Tổng cộng: 300 cầu.
+(Append) Kỳ mới nhất trong DB: 2511120480 (2025-11-11 00:00:00)
+(V7.0 - Append) Đã phát hiện định dạng JSON (Web).
+Đã tải cài đặt từ config.json
+>>> [DE MANAGER V2.5] Cập nhật Hồ Sơ Phong Độ (Fix Missing Column)...
+>>> [Backtester] Đã đồng bộ cập nhật 107 Cầu Đề.
+>>> Bắt đầu Backtest K1N cho 817 cầu Lô...
+... (V7.0 G2 Feature Extraction) Bước 1: Tính toán dự đoán cầu cho toàn bộ lịch sử...
+... (AI Train) Bắt đầu tính toán Lịch sử Lô Gan (nặng)...
+... (AI Train) Đã tính xong Lịch sử Lô Gan (4164 ngày).
+... (BTH) Bắt đầu chạy backtest 756 cầu Bạc Nhớ ngầm...
 >>> [DE SCANNER V3.3] Bắt đầu quét trên 10 cột dữ liệu...
 >>> [DE SCANNER] Bạc Nhớ tìm thấy: 0
 >>> [DE SCANNER] Cầu Loại tìm thấy: 15
 >>> [DB] Đã lưu thành công 150 cầu vào bảng ManagedBridges.
->>> [DE SCANNER] Tổng cộng: 288 cầu.
-✅ Tìm thấy 288 cầu Đề (Scanner V3.3).
-... Đang chạy Scoring Engine Đề...
-
-🏆 TOP 5 SỐ ĐỀ ĐIỂM CAO NHẤT:
-Số     | Điểm     | Ghi chú
-----------------------------------------
-03     | 1357.5   |
-30     | 1357.5   |
-35     | 1301.5   |
-53     | 1301.5   |
-79     | 1294.8   |
-
-==================================================
-👉 NẾU KẾT QUẢ HIỆN RA ĐẦY ĐỦ -> HỆ THỐNG ĐÃ SẴN SÀNG 100%.
-[Finished in 4.0s]
+>>> [DE SCANNER] Tổng cộng: 291 cầu.

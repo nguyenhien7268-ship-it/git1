@@ -138,7 +138,6 @@ def get_managed_bridges_with_prediction(db_name=DB_NAME, current_data=None, only
                             stl = calculate_bridge_stl(val1, val2, algo_type)
                             if stl and isinstance(stl, list) and len(stl) > 0:
                                 bridge["next_prediction_stl"] = ",".join(stl)
-                                bridge["prediction"] = bridge["next_prediction_stl"]
                                 continue
 
             # === [CASE 2] CẦU ĐỀ DYNAMIC (DE_DYN) ===
@@ -176,12 +175,10 @@ def get_managed_bridges_with_prediction(db_name=DB_NAME, current_data=None, only
                                     # Cầu tổng đề
                                     res = (int(v1) + int(v2)) % 10
                                     bridge["next_prediction_stl"] = str(res)
-                                    bridge["prediction"] = bridge["next_prediction_stl"]
                                 else:
                                     # Cầu ghép lô
                                     stl = taoSTL_V30_Bong(int(v1), int(v2))
                                     bridge["next_prediction_stl"] = ",".join(stl)
-                                bridge["prediction"] = bridge["next_prediction_stl"]
 
         except Exception as e:
             # Nếu lỗi tính toán, giữ nguyên giá trị cũ

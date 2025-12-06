@@ -1,22 +1,33 @@
 # Tên file: code6/logic/de_analytics.py
-# (PHIÊN BẢN V3.9.7 - ROBUST SCORING: LUÔN CÓ ĐIỂM SỐ)
+# (PHIÊN BẢN V3.9.19 - FIX: LINK TO DE_UTILS SOURCE OF TRUTH)
 
 from collections import Counter
 from itertools import combinations
 from typing import List, Tuple, Optional, Dict, Any
 import re
 
-# --- CẤU HÌNH ---
-BO_SO_DICT = {
-    "00": [0, 55, 5, 50], "11": [11, 66, 16, 61], "22": [22, 77, 27, 72],
-    "33": [33, 88, 38, 83], "44": [44, 99, 49, 94], 
-    "01": [1, 10, 6, 60, 51, 15, 56, 65], "02": [2, 20, 7, 70, 52, 25, 57, 75],
-    "03": [3, 30, 8, 80, 53, 35, 58, 85], "04": [4, 40, 9, 90, 54, 45, 59, 95],
-    "12": [12, 21, 17, 71, 26, 62, 67, 76], "13": [13, 31, 18, 81, 36, 63, 68, 86],
-    "14": [14, 41, 19, 91, 46, 64, 69, 96],
-    "23": [23, 32, 28, 82, 37, 73, 78, 87], "24": [24, 42, 29, 92, 47, 74, 79, 97],
-    "34": [34, 43, 39, 93, 48, 84, 89, 98]
-}
+# --- IMPORT NGUỒN CHUẨN (SOURCE OF TRUTH) ---
+try:
+    from logic.de_utils import BO_SO_DE, get_gdb_last_2 as utils_get_gdb
+except ImportError:
+    # Fallback chỉ dùng khi chạy độc lập test (không khuyến khích)
+    BO_SO_DE = {}
+    def utils_get_gdb(r): return "00"
+
+# --- CHUYỂN ĐỔI DỮ LIỆU ---
+# Analytics cần tính toán số học (int), trong khi de_utils lưu string.
+# Ta tự động convert từ BO_SO_DE chuẩn sang dạng int.
+BO_SO_DICT = {}
+if BO_SO_DE:
+    for k, v_list in BO_SO_DE.items():
+        # Chuyển ["01", "10"] -> [1, 10]
+        BO_SO_DICT[k] = [int(x) for x in v_list if str(x).isdigit()]
+else:
+    # Fallback an toàn (tránh crash nếu import lỗi)
+    BO_SO_DICT = {
+        "00": [0, 55, 5, 50], "11": [11, 66, 16, 61], 
+        # ... (Các bộ khác sẽ tự động có nếu import thành công)
+    }
 
 SCORE_CONFIG = {
     "bo_uu_tien_1": 50, "bo_uu_tien_2": 40, "cham_ti_le": 20, "cham_thong": 15,
@@ -26,23 +37,9 @@ SCORE_CONFIG = {
 SCORING_WEIGHTS = SCORE_CONFIG
 
 # --- HELPER ---
+# Sử dụng hàm từ utils để đồng bộ logic lấy số
 def local_get_gdb_last_2(row):
-    """Lấy 2 số cuối an toàn tuyệt đối"""
-    try:
-        val = None
-        if isinstance(row, (list, tuple)):
-            if len(row) > 2: val = row[2]
-            elif len(row) > 0: val = row[-1]
-        elif hasattr(row, 'get'): 
-            val = row.get('Giai_Dac_Biet') or row.get('De')
-        
-        if val is not None:
-            s = str(val).strip()
-            digits = "".join(filter(str.isdigit, s))
-            if len(digits) >= 2: return digits[-2:]
-            elif len(digits) == 1: return digits.zfill(2)
-    except: pass
-    return None
+    return utils_get_gdb(row)
 
 def check_cham(val_str, cham_list):
     try:
@@ -106,7 +103,6 @@ def calculate_number_scores(bridges, market_stats=None):
     Tính điểm số học:
     Điểm = 10 (Sàn) + (Tần suất * 0.5) + Điểm Cầu - Phạt Gan
     """
-    # 1. Khởi tạo điểm sàn 10.0 cho tất cả 100 số (Không bao giờ Empty)
     scores = {f"{i:02d}": 10.0 for i in range(100)}
     
     try:
@@ -117,11 +113,8 @@ def calculate_number_scores(bridges, market_stats=None):
         for s in scores:
             try:
                 n1, n2 = int(s[0]), int(s[1])
-                # Tần suất càng cao điểm càng cao
                 f_score = (freq_cham.get(n1, 0) + freq_cham.get(n2, 0)) * 0.5
                 scores[s] += f_score
-                
-                # Trừ điểm nếu Gan quá cao (>20 ngày)
                 g_max = max(gan_cham.get(n1, 0), gan_cham.get(n2, 0))
                 if g_max > 20: scores[s] -= (g_max - 20) * 0.2
             except: pass
@@ -141,14 +134,21 @@ def calculate_number_scores(bridges, market_stats=None):
                                 if check_cham(s, [d]): scores[s] -= (w * 3.0)
                     else:
                         if not val: continue
-                        # Cộng điểm Bộ
                         if 'BO' in b_type or 'SET' in b_type:
                             bk = None
+                            # Tìm tên bộ từ giá trị dự đoán
                             s_val = "".join(filter(str.isdigit, val))
-                            if s_val.zfill(2) in BO_SO_DICT: bk = s_val.zfill(2)
+                            # Logic mới: map ngược từ số ra bộ (dùng BO_SO_DICT)
+                            if s_val:
+                                n_val = int(s_val)
+                                for b_name, b_list in BO_SO_DICT.items():
+                                    if n_val in b_list:
+                                        bk = b_name; break
+                            
                             if bk:
-                                for s in BO_SO_DICT[bk]: scores[s] += (w * 2.0)
-                        # Cộng điểm thường
+                                for s_int in BO_SO_DICT[bk]: 
+                                    s_str = f"{s_int:02d}"
+                                    if s_str in scores: scores[s_str] += (w * 2.0)
                         else:
                             parts = []
                             if ',' in val: parts = [int(v) for v in val.split(',') if v.strip().isdigit()]
@@ -156,27 +156,23 @@ def calculate_number_scores(bridges, market_stats=None):
                             if parts:
                                 for s in scores:
                                     if check_cham(s, parts): scores[s] += w
-                except: continue # Skip bad bridge
+                except: continue
     except Exception as e:
         print(f"Scoring Error: {e}")
-        # Nếu lỗi logic lớn, vẫn trả về scores mặc định (đã khởi tạo)
 
     return sorted(scores.items(), key=lambda x: x[1], reverse=True)
 
 def calculate_top_touch_combinations(all_data, num_touches=4, days=15, market_stats=None):
-    """Tính 4 chạm thông (Duyệt nhanh)"""
     if not all_data: return []
     try:
         recent = all_data[-days:]
         res = []
-        
-        # Lấy Top Chạm Tần Suất để ghép (Tối ưu tốc độ)
         freq = Counter()
         for row in recent:
             de = local_get_gdb_last_2(row)
             if de: freq[int(de[0])] += 1; freq[int(de[1])] += 1
         
-        top_digits = [k for k,v in freq.most_common(8)] # Lấy 8 số hay về nhất để tổ hợp
+        top_digits = [k for k,v in freq.most_common(8)] 
         if len(top_digits) < num_touches: top_digits = list(range(10))
 
         seen_combos = set()
@@ -194,7 +190,6 @@ def calculate_top_touch_combinations(all_data, num_touches=4, days=15, market_st
                 else: streak = 0
                 
             rate = (wins/len(recent))*100 if len(recent)>0 else 0
-            # Chỉ lấy combo có tỷ lệ > 60% hoặc đang thông > 2 ngày
             if rate > 60 or max_s >= 2:
                 res.append({'touches': t_list, 'streak': max_s, 'rate_percent': rate})
                 
@@ -203,7 +198,7 @@ def calculate_top_touch_combinations(all_data, num_touches=4, days=15, market_st
     except: return []
 
 # =============================================================================
-# MATRIX V3.9 (GIỮ NGUYÊN)
+# MATRIX V3.9.19 (SMART SET SELECTION - CONSISTENT DATA)
 # =============================================================================
 def _ai_rows_to_dataframe(all_data_ai):
     try:
@@ -215,9 +210,14 @@ def _ai_rows_to_dataframe(all_data_ai):
     except Exception as e: return None, str(e)
 
 def analyze_independent_factors(df):
+    """
+    Phân tích các yếu tố độc lập.
+    [V3.9.19] Sử dụng BO_SO_DICT chuẩn từ de_utils.
+    """
     if df is None or df.empty: return [], [], []
+    
+    # 1. Trend Chạm
     try:
-        # Trend
         de_vals = []
         for x in df.tail(15)['De']:
             s = str(x)
@@ -227,8 +227,8 @@ def analyze_independent_factors(df):
         ct = [k for k,v in c.most_common(4)]
     except: ct = [0,1,2,3]
     
+    # 2. Cầu Vị Trí
     try:
-        # Cầu
         last_str = str(df.iloc[-1]['De'])
         d = "".join(filter(str.isdigit, last_str))
         last = int(d) if d else 0
@@ -236,10 +236,49 @@ def analyze_independent_factors(df):
         ctl = list(set([t, (t+5)%10, (t+1)%10, (t-1)%10]))
     except: ctl = [4,5,6,7]
     
+    # 3. [SMART LOGIC] CHỌN BỘ - Dùng BO_SO_DICT chuẩn
     try:
-        # Bộ
-        bo = ["12", "01"] if last%2==0 else ["23", "03"]
-    except: bo = ["00"]
+        recent_de = []
+        for x in df.tail(30)['De']:
+            s = str(x).strip()
+            digits = "".join(filter(str.isdigit, s))
+            if len(digits) >= 2: recent_de.append(digits[-2:])
+            elif len(digits) == 1: recent_de.append(digits.zfill(2))
+        
+        bo_stats = {b: {'f': 0, 'last_idx': -1} for b in BO_SO_DICT.keys()}
+        
+        for idx, val_str in enumerate(recent_de):
+            try:
+                val = int(val_str)
+                for b_name, b_list in BO_SO_DICT.items():
+                    if val in b_list:
+                        bo_stats[b_name]['f'] += 1
+                        bo_stats[b_name]['last_idx'] = idx
+                        break
+            except: continue
+            
+        scored_bo = []
+        total_len = len(recent_de)
+        
+        for b_name, stats in bo_stats.items():
+            freq = stats['f']
+            gan = (total_len - 1 - stats['last_idx']) if stats['last_idx'] != -1 else 30
+            
+            # Hệ số Tần suất = 1.5
+            score = (freq * 1.5) - (gan * 0.5)
+            scored_bo.append((b_name, score))
+            
+        scored_bo.sort(key=lambda x: x[1], reverse=True)
+        top_bo = [item[0] for item in scored_bo[:2]]
+        
+        if not top_bo:
+             top_bo = ["12", "01"] # Fallback
+             
+        bo = top_bo
+
+    except Exception as e:
+        print(f"[SmartMatrix] Error: {e}")
+        bo = ["00"]
     
     return ct, ctl, bo
 
@@ -255,8 +294,9 @@ def run_intersection_matrix_analysis(all_data_ai_or_df):
     
     for i, b in enumerate(bo_chon):
         pts = SCORE_CONFIG["bo_uu_tien_1"] if i==0 else SCORE_CONFIG["bo_uu_tien_2"]
-        for s in BO_SO_DICT.get(b, []):
-            bang_diem[s] += pts; ghi_chu[s].append(f"Bộ {b}")
+        # Lấy số từ BO_SO_DICT chuẩn (dạng int)
+        for s_int in BO_SO_DICT.get(b, []):
+            bang_diem[s_int] += pts; ghi_chu[s_int].append(f"Bộ {b} (Hot)")
             
     for s in range(100):
         d, u = s//10, s%10
@@ -274,4 +314,5 @@ def run_intersection_matrix_analysis(all_data_ai_or_df):
     return {"ranked": sorted(final, key=lambda x:x["diem"], reverse=True), 
             "cham_thong": cham_thong, "cham_ti_le": cham_ti_le, "bo_so_chon": bo_chon}
 
+# Ánh xạ hàm để tương thích ngược
 get_gdb_last_2 = local_get_gdb_last_2

@@ -173,7 +173,7 @@ def get_top_memory_bridge_predictions(all_data_ai, last_row, top_n=5):
             name = f"Tổng({loto_names[idx1]}+{loto_names[idx2]})"
         else:
             name = f"Hiệu(|{loto_names[idx1]}-{loto_names[idx2]}|)"
-        predictions_for_dashboard.append({"name": name, "stl": pred_stl, "prediction": ", ".join(map(str, pred_stl)), "rate": f"{rate:.2f}%"})
+        predictions_for_dashboard.append({"name": name, "stl": pred_stl, "rate": f"{rate:.2f}%"})
     return predictions_for_dashboard
 
 # II. HÀM ANALYTICS NÂNG CAO

@@ -1,5 +1,5 @@
 # Tên file: code6/logic/bridges/de_bridge_scanner.py
-# (PHIÊN BẢN V3.3 FIX - ĐÃ BỔ SUNG HÀM _validate_bridge)
+# (PHIÊN BẢN V3.3.2 - OPTIMIZED FULL RANGE: 107 GỐC + 10 BÓNG VIP)
 
 import sqlite3
 from collections import Counter
@@ -20,7 +20,8 @@ except ImportError:
 class DeBridgeScanner:
     """
     Bộ quét cầu Đề tự động (Automated DE Bridge Scanner)
-    Phiên bản: V3.3 (Final Fixed - Full Stack Strategies)
+    Phiên bản: V3.3.2 (Optimized Full Range)
+    Chiến thuật: Quét 107 vị trí gốc + Bóng dương của GĐB & G1 (Tổng 117 vị trí)
     """
 
     def __init__(self):
@@ -37,7 +38,7 @@ class DeBridgeScanner:
         
         # Cấu hình Killer & Memory
         self.min_killer_streak = 12 
-        self.min_memory_confidence = 60.0 # % Xuất hiện tối thiểu để báo Bạc Nhớ
+        self.min_memory_confidence = 60.0 
 
         # Cứu Cầu
         self.rescue_wins_10 = 7    
@@ -51,7 +52,7 @@ class DeBridgeScanner:
             return 0, []
 
         last_row_idx = len(all_data_ai[-1])
-        print(f">>> [DE SCANNER V3.3] Bắt đầu quét trên {last_row_idx} cột dữ liệu...")
+        print(f">>> [DE SCANNER V3.3.2] Bắt đầu quét OPTIMIZED RANGE (117 vị trí)...")
         
         found_bridges: List[Dict[str, Any]] = []
 
@@ -62,7 +63,6 @@ class DeBridgeScanner:
         found_bridges.extend(self._scan_pascal_topology(all_data_ai))
 
         # 2. CHIẾN THUẬT KHAI PHÁ DỮ LIỆU (DATA MINING)
-        # Bạc nhớ (Memory) - V3.3
         bridges_memory = self._scan_memory_pattern(all_data_ai)
         print(f">>> [DE SCANNER] Bạc Nhớ tìm thấy: {len(bridges_memory)}")
         found_bridges.extend(bridges_memory)
@@ -103,11 +103,10 @@ class DeBridgeScanner:
         return ''.join(filter(str.isdigit, str(raw_val)))
 
     def _calculate_ranking_score(self, streak: int, wins_10: int, bridge_type: str) -> float:
-        """Hệ thống điểm số (Ranking System)."""
         type_bonus = 0.0
         if bridge_type == 'DE_SET': type_bonus = 2.0
         elif bridge_type == 'DE_PASCAL': type_bonus = 1.0
-        elif bridge_type == 'DE_MEMORY': return 15.0 + (wins_10 / 2) # Bạc nhớ luôn ưu tiên cao nếu tìm thấy
+        elif bridge_type == 'DE_MEMORY': return 15.0 + (wins_10 / 2)
         elif bridge_type == 'DE_KILLER': return streak * 2.0
 
         stability_bonus = 1.5 if wins_10 >= 8 else 0.0
@@ -125,9 +124,6 @@ class DeBridgeScanner:
         bridges.sort(key=lambda x: x['ranking_score'], reverse=True)
 
     def _validate_bridge(self, all_data_ai, idx1, idx2, k_param, mode) -> bool:
-        """
-        Kiểm tra độ ổn định của cầu trong quá khứ xa hơn (Validation Phase).
-        """
         if self.validation_len <= 0: return True
         start_idx = len(all_data_ai) - self.scan_depth - self.validation_len
         end_idx = len(all_data_ai) - self.scan_depth
@@ -163,20 +159,14 @@ class DeBridgeScanner:
         return val_wins >= self.min_val_wins
 
     # =========================================================================
-    # MODULE 1: BẠC NHỚ (MEMORY PATTERN) - V3.3 NEW
+    # MODULE 1: BẠC NHỚ
     # =========================================================================
     
     def _scan_memory_pattern(self, all_data_ai: List[List[str]]) -> List[Dict[str, Any]]:
-        """
-        Quét các mẫu hình Bạc Nhớ (Pattern Recognition).
-        Ví dụ: Khi G1 có đuôi 5, Đề hôm sau thường về chạm mấy?
-        """
         results = []
-        # Cần dữ liệu dài hơn để mining
         mining_depth = min(len(all_data_ai) - 1, self.memory_depth)
         mining_data = all_data_ai[-mining_depth:]
         
-        # Các vị trí "Tín hiệu" (Trigger) quan trọng
         triggers = [
             (2, "GDB_Tail", "Đuôi ĐB"), 
             (2, "GDB_Head", "Đầu ĐB"),
@@ -186,11 +176,9 @@ class DeBridgeScanner:
         last_row = all_data_ai[-1]
 
         for col_idx, trigger_code, trigger_name in triggers:
-            # 1. Lấy giá trị tín hiệu của ngày hôm nay
             current_signal = self._get_signal_value(last_row, col_idx, trigger_code)
             if current_signal is None: continue
 
-            # 2. Quét quá khứ
             matching_next_days_gdb = []
             
             for k in range(len(mining_data) - 2):
@@ -203,7 +191,6 @@ class DeBridgeScanner:
                     if gdb_next:
                         matching_next_days_gdb.append(gdb_next)
 
-            # 3. Thống kê kết quả
             if len(matching_next_days_gdb) < 5: continue
 
             touch_counts = Counter()
@@ -216,7 +203,6 @@ class DeBridgeScanner:
             best_touch, count = touch_counts.most_common(1)[0]
             confidence = (count / total_matches) * 100
 
-            # 4. Lưu nếu độ tin cậy cao
             if confidence >= self.min_memory_confidence:
                 touches = [best_touch]
                 final_dan = generate_dan_de_from_touches(touches)
@@ -247,14 +233,15 @@ class DeBridgeScanner:
             return None
 
     # =========================================================================
-    # MODULE 2: CẦU LOẠI (KILLER) - V3.2
+    # MODULE 2: CẦU LOẠI (KILLER) - OPTIMIZED SCAN
     # =========================================================================
 
     def _scan_killer_bridges(self, all_data_ai: List[List[str]]) -> List[Dict[str, Any]]:
         results = []
         try:
             sample_pos = getAllPositions_V17_Shadow(all_data_ai[-1])
-            limit_pos = min(len(sample_pos), 40)
+            # [OPTIMIZED] Quét 107 gốc + 10 bóng VIP = 117 vị trí
+            limit_pos = min(len(sample_pos), 117)
             scan_data = all_data_ai[-self.scan_depth:]
             
             for i in range(limit_pos):
@@ -297,7 +284,7 @@ class DeBridgeScanner:
         return results[:15]
 
     # =========================================================================
-    # MODULE 3: CẦU PASCAL (TOPOLOGY) - V3.1
+    # MODULE 3: CẦU PASCAL
     # =========================================================================
 
     def _scan_pascal_topology(self, all_data_ai: List[List[str]]) -> List[Dict[str, Any]]:
@@ -371,7 +358,7 @@ class DeBridgeScanner:
         return None
 
     # =========================================================================
-    # MODULE 4: DYNAMIC & SUM (CLASSIC)
+    # MODULE 4: DYNAMIC & SUM (CLASSIC) - OPTIMIZED SCAN
     # =========================================================================
 
     def _scan_dynamic_offset(self, all_data_ai: List[List[str]]) -> List[Dict[str, Any]]:
@@ -429,7 +416,8 @@ class DeBridgeScanner:
         results = []
         try:
             sample_pos = getAllPositions_V17_Shadow(all_data_ai[-1])
-            limit_pos = min(len(sample_pos), 50)
+            # [OPTIMIZED] 117 Vị trí
+            limit_pos = min(len(sample_pos), 117)
             scan_data = all_data_ai[-self.scan_depth:]
             for i in range(limit_pos):
                 for j in range(i, limit_pos):
@@ -477,7 +465,8 @@ class DeBridgeScanner:
         results = []
         try:
             sample_pos = getAllPositions_V17_Shadow(all_data_ai[-1])
-            limit_pos = min(len(sample_pos), 50)
+            # [OPTIMIZED] 117 Vị trí
+            limit_pos = min(len(sample_pos), 117)
             scan_data = all_data_ai[-self.scan_depth:]
             for i in range(limit_pos):
                 for j in range(i + 1, limit_pos):
@@ -546,7 +535,7 @@ class DeBridgeScanner:
             cursor.execute("DELETE FROM ManagedBridges WHERE type IN ('DE_DYNAMIC_K', 'DE_POS_SUM', 'DE_SET', 'DE_PASCAL', 'DE_KILLER', 'DE_MEMORY')")
             
             count = 0
-            # [CONFIG] Lưu tối đa 50 cầu TỐT NHẤT (Đã tăng để chứa thêm Bạc Nhớ)
+            # [CONFIG] Lưu tối đa 150 cầu TỐT NHẤT 
             for b in bridges[:150]: 
                 desc = b.get('display_desc', '')
                 full_dan = b.get('full_dan', '')

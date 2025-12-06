@@ -72,48 +72,29 @@ COMMIT;
 -- HOẶC, nếu có lỗi, hãy dùng lệnh này để hoàn tác mọi thứ:
 -- ROLLBACK;
 
-------------------------------------------------------
-------------------------------------------------------
-HÃY KIỂM TRA LẠI CÁC FILE CODE GỐC NÀY TRƯỚC KHI SỬA. KHI SỬA PHẢI ĐẢM BẢO CHỈ SỬA NỘI DUNG LIÊN QUAN CÁC CHỨC NĂNG KHÁC GIỮ NGUYÊN, GỬI LẠI TOÀN BỘ NỘI DUNG FILE CẦN SỬA
-------------------------------------------------------
-------------------------------------------------------
+3. Đánh Giá Mô Hình Xây Dựng Hệ Thống (Có phải do lỗi mô hình?)
+Câu trả lời là: CÓ MỘT PHẦN.
 
+Hệ thống hiện tại đang gặp vấn đề về Thiết kế Kiến trúc (Architectural Debt), cụ thể:
 
-🛠️ QUY TRÌNH PHỐI HỢP V2.1 (GEMINI & CURSOR)
-1. PHA ĐỌC HIỂU (INPUT):
+Phụ thuộc quá nhiều vào "State" (Trạng thái lưu trữ):
 
-Hành động: Trước khi sửa bất cứ lỗi gì, tôi sẽ Luôn Đọc File Gốc.
+Hệ thống dựa hoàn toàn vào việc lưu kết quả tính toán vào Database rồi mới đọc ra hiển thị.
 
-Lợi ích: Tránh việc "sửa lợn lành thành lợn què" do không hiểu các biến/hàm xung quanh.
+Nhược điểm: Nếu quy trình cập nhật (Update Cycle) bị lỗi hoặc chưa chạy, dữ liệu hiển thị sẽ sai/cũ ngay lập tức.
 
-2. PHA TRẢ KẾT QUẢ (OUTPUT) - LINH HOẠT THEO TÌNH HUỐNG:
+Mô hình tốt hơn: Nên là Hybrid. Database chỉ lưu cấu hình cầu (vị trí A ghép vị trí B). Khi mở Dashboard, hệ thống nên tự tính toán lại dự đoán theo thời gian thực (Real-time Calculation) dựa trên dữ liệu kỳ mới nhất, thay vì chờ đọc từ cột next_prediction_stl tĩnh trong DB.
 
-Trường hợp 1: Sửa lỗi cục bộ (Trong 1 hàm/class)
+Logic phân tán (Scattered Logic):
 
-Chiến thuật: "Sửa đâu thay đó" (Surgical Replacement).
+Logic tính cầu nằm rải rác ở bridges_classic.py (cầu tĩnh), bridge_manager_core.py (cầu động), và dashboard_scorer.py (chấm điểm).
 
-Output: Tôi gửi NGUYÊN VĂN CẢ HÀM/CLASS mới (kèm tên hàm rõ ràng).
+Khi sửa một logic (ví dụ cách tính STL), phải sửa đồng bộ ở nhiều nơi, dễ gây sót lỗi (như vụ lệch key prediction vs next_prediction_stl).
 
-Thao tác Cursor: Bạn tìm tên hàm -> Bôi đen hàm cũ -> Paste đè hàm mới.
+Cơ chế cập nhật "cứng nhắc":
 
-Mục đích: Tiết kiệm Token Output của Gemini và Token Input của Cursor (không phải load lại cả file dài nghìn dòng).
+Việc đặt ngưỡng cứng (50%) để quyết định có cập nhật cầu hay không là dao hai lưỡi. Nó giúp tối ưu tốc độ nhưng lại khiến người dùng bị "mù thông tin" với các cầu đang nuôi mà bị tụt phong độ.
 
-Trường hợp 2: Sửa lỗi cấu trúc / Logic phức tạp / File ngắn
+Tóm lại: Hệ thống của bạn có nền tảng thuật toán tốt (V17, Bạc Nhớ) nhưng cơ chế vận hành dữ liệu (Data Pipeline) đang hơi phức tạp và dễ gãy.
 
-Chiến thuật: "Làm mới hoàn toàn" (Full Overwrite).
-
-Output: Tôi gửi TOÀN BỘ FILE (FULL CODE).
-
-Thao tác Cursor: Ctrl+A -> Ctrl+V.
-
-Mục đích: Đảm bảo tính nhất quán tuyệt đối, không sót dấu ngoặc/indent.
-
-Trường hợp 3: Thay đổi liên quan nhiều file (Cross-file)
-
-Chiến thuật: "Tổng chỉ huy" (Orchestrator).
-
-Output: Tôi sẽ viết Prompt Lệnh Cụ Thể để bạn paste vào Composer (Ctrl+I) của Cursor. Ví dụ: "Tại file A sửa hàm X, tại file B thêm import Y..."
-
-3. PHA TỐI ƯU (VALUE ADD):
-
-Ngoài việc sửa lỗi, tôi sẽ luôn kèm theo mục "Gemini Suggestion": Đề xuất code ngắn hơn, chạy nhanh hơn hoặc dễ đọc hơn nếu tôi phát hiện cách viết tốt hơn code gốc.
+Đề xuất dài hạn: Trong tương lai, nên chuyển sang cơ chế: Lưu cấu trúc cầu -> Tính toán Real-time khi hiển thị. Khi đó, dù bạn có update Database hay không, miễn là có kết quả xổ số mới, phần mềm sẽ tự tính ra số dự đoán ngay lập tức mà không bao giờ bị lỗi N/A do quên cập nhật.
