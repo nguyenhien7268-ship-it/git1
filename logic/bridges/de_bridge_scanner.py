@@ -368,7 +368,6 @@ class DeBridgeScanner:
                 total_wins_30 = 0
                 total_days_30 = 0
                 for k in range(len(scan_data) - 1, 0, -1):
-                    total_days_30 += 1
                     row_curr = scan_data[k]
                     row_prev = scan_data[k-1]
                     gdb = get_gdb_last_2(row_curr)
@@ -385,6 +384,9 @@ class DeBridgeScanner:
                     
                     final_pair = self._compute_pascal_reduction(input_digits)
                     if final_pair is None: continue
+                    
+                    # Only count this day if we have valid data
+                    total_days_30 += 1
                     
                     pred_val = f"{final_pair[0]}{final_pair[1]}"
                     rev_val = f"{final_pair[1]}{final_pair[0]}"
@@ -491,7 +493,6 @@ class DeBridgeScanner:
                         total_days_30 = 0
                         for day_idx in range(scan_len - 1, max(0, scan_len - 1 - self.scan_depth), -1):
                             if day_idx < 1: break
-                            total_days_30 += 1
                             
                             gdb_today = get_gdb_last_2(all_data_ai[day_idx])
                             if not gdb_today: continue
@@ -501,6 +502,9 @@ class DeBridgeScanner:
                             d2 = row_prev_vals[idx2]
                             
                             if d1 is None or d2 is None: continue
+                            
+                            # Only count this day if we have valid data
+                            total_days_30 += 1
                             
                             base_sum = (d1 + d2) % 10
                             touches = get_touches_by_offset(base_sum, k)
@@ -566,7 +570,6 @@ class DeBridgeScanner:
                             total_days_30 = 0
                             for k in range(scan_len - 1, max(0, scan_len - 1 - self.scan_depth), -1):
                                 if k < 1: break
-                                total_days_30 += 1
                                 
                                 gdb = get_gdb_last_2(all_data_ai[k])
                                 if not gdb: continue
@@ -574,6 +577,9 @@ class DeBridgeScanner:
                                 row_prev_vals = data_matrix[k-1]
                                 v1, v2 = row_prev_vals[i], row_prev_vals[j]
                                 if v1 is None or v2 is None: continue
+                                
+                                # Only count this day if we have valid data
+                                total_days_30 += 1
                                 
                                 pred = (v1 + v2) % 10
                                 if check_cham(gdb, [pred]): total_wins_30 += 1
@@ -643,7 +649,6 @@ class DeBridgeScanner:
                             total_days_30 = 0
                             for k in range(scan_len - 1, max(0, scan_len - 1 - self.scan_depth), -1):
                                 if k < 1: break
-                                total_days_30 += 1
                                 
                                 gdb = get_gdb_last_2(all_data_ai[k])
                                 if not gdb: continue
@@ -657,6 +662,9 @@ class DeBridgeScanner:
                                 
                                 set_nums = BO_SO_DE.get(set_name, [])
                                 if not set_nums: continue
+                                
+                                # Only count this day if we have valid data
+                                total_days_30 += 1
                                 
                                 if gdb in set_nums: total_wins_30 += 1
                             
