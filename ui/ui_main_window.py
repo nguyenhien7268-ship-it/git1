@@ -36,6 +36,9 @@ try:
     from ui.ui_results_viewer import ResultsViewerWindow
     from ui.ui_settings import SettingsWindow
     from ui.ui_tuner import TunerWindow
+    # NEW: Bridge Scanner and Management tabs
+    from ui.ui_bridge_scanner import BridgeScannerTab
+    from ui.ui_bridge_management import BridgeManagementTab
 except ImportError as e:
     print(f"LỖI UI IMPORTS: {e}")
     exit()
@@ -106,11 +109,26 @@ class DataAnalysisApp:
             self.logger.log(f"Lỗi khởi tạo Tab Optimizer: {e}")
             self.optimizer_tab = ttk.Frame(self.notebook)
 
+        # NEW: Bridge Scanner and Management tabs
+        try:
+            self.bridge_scanner_tab = BridgeScannerTab(self.notebook, self)
+        except Exception as e:
+            self.logger.log(f"Lỗi khởi tạo Tab Dò Tìm Cầu: {e}")
+            self.bridge_scanner_tab = ttk.Frame(self.notebook)
+
+        try:
+            self.bridge_management_tab = BridgeManagementTab(self.notebook, self)
+        except Exception as e:
+            self.logger.log(f"Lỗi khởi tạo Tab Quản Lý Cầu: {e}")
+            self.bridge_management_tab = ttk.Frame(self.notebook)
+
         # 2. Add Tabs vào Notebook
         self.notebook.add(self.tab1_frame, text="🏠 Trang Chủ")
         self.notebook.add(self.dashboard_tab, text="📊 Bảng Quyết Định")
         self.notebook.add(self.de_dashboard_tab, text="🔮 Soi Cầu Đề")
-        self.notebook.add(self.lookup_tab, text="🔍 Tra Cứu")
+        self.notebook.add(self.bridge_scanner_tab, text="🔍 Dò Tìm Cầu Mới")  # NEW
+        self.notebook.add(self.bridge_management_tab, text="🛠️ Quản Lý Cầu")  # NEW
+        self.notebook.add(self.lookup_tab, text="📖 Tra Cứu")
         self.notebook.add(self.optimizer_tab, text="🚀 Tối Ưu Hóa")
         self.notebook.add(self.tab_log_frame, text="📝 Log Hệ Thống")
 
@@ -119,10 +137,11 @@ class DataAnalysisApp:
 
         # --- LIST BUTTONS CHO TASK MANAGER ---
         # (Để khóa nút khi đang chạy tác vụ nặng)
+        # NOTE: Removed btn_bridge_manager and btn_auto_find (now in dedicated tabs)
         self.all_buttons = [
             self.btn_load_file, self.btn_load_append, self.btn_quick_update,
-            self.btn_open_dashboard, self.btn_bridge_manager,
-            self.btn_train_ai, self.btn_auto_find, self.btn_vote_stats,
+            self.btn_open_dashboard,
+            self.btn_train_ai, self.btn_vote_stats,
             self.btn_settings, self.btn_tuner, self.btn_refresh_cache,
         ]
         
@@ -202,15 +221,9 @@ class DataAnalysisApp:
             style="Hero.TButton",
             command=self.run_decision_dashboard
         )
-        self.btn_open_dashboard.grid(row=0, column=0, sticky="nsew", padx=(0, 10), ipady=25)
-
-        # Nút VỪA: Quản Lý Cầu
-        self.btn_bridge_manager = ttk.Button(
-            hero_frame, 
-            text="🛠️ QUẢN LÝ CẦU\n(Tinh chỉnh & Lọc)", 
-            command=self.show_bridge_manager_window
-        )
-        self.btn_bridge_manager.grid(row=0, column=1, sticky="nsew", ipady=25)
+        self.btn_open_dashboard.grid(row=0, column=0, columnspan=2, sticky="nsew", ipady=25)
+        
+        # NOTE: Removed "Quản Lý Cầu" button - Now it's a dedicated tab "🛠️ Quản Lý Cầu"
 
 
         # === KHU VỰC 3: HỆ THỐNG & AI (ADVANCED) ===
@@ -223,8 +236,7 @@ class DataAnalysisApp:
         self.btn_train_ai = ttk.Button(sys_frame, text="🧠 Huấn Luyện AI", command=self.run_train_ai)
         self.btn_train_ai.grid(row=0, column=0, sticky="ew", padx=5, pady=2)
 
-        self.btn_auto_find = ttk.Button(sys_frame, text="🔍 Dò Tìm Cầu Mới", command=self.run_auto_find_bridges)
-        self.btn_auto_find.grid(row=0, column=1, sticky="ew", padx=5, pady=2)
+        # NOTE: Removed "Dò Tìm Cầu Mới" button - Now it's a dedicated tab "🔍 Dò Tìm Cầu Mới"
 
         self.btn_vote_stats = ttk.Button(sys_frame, text="📈 Thống Kê Vote", command=self.show_vote_statistics_window)
         self.btn_vote_stats.grid(row=0, column=2, sticky="ew", padx=5, pady=2)
@@ -324,14 +336,16 @@ class DataAnalysisApp:
         )
 
     def show_bridge_manager_window(self):
+        """Switch to Bridge Management tab (old method kept for compatibility)."""
         try:
-            from ui.ui_bridge_manager import BridgeManagerWindow
-        except ImportError as e:
-            self.logger.log(f"LỖI NGHIÊM TRỌNG khi mở BridgeManager: {e}")
-            messagebox.showerror("Lỗi Import", f"Không thể tải ui_bridge_manager: {e}")
-            return
-
-        self.bridge_manager_window_instance = BridgeManagerWindow(self)
+            # Switch to the new Bridge Management tab
+            self.notebook.select(self.bridge_management_tab)
+            # Refresh the list
+            if hasattr(self.bridge_management_tab, 'refresh_bridge_list'):
+                self.bridge_management_tab.refresh_bridge_list()
+        except Exception as e:
+            self.logger.log(f"Lỗi chuyển tab Quản Lý Cầu: {e}")
+            messagebox.showerror("Lỗi", f"Không thể mở tab Quản Lý Cầu: {e}")
 
     # --- CÁC HÀM MÀ CONTROLLER CÓ THỂ GỌI (GIỮ NGUYÊN) ---
     def clear_update_text_area(self):
@@ -362,7 +376,14 @@ class DataAnalysisApp:
         self.task_manager.run_task(self.controller.task_run_train_ai, "Huấn luyện AI")
 
     def run_auto_find_bridges(self):
-        self.task_manager.run_task(self.controller.task_run_auto_find_bridges, "Dò Cầu Tự Động")
+        """Switch to Bridge Scanner tab (old method kept for compatibility)."""
+        try:
+            # Switch to the new Bridge Scanner tab
+            self.notebook.select(self.bridge_scanner_tab)
+            self.logger.log("Đã chuyển sang tab Dò Tìm Cầu Mới. Vui lòng chọn loại quét.")
+        except Exception as e:
+            self.logger.log(f"Lỗi chuyển tab Dò Tìm Cầu: {e}")
+            messagebox.showerror("Lỗi", f"Không thể mở tab Dò Tìm Cầu: {e}")
     
     def run_auto_prune_bridges(self): # Vẫn giữ hàm này cho backward compatibility
         self.task_manager.run_task(self.controller.task_run_auto_prune_bridges, "Lọc Cầu")
