@@ -332,7 +332,7 @@ class DeBridgeScanner:
         ]
 
         for src in sources:
-            streak = 0
+            consecutive_streak = 0
             wins_10 = 0
             for k in range(len(scan_data) - 1, 0, -1):
                 row_curr = scan_data[k]
@@ -358,12 +358,38 @@ class DeBridgeScanner:
                 is_win = (gdb == pred_val or gdb == rev_val)
                 days_ago = len(scan_data) - 1 - k
                 if is_win:
-                    if streak == days_ago: streak += 1
+                    if consecutive_streak == days_ago: consecutive_streak += 1
                     if days_ago < self.history_check_len: wins_10 += 1
                 else:
-                    if streak > 0: break 
+                    if consecutive_streak > 0: break 
             
-            if streak >= self.min_streak or wins_10 >= self.rescue_wins_10:
+            if consecutive_streak >= self.min_streak or wins_10 >= self.rescue_wins_10:
+                # [FIX] Tính tổng số kỳ thắng trên 30 ngày để khớp với Popup
+                total_wins_30 = 0
+                total_days_30 = 0
+                for k in range(len(scan_data) - 1, 0, -1):
+                    total_days_30 += 1
+                    row_curr = scan_data[k]
+                    row_prev = scan_data[k-1]
+                    gdb = get_gdb_last_2(row_curr)
+                    if not gdb: continue
+                    
+                    input_digits = []
+                    valid_input = True
+                    for col_idx in src["cols"]:
+                        val_str = self._clean_str(row_prev[col_idx])
+                        if not val_str: valid_input = False; break
+                        input_digits.extend([int(d) for d in val_str])
+                    
+                    if not valid_input or len(input_digits) < 2: continue
+                    
+                    final_pair = self._compute_pascal_reduction(input_digits)
+                    if final_pair is None: continue
+                    
+                    pred_val = f"{final_pair[0]}{final_pair[1]}"
+                    rev_val = f"{final_pair[1]}{final_pair[0]}"
+                    if gdb == pred_val or gdb == rev_val: total_wins_30 += 1
+                
                 last_row = all_data_ai[-1]
                 next_input = []
                 for col_idx in src["cols"]:
@@ -377,10 +403,10 @@ class DeBridgeScanner:
                     results.append({
                         "name": f"DE_PASCAL_{src['name']}",
                         "type": "DE_PASCAL",
-                        "streak": streak,
+                        "streak": total_wins_30,
                         "predicted_value": display_val,
                         "full_dan": display_val,
-                        "win_rate": (wins_10 / 10) * 100,
+                        "win_rate": (total_wins_30 / total_days_30 * 100) if total_days_30 > 0 else 0,
                         "display_desc": f"Cầu Pascal ({src['name']}) - STL: {display_val}"
                     })
         return results
@@ -460,6 +486,27 @@ class DeBridgeScanner:
                 if total_wins >= self.min_wins_required:
                     if self._validate_bridge(all_data_ai, data_matrix, idx1, idx2, k, "DYNAMIC"):
                         
+                        # [FIX] Tính lại streak trên scan_depth (30 kỳ) để khớp với Popup
+                        streak_30 = 0
+                        total_days_30 = 0
+                        for day_idx in range(scan_len - 1, max(0, scan_len - 1 - self.scan_depth), -1):
+                            if day_idx < 1: break
+                            total_days_30 += 1
+                            
+                            gdb_today = get_gdb_last_2(all_data_ai[day_idx])
+                            if not gdb_today: continue
+                            
+                            row_prev_vals = data_matrix[day_idx-1]
+                            d1 = row_prev_vals[idx1]
+                            d2 = row_prev_vals[idx2]
+                            
+                            if d1 is None or d2 is None: continue
+                            
+                            base_sum = (d1 + d2) % 10
+                            touches = get_touches_by_offset(base_sum, k)
+                            
+                            if check_cham(gdb_today, touches): streak_30 += 1
+                        
                         base_last = (val1_last + val2_last) % 10
                         final_touches = get_touches_by_offset(base_last, k)
                         final_dan = generate_dan_de_from_touches(final_touches)
@@ -470,10 +517,10 @@ class DeBridgeScanner:
                         results.append({
                             "name": f"DE_DYN_{name1}_{name2}_K{k}",
                             "type": "DE_DYNAMIC_K",
-                            "streak": total_wins,
+                            "streak": streak_30,
                             "predicted_value": ",".join(map(str, final_touches)),
                             "full_dan": ",".join(final_dan),
-                            "win_rate": (total_wins / check_window * 100) if check_window > 0 else 0,
+                            "win_rate": (streak_30 / total_days_30 * 100) if total_days_30 > 0 else 0,
                             "display_desc": f"Đuôi {name1} + Đuôi {name2} (K={k})"
                         })
         return results
@@ -486,10 +533,10 @@ class DeBridgeScanner:
             
             for i in range(limit_pos):
                 for j in range(i, limit_pos):
-                    streak = 0
+                    consecutive_streak = 0
                     wins_10 = 0
                     
-                    # Backtest Loop
+                    # Backtest Loop (consecutive wins)
                     for k in range(scan_len - 1, 0, -1):
                         if scan_len - k > self.scan_depth: break
                         
@@ -504,13 +551,30 @@ class DeBridgeScanner:
                         
                         days_ago = scan_len - 1 - k
                         if is_win:
-                            if streak == days_ago: streak += 1 
+                            if consecutive_streak == days_ago: consecutive_streak += 1 
                             if days_ago < self.history_check_len: wins_10 += 1
                         else:
-                            if streak > 0: break 
+                            if consecutive_streak > 0: break 
                     
-                    if streak >= self.min_streak or wins_10 >= self.rescue_wins_10:
+                    if consecutive_streak >= self.min_streak or wins_10 >= self.rescue_wins_10:
                         if self._validate_bridge(all_data_ai, data_matrix, i, j, 0, "DE_POS_SUM"):
+                            # [FIX] Tính tổng số kỳ thắng trên 30 ngày để khớp với Popup
+                            total_wins_30 = 0
+                            total_days_30 = 0
+                            for k in range(scan_len - 1, max(0, scan_len - 1 - self.scan_depth), -1):
+                                if k < 1: break
+                                total_days_30 += 1
+                                
+                                gdb = get_gdb_last_2(all_data_ai[k])
+                                if not gdb: continue
+                                
+                                row_prev_vals = data_matrix[k-1]
+                                v1, v2 = row_prev_vals[i], row_prev_vals[j]
+                                if v1 is None or v2 is None: continue
+                                
+                                pred = (v1 + v2) % 10
+                                if check_cham(gdb, [pred]): total_wins_30 += 1
+                            
                             # Calc Prediction
                             curr_vals = data_matrix[-1]
                             v1, v2 = curr_vals[i], curr_vals[j]
@@ -518,15 +582,15 @@ class DeBridgeScanner:
                             
                             p1_name = getPositionName_V17_Shadow(i).replace('[', '.').replace(']', '')
                             p2_name = getPositionName_V17_Shadow(j).replace('[', '.').replace(']', '')
-                            note = f" (Cứu: {wins_10}/10)" if streak < self.min_streak else ""
+                            note = f" (Cứu: {wins_10}/10)" if consecutive_streak < self.min_streak else ""
                             
                             results.append({
                                 "name": f"DE_POS_{p1_name}_{p2_name}",
                                 "type": "DE_POS_SUM",
-                                "streak": streak,
+                                "streak": total_wins_30,
                                 "predicted_value": str(next_val),
                                 "full_dan": "",
-                                "win_rate": (wins_10 / 10) * 100,
+                                "win_rate": (total_wins_30 / total_days_30 * 100) if total_days_30 > 0 else 0,
                                 "display_desc": f"Tổng vị trí: {p1_name} + {p2_name}{note}"
                             })
         except Exception as e:
@@ -541,7 +605,7 @@ class DeBridgeScanner:
             
             for i in range(limit_pos):
                 for j in range(i + 1, limit_pos):
-                    streak = 0
+                    consecutive_streak = 0
                     wins_10 = 0
                     for k in range(scan_len - 1, 0, -1):
                         if scan_len - k > self.scan_depth: break
@@ -562,13 +626,35 @@ class DeBridgeScanner:
                         days_ago = scan_len - 1 - k
                         
                         if is_win:
-                            if streak == days_ago: streak += 1
+                            if consecutive_streak == days_ago: consecutive_streak += 1
                             if days_ago < self.history_check_len: wins_10 += 1
                         else:
-                            if streak > 0: break
+                            if consecutive_streak > 0: break
                             
-                    if streak >= self.min_streak_bo and wins_10 >= self.min_wins_bo_10:
+                    if consecutive_streak >= self.min_streak_bo and wins_10 >= self.min_wins_bo_10:
                         if self._validate_bridge(all_data_ai, data_matrix, i, j, 0, "SET"):
+                            # [FIX] Tính tổng số kỳ thắng trên 30 ngày để khớp với Popup
+                            total_wins_30 = 0
+                            total_days_30 = 0
+                            for k in range(scan_len - 1, max(0, scan_len - 1 - self.scan_depth), -1):
+                                if k < 1: break
+                                total_days_30 += 1
+                                
+                                gdb = get_gdb_last_2(all_data_ai[k])
+                                if not gdb: continue
+                                
+                                row_prev_vals = data_matrix[k-1]
+                                v1, v2 = row_prev_vals[i], row_prev_vals[j]
+                                if v1 is None or v2 is None: continue
+                                
+                                set_name = get_set_name_of_number(f"{v1}{v2}")
+                                if not set_name: continue
+                                
+                                set_nums = BO_SO_DE.get(set_name, [])
+                                if not set_nums: continue
+                                
+                                if gdb in set_nums: total_wins_30 += 1
+                            
                             curr_vals = data_matrix[-1]
                             v1_curr, v2_curr = curr_vals[i], curr_vals[j]
                             pred_set_name = get_set_name_of_number(f"{v1_curr}{v2_curr}")
@@ -579,10 +665,10 @@ class DeBridgeScanner:
                                 results.append({
                                     "name": f"DE_SET_{p1_n}_{p2_n}",
                                     "type": "DE_SET",
-                                    "streak": streak,
+                                    "streak": total_wins_30,
                                     "predicted_value": pred_set_name,
                                     "full_dan": ",".join(BO_SO_DE.get(pred_set_name, [])),
-                                    "win_rate": (wins_10 / 10) * 100,
+                                    "win_rate": (total_wins_30 / total_days_30 * 100) if total_days_30 > 0 else 0,
                                     "display_desc": f"Bộ: {p1_n} + {p2_n} (Bộ {pred_set_name})"
                                 })
         except Exception as e:
