@@ -247,6 +247,19 @@ def run_de_bridge_historical_test(bridge_config, all_data, days=30):
         pos2_name = bridge_config.get("pos2_name")
         k_offset = bridge_config.get("k_offset", 0)
         
+        # [FIX] Extract k_offset from bridge name if not provided in config
+        # This handles bridges loaded from DB that don't have k_offset field
+        if k_offset == 0 and "_K" in bridge_name:
+            try:
+                parts = bridge_name.split("_K")
+                if len(parts) > 1:
+                    k_str = parts[-1]
+                    # Handle cases like "K4" or just "4"
+                    if k_str.isdigit():
+                        k_offset = int(k_str)
+            except:
+                pass  # Keep default k_offset = 0
+        
         # 4. Mapping Vị Trí (Index) - Logic Đồng Bộ Dashboard
         # Khởi tạo Backtester helper chỉ để dùng các hàm tiện ích nếu cần
         backtester = DeBacktesterCore(all_data)
