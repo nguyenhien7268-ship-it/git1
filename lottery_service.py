@@ -78,19 +78,24 @@ except ImportError as e_backtester:
 
 # 5. LOGIC QUẢN LÝ CẦU (DÒ, LỌC)
 try:
-    from logic.bridges.bridge_manager_core import (
+    # Import scanning functions from lo_bridge_scanner
+    from logic.bridges.lo_bridge_scanner import (
         TIM_CAU_BAC_NHO_TOT_NHAT,
         TIM_CAU_TOT_NHAT_V16,
+        update_fixed_lo_bridges,
+    )
+    # Import management functions from bridge_manager_core
+    from logic.bridges.bridge_manager_core import (
         auto_manage_bridges,
         find_and_auto_manage_bridges,
         prune_bad_bridges,
     )
     from logic.bridges.bridge_manager_de import find_and_auto_manage_bridges_de
 
-    print(">>> (V7.3) Tải logic.bridges.bridge_manager_core thành công.")
+    print(">>> (V7.3) Tải logic.bridges.bridge_manager_core & lo_bridge_scanner thành công.")
 except ImportError as e_bridge_core:
     print(
-        f"LỖI NGHIÊM TRỌNG: Không thể import logic.bridges.bridge_manager_core: {e_bridge_core}"
+        f"LỖI NGHIÊM TRỌNG: Không thể import logic.bridges modules: {e_bridge_core}"
     )
 
 # 6. LOGIC DASHBOARD (CHẤM ĐIỂM)
