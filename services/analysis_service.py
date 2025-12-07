@@ -238,369 +238,179 @@ class AnalysisService:
             self._log(error_msg)
             return False, error_msg
     
-    def prepare_dashboard_data(self, all_data_ai, data_limit=None):
-
+    def prepare_dashboard_data(self, all_data_ai, data_limit=None, lo_mode=True, de_mode=True):
         """
-
-        Chuẩn bị dữ liệu cho dashboard (phân tích toàn diện).
-
-        
+        Chuẩn bị dữ liệu dashboard (phân tích toàn diện) theo chế độ (On-Demand).
 
         Args:
-
             all_data_ai: Dữ liệu A:I
-
-            data_limit: Giới hạn số kỳ (None = lấy từ Config DATA_LIMIT_DASHBOARD)
-
-        
+            data_limit: Giới hạn số kỳ
+            lo_mode: Có phân tích Lô hay không
+            de_mode: Có phân tích Đề hay không
 
         Returns:
-
-            dict: Dữ liệu đã phân tích với các keys: next_ky, stats, consensus, etc.
-
+            dict: Dữ liệu đã phân tích
         """
-
         if not all_data_ai or len(all_data_ai) < 2:
-
             return None
 
-        
-
         # Load settings VÀ xác định giới hạn dữ liệu
-
         data_limit_dashboard = 0 # Default (no limit)
-
         try:
-
             from logic.config_manager import SETTINGS
-
             SETTINGS.load_settings()
-
             n_days_stats = SETTINGS.STATS_DAYS
-
             n_days_gan = SETTINGS.GAN_DAYS
-
             high_win_thresh = SETTINGS.HIGH_WIN_THRESHOLD
-
-            # Lấy giới hạn từ config (hiện đang là 500) nếu không được truyền vào
-
             data_limit_dashboard = SETTINGS.DATA_LIMIT_DASHBOARD
-
         except:
-
             n_days_stats = 7
-
             n_days_gan = 15
-
             high_win_thresh = 47.0
 
-        
-
         # Xác định giới hạn cuối cùng
-
         final_data_limit = data_limit if data_limit is not None else data_limit_dashboard
 
-
-
-        # ⚡ ÁP DỤNG GIỚI HẠN DỮ LIỆU TỪ CONFIG (500 KỲ GẦN NHẤT)
-
-        # Dữ liệu all_data_ai sau bước này là 500 kỳ gần nhất, đảm bảo tính toán K1N chỉ trên 500 kỳ.
-
+        # ⚡ ÁP DỤNG GIỚI HẠN DỮ LIỆU TỪ CONFIG
         if final_data_limit > 0 and len(all_data_ai) > final_data_limit:
-
             all_data_ai = all_data_ai[-final_data_limit:]
-
             self._log(f"⚡ HIỆU NĂNG: Đang phân tích {final_data_limit} kỳ gần nhất.")
+        else:
+            final_data_limit = len(all_data_ai)
+            self._log(f"⚡ Chế độ Full Data: Đang phân tích toàn bộ {final_data_limit} kỳ.")
+            
+        last_row = all_data_ai[-1]
+        
+        # Tính next_ky (Chung)
+        try:
+            ky_int = int(last_row[0])
+            next_ky = f"Kỳ {ky_int + 1}"
+        except (ValueError, TypeError):
+            next_ky = f"Kỳ {last_row[0]} (Next)"
+        
+        # Khởi tạo result dict cơ bản
+        result = {
+        "next_ky": next_ky,
+        "n_days_stats": n_days_stats,
+        "stats_n_day": [],
+        "consensus": [],
+        "high_win": [],
+        "pending_k2n_data": {},
+        "gan_stats": [],
+        "top_scores": [],
+        "top_memory_bridges": [],
+        "ai_predictions": [],
+        "df_de": None
+        }
+
+        # =======================================================================
+        # 🟢 PHÂN TÍCH LÔ (Nặng nhất - Tách biệt)
+        # =======================================================================
+        if lo_mode:
+            self._log("⚡ [LÔ] Bắt đầu tính toán phân hệ Lô...")
+
+            # 1. Thống kê
+            self._log(f"... (1/6) Đang thống kê Loto Về Nhiều ({n_days_stats} ngày)...")
+            try:
+                stats_n_day = self.get_loto_stats_last_n_days(all_data_ai, n=n_days_stats) or []
+                self._log(f"... (Stats) Đã tính được {len(stats_n_day)} loto hot")
+                result["stats_n_day"] = stats_n_day
+            except Exception as e:
+                self._log(f"Lỗi thống kê Loto: {e}")
+                result["stats_n_day"] = []
+
+            # 2. K2N Cache
+            self._log("... (2/6) Đang chạy hàm Cập nhật K2N Cache...")
+            try:
+                pending_k2n_data, _, cache_message = self.run_and_update_all_bridge_K2N_cache(all_data_ai, self.db_name)
+                result["pending_k2n_data"] = pending_k2n_data or {}
+                self._log(f"... (Cache K2N) {cache_message}")
+            except Exception as e:
+                self._log(f"Lỗi Cache K2N: {e}")
+                result["pending_k2n_data"] = {}
+
+            # 3. K1N Rates
+            self._log("... (2.5/6) Đang cập nhật Tỷ Lệ và Phong Độ 10 Kỳ từ K1N...")
+            try:
+                count, rate_message = self.run_and_update_all_bridge_rates(all_data_ai, self.db_name)
+                self._log(f"... (K1N Rates) {rate_message}")
+            except Exception as e:
+                self._log(f"Lỗi cập nhật K1N Rates: {e}")
+
+            # 4. Consensus & High Win
+            self._log("... (3/6) Đang đọc Consensus và Cầu Tỷ lệ Cao từ cache...")
+            try:
+                consensus = self.get_prediction_consensus(last_row=last_row, db_name=self.db_name) or []
+                result["consensus"] = consensus
+                self._log(f"... (Consensus) Đã đọc được {len(consensus)} cặp có vote")
+            except Exception: 
+                result["consensus"] = []
+            
+            try:
+                high_win = self.get_high_win_rate_predictions(threshold=high_win_thresh) or []
+                result["high_win"] = high_win
+            except Exception: 
+                result["high_win"] = []
+
+            # 5. Gan stats
+            self._log(f"... (4/6) Đang tìm Lô Gan (trên {n_days_gan} kỳ)...")
+            try:
+                gan_stats = self.get_loto_gan_stats(all_data_ai, n_days=n_days_gan) or []
+                result["gan_stats"] = gan_stats
+            except Exception: 
+                result["gan_stats"] = []
+
+            # 6. AI predictions
+            self._log("... (5/6) Đang chạy dự đoán AI...")
+            try:
+                ai_res = self.run_ai_prediction_for_dashboard()
+                if ai_res and isinstance(ai_res, tuple) and len(ai_res) >= 2:
+                    result["ai_predictions"] = ai_res[0]
+                    self._log(f"... (AI) {ai_res[1]}")
+                else:
+                    result["ai_predictions"] = []
+            except Exception as e:
+                self._log(f"Lỗi dự đoán AI: {e}")
+                result["ai_predictions"] = []
+
+            # 7. Top memory & Top Score
+            try:
+                top_memory_bridges = self.get_top_memory_bridge_predictions(all_data_ai, last_row, top_n=5) or []
+                result["top_memory_bridges"] = top_memory_bridges
+
+                self._log("... (6/6) Tính điểm tổng lực...")
+                top_scores = self.get_top_scored_pairs(
+                    result.get("stats_n_day"), result.get("consensus"), result.get("high_win"), 
+                    result.get("pending_k2n_data"), result.get("gan_stats"), top_memory_bridges, 
+                    result.get("ai_predictions")
+                )
+                result["top_scores"] = top_scores or []
+                self._log(f"... (Top Scores) Đã tính được {len(result['top_scores'])} cặp có điểm")
+            except Exception as e:
+                self._log(f"Lỗi tính Điểm Tổng Lực: {e}")
+                result["top_scores"] = []
 
         else:
+            self._log("⏩ [LÔ] Bỏ qua phân tích Lô.")
 
-            final_data_limit = len(all_data_ai)
-
-            self._log(f"⚡ Chế độ Full Data: Đang phân tích toàn bộ {final_data_limit} kỳ.")
-
+        # =======================================================================
+        # 🔴 PHÂN TÍCH ĐỀ (Tách biệt)
+        # =======================================================================
+        if de_mode:
+            self._log("⚡ [ĐỀ] Bắt đầu tính toán phân hệ Đề...")
+            try:
+                cols = ["NB", "NGAY", "GDB", "G1", "G2", "G3", "G4", "G5", "G6", "G7"]
+                data_for_df = [r[:10] for r in all_data_ai if r and len(r) >= 10]
+                result["df_de"] = pd.DataFrame(data_for_df, columns=cols)
+            except Exception as e:
+                self._log(f"Cảnh báo: Lỗi tạo DataFrame cho DE: {e}")
+                result["df_de"] = None
+        else:
+            self._log("⏩ [ĐỀ] Bỏ qua phân tích Đề.")
             
-
-        last_row = all_data_ai[-1]
-
-        
-
-        # Tính next_ky
-
-        try:
-
-            ky_int = int(last_row[0])
-
-            next_ky = f"Kỳ {ky_int + 1}"
-
-        except (ValueError, TypeError):
-
-            next_ky = f"Kỳ {last_row[0]} (Next)"
+        return result
 
         
-
-        # Thống kê
-
-        self._log(f"... (1/6) Đang thống kê Loto Về Nhiều ({n_days_stats} ngày)...")
-
-        try:
-
-            stats_n_day = self.get_loto_stats_last_n_days(all_data_ai, n=n_days_stats)
-
-            if stats_n_day is None:
-
-                stats_n_day = []
-
-            self._log(f"... (Stats) Đã tính được {len(stats_n_day)} loto hot")
-
-        except Exception as e:
-
-            self._log(f"Lỗi thống kê Loto: {e}")
-
-            import traceback
-
-            self._log(traceback.format_exc())
-
-            stats_n_day = []
-
-        
-
-        # K2N Cache
-
-        # Chú ý: all_data_ai ở đây đã được cắt lát 500 kỳ
-
-        self._log("... (2/6) Đang chạy hàm Cập nhật K2N Cache...")
-
-        try:
-
-            # run_and_update_all_bridge_K2N_cache sẽ chạy backtest K2N trên 500 kỳ
-
-            pending_k2n_data, _, cache_message = self.run_and_update_all_bridge_K2N_cache(all_data_ai, self.db_name)
-
-            if pending_k2n_data is None:
-
-                pending_k2n_data = {}
-
-            self._log(f"... (Cache K2N) {cache_message}")
-
-        except Exception as e:
-
-            self._log(f"Lỗi Cache K2N: {e}")
-
-            pending_k2n_data = {}
-
-        
-
-        # K1N Rates & Recent Win Count (Phong Độ 10 Kỳ)
-
-        # Yêu cầu của bạn: K1N trên 500 kỳ đã được đảm bảo vì all_data_ai đã cắt lát
-
-        self._log("... (2.5/6) Đang cập nhật Tỷ Lệ và Phong Độ 10 Kỳ từ K1N...")
-
-        try:
-
-            # run_and_update_all_bridge_rates sẽ chạy backtest K1N trên 500 kỳ
-
-            count, rate_message = self.run_and_update_all_bridge_rates(all_data_ai, self.db_name)
-
-            self._log(f"... (K1N Rates) {rate_message}")
-
-        except Exception as e:
-
-            self._log(f"Lỗi cập nhật K1N Rates: {e}")
-
-            import traceback
-
-            self._log(traceback.format_exc())
-
-        
-
-        # Consensus & High Win
-
-        self._log("... (3/6) Đang đọc Consensus và Cầu Tỷ lệ Cao từ cache...")
-
-        try:
-
-            # Truyền last_row để tính toán trực tiếp (ưu tiên hơn cache)
-
-            consensus = self.get_prediction_consensus(last_row=last_row, db_name=self.db_name)
-
-            if consensus is None:
-
-                consensus = []
-
-            self._log(f"... (Consensus) Đã đọc được {len(consensus)} cặp có vote")
-
-        except Exception as e:
-
-            self._log(f"Lỗi đọc Consensus: {e}")
-
-            import traceback
-
-            self._log(traceback.format_exc())
-
-            consensus = []
-
-        
-
-        try:
-
-            high_win = self.get_high_win_rate_predictions(threshold=high_win_thresh)
-
-            if high_win is None:
-
-                high_win = []
-
-        except Exception as e:
-
-            self._log(f"Lỗi đọc High Win: {e}")
-
-            high_win = []
-
-        
-
-        # Gan stats
-
-        self._log(f"... (4/6) Đang tìm Lô Gan (trên {n_days_gan} kỳ)...")
-
-        try:
-
-            gan_stats = self.get_loto_gan_stats(all_data_ai, n_days=n_days_gan)
-
-            if gan_stats is None:
-
-                gan_stats = []
-
-        except Exception as e:
-
-            self._log(f"Lỗi tìm Lô Gan: {e}")
-
-            gan_stats = []
-
-        
-
-        # AI predictions
-
-        self._log("... (5/6) Đang chạy dự đoán AI...")
-
-        try:
-
-            ai_result = self.run_ai_prediction_for_dashboard()
-
-            if ai_result and isinstance(ai_result, tuple) and len(ai_result) >= 2:
-
-                ai_predictions, ai_message = ai_result[0], ai_result[1]
-
-            else:
-
-                ai_predictions, ai_message = None, "Không có dự đoán AI"
-
-            if ai_predictions is None:
-
-                ai_predictions = []
-
-            self._log(f"... (AI) {ai_message}")
-
-        except Exception as e:
-
-            self._log(f"Lỗi dự đoán AI: {e}")
-
-            ai_predictions = []
-
-        
-
-        # Top memory bridges
-
-        try:
-
-            top_memory_bridges = self.get_top_memory_bridge_predictions(all_data_ai, last_row, top_n=5)
-
-            if top_memory_bridges is None:
-
-                top_memory_bridges = []
-
-        except Exception as e:
-
-            self._log(f"Lỗi tính Cầu Bạc Nhớ: {e}")
-
-            top_memory_bridges = []
-
-        
-
-        # Top scored pairs
-
-        try:
-
-            self._log(f"... (Top Scores) Đang tính điểm với: stats={len(stats_n_day)}, consensus={len(consensus)}, high_win={len(high_win)}, pending_k2n={len(pending_k2n_data)}, gan={len(gan_stats)}, memory={len(top_memory_bridges)}, ai={len(ai_predictions)}")
-
-            top_scores = self.get_top_scored_pairs(
-
-                stats_n_day, consensus, high_win, pending_k2n_data,
-
-                gan_stats, top_memory_bridges, ai_predictions
-
-            )
-
-            if top_scores is None:
-
-                top_scores = []
-
-            self._log(f"... (Top Scores) Đã tính được {len(top_scores)} cặp có điểm")
-
-        except Exception as e:
-
-            self._log(f"Lỗi tính Điểm Tổng Lực: {e}")
-
-            import traceback
-
-            self._log(traceback.format_exc())
-
-            top_scores = []
-
-        
-
-        # Prepare DE dashboard data
-
-        df_de = None
-
-        try:
-
-            cols = ["NB", "NGAY", "GDB", "G1", "G2", "G3", "G4", "G5", "G6", "G7"]
-
-            data_for_df = [r[:10] for r in all_data_ai if r and len(r) >= 10]
-
-            df_de = pd.DataFrame(data_for_df, columns=cols)
-
-        except Exception as e:
-
-            self._log(f"Cảnh báo: Lỗi tạo DataFrame cho DE: {e}")
-
-        
-
-        return {
-
-            "next_ky": next_ky,
-
-            "stats_n_day": stats_n_day,
-
-            "n_days_stats": n_days_stats,
-
-            "consensus": consensus,
-
-            "high_win": high_win,
-
-            "pending_k2n_data": pending_k2n_data,
-
-            "gan_stats": gan_stats,
-
-            "top_scores": top_scores,
-
-            "top_memory_bridges": top_memory_bridges,
-
-            "ai_predictions": ai_predictions,
-
-            "df_de": df_de,
-
-        }
     
     def train_ai(self, callback=None):
         """
@@ -932,15 +742,20 @@ class AnalysisService:
             from logic.data_repository import get_bridge_by_name
             from logic.backtester import run_backtest_lo_30_days
             
-            # Lấy bridge config từ DB
+            # Lấy bridge config từ DB bằng hàm mới (đảm bảo có pos1_idx)
             bridge_config = get_bridge_by_name(bridge_name, self.db_name)
             if not bridge_config:
                 self._log(f"Không tìm thấy cầu '{bridge_name}' trong database.")
                 return None
             
+            # [DEBUG] Kiểm tra xem config có vị trí không để log cảnh báo
+            if bridge_config.get('pos1_idx') is None and "LO_STL_FIXED" not in bridge_name:
+                 self._log(f"Cảnh báo: Cầu '{bridge_name}' thiếu thông tin vị trí (pos1_idx). Kết quả có thể rỗng.")
+
             # Chạy backtest
             results = run_backtest_lo_30_days(bridge_config, all_data_ai)
             return results
+    
         except Exception as e:
             self._log(f"Lỗi chạy backtest 30 ngày: {e}")
             import traceback
@@ -949,64 +764,84 @@ class AnalysisService:
     
     def run_de_backtest_30_days(self, bridge_name, all_data_ai):
         """
-        Chạy backtest 30 ngày cho một cầu Đề cụ thể.
-        
-        Args:
-            bridge_name: Tên cầu
-            all_data_ai: Toàn bộ dữ liệu A:I
-        
-        Returns:
-            list: List các dict với kết quả backtest hoặc None nếu lỗi
+        Chạy backtest 30 ngày cho cầu Đề.
+        [FIX SHADOW] Ưu tiên cấu hình Managed Bridge từ DB để đồng bộ với Dashboard.
         """
-        print(f"[DEBUG] run_de_backtest_30_days BẮT ĐẦU: bridge_name='{bridge_name}', data_length={len(all_data_ai) if all_data_ai else 0}")
-        
         if not all_data_ai:
-            print(f"[ERROR] all_data_ai rỗng!")
             return None
         
         try:
             from services.bridge_service import BridgeService
             from logic.de_backtester_core import run_de_bridge_historical_test
             
-            # Bước 1: Lấy Config từ BridgeService
-            print(f"[DEBUG] Đang lấy bridge config từ BridgeService...")
+            # --- 1. ƯU TIÊN: KIỂM TRA TRONG DB TRƯỚC (Managed Bridge) ---
+            # Để đảm bảo logic đồng nhất với Bảng Cầu Động (dùng Index V16)
             bridge_service = BridgeService(self.db_name, logger=self.logger)
             bridge_config = bridge_service.get_de_bridge_config_by_name(bridge_name)
             
-            print(f"[DEBUG] Bridge config: {bridge_config}")
-            
-            # Bước 2: Phân loại & Chạy Logic
             if bridge_config:
-                # Tìm thấy cấu hình cầu DB (DE_POS hoặc DE_DYNAMIC_K đã lưu)
-                # Dùng full bridge object từ DB (có pos1_idx, pos2_idx) làm input
-                log_msg = f"Đã tìm thấy cấu hình cầu '{bridge_name}' trong DB. Sử dụng config từ DB."
-                print(f"[DEBUG] {log_msg}")
-                self._log(log_msg)
-                print(f"[DEBUG] Đang gọi run_de_bridge_historical_test với config từ DB...")
-                results = run_de_bridge_historical_test(bridge_config, all_data_ai, days=30)
-                print(f"[DEBUG] run_de_bridge_historical_test trả về {len(results) if results else 0} kết quả.")
-                return results
-            else:
-                # Không tìm thấy trong DB (DE_DYN chưa lưu hoặc cầu mới)
-                # Fallback: Tạo bridge config từ tên cầu
-                log_msg = f"Cầu '{bridge_name}' chưa có trong DB. Sử dụng logic parse từ tên cầu."
-                print(f"[DEBUG] {log_msg}")
-                self._log(log_msg)
-                fallback_config = {
+                # Nếu tìm thấy trong DB, chạy ngay với config đó (sẽ dùng pos1_idx chuẩn)
+                self._log(f"-> Chạy Backtest Managed Bridge: {bridge_name}")
+                return run_de_bridge_historical_test(bridge_config, all_data_ai, days=30)
+
+            # --- 2. NẾU KHÔNG CÓ TRONG DB -> CHẠY LOGIC SCANNER TỪ TÊN ---
+            is_scanner = False
+            def_string = bridge_name
+            b_type = "UNKNOWN"
+            k_offset = 0
+
+            # CASE A: Cầu Scanner chuẩn mới (VD: GDB.0-G1.0)
+            if "G" in bridge_name and "-" in bridge_name and any(c.isdigit() for c in bridge_name):
+                is_scanner = True
+                if "Bộ" in bridge_name or "DE_SET" in bridge_name: b_type = "DE_SET"
+                elif "DE_POS" in bridge_name: b_type = "DE_POS_SUM"
+                else: b_type = "DE_DYNAMIC_K"
+            
+            # CASE B: Cầu Dynamic cũ / Killer / Bộ / Pos / Cầu Bóng (Dạng chuỗi nhưng không có trong DB)
+            elif any(x in bridge_name for x in ["DE_DYN_", "DE_KILLER_", "DE_SET_", "DE_POS_"]):
+                try:
+                    parts = bridge_name.split('_')
+                    
+                    # [FIX QUAN TRỌNG] Nhận diện cả 'G...' VÀ 'Bong(...)'
+                    pos_parts = []
+                    for p in parts:
+                        if any(c.isdigit() for c in p) and (p.startswith("G") or p.lower().startswith("bong") or "ong(" in p):
+                            pos_parts.append(p)
+                    
+                    if len(pos_parts) >= 2:
+                        p1 = pos_parts[0].replace('[', '.').replace(']', '') 
+                        p2 = pos_parts[1].replace('[', '.').replace(']', '')
+                        
+                        def_string = f"{p1}-{p2}"
+                        is_scanner = True
+                        
+                        if "DE_SET_" in bridge_name: b_type = "DE_SET"
+                        elif "DE_POS_" in bridge_name: b_type = "DE_POS_SUM"
+                        elif "DE_KILLER_" in bridge_name: b_type = "DE_DYNAMIC_K"
+                        else: b_type = "DE_DYNAMIC_K"
+                            
+                        if parts[-1].startswith("K") and parts[-1][1:].isdigit():
+                            k_offset = int(parts[-1][1:])
+                            
+                        self._log(f"-> Converted '{bridge_name}' to Scanner format: '{def_string}'")
+                except: pass 
+
+            # --- 3. GỌI BACKTEST SCANNER ---
+            if is_scanner:
+                scanner_config = {
                     "name": bridge_name,
-                    "type": "DE_DYNAMIC_K" if "DE_DYN_" in bridge_name else "DE_POS_SUM" if "DE_POS_" in bridge_name else "UNKNOWN"
+                    "type": b_type,
+                    "is_scanner_result": True, 
+                    "def_string": def_string,
+                    "k_offset": k_offset
                 }
-                print(f"[DEBUG] Fallback config: {fallback_config}")
-                print(f"[DEBUG] Đang gọi run_de_bridge_historical_test với fallback config...")
-                results = run_de_bridge_historical_test(fallback_config, all_data_ai, days=30)
-                print(f"[DEBUG] run_de_bridge_historical_test trả về {len(results) if results else 0} kết quả.")
-                return results
+                return run_de_bridge_historical_test(scanner_config, all_data_ai, days=30)
+            
+            return None
+                
         except Exception as e:
-            error_msg = f"Lỗi chạy backtest Đề 30 ngày: {e}"
-            print(f"[ERROR] {error_msg}")
+            self._log(f"Lỗi Backtest Đề: {e}")
             import traceback
-            traceback.print_exc()
-            self._log(error_msg)
             self._log(traceback.format_exc())
             return None
 

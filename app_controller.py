@@ -54,6 +54,7 @@ class AppController:
         self.logger = None  # Sẽ được gán từ app_instance
 
         self.all_data_ai = None  # Cache dữ liệu
+        self.dashboard_data_cache = {} # [V10.0 NEW] Cache lưu trữ kết quả phân tích để Safe Merge
         
         # Khởi tạo Services (MVC Refactoring)
         # Lưu ý: logger sẽ được cập nhật sau bằng set_logger()
@@ -192,7 +193,10 @@ class AppController:
                 self.logger.log("Backtest Cầu Đã Lưu K2N hoàn tất. Đang mở cửa sổ kết quả...")
                 self.root_after(0, self.app.show_backtest_results, title, results)
 
-    def task_run_decision_dashboard(self, title):
+    def task_run_decision_dashboard(self, title, lo_mode=True, de_mode=True):
+        """
+        Chạy phân tích Dashboard với chế độ tùy chọn (On-Demand).
+        """
         all_data = self.load_data_ai_from_db_controller()
         if not all_data or len(all_data) < 2:
             self.logger.log("LỖI: Cần ít nhất 2 kỳ dữ liệu để chạy Bảng Tổng Hợp.")
@@ -202,26 +206,61 @@ class AppController:
             limit = getattr(SETTINGS, "DATA_LIMIT_DASHBOARD", 2000)
         except:
             limit = 2000
+        
         if self.analysis_service:
-            dashboard_data = self.analysis_service.prepare_dashboard_data(all_data, data_limit=limit if limit > 0 else None)
-            if not dashboard_data:
+            # [V10.0] Gọi Service với tham số mode
+            # Hàm này sẽ chỉ trả về những phần dữ liệu được yêu cầu tính toán
+            new_partial_data = self.analysis_service.prepare_dashboard_data(
+                all_data, 
+                data_limit=limit if limit > 0 else None,
+                lo_mode=lo_mode,
+                de_mode=de_mode
+            )
+            
+            if not new_partial_data:
                 self.logger.log("LỖI: Không thể chuẩn bị dữ liệu dashboard.")
                 self.root_after(0, self.app._on_dashboard_close)
                 return
+            
+            # [V10.0] SAFE MERGE LOGIC
+            # Gộp kết quả mới vào cache, giữ lại kết quả cũ của chế độ không chạy
+            if not self.dashboard_data_cache:
+                self.dashboard_data_cache = {}
+            
+            # Cập nhật cache với dữ liệu mới
+            self.dashboard_data_cache.update(new_partial_data)
+            
+            # Sử dụng dữ liệu tổng hợp từ Cache để hiển thị
+            final_data = self.dashboard_data_cache
+
             try:
-                if hasattr(self.app, 'de_dashboard_tab') and self.app.de_dashboard_tab and dashboard_data.get('df_de') is not None:
-                    self.logger.log("... (Soi Cầu Đề) Đang chuẩn bị dữ liệu...")
-                    self.root_after(0, self.app.de_dashboard_tab.update_data, dashboard_data['df_de'])
-                    self.logger.log(f"... (Soi Cầu Đề) Đã nạp {len(dashboard_data['df_de'])} kỳ vào hệ thống.")
+                # Cập nhật Tab Đề (Chỉ khi có dữ liệu Đề mới hoặc Đề mode bật)
+                if hasattr(self.app, 'de_dashboard_tab') and self.app.de_dashboard_tab:
+                    if final_data.get('df_de') is not None:
+                        # Chỉ log thông báo nếu đang chạy chế độ Đề
+                        if de_mode:
+                            self.logger.log("... (Soi Cầu Đề) Đang chuẩn bị dữ liệu...")
+                        self.root_after(0, self.app.de_dashboard_tab.update_data, final_data['df_de'])
+                        
+                        if de_mode:
+                            self.logger.log(f"... (Soi Cầu Đề) Đã nạp {len(final_data['df_de'])} kỳ vào hệ thống.")
             except Exception as e_de:
                 self.logger.log(f"Cảnh báo: Lỗi cập nhật Tab Soi Cầu Đề: {e_de}")
+            
             try:
                 self.logger.log("Phân tích hoàn tất. Đang hiển thị Bảng Quyết Định Tối Ưu...")
                 self.root_after(0, self.app._show_dashboard_window,
-                    dashboard_data['next_ky'], dashboard_data['stats_n_day'], dashboard_data['n_days_stats'],
-                    dashboard_data['consensus'], dashboard_data['high_win'], dashboard_data['pending_k2n_data'],
-                    dashboard_data['gan_stats'], dashboard_data['top_scores'], dashboard_data['top_memory_bridges'],
-                    dashboard_data['ai_predictions'])
+                    final_data.get('next_ky', "N/A"), 
+                    final_data.get('stats_n_day', []), 
+                    final_data.get('n_days_stats', 7),
+                    final_data.get('consensus', []), 
+                    final_data.get('high_win', []), 
+                    final_data.get('pending_k2n_data', {}),
+                    final_data.get('gan_stats', []), 
+                    final_data.get('top_scores', []), 
+                    final_data.get('top_memory_bridges', []),
+                    final_data.get('ai_predictions', [])
+                )
             except Exception as e_final:
                 self.logger.log(f"LỖI NGHIÊM TRỌNG khi hiển thị Dashboard: {e_final}")
                 self.logger.log(traceback.format_exc())

@@ -1,5 +1,5 @@
 # Tên file: code6/logic/data_repository.py
-# (PHIÊN BẢN V7.9.5 - FIX: GIẢI MÃ TÊN CẦU LO_MEM & DE_DYN)
+# (PHIÊN BẢN V10.2 - FIX: THÊM get_bridge_by_name ĐỂ CHẠY BACKTEST POPUP)
 
 import sqlite3
 import os
@@ -138,7 +138,6 @@ def get_managed_bridges_with_prediction(db_name=DB_NAME, current_data=None, only
                             stl = calculate_bridge_stl(val1, val2, algo_type)
                             if stl and isinstance(stl, list) and len(stl) > 0:
                                 bridge["next_prediction_stl"] = ",".join(stl)
-                                bridge["prediction"] = bridge["next_prediction_stl"]
                                 continue
 
             # === [CASE 2] CẦU ĐỀ DYNAMIC (DE_DYN) ===
@@ -176,12 +175,10 @@ def get_managed_bridges_with_prediction(db_name=DB_NAME, current_data=None, only
                                     # Cầu tổng đề
                                     res = (int(v1) + int(v2)) % 10
                                     bridge["next_prediction_stl"] = str(res)
-                                    bridge["prediction"] = bridge["next_prediction_stl"]
                                 else:
                                     # Cầu ghép lô
                                     stl = taoSTL_V30_Bong(int(v1), int(v2))
                                     bridge["next_prediction_stl"] = ",".join(stl)
-                                bridge["prediction"] = bridge["next_prediction_stl"]
 
         except Exception as e:
             # Nếu lỗi tính toán, giữ nguyên giá trị cũ
@@ -252,7 +249,49 @@ def _extract_digit_from_col(row, col_name):
     
     return int(digits[-1])
 
-# Giữ lại các hàm cũ để tương thích (nếu có module nào gọi)
 def get_latest_ky_date(conn):
-    # (Đã có ở trên, giữ nguyên logic cũ nếu cần, hoặc bỏ qua nếu không dùng)
-    pass
+    """
+    Lấy kỳ mới nhất và ngày tương ứng từ CSDL để kiểm tra trùng lặp khi nạp thêm.
+    Trả về: (latest_ky_str, latest_date_str) hoặc (None, None)
+    """
+    try:
+        cursor = conn.cursor()
+        # Ưu tiên lấy từ bảng results_A_I (dữ liệu chính)
+        cursor.execute("SELECT ky, date FROM results_A_I ORDER BY CAST(ky AS INTEGER) DESC LIMIT 1")
+        row = cursor.fetchone()
+        if row:
+            return str(row[0]), str(row[1])
+            
+        # Nếu không có, thử bảng DuLieu_AI
+        cursor.execute("SELECT Col_A_Ky FROM DuLieu_AI ORDER BY MaSoKy DESC LIMIT 1")
+        row = cursor.fetchone()
+        if row:
+            return str(row[0]), None
+            
+        return None, None
+    except Exception as e:
+        print(f"Lỗi get_latest_ky_date: {e}")
+        return None, None
+
+def get_bridge_by_name(bridge_name, db_name=DB_NAME):
+    """
+    [FIXED V10.2] Lấy thông tin chi tiết một cầu theo tên.
+    Trả về Dict đầy đủ (bao gồm pos1_idx, pos2_idx) để chạy Backtest Popup.
+    """
+    conn = None
+    try:
+        conn = sqlite3.connect(db_name)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT * FROM ManagedBridges WHERE name = ?", (bridge_name,))
+        row = cursor.fetchone()
+        
+        if row:
+            return dict(row)
+        return None
+    except Exception as e:
+        print(f"Lỗi get_bridge_by_name: {e}")
+        return None
+    finally:
+        if conn: conn.close()

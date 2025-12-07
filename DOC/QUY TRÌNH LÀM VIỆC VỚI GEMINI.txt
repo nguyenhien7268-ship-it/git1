@@ -1,0 +1,32 @@
+QUY TRÌNH PHỐI HỢP V2.4 (MANUAL EDIT - NO SNIPPET)
+1. PHA ĐỌC HIỂU (INPUT)
+Nguyên tắc: Luôn đọc File Gốc trước khi sửa bất cứ lỗi gì.
+
+Checklist: Đã kiểm tra file gốc chưa? Đảm bảo không ảnh hưởng tới module/chức năng khác.
+
+Lợi ích: Tránh việc "sửa lợn lành thành lợn què" do không hiểu ngữ cảnh, đảm bảo tính chính xác.
+
+2. PHA TRẢ KẾT QUẢ (OUTPUT) - Nguyên Tắc "Nguyên Khối"
+Tuyệt đối KHÔNG sửa lắt nhắt (snippet), KHÔNG dùng lệnh cho Cursor. Áp dụng 2 trường hợp sau để thuận tiện cho việc Copy-Paste thủ công:
+
+Trường hợp 1 (Sửa Lỗi Cục Bộ / Scope Nhỏ):
+
+Hành động: Gửi NGUYÊN VĂN CẢ HÀM (FUNCTION) hoặc CẢ CLASS đã sửa.
+
+Tuyệt đối không gửi chỉ vài dòng code thay đổi.
+
+Trường hợp 2 (Sửa Phức Tạp / Logic Dây Mơ Rễ Má / Thay đổi cấu trúc):
+
+Hành động: Gửi TOÀN BỘ FILE (FULL CODE).
+
+Mục tiêu: Đảm bảo tính nhất quán, tránh lỗi thụt dòng (indentation) hoặc sót import khi copy-paste nhiều chỗ.
+
+3. PHA TỐI ƯU (VALUE ADD)
+Tiêu chuẩn: Code phải xây dựng theo quy tắc Clean Code.
+
+Hành động: Luôn kèm theo mục "Gemini Suggestion" nếu thấy cách viết nào tốt hơn (ngắn hơn, nhanh hơn, dễ đọc hơn) ngoài yêu cầu chính.
+
+4. PHA XÁC THỰC (VALIDATION)
+Hành động: Sau khi hoàn tất sửa chữa hoặc thêm tính năng, tôi sẽ luôn viết File Script Test (verify_*.py) để kiểm tra kết quả.
+
+Lợi ích: Đảm bảo code chạy đúng logic trước khi commit, tiết kiệm thời gian debug.

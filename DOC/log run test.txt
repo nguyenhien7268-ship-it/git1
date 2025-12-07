@@ -1,39 +1,632 @@
->>> (V7.3) Tải logic.db_manager & data_repository thành công.
->>> (V7.3) Tải logic.data_parser thành công.
->>> (V7.3) Tải logic.bridges.bridges_classic thành công.
-Đã tải cài đặt từ config.json
-ConfigManager (V7.8) đã khởi tạo thành công.
-[DEBUG de_utils] BO_SO_DE initialized successfully: 15 sets
->>> (V7.3) Tải logic.backtester thành công.
->>> (V7.3) Tải logic.bridges.bridge_manager_core thành công.
->>> (V7.3) Tải logic.dashboard_analytics thành công.
->>> (V7.3) Tải logic.ai_feature_extractor (AI Wrappers) thành công.
-Lottery Service API (lottery_service.py) đã tải thành công (V7.4).
-Đã tải cài đặt từ config.json
->>> [DE MANAGER V2.5] Cập nhật Hồ Sơ Phong Độ (Fix Missing Column)...
->>> [Backtester] Đã đồng bộ cập nhật 121 Cầu Đề.
->>> Bắt đầu Backtest K1N cho 817 cầu Lô...
-... (V7.0 G2 Feature Extraction) Bước 1: Tính toán dự đoán cầu cho toàn bộ lịch sử...
-... (AI Train) Bắt đầu tính toán Lịch sử Lô Gan (nặng)...
-... (AI Train) Đã tính xong Lịch sử Lô Gan (3204 ngày).
-... (BTH) Bắt đầu chạy backtest 756 cầu Bạc Nhớ ngầm...
->>> [DE SCANNER V3.3] Bắt đầu quét trên 10 cột dữ liệu...
->>> [DE SCANNER] Bạc Nhớ tìm thấy: 2
->>> [DE SCANNER] Cầu Loại tìm thấy: 15
->>> [DB] Đã lưu thành công 150 cầu vào bảng ManagedBridges.
->>> [DE SCANNER] Tổng cộng: 300 cầu.
-(Append) Kỳ mới nhất trong DB: 2511120480 (2025-11-11 00:00:00)
-(V7.0 - Append) Đã phát hiện định dạng JSON (Web).
-Đã tải cài đặt từ config.json
->>> [DE MANAGER V2.5] Cập nhật Hồ Sơ Phong Độ (Fix Missing Column)...
->>> [Backtester] Đã đồng bộ cập nhật 107 Cầu Đề.
->>> Bắt đầu Backtest K1N cho 817 cầu Lô...
-... (V7.0 G2 Feature Extraction) Bước 1: Tính toán dự đoán cầu cho toàn bộ lịch sử...
-... (AI Train) Bắt đầu tính toán Lịch sử Lô Gan (nặng)...
-... (AI Train) Đã tính xong Lịch sử Lô Gan (4164 ngày).
-... (BTH) Bắt đầu chạy backtest 756 cầu Bạc Nhớ ngầm...
->>> [DE SCANNER V3.3] Bắt đầu quét trên 10 cột dữ liệu...
->>> [DE SCANNER] Bạc Nhớ tìm thấy: 0
->>> [DE SCANNER] Cầu Loại tìm thấy: 15
->>> [DB] Đã lưu thành công 150 cầu vào bảng ManagedBridges.
->>> [DE SCANNER] Tổng cộng: 291 cầu.
+[DEBUG de_utils] BO_SO_DE initialized successfully: 15 sets (Standardized)
+
+================================================================================
+🚑 CHẨN ĐOÁN ĐỒNG BỘ DỮ LIỆU CẦU (DB SYNC DIAGNOSTIC)
+================================================================================
+⏳ Đang tải dữ liệu thực tế...
+✅ Đang kiểm tra 306 cầu Đề đang hoạt động...
+----------------------------------------------------------------------------------------------------
+TÊN CẦU                   | DB STREAK  | REAL STREAK  | TRẠNG THÁI      | NGUYÊN NHÂN
+----------------------------------------------------------------------------------------------------
+Lỗi regex: Không thể phân tích 'DE_SET_G3.2.2_G5.5.3'
+DE_SET_G3.2.2_G5.5.3      | 2          | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 2, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_SET_G3.2.4_G3.3.4'
+DE_SET_G3.2.4_G3.3.4      | 2          | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 2, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_SET_G3.2.4_G5.2.3'
+DE_SET_G3.2.4_G5.2.3      | 2          | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 2, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_SET_G3.3.4_G3.4.4'
+DE_SET_G3.3.4_G3.4.4      | 2          | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 2, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_SET_G3.3.4_G5.5.3'
+DE_SET_G3.3.4_G5.5.3      | 2          | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 2, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_SET_G5.1.1_G5.5.3'
+DE_SET_G5.1.1_G5.5.3      | 2          | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 2, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_KILLER_GDB.4_G3.3.3'
+DE_KILLER_GDB.4_G3.3.3    | 30         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 30, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_KILLER_GDB.4_G5.1.3'
+DE_KILLER_GDB.4_G5.1.3    | 30         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 30, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_KILLER_G2.2.3_G4.1.3'
+DE_KILLER_G2.2.3_G4.1.3   | 30         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 30, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_KILLER_G2.2.4_G5.3.0'
+DE_KILLER_G2.2.4_G5.3.0   | 30         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 30, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_KILLER_G3.1.2_G4.4.0'
+DE_KILLER_G3.1.2_G4.4.0   | 30         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 30, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_KILLER_G3.3.4_G5.1.0'
+DE_KILLER_G3.3.4_G5.1.0   | 30         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 30, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_KILLER_G3.5.3_G6.3.1'
+DE_KILLER_G3.5.3_G6.3.1   | 30         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 30, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_KILLER_G4.2.0_G5.2.2'
+DE_KILLER_G4.2.0_G5.2.2   | 30         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 30, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_KILLER_G4.2.1_G6.1.1'
+DE_KILLER_G4.2.1_G6.1.1   | 30         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 30, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_KILLER_G5.5.3_Bong(GDB.3)'
+DE_KILLER_G5.5.3_Bong(GDB.3) | 30         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 30, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_KILLER_G5.6.2_G7.1.0'
+DE_KILLER_G5.6.2_G7.1.0   | 30         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 30, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_KILLER_G1.0_G1.4'
+DE_KILLER_G1.0_G1.4       | 29         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 29, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_KILLER_G1.2_G5.3.3'
+DE_KILLER_G1.2_G5.3.3     | 29         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 29, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_KILLER_G3.4.0_G5.6.0'
+DE_KILLER_G3.4.0_G5.6.0   | 29         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 29, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_KILLER_G3.5.4_G6.1.1'
+DE_KILLER_G3.5.4_G6.1.1   | 29         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 29, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_GDB.0_G4.2.0_K1'
+DE_DYN_GDB.0_G4.2.0_K1    | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_GDB.0_G4.2.0_K6'
+DE_DYN_GDB.0_G4.2.0_K6    | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_GDB.0_G5.1.2_K2'
+DE_DYN_GDB.0_G5.1.2_K2    | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_GDB.0_G5.1.2_K7'
+DE_DYN_GDB.0_G5.1.2_K7    | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_GDB.0_G5.5.1_K4'
+DE_DYN_GDB.0_G5.5.1_K4    | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_GDB.0_G5.5.1_K9'
+DE_DYN_GDB.0_G5.5.1_K9    | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_GDB.0_G5.6.1_K1'
+DE_DYN_GDB.0_G5.6.1_K1    | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_GDB.0_G5.6.1_K6'
+DE_DYN_GDB.0_G5.6.1_K6    | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_GDB.1_G4.2.1_K2'
+DE_DYN_GDB.1_G4.2.1_K2    | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_GDB.1_G4.2.1_K7'
+DE_DYN_GDB.1_G4.2.1_K7    | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_GDB.1_G7.3.0_K3'
+DE_DYN_GDB.1_G7.3.0_K3    | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_GDB.1_G7.3.0_K8'
+DE_DYN_GDB.1_G7.3.0_K8    | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_GDB.2_G3.2.3_K0'
+DE_DYN_GDB.2_G3.2.3_K0    | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_GDB.2_G3.2.3_K5'
+DE_DYN_GDB.2_G3.2.3_K5    | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_GDB.2_G4.1.0_K2'
+DE_DYN_GDB.2_G4.1.0_K2    | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_GDB.2_G4.1.0_K7'
+DE_DYN_GDB.2_G4.1.0_K7    | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_GDB.2_G5.5.2_K4'
+DE_DYN_GDB.2_G5.5.2_K4    | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_GDB.2_G5.5.2_K9'
+DE_DYN_GDB.2_G5.5.2_K9    | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_GDB.3_G1.4_K3'
+DE_DYN_GDB.3_G1.4_K3      | 10         | 3            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 3)
+Lỗi regex: Không thể phân tích 'DE_DYN_GDB.3_G1.4_K8'
+DE_DYN_GDB.3_G1.4_K8      | 10         | 3            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 3)
+Lỗi regex: Không thể phân tích 'DE_DYN_GDB.3_G3.6.0_K0'
+DE_DYN_GDB.3_G3.6.0_K0    | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_GDB.3_G3.6.0_K5'
+DE_DYN_GDB.3_G3.6.0_K5    | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_GDB.3_G4.1.3_K1'
+DE_DYN_GDB.3_G4.1.3_K1    | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_GDB.3_G4.1.3_K6'
+DE_DYN_GDB.3_G4.1.3_K6    | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_GDB.3_G4.2.1_K0'
+DE_DYN_GDB.3_G4.2.1_K0    | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_GDB.3_G4.2.1_K5'
+DE_DYN_GDB.3_G4.2.1_K5    | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_GDB.3_Bong(G1.4)_K3'
+DE_DYN_GDB.3_Bong(G1.4)_K3 | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_GDB.3_Bong(G1.4)_K8'
+DE_DYN_GDB.3_Bong(G1.4)_K8 | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_GDB.4_G2.1.1_K0'
+DE_DYN_GDB.4_G2.1.1_K0    | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_GDB.4_G2.1.1_K5'
+DE_DYN_GDB.4_G2.1.1_K5    | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_GDB.4_G4.2.1_K4'
+DE_DYN_GDB.4_G4.2.1_K4    | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_GDB.4_G4.2.1_K9'
+DE_DYN_GDB.4_G4.2.1_K9    | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_GDB.4_G5.1.3_K1'
+DE_DYN_GDB.4_G5.1.3_K1    | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_GDB.4_G5.1.3_K6'
+DE_DYN_GDB.4_G5.1.3_K6    | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G1.0_G2.1.0_K0'
+DE_DYN_G1.0_G2.1.0_K0     | 10         | 3            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 3)
+Lỗi regex: Không thể phân tích 'DE_DYN_G1.0_G2.1.0_K5'
+DE_DYN_G1.0_G2.1.0_K5     | 10         | 3            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 3)
+Lỗi regex: Không thể phân tích 'DE_DYN_G1.0_G3.3.1_K1'
+DE_DYN_G1.0_G3.3.1_K1     | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G1.0_G3.3.1_K6'
+DE_DYN_G1.0_G3.3.1_K6     | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G1.0_G5.4.3_K3'
+DE_DYN_G1.0_G5.4.3_K3     | 10         | 3            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 3)
+Lỗi regex: Không thể phân tích 'DE_DYN_G1.0_G5.4.3_K8'
+DE_DYN_G1.0_G5.4.3_K8     | 10         | 3            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 3)
+Lỗi regex: Không thể phân tích 'DE_DYN_G1.0_G6.1.2_K1'
+DE_DYN_G1.0_G6.1.2_K1     | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G1.0_G6.1.2_K6'
+DE_DYN_G1.0_G6.1.2_K6     | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G1.2_G4.1.2_K4'
+DE_DYN_G1.2_G4.1.2_K4     | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G1.2_G4.1.2_K9'
+DE_DYN_G1.2_G4.1.2_K9     | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G1.2_G5.1.1_K4'
+DE_DYN_G1.2_G5.1.1_K4     | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G1.2_G5.1.1_K9'
+DE_DYN_G1.2_G5.1.1_K9     | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G1.2_G5.3.3_K2'
+DE_DYN_G1.2_G5.3.3_K2     | 10         | 3            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 3)
+Lỗi regex: Không thể phân tích 'DE_DYN_G1.2_G5.3.3_K7'
+DE_DYN_G1.2_G5.3.3_K7     | 10         | 3            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 3)
+Lỗi regex: Không thể phân tích 'DE_DYN_G1.2_G6.2.1_K4'
+DE_DYN_G1.2_G6.2.1_K4     | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G1.2_G6.2.1_K9'
+DE_DYN_G1.2_G6.2.1_K9     | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G1.2_G7.2.0_K4'
+DE_DYN_G1.2_G7.2.0_K4     | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G1.2_G7.2.0_K9'
+DE_DYN_G1.2_G7.2.0_K9     | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G1.3_G3.5.4_K0'
+DE_DYN_G1.3_G3.5.4_K0     | 10         | 3            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 3)
+Lỗi regex: Không thể phân tích 'DE_DYN_G1.3_G3.5.4_K5'
+DE_DYN_G1.3_G3.5.4_K5     | 10         | 3            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 3)
+Lỗi regex: Không thể phân tích 'DE_DYN_G1.3_G4.3.3_K2'
+DE_DYN_G1.3_G4.3.3_K2     | 10         | 3            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 3)
+Lỗi regex: Không thể phân tích 'DE_DYN_G1.3_G4.3.3_K7'
+DE_DYN_G1.3_G4.3.3_K7     | 10         | 3            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 3)
+Lỗi regex: Không thể phân tích 'DE_DYN_G1.3_G6.2.2_K2'
+DE_DYN_G1.3_G6.2.2_K2     | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G1.3_G6.2.2_K7'
+DE_DYN_G1.3_G6.2.2_K7     | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G1.4_G6.3.2_K3'
+DE_DYN_G1.4_G6.3.2_K3     | 10         | 10           | ❌ LỖI TÊN       | Sai định dạng (Thiếu ngoặc/Format lạ)
+Lỗi regex: Không thể phân tích 'DE_DYN_G1.4_G6.3.2_K8'
+DE_DYN_G1.4_G6.3.2_K8     | 10         | 10           | ❌ LỖI TÊN       | Sai định dạng (Thiếu ngoặc/Format lạ)
+Lỗi regex: Không thể phân tích 'DE_DYN_G1.4_Bong(GDB.3)_K3'
+DE_DYN_G1.4_Bong(GDB.3)_K3 | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G1.4_Bong(GDB.3)_K8'
+DE_DYN_G1.4_Bong(GDB.3)_K8 | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.1.0_G5.3.0_K2'
+DE_DYN_G2.1.0_G5.3.0_K2   | 10         | 3            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 3)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.1.0_G5.3.0_K7'
+DE_DYN_G2.1.0_G5.3.0_K7   | 10         | 3            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 3)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.1.0_Bong(G1.0)_K0'
+DE_DYN_G2.1.0_Bong(G1.0)_K0 | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.1.0_Bong(G1.0)_K5'
+DE_DYN_G2.1.0_Bong(G1.0)_K5 | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.1.1_G3.3.1_K4'
+DE_DYN_G2.1.1_G3.3.1_K4   | 10         | 3            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 3)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.1.1_G3.3.1_K9'
+DE_DYN_G2.1.1_G3.3.1_K9   | 10         | 3            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 3)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.1.1_Bong(GDB.4)_K0'
+DE_DYN_G2.1.1_Bong(GDB.4)_K0 | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.1.1_Bong(GDB.4)_K5'
+DE_DYN_G2.1.1_Bong(GDB.4)_K5 | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.1.2_G3.3.0_K4'
+DE_DYN_G2.1.2_G3.3.0_K4   | 10         | 3            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 3)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.1.2_G3.3.0_K9'
+DE_DYN_G2.1.2_G3.3.0_K9   | 10         | 3            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 3)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.1.3_G5.2.2_K4'
+DE_DYN_G2.1.3_G5.2.2_K4   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.1.3_G5.2.2_K9'
+DE_DYN_G2.1.3_G5.2.2_K9   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.1.4_G2.2.3_K1'
+DE_DYN_G2.1.4_G2.2.3_K1   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.1.4_G2.2.3_K6'
+DE_DYN_G2.1.4_G2.2.3_K6   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.1.4_G5.1.0_K3'
+DE_DYN_G2.1.4_G5.1.0_K3   | 10         | 3            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 3)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.1.4_G5.1.0_K8'
+DE_DYN_G2.1.4_G5.1.0_K8   | 10         | 3            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 3)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.1.4_G6.1.1_K3'
+DE_DYN_G2.1.4_G6.1.1_K3   | 10         | 3            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 3)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.1.4_G6.1.1_K8'
+DE_DYN_G2.1.4_G6.1.1_K8   | 10         | 3            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 3)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.2.0_G4.4.3_K3'
+DE_DYN_G2.2.0_G4.4.3_K3   | 10         | 4            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 4)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.2.0_G4.4.3_K8'
+DE_DYN_G2.2.0_G4.4.3_K8   | 10         | 4            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 4)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.2.1_G3.2.0_K3'
+DE_DYN_G2.2.1_G3.2.0_K3   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.2.1_G3.2.0_K4'
+DE_DYN_G2.2.1_G3.2.0_K4   | 10         | 3            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 3)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.2.1_G3.2.0_K8'
+DE_DYN_G2.2.1_G3.2.0_K8   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.2.1_G3.2.0_K9'
+DE_DYN_G2.2.1_G3.2.0_K9   | 10         | 3            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 3)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.2.1_G5.5.2_K0'
+DE_DYN_G2.2.1_G5.5.2_K0   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.2.1_G5.5.2_K5'
+DE_DYN_G2.2.1_G5.5.2_K5   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.2.2_G3.2.3_K1'
+DE_DYN_G2.2.2_G3.2.3_K1   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.2.2_G3.2.3_K6'
+DE_DYN_G2.2.2_G3.2.3_K6   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.2.2_G5.4.2_K3'
+DE_DYN_G2.2.2_G5.4.2_K3   | 10         | 3            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 3)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.2.2_G5.4.2_K8'
+DE_DYN_G2.2.2_G5.4.2_K8   | 10         | 3            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 3)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.2.4_G5.2.0_K1'
+DE_DYN_G2.2.4_G5.2.0_K1   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.2.4_G5.2.0_K6'
+DE_DYN_G2.2.4_G5.2.0_K6   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.2.4_G5.5.3_K4'
+DE_DYN_G2.2.4_G5.5.3_K4   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.2.4_G5.5.3_K9'
+DE_DYN_G2.2.4_G5.5.3_K9   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.2.4_G7.3.0_K2'
+DE_DYN_G2.2.4_G7.3.0_K2   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.2.4_G7.3.0_K7'
+DE_DYN_G2.2.4_G7.3.0_K7   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.1.0_G4.1.3_K0'
+DE_DYN_G3.1.0_G4.1.3_K0   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.1.0_G4.1.3_K5'
+DE_DYN_G3.1.0_G4.1.3_K5   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.1.0_G4.2.1_K4'
+DE_DYN_G3.1.0_G4.2.1_K4   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.1.0_G4.2.1_K9'
+DE_DYN_G3.1.0_G4.2.1_K9   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.1.1_G3.6.2_K0'
+DE_DYN_G3.1.1_G3.6.2_K0   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.1.1_G3.6.2_K5'
+DE_DYN_G3.1.1_G3.6.2_K5   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.1.1_G5.4.3_K2'
+DE_DYN_G3.1.1_G5.4.3_K2   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.1.1_G5.4.3_K7'
+DE_DYN_G3.1.1_G5.4.3_K7   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.1.2_G3.5.3_K0'
+DE_DYN_G3.1.2_G3.5.3_K0   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.1.2_G3.5.3_K5'
+DE_DYN_G3.1.2_G3.5.3_K5   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.1.2_G6.1.2_K0'
+DE_DYN_G3.1.2_G6.1.2_K0   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.1.2_G6.1.2_K5'
+DE_DYN_G3.1.2_G6.1.2_K5   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.1.3_G3.6.1_K4'
+DE_DYN_G3.1.3_G3.6.1_K4   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.1.3_G3.6.1_K9'
+DE_DYN_G3.1.3_G3.6.1_K9   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.1.3_G4.1.3_K0'
+DE_DYN_G3.1.3_G4.1.3_K0   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.1.3_G4.1.3_K5'
+DE_DYN_G3.1.3_G4.1.3_K5   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.1.3_G5.3.0_K3'
+DE_DYN_G3.1.3_G5.3.0_K3   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.1.3_G5.3.0_K8'
+DE_DYN_G3.1.3_G5.3.0_K8   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.1.3_G7.4.1_K4'
+DE_DYN_G3.1.3_G7.4.1_K4   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.1.3_G7.4.1_K9'
+DE_DYN_G3.1.3_G7.4.1_K9   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.1.4_G3.2.2_K2'
+DE_DYN_G3.1.4_G3.2.2_K2   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.1.4_G3.2.2_K7'
+DE_DYN_G3.1.4_G3.2.2_K7   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.1.4_G5.1.0_K0'
+DE_DYN_G3.1.4_G5.1.0_K0   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.1.4_G5.1.0_K5'
+DE_DYN_G3.1.4_G5.1.0_K5   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.1.4_G6.3.2_K1'
+DE_DYN_G3.1.4_G6.3.2_K1   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.1.4_G6.3.2_K6'
+DE_DYN_G3.1.4_G6.3.2_K6   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.2.0_G3.5.0_K4'
+DE_DYN_G3.2.0_G3.5.0_K4   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.2.0_G3.5.0_K9'
+DE_DYN_G3.2.0_G3.5.0_K9   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.2.0_G5.2.2_K0'
+DE_DYN_G3.2.0_G5.2.2_K0   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.2.0_G5.2.2_K5'
+DE_DYN_G3.2.0_G5.2.2_K5   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.2.1_G5.3.1_K1'
+DE_DYN_G3.2.1_G5.3.1_K1   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.2.1_G5.3.1_K6'
+DE_DYN_G3.2.1_G5.3.1_K6   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.2.1_G5.3.3_K3'
+DE_DYN_G3.2.1_G5.3.3_K3   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.2.1_G5.3.3_K8'
+DE_DYN_G3.2.1_G5.3.3_K8   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.2.1_G6.2.1_K0'
+DE_DYN_G3.2.1_G6.2.1_K0   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.2.1_G6.2.1_K5'
+DE_DYN_G3.2.1_G6.2.1_K5   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.2.2_G5.4.1_K0'
+DE_DYN_G3.2.2_G5.4.1_K0   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.2.2_G5.4.1_K5'
+DE_DYN_G3.2.2_G5.4.1_K5   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.2.2_G6.1.0_K1'
+DE_DYN_G3.2.2_G6.1.0_K1   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.2.2_G6.1.0_K6'
+DE_DYN_G3.2.2_G6.1.0_K6   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.2.3_G4.4.3_K4'
+DE_DYN_G3.2.3_G4.4.3_K4   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.2.3_G4.4.3_K9'
+DE_DYN_G3.2.3_G4.4.3_K9   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.2.3_G5.4.2_K0'
+DE_DYN_G3.2.3_G5.4.2_K0   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.2.3_G5.4.2_K5'
+DE_DYN_G3.2.3_G5.4.2_K5   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.2.3_G5.4.3_K1'
+DE_DYN_G3.2.3_G5.4.3_K1   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.2.3_G5.4.3_K6'
+DE_DYN_G3.2.3_G5.4.3_K6   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.2.3_Bong(GDB.2)_K0'
+DE_DYN_G3.2.3_Bong(GDB.2)_K0 | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.2.3_Bong(GDB.2)_K5'
+DE_DYN_G3.2.3_Bong(GDB.2)_K5 | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.2.4_G4.4.0_K3'
+DE_DYN_G3.2.4_G4.4.0_K3   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.2.4_G4.4.0_K8'
+DE_DYN_G3.2.4_G4.4.0_K8   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.3.0_G3.6.4_K0'
+DE_DYN_G3.3.0_G3.6.4_K0   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.3.0_G3.6.4_K5'
+DE_DYN_G3.3.0_G3.6.4_K5   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.3.0_G4.2.0_K2'
+DE_DYN_G3.3.0_G4.2.0_K2   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.3.0_G4.2.0_K7'
+DE_DYN_G3.3.0_G4.2.0_K7   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.3.0_G5.1.2_K3'
+DE_DYN_G3.3.0_G5.1.2_K3   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.3.0_G5.1.2_K8'
+DE_DYN_G3.3.0_G5.1.2_K8   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.3.0_G6.2.0_K4'
+DE_DYN_G3.3.0_G6.2.0_K4   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.3.0_G6.2.0_K9'
+DE_DYN_G3.3.0_G6.2.0_K9   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.3.1_G3.4.4_K1'
+DE_DYN_G3.3.1_G3.4.4_K1   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.3.1_G3.4.4_K6'
+DE_DYN_G3.3.1_G3.4.4_K6   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.3.1_Bong(G1.0)_K1'
+DE_DYN_G3.3.1_Bong(G1.0)_K1 | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.3.1_Bong(G1.0)_K6'
+DE_DYN_G3.3.1_Bong(G1.0)_K6 | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.3.2_G4.1.2_K2'
+DE_DYN_G3.3.2_G4.1.2_K2   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.3.2_G4.1.2_K7'
+DE_DYN_G3.3.2_G4.1.2_K7   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.3.2_G4.3.1_K1'
+DE_DYN_G3.3.2_G4.3.1_K1   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.3.2_G4.3.1_K6'
+DE_DYN_G3.3.2_G4.3.1_K6   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.3.2_G6.1.0_K4'
+DE_DYN_G3.3.2_G6.1.0_K4   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.3.2_G6.1.0_K9'
+DE_DYN_G3.3.2_G6.1.0_K9   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.3.2_G6.2.0_K2'
+DE_DYN_G3.3.2_G6.2.0_K2   | 10         | 3            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 3)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.3.2_G6.2.0_K7'
+DE_DYN_G3.3.2_G6.2.0_K7   | 10         | 3            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 3)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.3.3_G4.2.3_K3'
+DE_DYN_G3.3.3_G4.2.3_K3   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.3.3_G4.2.3_K8'
+DE_DYN_G3.3.3_G4.2.3_K8   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.3.4_G4.2.1_K0'
+DE_DYN_G3.3.4_G4.2.1_K0   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.3.4_G4.2.1_K5'
+DE_DYN_G3.3.4_G4.2.1_K5   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.3.4_G5.5.2_K1'
+DE_DYN_G3.3.4_G5.5.2_K1   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.3.4_G5.5.2_K6'
+DE_DYN_G3.3.4_G5.5.2_K6   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.3.4_G6.2.0_K4'
+DE_DYN_G3.3.4_G6.2.0_K4   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.3.4_G6.2.0_K9'
+DE_DYN_G3.3.4_G6.2.0_K9   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.4.1_G4.2.0_K2'
+DE_DYN_G3.4.1_G4.2.0_K2   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.4.1_G4.2.0_K7'
+DE_DYN_G3.4.1_G4.2.0_K7   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.4.1_G4.3.0_K2'
+DE_DYN_G3.4.1_G4.3.0_K2   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.4.1_G4.3.0_K7'
+DE_DYN_G3.4.1_G4.3.0_K7   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.4.1_G5.1.2_K4'
+DE_DYN_G3.4.1_G5.1.2_K4   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.4.1_G5.1.2_K9'
+DE_DYN_G3.4.1_G5.1.2_K9   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.4.2_G5.2.1_K4'
+DE_DYN_G3.4.2_G5.2.1_K4   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.4.2_G5.2.1_K9'
+DE_DYN_G3.4.2_G5.2.1_K9   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.4.3_G6.3.1_K0'
+DE_DYN_G3.4.3_G6.3.1_K0   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.4.3_G6.3.1_K5'
+DE_DYN_G3.4.3_G6.3.1_K5   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.5.1_G5.6.3_K4'
+DE_DYN_G3.5.1_G5.6.3_K4   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.5.1_G5.6.3_K9'
+DE_DYN_G3.5.1_G5.6.3_K9   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.5.1_G6.3.1_K3'
+DE_DYN_G3.5.1_G6.3.1_K3   | 10         | 3            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 3)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.5.1_G6.3.1_K8'
+DE_DYN_G3.5.1_G6.3.1_K8   | 10         | 3            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 3)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.5.2_G5.1.3_K2'
+DE_DYN_G3.5.2_G5.1.3_K2   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.5.2_G5.1.3_K7'
+DE_DYN_G3.5.2_G5.1.3_K7   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.5.3_G4.1.2_K2'
+DE_DYN_G3.5.3_G4.1.2_K2   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.5.3_G4.1.2_K7'
+DE_DYN_G3.5.3_G4.1.2_K7   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.5.4_G3.6.4_K0'
+DE_DYN_G3.5.4_G3.6.4_K0   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.5.4_G3.6.4_K5'
+DE_DYN_G3.5.4_G3.6.4_K5   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.5.4_Bong(G1.3)_K0'
+DE_DYN_G3.5.4_Bong(G1.3)_K0 | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.5.4_Bong(G1.3)_K5'
+DE_DYN_G3.5.4_Bong(G1.3)_K5 | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.6.0_G5.2.1_K4'
+DE_DYN_G3.6.0_G5.2.1_K4   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.6.0_G5.2.1_K9'
+DE_DYN_G3.6.0_G5.2.1_K9   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.6.0_G7.2.1_K0'
+DE_DYN_G3.6.0_G7.2.1_K0   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.6.0_G7.2.1_K5'
+DE_DYN_G3.6.0_G7.2.1_K5   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.6.0_Bong(GDB.3)_K0'
+DE_DYN_G3.6.0_Bong(GDB.3)_K0 | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.6.0_Bong(GDB.3)_K5'
+DE_DYN_G3.6.0_Bong(GDB.3)_K5 | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.6.1_G4.2.0_K3'
+DE_DYN_G3.6.1_G4.2.0_K3   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.6.1_G4.2.0_K8'
+DE_DYN_G3.6.1_G4.2.0_K8   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.6.2_G4.3.2_K3'
+DE_DYN_G3.6.2_G4.3.2_K3   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.6.2_G4.3.2_K8'
+DE_DYN_G3.6.2_G4.3.2_K8   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.6.2_G5.6.0_K4'
+DE_DYN_G3.6.2_G5.6.0_K4   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.6.2_G5.6.0_K9'
+DE_DYN_G3.6.2_G5.6.0_K9   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.6.2_G6.3.2_K3'
+DE_DYN_G3.6.2_G6.3.2_K3   | 10         | 3            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 3)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.6.2_G6.3.2_K8'
+DE_DYN_G3.6.2_G6.3.2_K8   | 10         | 3            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 3)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.6.3_G4.2.3_K3'
+DE_DYN_G3.6.3_G4.2.3_K3   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.6.3_G4.2.3_K8'
+DE_DYN_G3.6.3_G4.2.3_K8   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.6.3_G4.3.2_K3'
+DE_DYN_G3.6.3_G4.3.2_K3   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.6.3_G4.3.2_K8'
+DE_DYN_G3.6.3_G4.3.2_K8   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.6.3_G5.2.1_K2'
+DE_DYN_G3.6.3_G5.2.1_K2   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.6.3_G5.2.1_K7'
+DE_DYN_G3.6.3_G5.2.1_K7   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.6.4_G4.1.1_K2'
+DE_DYN_G3.6.4_G4.1.1_K2   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.6.4_G4.1.1_K7'
+DE_DYN_G3.6.4_G4.1.1_K7   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.6.4_G5.3.0_K1'
+DE_DYN_G3.6.4_G5.3.0_K1   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.6.4_G5.3.0_K6'
+DE_DYN_G3.6.4_G5.3.0_K6   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.1.0_G5.1.0_K1'
+DE_DYN_G4.1.0_G5.1.0_K1   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.1.0_G5.1.0_K6'
+DE_DYN_G4.1.0_G5.1.0_K6   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.1.0_Bong(GDB.2)_K2'
+DE_DYN_G4.1.0_Bong(GDB.2)_K2 | 10         | 8            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 8)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.1.0_Bong(GDB.2)_K7'
+DE_DYN_G4.1.0_Bong(GDB.2)_K7 | 10         | 8            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 8)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.1.1_G5.1.1_K2'
+DE_DYN_G4.1.1_G5.1.1_K2   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.1.1_G5.1.1_K7'
+DE_DYN_G4.1.1_G5.1.1_K7   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.1.1_G7.1.0_K3'
+DE_DYN_G4.1.1_G7.1.0_K3   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.1.1_G7.1.0_K8'
+DE_DYN_G4.1.1_G7.1.0_K8   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.1.2_G5.1.3_K2'
+DE_DYN_G4.1.2_G5.1.3_K2   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.1.2_G5.1.3_K7'
+DE_DYN_G4.1.2_G5.1.3_K7   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.1.2_G5.4.2_K3'
+DE_DYN_G4.1.2_G5.4.2_K3   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.1.2_G5.4.2_K8'
+DE_DYN_G4.1.2_G5.4.2_K8   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.1.2_Bong(G1.2)_K4'
+DE_DYN_G4.1.2_Bong(G1.2)_K4 | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.1.2_Bong(G1.2)_K9'
+DE_DYN_G4.1.2_Bong(G1.2)_K9 | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.1.3_G5.3.2_K2'
+DE_DYN_G4.1.3_G5.3.2_K2   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.1.3_G5.3.2_K7'
+DE_DYN_G4.1.3_G5.3.2_K7   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.1.3_G5.3.3_K3'
+DE_DYN_G4.1.3_G5.3.3_K3   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.1.3_G5.3.3_K8'
+DE_DYN_G4.1.3_G5.3.3_K8   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.1.3_G6.1.1_K4'
+DE_DYN_G4.1.3_G6.1.1_K4   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.1.3_G6.1.1_K9'
+DE_DYN_G4.1.3_G6.1.1_K9   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.1.3_Bong(GDB.3)_K1'
+DE_DYN_G4.1.3_Bong(GDB.3)_K1 | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.1.3_Bong(GDB.3)_K6'
+DE_DYN_G4.1.3_Bong(GDB.3)_K6 | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.2.0_Bong(GDB.0)_K1'
+DE_DYN_G4.2.0_Bong(GDB.0)_K1 | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.2.0_Bong(GDB.0)_K6'
+DE_DYN_G4.2.0_Bong(GDB.0)_K6 | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.2.1_G4.4.2_K3'
+DE_DYN_G4.2.1_G4.4.2_K3   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.2.1_G4.4.2_K8'
+DE_DYN_G4.2.1_G4.4.2_K8   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.2.1_G5.2.2_K1'
+DE_DYN_G4.2.1_G5.2.2_K1   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.2.1_G5.2.2_K6'
+DE_DYN_G4.2.1_G5.2.2_K6   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.2.1_G5.5.0_K2'
+DE_DYN_G4.2.1_G5.5.0_K2   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.2.1_G5.5.0_K7'
+DE_DYN_G4.2.1_G5.5.0_K7   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.2.1_G6.3.2_K0'
+DE_DYN_G4.2.1_G6.3.2_K0   | 10         | 3            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 3)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.2.1_G6.3.2_K5'
+DE_DYN_G4.2.1_G6.3.2_K5   | 10         | 3            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 3)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.2.1_Bong(GDB.1)_K2'
+DE_DYN_G4.2.1_Bong(GDB.1)_K2 | 10         | 8            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 8)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.2.1_Bong(GDB.1)_K7'
+DE_DYN_G4.2.1_Bong(GDB.1)_K7 | 10         | 8            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 8)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.2.1_Bong(GDB.3)_K0'
+DE_DYN_G4.2.1_Bong(GDB.3)_K0 | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.2.1_Bong(GDB.3)_K5'
+DE_DYN_G4.2.1_Bong(GDB.3)_K5 | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.2.1_Bong(GDB.4)_K4'
+DE_DYN_G4.2.1_Bong(GDB.4)_K4 | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.2.1_Bong(GDB.4)_K9'
+DE_DYN_G4.2.1_Bong(GDB.4)_K9 | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.2.2_G5.5.3_K0'
+DE_DYN_G4.2.2_G5.5.3_K0   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.2.2_G5.5.3_K5'
+DE_DYN_G4.2.2_G5.5.3_K5   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.2.3_G4.4.1_K0'
+DE_DYN_G4.2.3_G4.4.1_K0   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.2.3_G4.4.1_K5'
+DE_DYN_G4.2.3_G4.4.1_K5   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.3.0_G5.5.2_K2'
+DE_DYN_G4.3.0_G5.5.2_K2   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.3.0_G5.5.2_K7'
+DE_DYN_G4.3.0_G5.5.2_K7   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.3.3_G4.4.0_K0'
+DE_DYN_G4.3.3_G4.4.0_K0   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.3.3_G4.4.0_K4'
+DE_DYN_G4.3.3_G4.4.0_K4   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.3.3_G4.4.0_K5'
+DE_DYN_G4.3.3_G4.4.0_K5   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.3.3_G4.4.0_K9'
+DE_DYN_G4.3.3_G4.4.0_K9   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.3.3_G7.3.1_K3'
+DE_DYN_G4.3.3_G7.3.1_K3   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.3.3_G7.3.1_K8'
+DE_DYN_G4.3.3_G7.3.1_K8   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.3.3_Bong(G1.3)_K2'
+DE_DYN_G4.3.3_Bong(G1.3)_K2 | 10         | 8            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 8)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.3.3_Bong(G1.3)_K7'
+DE_DYN_G4.3.3_Bong(G1.3)_K7 | 10         | 8            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 8)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.4.1_G4.4.2_K3'
+DE_DYN_G4.4.1_G4.4.2_K3   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.4.1_G4.4.2_K8'
+DE_DYN_G4.4.1_G4.4.2_K8   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.4.3_G5.2.0_K3'
+DE_DYN_G4.4.3_G5.2.0_K3   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.4.3_G5.2.0_K8'
+DE_DYN_G4.4.3_G5.2.0_K8   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G5.1.1_Bong(G1.2)_K4'
+DE_DYN_G5.1.1_Bong(G1.2)_K4 | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G5.1.1_Bong(G1.2)_K9'
+DE_DYN_G5.1.1_Bong(G1.2)_K9 | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G5.1.2_G5.6.1_K4'
+DE_DYN_G5.1.2_G5.6.1_K4   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G5.1.2_G5.6.1_K9'
+DE_DYN_G5.1.2_G5.6.1_K9   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G5.1.2_Bong(GDB.0)_K2'
+DE_DYN_G5.1.2_Bong(GDB.0)_K2 | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G5.1.2_Bong(GDB.0)_K7'
+DE_DYN_G5.1.2_Bong(GDB.0)_K7 | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G5.1.3_G5.4.3_K2'
+DE_DYN_G5.1.3_G5.4.3_K2   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+----------------------------------------------------------------------------------------------------
+📊 TỔNG KẾT:
+   - Tổng số cầu kiểm tra: 306
+   - Số cầu bị lỗi tên (Unparsable): 306
+   - Số cầu bị lệch dữ liệu (Desync): 304
+
+👉 KẾT LUẬN: Hệ thống không thể đọc tên các cầu bị lỗi,
+   dẫn đến việc không thể cập nhật Streak mới (DB vẫn giữ số cũ).
+   -> Cần xóa các cầu này và quét lại sau khi đã fix Scanner.
+[Finished in 303ms]

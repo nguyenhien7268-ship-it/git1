@@ -1,4 +1,7 @@
-# Tên file: logic/bridges/bridge_manager_de.py
+import os
+
+# Nội dung chuẩn của file bridge_manager_de.py (Đã fix lỗi Regex và Logic)
+FULL_CONTENT = r'''# Tên file: logic/bridges/bridge_manager_de.py
 # (PHIÊN BẢN V8.0 - RESTORED & FIXED INDENTATION)
 
 import os
@@ -306,3 +309,38 @@ def find_and_auto_manage_bridges_de(all_data_ai, db_name=DB_NAME):
     from logic.bridges.de_bridge_scanner import run_de_scanner
     count, _ = run_de_scanner(all_data_ai)
     return f"Đã cập nhật {count} cầu Đề."
+'''
+
+def restore_file():
+    # 1. Xác định vị trí file
+    target_path = None
+    potential_paths = [
+        'logic/bridges/bridge_manager_de.py',
+        'code6/logic/bridges/bridge_manager_de.py',
+        '../logic/bridges/bridge_manager_de.py',
+        os.path.join(os.getcwd(), 'logic/bridges/bridge_manager_de.py')
+    ]
+    
+    for path in potential_paths:
+        dir_path = os.path.dirname(path)
+        # Nếu thư mục tồn tại thì đây là đường dẫn đúng (kể cả file chưa có)
+        if os.path.exists(dir_path):
+            target_path = path
+            break
+            
+    if not target_path:
+        print("❌ KHÔNG TÌM THẤY thư mục logic/bridges! Vui lòng kiểm tra cấu trúc dự án.")
+        return
+
+    print(f"🔄 Đang khôi phục file: {target_path}")
+    
+    try:
+        with open(target_path, 'w', encoding='utf-8') as f:
+            f.write(FULL_CONTENT)
+        print("✅ KHÔI PHỤC THÀNH CÔNG! File đã được ghi đè bằng phiên bản chuẩn.")
+        print("👉 Bạn hãy mở App lại để kiểm tra.")
+    except Exception as e:
+        print(f"❌ Lỗi ghi file: {e}")
+
+if __name__ == "__main__":
+    restore_file()

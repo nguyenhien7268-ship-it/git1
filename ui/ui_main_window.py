@@ -177,6 +177,16 @@ class DataAnalysisApp:
         self.btn_quick_update = ttk.Button(input_frame, text="⚡ CẬP NHẬT NGAY", style="Accent.TButton", command=self.run_update_from_text)
         self.btn_quick_update.grid(row=1, column=3, sticky="ew", pady=5, padx=5)
 
+        # [V10.0 NEW] Checkbox chọn chế độ phân tích
+        mode_frame = ttk.Frame(input_frame)
+        mode_frame.grid(row=2, column=0, columnspan=5, sticky="w", padx=5, pady=5)
+        
+        self.var_lo_mode = tk.BooleanVar(value=True)
+        self.var_de_mode = tk.BooleanVar(value=True)
+        
+        ttk.Label(mode_frame, text="Chế độ chạy:", font=("Arial", 9, "bold")).pack(side=tk.LEFT, padx=(0, 10))
+        ttk.Checkbutton(mode_frame, text="Phân tích LÔ", variable=self.var_lo_mode).pack(side=tk.LEFT, padx=10)
+        ttk.Checkbutton(mode_frame, text="Phân tích ĐỀ", variable=self.var_de_mode).pack(side=tk.LEFT, padx=10)
 
         # === KHU VỰC 2: HERO ACTION (TRUNG TÂM) ===
         # Đây là nơi người dùng thao tác 90% thời gian
@@ -185,10 +195,10 @@ class DataAnalysisApp:
         hero_frame.columnconfigure(0, weight=2) # Dashboard to hơn
         hero_frame.columnconfigure(1, weight=1)
 
-        # Nút TO NHẤT: Bảng Quyết Định
+        # Nút TO NHẤT: Bảng Quyết Định (Đã đổi tên cho phù hợp ngữ cảnh)
         self.btn_open_dashboard = ttk.Button(
             hero_frame, 
-            text="📊 MỞ BẢNG QUYẾT ĐỊNH\n(Xem kết quả phân tích)", 
+            text="🚀 CHẠY PHÂN TÍCH\n(Theo chế độ đã chọn)", 
             style="Hero.TButton",
             command=self.run_decision_dashboard
         )
@@ -278,9 +288,40 @@ class DataAnalysisApp:
         self.task_manager.run_task(self.controller.task_run_update_from_text, text_data)
 
     def run_decision_dashboard(self):
-        self.logger.log("\n--- Mở Bảng Quyết Định ---")
-        self.notebook.select(self.dashboard_tab) # Chuyển tab
-        self.task_manager.run_task(self.controller.task_run_decision_dashboard, "Bảng Quyết Định")
+        """
+        [V10.1] Chạy Phân Tích & Điều Hướng Thông Minh.
+        Tự động chuyển sang tab phù hợp dựa trên chế độ người dùng chọn.
+        """
+        # 1. Lấy trạng thái từ Checkbox
+        lo_mode = self.var_lo_mode.get()
+        de_mode = self.var_de_mode.get()
+        
+        # 2. Validate (Phải chọn ít nhất 1)
+        if not lo_mode and not de_mode:
+            messagebox.showwarning("Cảnh báo", "Vui lòng chọn ít nhất: LÔ hoặc ĐỀ (hoặc cả hai)!", parent=self.root)
+            return
+
+        self.logger.log("\n--- Bắt đầu Phân Tích ---")
+        
+        # 3. [SMART NAV] Chuyển tab dựa trên nhu cầu
+        # Nếu CHỈ chọn Đề -> Chuyển ngay sang tab Đề
+        if de_mode and not lo_mode:
+             self.notebook.select(self.de_dashboard_tab)
+             self.logger.log("-> Chế độ: ĐỀ (Chuyển sang Tab Soi Cầu Đề)")
+        
+        # Các trường hợp khác (Chỉ Lô hoặc Cả hai) -> Chuyển sang Dashboard Lô
+        else:
+             self.notebook.select(self.dashboard_tab)
+             mode_str = "LÔ & ĐỀ" if (lo_mode and de_mode) else "LÔ"
+             self.logger.log(f"-> Chế độ: {mode_str} (Chuyển sang Tab Bảng Quyết Định)")
+
+        # 4. Gửi lệnh xuống Controller
+        self.task_manager.run_task(
+            self.controller.task_run_decision_dashboard, 
+            "Phân Tích Dữ Liệu", 
+            lo_mode, 
+            de_mode
+        )
 
     def show_bridge_manager_window(self):
         try:
@@ -303,7 +344,11 @@ class DataAnalysisApp:
                 next_ky, stats_n_day, n_days_stats, consensus, high_win, 
                 pending_k2n_data, gan_stats, top_scores, top_memory_bridges, ai_predictions
             )
-            self.notebook.select(self.dashboard_tab)
+            
+            # [FIX V10.2] Đã xóa dòng lệnh tự động chuyển tab.
+            # Lý do: Việc chuyển tab đã được xử lý thông minh ngay khi bấm nút ở hàm run_decision_dashboard.
+            # Code cũ gây lỗi: self.notebook.select(self.dashboard_tab) <--- ĐÃ XÓA
+
         except Exception as e:
             self.logger.log(f"LỖI HIỂN THỊ DASHBOARD: {e}")
             self._on_dashboard_close()

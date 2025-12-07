@@ -98,18 +98,27 @@ def analyze_market_trends(all_data_ai, n_days=30):
         "gan_cham": gan_cham, "gan_tong": {}, "gan_bo": gan_bo
     }
 
+# Tên file: code6/logic/de_analytics.py
+# (PHIÊN BẢN V4.0 - ANTI-INFLATION: PHÂN TẦNG ĐIỂM SỐ)
+
 def calculate_number_scores(bridges, market_stats=None):
     """
-    Tính điểm số học:
-    Điểm = 10 (Sàn) + (Tần suất * 0.5) + Điểm Cầu - Phạt Gan
+    Tính điểm số học [OPTIMIZED V4 - ANTI-INFLATION]:
+    Ngăn chặn việc spam cầu rác (nhiều số) lấn át cầu chất lượng (ít số).
+    
+    Cơ chế Phân Tầng:
+    - Tier 1 (<= 12 số): Hệ số chuẩn 40.0 (Ưu tiên cực cao cho Bộ/Kép).
+    - Tier 2 (> 12 số):  Hệ số chuẩn 5.0 (Dìm điểm cực mạnh cho Chạm/Tổng).
+    => Tỷ lệ chênh lệch: 1 Cầu Bộ = 20 Cầu Chạm (thay vì 2.5 như trước).
     """
     scores = {f"{i:02d}": 10.0 for i in range(100)}
+    bridge_count_per_num = Counter() 
     
     try:
+        # --- 1. CỘNG ĐIỂM THỐNG KÊ (Giữ nguyên) ---
         freq_cham = market_stats.get('freq_cham', {}) if market_stats else {}
         gan_cham = market_stats.get('gan_cham', {}) if market_stats else {}
         
-        # 2. CỘNG ĐIỂM THỐNG KÊ (BASE SCORE)
         for s in scores:
             try:
                 n1, n2 = int(s[0]), int(s[1])
@@ -119,49 +128,79 @@ def calculate_number_scores(bridges, market_stats=None):
                 if g_max > 20: scores[s] -= (g_max - 20) * 0.2
             except: pass
 
-        # 3. CỘNG ĐIỂM CẦU (BRIDGE BONUS)
+        # --- 2. TÍNH ĐIỂM CẦU (LOGIC PHÂN TẦNG V4) ---
         if bridges:
             for bridge in bridges:
                 try:
+                    streak = float(bridge.get('streak', 0))
                     val = str(bridge.get('predicted_value', ''))
-                    w = float(bridge.get('streak', 1))
                     b_type = str(bridge.get('type', '')).upper()
                     
-                    if 'KILLER' in b_type:
-                        if 'CHAM' in val:
-                            d = int(val.split()[-1])
-                            for s in scores: 
-                                if check_cham(s, [d]): scores[s] -= (w * 3.0)
+                    # A. XÁC ĐỊNH SỐ LƯỢNG SỐ (Target Numbers)
+                    target_numbers = set()
+                    
+                    # Ưu tiên lấy list số trực tiếp từ Scanner
+                    if 'numbers' in bridge and isinstance(bridge['numbers'], list):
+                        target_numbers.update(bridge['numbers'])
                     else:
-                        if not val: continue
-                        if 'BO' in b_type or 'SET' in b_type:
-                            bk = None
-                            # Tìm tên bộ từ giá trị dự đoán
-                            s_val = "".join(filter(str.isdigit, val))
-                            # Logic mới: map ngược từ số ra bộ (dùng BO_SO_DICT)
-                            if s_val:
-                                n_val = int(s_val)
-                                for b_name, b_list in BO_SO_DICT.items():
-                                    if n_val in b_list:
-                                        bk = b_name; break
-                            
-                            if bk:
-                                for s_int in BO_SO_DICT[bk]: 
-                                    s_str = f"{s_int:02d}"
-                                    if s_str in scores: scores[s_str] += (w * 2.0)
-                        else:
-                            parts = []
-                            if ',' in val: parts = [int(v) for v in val.split(',') if v.strip().isdigit()]
-                            elif val.isdigit(): parts = [int(val)]
+                        # Fallback parsing (cho các cầu cũ chưa update scanner)
+                        if 'BO' in b_type or 'SET' in b_type or 'Bộ' in val:
+                            for bo_key, bo_nums in BO_SO_DICT.items():
+                                if bo_key in val or f"Bộ {bo_key}" in val:
+                                    target_numbers.update([f"{n:02d}" for n in bo_nums])
+                        elif 'CHAM' in val or 'Chạm' in val or ',' in val:
+                            parts = [int(v) for v in val.replace("Chạm","").replace("Loại","").split(',') if v.strip().isdigit()]
                             if parts:
-                                for s in scores:
-                                    if check_cham(s, parts): scores[s] += w
-                except: continue
+                                if 'CHAM' in val or 'Chạm' in val or 'DYNAMIC' in b_type or 'KILLER' in b_type:
+                                    for p in parts:
+                                        for i in range(10):
+                                            target_numbers.add(f"{p}{i}"); target_numbers.add(f"{i}{p}")
+                                else:
+                                    target_numbers.update([f"{p:02d}" for p in parts])
+
+                    # B. TÍNH ĐIỂM PHÂN TẦNG (TIERED SCORING - V4)
+                    count = len(target_numbers)
+                    if count > 0:
+                        # --- [V4 CHANGE START] ---
+                        # Phân loại giai cấp cầu
+                        if count <= 12: 
+                            # Giai cấp Thượng Lưu (Bộ, Kép, Dàn ít số)
+                            # Thưởng rất lớn để bứt phá
+                            BASE_CONSTANT = 40.0 
+                        else:
+                            # Giai cấp Bình Dân (Chạm, Tổng, Dàn nhiều số)
+                            # Phạt nặng để giảm nhiễu (Noise Reduction)
+                            BASE_CONSTANT = 3.0
+                            
+                        density_weight = BASE_CONSTANT / float(count)
+                        # --- [V4 CHANGE END] ---
+                        
+                        # Hệ số Phong độ (Streak Bonus)
+                        # Tăng nhẹ bonus streak để ưu tiên cầu bền bỉ
+                        streak_bonus = 1.0 + (streak * 0.15) 
+                        
+                        abs_score = density_weight * streak_bonus
+                        
+                        # C. ÁP DỤNG (THƯỞNG HOẶC PHẠT)
+                        is_killer = 'KILLER' in b_type or 'LOẠI' in val.upper()
+                        
+                        for num_str in target_numbers:
+                            if num_str in scores:
+                                if is_killer:
+                                    # Cầu Killer loại ít số (tự tin cao) sẽ trừ điểm cực nặng
+                                    scores[num_str] -= abs_score
+                                else:
+                                    scores[num_str] += abs_score
+                                    bridge_count_per_num[num_str] += 1
+
+                except Exception: continue
+
     except Exception as e:
         print(f"Scoring Error: {e}")
 
-    return sorted(scores.items(), key=lambda x: x[1], reverse=True)
-
+    # Trả về list tuple đã sort: [('88', 15.5, '3 cầu'), ('89', 14.2, '2 cầu')...]
+    return sorted([(k, v, f"{bridge_count_per_num[k]} cầu") for k, v in scores.items()], key=lambda x: x[1], reverse=True)
+    
 def calculate_top_touch_combinations(all_data, num_touches=4, days=15, market_stats=None):
     if not all_data: return []
     try:

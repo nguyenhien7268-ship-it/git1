@@ -81,7 +81,9 @@ class UiDeDashboard(ttk.Frame):
         f_scan = ttk.LabelFrame(paned, text="🎯 Cầu Động")
         paned.add(f_scan, weight=2)
         self.tree_br = self._create_tree(f_scan, ["Tên", "Loại", "Thông", "Số"], height=15)
-
+        # [THÊM MỚI] Gắn sự kiện Double Click vào bảng cầu để gọi Backtest
+        self.tree_br.bind("<Double-1>", self.on_bridge_dbl_click)
+       
         # --- COL 3: MATRIX & FORECAST ---
         f_res = ttk.LabelFrame(paned, text="🔮 Ma Trận & Chốt Số")
         paned.add(f_res, weight=2)
@@ -283,7 +285,7 @@ class UiDeDashboard(ttk.Frame):
         for i in self.tree_br.get_children(): self.tree_br.delete(i)
         if bridges:
             bridges.sort(key=lambda x: x.get('streak',0), reverse=True)
-            for b in bridges[:50]:
+            for b in bridges[:300]:
                 self.tree_br.insert("", "end", values=(b.get('name'), b.get('type'), b.get('streak'), b.get('predicted_value')))
         
         # 4. Update Matrix (Scores Tab)
@@ -387,3 +389,62 @@ class UiDeDashboard(ttk.Frame):
         
         for k, f, g in items:
             tree.insert("", "end", values=(k, f, g))
+
+    # [DEBUG VERSION] Hàm xử lý khi Double Click vào cầu Đề
+    def on_bridge_dbl_click(self, event):
+        """Xử lý sự kiện click đúp vào danh sách cầu -> Hiện popup backtest"""
+        print("\n" + "="*50)
+        print(">>> [UI DEBUG] BẮT ĐẦU SỰ KIỆN DOUBLE CLICK")
+        
+        try:
+            # 1. Kiểm tra việc chọn dòng
+            selected_item = self.tree_br.selection()
+            print(f">>> [UI DEBUG] ID dòng đã chọn: {selected_item}")
+            
+            if not selected_item:
+                print(">>> [UI DEBUG] Cảnh báo: Chưa chọn dòng nào (selected_item rỗng).")
+                return
+            
+            # 2. Lấy dữ liệu từ dòng đó
+            item_data = self.tree_br.item(selected_item[0])
+            print(f">>> [UI DEBUG] Raw Item Data: {item_data}")
+            
+            item_values = item_data.get("values")
+            print(f">>> [UI DEBUG] Values: {item_values}")
+            
+            if not item_values:
+                print(">>> [UI DEBUG] Lỗi: Không lấy được values từ dòng này.")
+                return
+
+            # 3. Bóc tách tên cầu
+            # Lưu ý: Treeview đôi khi trả về tuple, đôi khi trả về string tùy config
+            bridge_name = str(item_values[0]) 
+            print(f">>> [UI DEBUG] Tên cầu trích xuất được: '{bridge_name}'")
+            
+            if not bridge_name or bridge_name == "None":
+                print(">>> [UI DEBUG] Lỗi: Tên cầu bị rỗng hoặc None.")
+                return
+
+            # 4. Kiểm tra kết nối tới Controller
+            print(f">>> [UI DEBUG] Controller Object: {self.controller}")
+            
+            if self.controller is None:
+                print(">>> [UI DEBUG] LỖI NGHIÊM TRỌNG: Biến self.controller là None (Chưa được liên kết).")
+                return
+
+            if not hasattr(self.controller, 'trigger_bridge_backtest'):
+                print(">>> [UI DEBUG] LỖI NGHIÊM TRỌNG: Controller không có hàm 'trigger_bridge_backtest'.")
+                print(f"    Danh sách hàm hiện có: {dir(self.controller)}")
+                return
+
+            # 5. Gửi lệnh đi
+            print(f">>> [UI DEBUG] Đang gọi controller.trigger_bridge_backtest('{bridge_name}', is_de=True)...")
+            self.controller.trigger_bridge_backtest(bridge_name, is_de=True)
+            print(">>> [UI DEBUG] Đã gửi lệnh thành công.")
+
+        except Exception as e:
+            print(f">>> [UI DEBUG] CRASH (Lỗi văng code): {e}")
+            import traceback
+            traceback.print_exc()
+        
+        print("="*50 + "\n")

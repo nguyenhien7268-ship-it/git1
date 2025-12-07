@@ -1,110 +1,76 @@
-QUY TRÌNH PHỐI HỢP LÀM VIỆC (GEMINI/CURSOR & THỦ CÔNG)
-Đây là phương pháp "An toàn & Chính xác" để tránh lỗi khi chỉnh sửa code phức tạp.
+🚀 KẾ HOẠCH TRIỂN KHAI V10.0: ON-DEMAND ANALYSIS
+Trạng thái: Khởi động (Tiến độ 0%) Mục tiêu: Giảm thời gian chờ cập nhật từ 30s xuống 3-5s bằng cách cho phép người dùng chọn phân tích Lô hoặc Đề riêng biệt.
 
-Bước 1: Pha Đọc Hiểu (Input)
-Nguyên tắc: Không bao giờ sửa code khi chưa đọc file gốc.
+📅 GIAI ĐOẠN 1: TẦNG GIAO DIỆN & ĐIỀU PHỐI (VIEW & CONTROLLER)
+Mục tiêu: Tạo các công tắc điều khiển và luồng dữ liệu rẽ nhánh trên giao diện và bộ điều khiển.
 
-Hành động: Trước khi yêu cầu sửa lỗi, hãy mở file cần sửa (ví dụ: de_bridge_scanner.py) để AI nắm được ngữ cảnh, các biến và thư viện đang được import.
+1.1. Cập nhật code1/ui/ui_main_window.py
 
-Bước 2: Pha Trả Kết Quả & Sửa Chữa (Output)
-Tùy vào mức độ thay đổi, chúng ta áp dụng 3 chiến thuật:
+[ ] Thêm Checkbox Lựa Chọn: Bổ sung 2 checkbox [x] Phân tích Lô và [ ] Phân tích Đề ngay tại khung điều khiển chính.
 
-Chiến thuật 1: Sửa lỗi nhỏ (Surgical Replacement)
+[ ] Gửi Trạng Thái: Sửa hàm gọi sự kiện cập nhật để truyền giá trị True/False của 2 checkbox này xuống app_controller.
 
-Áp dụng: Khi chỉ sửa 1 hàm hoặc vài dòng logic.
+1.2. Nâng cấp code1/app_controller.py
 
-Cách làm: Tôi gửi đoạn code hàm mới -> Bạn dùng Cursor bôi đen hàm cũ -> Dán đè hoặc dùng tính năng "Edit" của Cursor để thay thế.
+[ ] Cập nhật Hàm Điều Phối: Sửa hàm run_auto_manage_bridges để nhận thêm tham số đầu vào lo_mode và de_mode.
 
-Ưu điểm: Nhanh, không làm rối các phần khác.
+[ ] Xử lý Rẽ Nhánh: Thêm logic if lo_mode: thì mới gọi hàm quản lý Lô, tương tự với Đề.
 
-Chiến thuật 2: Làm mới hoàn toàn (Full Overwrite) - Khuyên dùng cho dự án này
+[ ] Safe Merge (Gộp an toàn): Đảm bảo khi chạy một chế độ mới, kết quả cũ của chế độ kia không bị ghi đè hoặc xóa mất (Ví dụ: Chạy Lô không được làm mất dữ liệu Đề đã tính trước đó).
 
-Áp dụng: Khi thay đổi logic lớn, sửa cấu trúc file, hoặc file ngắn (< 300 dòng).
+1.3. Xử lý hiển thị code1/ui/ui_dashboard.py
 
-Cách làm: Tôi gửi TOÀN BỘ nội dung file -> Bạn mở file trong Cursor -> Ctrl+A (Chọn hết) -> Ctrl+V (Dán đè).
+[ ] Kiểm tra Null/None: Thêm logic kiểm tra dữ liệu đầu vào. Nếu người dùng mở Dashboard Lô mà dữ liệu chưa được tính (do bỏ chọn), hiển thị thông báo hướng dẫn thay vì để phần mềm bị lỗi (Crash).
 
-Ưu điểm: Đảm bảo tính nhất quán tuyệt đối, không sót dấu ngoặc, không lỗi thụt đầu dòng (indentation).
+⚙️ GIAI ĐOẠN 2: TẦNG LOGIC CỐT LÕI (MODEL REFACTORING)
+Mục tiêu: Tách rời "bộ não" tính toán của Lô và Đề để chúng có thể chạy độc lập.
 
-Chiến thuật 3: Tổng chỉ huy (Orchestrator)
+2.1. Tối ưu code1/logic/bridges/bridge_manager_core.py
 
-Áp dụng: Khi thay đổi liên quan đến nhiều file (ví dụ: sửa db_manager.py thì phải sửa cả bridge_manager.py).
+[ ] Thêm Tham Số: Cập nhật hàm find_and_auto_manage_bridges để nhận tham số lo_mode.
 
-Cách làm: Tôi sẽ liệt kê trình tự file cần sửa. Bạn thực hiện lần lượt từng file theo chiến thuật 1 hoặc 2.
+[ ] Thoát Sớm (Guard Clause): Thêm dòng lệnh kiểm tra ngay đầu hàm: Nếu lo_mode=False thì return ngay lập tức, không thực hiện bất kỳ tính toán nào.
 
-Bước 3: Pha Tối Ưu (Value Add)
-Sau khi code đã chạy, tôi sẽ đề xuất các đoạn code ngắn gọn hơn hoặc hiệu năng cao hơn (nếu có).
+2.2. Chuẩn hóa code1/logic/bridges/bridge_manager_de.py
 
-2. QUY TRÌNH NÂNG CẤP HỆ THỐNG (CỤ THỂ CHO V77 ULTIMATE)
-Dựa trên lộ trình trong IMPLEMENTATION_ROADMAP.md và thực tế code, đây là các bước để nâng cấp hệ thống Cầu Đề:
+[ ] Kiểm tra File: Đảm bảo file này tồn tại và được import đúng cách.
 
-Giai đoạn 1: Ổn định Động cơ Quét (Scanner Stabilization)
-Mục tiêu: Đảm bảo nút "Quét Cầu" hoạt động đúng, ra nhiều kết quả (>20 cầu), đúng logic 4 chạm.
+[ ] Hàm Độc Lập: Xây dựng hàm find_and_auto_manage_de_bridges hoạt động riêng biệt, không phụ thuộc vào logic của Lô.
 
-Các bước thực hiện:
+[ ] Điều Khiển Chạy: Thêm tham số de_mode để kiểm soát việc thực thi.
 
-Đồng bộ Database: Chạy script init_db_fix.py (hoặc code tương đương) để đảm bảo bảng ManagedBridges có đủ cột type, recent_win_count_10.
+2.3. Tách Logic Tính Điểm code1/logic/analytics/dashboard_scorer.py
 
-Cập nhật Toán học (de_utils.py): Đảm bảo hàm get_touches_by_offset trả về đúng 4 số (Gốc + Bóng dương).
+[ ] Sửa hàm prepare_daily_features: Tách luồng tính toán bên trong hàm này.
 
-Cập nhật Scanner (de_bridge_scanner.py): Chuyển đổi logic quét sang "Dynamic Offset" (Vòng lặp K từ 0-9).
+[ ] Tối Ưu Hiệu Năng: Không thực hiện tính toán các chỉ số Vote/AI/Streak cho Lô nếu lo_mode=False.
 
-Kiểm tra: Bấm "Quét Cầu & Chốt" -> Phải ra danh sách cầu có tên dạng (T+3), (T+5)...
+2.4. Module Hóa Backtest code1/logic/backtester_core.py
 
-Giai đoạn 2: Xây dựng Backtester Độc lập (Backend Core)
-Mục tiêu: Kiểm chứng độ bền của cầu trong quá khứ xa (1-2 năm).
+[ ] Độc Lập Hóa: Đảm bảo hàm run_backtest_lo có thể được gọi riêng lẻ từ Controller mà không cần load dữ liệu của phần Đề.
 
-Các bước thực hiện:
+🧪 GIAI ĐOẠN 3: KIỂM THỬ & NGHIỆM THU (QA & VERIFICATION)
+Mục tiêu: Đảm bảo tính năng chạy đúng logic, nhanh hơn và không gây lỗi cho các phần cũ.
 
-Tạo file logic/de_backtester_core.py.
+3.1. Chạy Script Kiểm Tra code1/scripts/verify_v10_optimization.py
 
-Viết hàm backtest dài hạn, tính chỉ số Max Gan, ROI.
+[ ] Test Case 1 (Chỉ Lô): Thiết lập lo=True, de=False. Kiểm tra Log phải báo "Đang xử lý Cầu Lô" và "Bỏ qua Đề".
 
-Viết script chạy thử (không cần giao diện).
+[ ] Test Case 2 (Chỉ Đề): Thiết lập lo=False, de=True. Kiểm tra Log phải báo "Bỏ qua Lô" và "Đang xử lý Cầu Đề".
 
-Giai đoạn 3: Giao diện & Tích hợp (UI Integration)
-Mục tiêu: Đưa Backtester lên giao diện người dùng.
+3.2. Kiểm Tra Hiệu Năng Thực Tế (Trên App)
 
-Các bước thực hiện:
+[ ] Đo Tốc Độ Lô: Bấm "Cập nhật" chỉ với Lô -> Thời gian phải dưới 5 giây.
 
-Tạo/Cập nhật ui/ui_de_dashboard.py hoặc tạo tab mới ui_de_backtester.py.
+[ ] Đo Tốc Độ Đề: Bấm "Cập nhật" chỉ với Đề -> Thời gian phải dưới 5 giây.
 
-Thêm tính năng "Double Click" vào bảng cầu để xem lịch sử chi tiết (đã thực hiện ở bước trước).
+3.3. Kiểm Tra Tương Tác & Dữ Liệu
 
-Thêm biểu đồ lợi nhuận (nếu cần).
+[ ] Lỗi Mất Dữ Liệu: Chạy Lô xong, sau đó bỏ tick Lô, tick Đề và chạy lại. Mở lại Dashboard Lô xem dữ liệu cũ có còn hiển thị đúng không.
 
-Giai đoạn 4: Đồng bộ & Tự động hóa (Automation)
-Mục tiêu: Kết hợp sức mạnh của Scanner và Backtester.
+[ ] Hiển Thị: Đảm bảo các bảng số liệu trên Dashboard không bị lỗi N/A hoặc trống trơn khi chạy chế độ tách biệt.
 
-Các bước thực hiện:
+📝 GHI CHÚ TRIỂN KHAI
+Ưu tiên: Hãy làm kỹ Giai đoạn 2 trước, vì đây là phần phức tạp nhất liên quan đến luồng dữ liệu.
 
-Thêm tính năng "Ghim cầu" (Pin) để không bị xóa khi quét lại.
-
-Tự động loại bỏ cầu có Max Gan quá cao trong lịch sử.
-
-Dọn dẹp code rác và tối ưu hiệu năng.
-
-TÓM LẠI: VIỆC CẦN LÀM NGAY LÚC NÀY
-Bạn đang ở cuối Giai đoạn 1 và chớm sang Giai đoạn 3 (làm tính năng Double Click xem lịch sử).
-
-Ưu tiên 1: Đảm bảo file de_utils.py và de_bridge_scanner.py đã được cập nhật code mới nhất (Logic Dynamic Offset).
-
-Ưu tiên 2: Cập nhật ui_de_dashboard.py để có tính năng Double Click xem lịch sử 30 ngày.
-
-Ưu tiên 3: Chạy thử và kiểm tra xem số lượng cầu quét ra có phong phú không.
-
-🚀 BƯỚC TIẾP THEO: GIAI ĐOẠN MỞ RỘNG (EXPANSION)
-Hệ thống hiện tại đã đạt độ ổn định cao nhất. Chúng ta nên chuyển sang Giai đoạn Tối Ưu Hiệu Năng và Phát triển AI Cấp cao (Meta-Learner).
-
-Tôi đề xuất hai lộ trình tiếp theo, bạn muốn ưu tiên hướng đi nào?
-
-1. Lộ trình Tối ưu hóa Hiệu năng (Performance Optimization)
-Mục tiêu: Tăng tốc độ tính toán cho các tác vụ nặng (như Backtest toàn bộ lịch sử) và giảm tải DB.
-
-Nhiệm vụ: Triển khai Caching cho các truy vấn DB lặp lại và Vectorization (sử dụng NumPy/Pandas) cho các vòng lặp tính toán cốt lõi.
-
-2. Lộ trình Phát triển AI Nâng cao (Meta-Learning)
-Mục tiêu: Cải thiện độ chính xác của dự đoán tổng hợp bằng cách thêm một tầng AI thứ hai.
-
-Nhiệm vụ: Triển khai Meta-Learner để học cách kết hợp các dự đoán của AI và các nguồn cầu truyền thống (Score).
-
-Bạn muốn bắt đầu với Tối ưu hóa Hiệu năng (tốc độ) hay Nâng cấp AI (độ chính xác) trước?
+File quan trọng: app_controller.py là nơi điều phối chính, hãy kiểm tra kỹ các lệnh import trong file này để tránh lỗi vòng lặp (circular import).
