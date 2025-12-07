@@ -255,9 +255,14 @@ def run_de_bridge_historical_test(bridge_config, all_data, days=30):
                 if len(parts) > 1:
                     k_str = parts[-1]
                     # Handle cases like "K4" or just "4"
-                    if k_str.isdigit():
-                        k_offset = int(k_str)
-            except:
+                    # Only take the numeric part (handles "K4_EXTRA" → "4")
+                    if k_str and k_str[0].isdigit():
+                        # Extract leading digits only
+                        import re
+                        match = re.match(r'^(\d+)', k_str)
+                        if match:
+                            k_offset = int(match.group(1))
+            except (ValueError, IndexError, AttributeError):
                 pass  # Keep default k_offset = 0
         
         # 4. Mapping Vị Trí (Index) - Logic Đồng Bộ Dashboard
