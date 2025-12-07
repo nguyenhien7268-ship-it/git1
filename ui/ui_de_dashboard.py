@@ -156,15 +156,23 @@ class UiDeDashboard(ttk.Frame):
         self.tree_mx.tag_configure("S", background="#FFCDD2") 
         self.tree_mx.tag_configure("A", background="#C8E6C9")
 
-        # TAB 3: ĐÁNH GIÁ BỘ/CHẠM
-        t_eval = ttk.Frame(nb_res)
-        nb_res.add(t_eval, text="ĐÁNH GIÁ BỘ/CHẠM")
+        # TAB 3: ĐÁNH GIÁ CHẠM (SEPARATED)
+        t_eval_cham = ttk.Frame(nb_res)
+        nb_res.add(t_eval_cham, text="🎯 ĐÁNH GIÁ CHẠM")
         
-        self.tree_eval = self._create_tree(t_eval, ["Loại", "Giá Trị", "Về (30N)", "Gan", "Điểm ĐG"])
-        self.tree_eval.column("Loại", width=60)
-        self.tree_eval.column("Giá Trị", width=80)
-        self.tree_eval.column("Điểm ĐG", width=70)
-        self.tree_eval.tag_configure("HOT", background="#FFF9C4", foreground="red") 
+        self.tree_eval_cham = self._create_tree(t_eval_cham, ["Chạm", "Về (30N)", "Gan", "Điểm ĐG"])
+        self.tree_eval_cham.column("Chạm", width=80)
+        self.tree_eval_cham.column("Điểm ĐG", width=70)
+        self.tree_eval_cham.tag_configure("HOT", background="#FFF9C4", foreground="red")
+        
+        # TAB 4: ĐÁNH GIÁ BỘ (SEPARATED)
+        t_eval_bo = ttk.Frame(nb_res)
+        nb_res.add(t_eval_bo, text="🔵 ĐÁNH GIÁ BỘ")
+        
+        self.tree_eval_bo = self._create_tree(t_eval_bo, ["Bộ", "Về (30N)", "Gan", "Điểm ĐG"])
+        self.tree_eval_bo.column("Bộ", width=80)
+        self.tree_eval_bo.column("Điểm ĐG", width=70)
+        self.tree_eval_bo.tag_configure("HOT", background="#FFF9C4", foreground="red") 
 
     def update_data(self, *args):
         try:
@@ -325,9 +333,38 @@ class UiDeDashboard(ttk.Frame):
         self._update_evaluation_and_top_sets(freq_bo, gan_bo, freq_cham, gan_cham)
 
     def _update_evaluation_and_top_sets(self, freq_bo, gan_bo, freq_cham, gan_cham):
-        for i in self.tree_eval.get_children(): self.tree_eval.delete(i)
+        """
+        [V3.9.21] TÁCH BIỆT ĐÁNH GIÁ: Cập nhật riêng 2 bảng Chạm và Bộ
+        - Bảng CHẠM: Thuật toán scoring (freq * 2.0) - (gan * 0.5)
+        - Bảng BỘ: Thuật toán scoring (freq * 1.5) - (gan * 0.5)
+        """
+        # === 1. ĐÁNH GIÁ CHẠM (SEPARATED) ===
+        for i in self.tree_eval_cham.get_children(): 
+            self.tree_eval_cham.delete(i)
         
-        # [FIX] CẬP NHẬT LOGIC HIỂN THỊ BỘ (Quét hết BO_SO_DE.keys())
+        cham_scores = []
+        for ch, freq in freq_cham.items():
+            gan = gan_cham.get(ch, 0)
+            # Scoring algorithm for CHẠM: Higher weight on frequency
+            score = (freq * 2.0) - (float(gan) * 0.5)
+            cham_scores.append({"val": str(ch), "f": freq, "g": gan, "s": score})
+        
+        # Sort by score descending
+        cham_scores.sort(key=lambda x: x['s'], reverse=True)
+        
+        # Display in CHẠM table
+        for item in cham_scores:
+            tags = ()
+            if item['s'] >= 5.0: 
+                tags = ("HOT",)
+            self.tree_eval_cham.insert("", "end", 
+                values=(item['val'], item['f'], item['g'], f"{item['s']:.1f}"), 
+                tags=tags)
+        
+        # === 2. ĐÁNH GIÁ BỘ (SEPARATED) ===
+        for i in self.tree_eval_bo.get_children(): 
+            self.tree_eval_bo.delete(i)
+        
         bo_scores = []
         if BO_SO_DE:
             # Lấy danh sách tất cả các bộ từ utils (đảm bảo đủ 15 bộ)
@@ -335,29 +372,28 @@ class UiDeDashboard(ttk.Frame):
             for bo in all_bo_names:
                 f = freq_bo.get(bo, 0)
                 g = gan_bo.get(bo, 30) # Default Gan 30 ngày nếu không thấy
-                # Điểm: Tần suất * 1.5 - Gan * 0.5
+                # Scoring algorithm for BỘ: Moderate weight on frequency
                 score = (f * 1.5) - (float(g) * 0.5)
-                bo_scores.append({"type": "BỘ", "val": bo, "f": f, "g": g, "s": score})
+                bo_scores.append({"val": bo, "f": f, "g": g, "s": score})
         else:
             # Fallback nếu BO_SO_DE rỗng (hiếm)
             for bo, freq in freq_bo.items():
-                bo_scores.append({"type": "BỘ", "val": bo, "f": freq, "g": 0, "s": 0})
-
-        cham_scores = []
-        for ch, freq in freq_cham.items():
-            gan = gan_cham.get(ch, 0)
-            score = (freq * 2.0) - (float(gan) * 0.5)
-            cham_scores.append({"type": "CHẠM", "val": str(ch), "f": freq, "g": gan, "s": score})
-            
-        all_items = bo_scores + cham_scores
-        all_items.sort(key=lambda x: x['s'], reverse=True)
+                bo_scores.append({"val": bo, "f": freq, "g": 0, "s": 0})
         
-        for item in all_items:
+        # Sort by score descending
+        bo_scores.sort(key=lambda x: x['s'], reverse=True)
+        
+        # Display in BỘ table
+        for item in bo_scores:
             tags = ()
-            if item['s'] >= 5.0: tags = ("HOT",) 
-            self.tree_eval.insert("", "end", values=(item['type'], item['val'], item['f'], item['g'], f"{item['s']:.1f}"), tags=tags)
-            
-        top_bo = sorted(bo_scores, key=lambda x: x['s'], reverse=True)[:5]
+            if item['s'] >= 5.0: 
+                tags = ("HOT",)
+            self.tree_eval_bo.insert("", "end", 
+                values=(item['val'], item['f'], item['g'], f"{item['s']:.1f}"), 
+                tags=tags)
+        
+        # === 3. TOP BỘ SUMMARY ===
+        top_bo = bo_scores[:5]  # Already sorted
         str_top_bo = " | ".join([f"Bộ {b['val']} ({b['s']:.1f}đ)" for b in top_bo])
         self._update_txt(self.txt_bo_top, str_top_bo)
 
