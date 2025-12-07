@@ -310,7 +310,9 @@ class DeBridgeScanner:
                                 "predicted_value": f"LOẠI CHẠM {next_killer_touch}",
                                 "full_dan": "",
                                 "win_rate": 0,
-                                "display_desc": f"LOẠI Chạm {next_killer_touch} (Thông {killer_streak} kỳ). Từ: {p1_n}+{p2_n}"
+                                "display_desc": f"LOẠI Chạm {next_killer_touch} (Thông {killer_streak} kỳ). Từ: {p1_n}+{p2_n}",
+                                "pos1_idx": i,
+                                "pos2_idx": j
                             })
         except Exception as e:
             print(f">>> [ERROR] Lỗi quét Cầu Loại: {e}")

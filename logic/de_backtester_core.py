@@ -409,6 +409,16 @@ def run_de_bridge_historical_test(bridge_config, all_data, days=30):
                         is_win = check_cham(gdb_today, [base_sum])
                     pred_str = f"Chạm {base_sum}"
                 
+                elif bridge_type == "DE_KILLER" or "DE_KILLER_" in bridge_name:
+                    # KILLER logic: Predict which touch to ELIMINATE (not appear)
+                    killer_touch = (n1 + n2) % 10 if has_n2 else n1
+                    if is_pending_day:
+                        is_win = False
+                    else:
+                        # Win = touch does NOT appear in result
+                        is_win = not check_cham(gdb_today, [killer_touch])
+                    pred_str = f"LOẠI Chạm {killer_touch}"
+                
                 else: # CLASSIC
                     base_sum = (n1 + n2) % 10 if has_n2 else n1
                     t1, t2 = base_sum, (base_sum + 5) % 10
