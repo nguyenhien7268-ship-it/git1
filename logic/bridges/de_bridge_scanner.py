@@ -521,7 +521,10 @@ class DeBridgeScanner:
                             "predicted_value": ",".join(map(str, final_touches)),
                             "full_dan": ",".join(final_dan),
                             "win_rate": (streak_30 / total_days_30 * 100) if total_days_30 > 0 else 0,
-                            "display_desc": f"Đuôi {name1} + Đuôi {name2} (K={k})"
+                            "display_desc": f"Đuôi {name1} + Đuôi {name2} (K={k})",
+                            "pos1_idx": idx1,
+                            "pos2_idx": idx2,
+                            "k_offset": k
                         })
         return results
 
@@ -591,7 +594,9 @@ class DeBridgeScanner:
                                 "predicted_value": str(next_val),
                                 "full_dan": "",
                                 "win_rate": (total_wins_30 / total_days_30 * 100) if total_days_30 > 0 else 0,
-                                "display_desc": f"Tổng vị trí: {p1_name} + {p2_name}{note}"
+                                "display_desc": f"Tổng vị trí: {p1_name} + {p2_name}{note}",
+                                "pos1_idx": i,
+                                "pos2_idx": j
                             })
         except Exception as e:
             print(f">>> [ERROR] Lỗi quét cầu số học: {e}")
@@ -669,7 +674,9 @@ class DeBridgeScanner:
                                     "predicted_value": pred_set_name,
                                     "full_dan": ",".join(BO_SO_DE.get(pred_set_name, [])),
                                     "win_rate": (total_wins_30 / total_days_30 * 100) if total_days_30 > 0 else 0,
-                                    "display_desc": f"Bộ: {p1_n} + {p2_n} (Bộ {pred_set_name})"
+                                    "display_desc": f"Bộ: {p1_n} + {p2_n} (Bộ {pred_set_name})",
+                                    "pos1_idx": i,
+                                    "pos2_idx": j
                                 })
         except Exception as e:
             print(f">>> [ERROR] Lỗi quét cầu bộ: {e}")
@@ -713,11 +720,15 @@ class DeBridgeScanner:
                 final_desc = f"{desc}. Dàn: {full_dan}" if full_dan else desc
                 final_desc += f". Thông {b['streak']} kỳ."
                 
+                # Extract pos1_idx, pos2_idx if available
+                pos1_idx = b.get('pos1_idx')
+                pos2_idx = b.get('pos2_idx')
+                
                 cursor.execute("""
                     INSERT INTO ManagedBridges 
-                    (name, type, description, win_rate_text, current_streak, next_prediction_stl, is_enabled) 
-                    VALUES (?, ?, ?, ?, ?, ?, 1)
-                """, (b['name'], b['type'], final_desc, f"{b['win_rate']:.0f}%", b['streak'], b['predicted_value']))
+                    (name, type, description, win_rate_text, current_streak, next_prediction_stl, is_enabled, pos1_idx, pos2_idx) 
+                    VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)
+                """, (b['name'], b['type'], final_desc, f"{b['win_rate']:.0f}%", b['streak'], b['predicted_value'], pos1_idx, pos2_idx))
                 count += 1
             
             conn.commit(); conn.close()
