@@ -93,19 +93,44 @@ class BridgeManagementTab(ttk.Frame):
         frame = ttk.LabelFrame(self, text="📋 Danh Sách Cầu Đang Quản Lý", padding="10")
         frame.grid(row=1, column=0, sticky="nsew", padx=10, pady=10)
         frame.columnconfigure(0, weight=1)
-        frame.rowconfigure(0, weight=1)
+        frame.rowconfigure(1, weight=1)
         
-        columns = ("id", "name", "desc", "win_rate_k1n", "win_rate_scan", "status", "pinned", "created_at")
+        # Add filter controls
+        filter_frame = ttk.Frame(frame)
+        filter_frame.grid(row=0, column=0, sticky="ew", pady=(0, 5))
+        
+        ttk.Label(filter_frame, text="Lọc theo loại:", font=("Helvetica", 9, "bold")).pack(side=tk.LEFT, padx=(0, 10))
+        
+        self.filter_var = tk.StringVar(value="ALL")
+        filter_options = [
+            ("Tất cả", "ALL"),
+            ("Chỉ Cầu Lô", "LO"),
+            ("Chỉ Cầu Đề", "DE"),
+        ]
+        
+        for text, value in filter_options:
+            ttk.Radiobutton(
+                filter_frame,
+                text=text,
+                variable=self.filter_var,
+                value=value,
+                command=self.refresh_bridge_list
+            ).pack(side=tk.LEFT, padx=5)
+        
+        columns = ("id", "type", "name", "desc", "win_rate_k1n", "win_rate_scan", "status", "pinned", "created_at")
         self.tree = ttk.Treeview(frame, columns=columns, show="headings", selectmode="browse")
         
         self.tree.heading("id", text="ID")
         self.tree.column("id", width=40, anchor="center")
         
+        self.tree.heading("type", text="Loại")
+        self.tree.column("type", width=60, anchor="center")
+        
         self.tree.heading("name", text="Tên Cầu")
-        self.tree.column("name", width=150, anchor=tk.W)
+        self.tree.column("name", width=140, anchor=tk.W)
         
         self.tree.heading("desc", text="Mô Tả")
-        self.tree.column("desc", width=220, anchor=tk.W)
+        self.tree.column("desc", width=200, anchor=tk.W)
         
         self.tree.heading("win_rate_k1n", text="K1N (Thực Tế)")
         self.tree.column("win_rate_k1n", width=110, anchor="center")
@@ -125,8 +150,8 @@ class BridgeManagementTab(ttk.Frame):
         scrollbar = ttk.Scrollbar(frame, orient=tk.VERTICAL, command=self.tree.yview)
         self.tree.configure(yscrollcommand=scrollbar.set)
         
-        self.tree.grid(row=0, column=0, sticky="nsew")
-        scrollbar.grid(row=0, column=1, sticky="ns")
+        self.tree.grid(row=1, column=0, sticky="nsew")
+        scrollbar.grid(row=1, column=1, sticky="ns")
         
         self.tree.bind("<<TreeviewSelect>>", self._on_bridge_select)
         
@@ -229,8 +254,33 @@ class BridgeManagementTab(ttk.Frame):
                 only_enabled=False
             )
             
-            # Display in table
+            # Get filter selection
+            filter_type = getattr(self, 'filter_var', None)
+            filter_value = filter_type.get() if filter_type else "ALL"
+            
+            # Display in table with filter
             for b in self.all_bridges_cache:
+                # Get bridge type
+                bridge_type = b.get('type', 'UNKNOWN')
+                
+                # Apply filter
+                if filter_value == "LO":
+                    # Show only LO bridges
+                    if not bridge_type.startswith(('LO_', 'LO')):
+                        continue
+                elif filter_value == "DE":
+                    # Show only DE bridges
+                    if not bridge_type.startswith(('DE_', 'DE', 'CAU_DE')):
+                        continue
+                # If "ALL", show everything
+                
+                # Determine display type
+                if bridge_type.startswith('LO_'):
+                    display_type = "🔵 Lô"
+                elif bridge_type.startswith('DE_') or bridge_type.startswith('CAU_DE'):
+                    display_type = "🔴 Đề"
+                else:
+                    display_type = bridge_type[:8]  # Truncate if too long
                 status_text = "🟢 Đang Bật" if b['is_enabled'] else "🔴 Đã Tắt"
                 is_pinned = b.get('is_pinned', 0)
                 pinned_text = "📌 Có" if is_pinned else "❌ Không"
@@ -265,7 +315,7 @@ class BridgeManagementTab(ttk.Frame):
                 self.tree.insert(
                     "", tk.END,
                     values=(
-                        b['id'], b['name'], b['description'],
+                        b['id'], display_type, b['name'], b['description'],
                         k1n_rate,
                         k2n_display,
                         status_text, pinned_text, created_date
@@ -290,15 +340,15 @@ class BridgeManagementTab(ttk.Frame):
         if not values:
             return
         
-        # Fill form
+        # Fill form (updated for new column structure: id, type, name, desc, ...)
         self.name_entry.delete(0, tk.END)
-        self.name_entry.insert(0, values[1])
+        self.name_entry.insert(0, values[2])  # name is now at index 2
         
         self.desc_entry.delete(0, tk.END)
-        self.desc_entry.insert(0, values[2])
+        self.desc_entry.insert(0, values[3])  # desc is now at index 3
         
-        # Status
-        is_enabled = ("🟢" in values[5])
+        # Status is now at index 6
+        is_enabled = ("🟢" in values[6])
         self.enabled_var.set(is_enabled)
     
     def _show_context_menu(self, event):
@@ -361,7 +411,7 @@ class BridgeManagementTab(ttk.Frame):
         
         values = self.tree.item(selected, "values")
         bridge_id = values[0]
-        bridge_name = values[1]
+        bridge_name = values[2]  # name is now at index 2 (id, type, name, ...)
         
         if not messagebox.askyesno("Xác Nhận", f"Xóa cầu '{bridge_name}'?"):
             return
@@ -448,7 +498,7 @@ class BridgeManagementTab(ttk.Frame):
             return
         
         values = self.tree.item(selected, "values")
-        bridge_name = values[1]
+        bridge_name = values[2]  # name is now at index 2 (id, type, name, ...)
         
         messagebox.showinfo(
             "Backtest", 

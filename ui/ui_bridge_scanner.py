@@ -260,12 +260,38 @@ class BridgeScannerTab(ttk.Frame):
         if not all_data:
             raise Exception("Không có dữ liệu xổ số")
         
-        results = find_and_auto_manage_bridges_de(all_data, self.db_name)
-        # DE scanner returns different format, need to adapt
-        self.after(0, lambda: messagebox.showinfo(
-            "Quét Cầu Đề", 
-            f"Đã quét cầu Đề.\nKết quả: {results if results else 'Xem trong hệ thống quản lý'}"
-        ))
+        # Import DE scanner directly to get full results
+        try:
+            from logic.bridges.de_bridge_scanner import run_de_scanner
+            count, found_bridges = run_de_scanner(all_data)
+            
+            # Process and display results
+            if found_bridges and count > 0:
+                for bridge in found_bridges:
+                    # Extract bridge info
+                    name = bridge.get('name', 'N/A')
+                    desc = bridge.get('description', 'N/A')
+                    win_rate = bridge.get('win_rate', 0)
+                    streak = bridge.get('streak', 0)
+                    rate_str = f"{win_rate:.1f}%" if isinstance(win_rate, (int, float)) else str(win_rate)
+                    
+                    # Add to results table
+                    self.after(0, lambda n=name, d=desc, r=rate_str, s=streak: self._add_de_result_to_table(n, d, r, s))
+                
+                self.after(0, lambda c=count: messagebox.showinfo(
+                    "Quét Cầu Đề", 
+                    f"Đã tìm thấy {c} cầu Đề. Xem kết quả bên dưới."
+                ))
+            else:
+                self.after(0, lambda: messagebox.showinfo(
+                    "Quét Cầu Đề", 
+                    "Không tìm thấy cầu Đề mới."
+                ))
+        except Exception as e:
+            self.after(0, lambda: messagebox.showerror(
+                "Lỗi Quét Đề",
+                f"Không thể quét cầu Đề:\n{str(e)}"
+            ))
     
     def _do_scan_all_lo(self):
         """Quét tất cả loại cầu Lô."""
@@ -302,6 +328,15 @@ class BridgeScannerTab(ttk.Frame):
         )
         self.results_tree.tag_configure("new", background="#e3f2fd")
     
+    def _add_de_result_to_table(self, name, desc, rate, streak):
+        """Thêm kết quả cầu Đề vào bảng."""
+        self.results_tree.insert(
+            "", tk.END,
+            values=("ĐỀ", name, desc, rate, str(streak), "❌ Chưa"),
+            tags=("new",)
+        )
+        self.results_tree.tag_configure("new", background="#e3f2fd")
+    
     # ==================== ACTION FUNCTIONS ====================
     
     def _add_selected_to_management(self):
@@ -312,43 +347,93 @@ class BridgeScannerTab(ttk.Frame):
             return
         
         added_count = 0
+        skipped_count = 0
+        error_list = []
+        
         for item in selected:
             values = self.results_tree.item(item, "values")
             if values[5] == "✅ Rồi":  # Đã thêm rồi
+                skipped_count += 1
                 continue
             
-            # Add to management system
+            # Extract bridge info
+            bridge_type = values[0]
             name = values[1]
             desc = values[2]
             rate = values[3]
             
-            success, msg = upsert_managed_bridge(
-                name=name,
-                description=desc,
-                win_rate_text=rate,
-                db_name=self.db_name,
-                pos1_idx=-2,  # Special marker for scanner-added bridges
-                pos2_idx=-2,
-                bridge_data={"search_rate_text": rate, "is_enabled": 1, "type": values[0]}
-            )
+            # Validate bridge name
+            if not name or name == "N/A" or not name.strip():
+                error_list.append(f"- Cầu '{desc[:30]}': Tên không hợp lệ")
+                continue
             
-            if success:
-                # Update table to mark as added
-                self.results_tree.item(item, values=(
-                    values[0], values[1], values[2], values[3], values[4], "✅ Rồi"
-                ))
-                self.results_tree.item(item, tags=("added",))
-                added_count += 1
+            # Validate bridge type
+            if not bridge_type or bridge_type not in ["LÔ_V17", "LÔ_BN", "LÔ_STL_FIXED", "ĐỀ"]:
+                error_list.append(f"- Cầu '{name}': Loại không xác định ({bridge_type})")
+                continue
+            
+            # Determine proper type for DB
+            db_type = "LO_POS" if bridge_type == "LÔ_V17" else \
+                      "LO_MEM" if bridge_type == "LÔ_BN" else \
+                      "LO_STL_FIXED" if bridge_type == "LÔ_STL_FIXED" else \
+                      "DE_ALGO"  # Default for DE bridges
+            
+            try:
+                success, msg = upsert_managed_bridge(
+                    name=name,
+                    description=desc,
+                    win_rate_text=rate,
+                    db_name=self.db_name,
+                    pos1_idx=-2,  # Special marker for scanner-added bridges
+                    pos2_idx=-2,
+                    bridge_data={"search_rate_text": rate, "is_enabled": 1, "type": db_type}
+                )
+                
+                if success:
+                    # Update table to mark as added
+                    self.results_tree.item(item, values=(
+                        values[0], values[1], values[2], values[3], values[4], "✅ Rồi"
+                    ))
+                    self.results_tree.item(item, tags=("added",))
+                    added_count += 1
+                else:
+                    # Bridge already exists or other error
+                    if "đã tồn tại" in msg.lower() or "already exists" in msg.lower():
+                        # Mark as added anyway
+                        self.results_tree.item(item, values=(
+                            values[0], values[1], values[2], values[3], values[4], "✅ Rồi"
+                        ))
+                        self.results_tree.item(item, tags=("added",))
+                        skipped_count += 1
+                    else:
+                        error_list.append(f"- Cầu '{name}': {msg}")
+            except Exception as e:
+                error_list.append(f"- Cầu '{name}': Lỗi thêm - {str(e)}")
         
         self.results_tree.tag_configure("added", background="#c8e6c9")
         
+        # Build result message
+        result_msg = []
         if added_count > 0:
-            messagebox.showinfo("Thêm Thành Công", f"Đã thêm {added_count} cầu vào hệ thống quản lý.")
-            # Notify management tab to refresh if it exists
-            if hasattr(self.app, 'bridge_management_tab'):
-                self.app.bridge_management_tab.refresh_bridge_list()
+            result_msg.append(f"✅ Đã thêm {added_count} cầu mới")
+        if skipped_count > 0:
+            result_msg.append(f"⏭️ Bỏ qua {skipped_count} cầu đã tồn tại")
+        if error_list:
+            result_msg.append(f"\n❌ Có {len(error_list)} lỗi:\n" + "\n".join(error_list[:5]))
+            if len(error_list) > 5:
+                result_msg.append(f"... và {len(error_list) - 5} lỗi khác")
+        
+        if result_msg:
+            if error_list and added_count == 0:
+                messagebox.showerror("Lỗi Thêm Cầu", "\n".join(result_msg))
+            else:
+                messagebox.showinfo("Kết Quả Thêm Cầu", "\n".join(result_msg))
         else:
-            messagebox.showinfo("Thông Báo", "Không có cầu mới nào được thêm (có thể đã tồn tại).")
+            messagebox.showinfo("Thông Báo", "Không có cầu nào được thêm.")
+        
+        # Notify management tab to refresh if it exists
+        if added_count > 0 and hasattr(self.app, 'bridge_management_tab'):
+            self.app.bridge_management_tab.refresh_bridge_list()
     
     def _add_all_to_management(self):
         """Thêm tất cả kết quả quét vào hệ thống quản lý."""
