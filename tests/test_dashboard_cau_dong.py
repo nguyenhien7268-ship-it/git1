@@ -137,8 +137,9 @@ def test_filter_de_dyn_threshold():
         for bridge in result:
             if bridge["type"] == "DE_DYN":
                 # Check the streak value (should be >= 28)
+                # Note: Function maps current_streak -> streak, so check both
                 streak_value = bridge.get("streak", 0) or bridge.get("current_streak", 0)
-                # Mock data uses "streak" field with values 27, 28, 29
+                # Mock data sets "current_streak" field, function maps it to "streak"
                 assert streak_value >= 28, f"DE_DYN bridge {bridge['name']} has streak={streak_value} < 28"
         
         print("✓ test_filter_de_dyn_threshold passed")
