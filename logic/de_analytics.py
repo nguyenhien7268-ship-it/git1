@@ -200,6 +200,180 @@ def calculate_number_scores(bridges, market_stats=None):
 
     # Trả về list tuple đã sort: [('88', 15.5, '3 cầu'), ('89', 14.2, '2 cầu')...]
     return sorted([(k, v, f"{bridge_count_per_num[k]} cầu") for k, v in scores.items()], key=lambda x: x[1], reverse=True)
+
+
+def build_dan65_with_bo_priority(all_scores, freq_bo, gan_bo, vip_numbers=None, focus_numbers=None, top_sets_count=None, dan_size=None, min_per_top_set=None):
+    """
+    [V10.6] Build Dan 65 with VIP/FOCUS PRIORITY + SET PRIORITY
+    
+    Ensures VIP and focus numbers are ALWAYS included, then adds top-performing
+    sets (bộ) representation, preventing exclusion of critical numbers.
+    
+    Args:
+        all_scores: List of (number_str, score, info) tuples from calculate_number_scores
+        freq_bo: Dict of set frequencies {bo_name: count}
+        gan_bo: Dict of set gan days {bo_name: days}
+        vip_numbers: List of VIP numbers (10 numbers) - FORCED inclusion
+        focus_numbers: List of focus numbers (4 numbers) - FORCED inclusion
+        top_sets_count: How many top sets to prioritize (None = use config, default 5)
+        dan_size: Final Dan size (None = use config, default 65)
+        min_per_top_set: Minimum numbers to include from each top set (None = use config, default 1)
+    
+    Returns:
+        Tuple of (sorted_dan_list, inclusions_dict, excluded_high_scorers)
+    """
+    try:
+        from logic.de_utils import BO_SO_DE
+        from logic.constants import DEFAULT_SETTINGS
+        
+        # Use config values if not provided
+        if top_sets_count is None:
+            top_sets_count = DEFAULT_SETTINGS.get("DAN65_TOP_SETS_COUNT", 5)
+        if dan_size is None:
+            dan_size = DEFAULT_SETTINGS.get("DAN65_SIZE", 65)
+        if min_per_top_set is None:
+            min_per_top_set = DEFAULT_SETTINGS.get("DAN65_MIN_PER_TOP_SET", 1)
+        
+        excluded_threshold = DEFAULT_SETTINGS.get("DAN65_LOG_EXCLUDED_THRESHOLD", 30.0)
+        
+        # Normalize VIP/focus numbers
+        vip_numbers = vip_numbers or []
+        focus_numbers = focus_numbers or []
+        
+        # === PHASE 0: FORCE INCLUDE VIP AND FOCUS NUMBERS ===
+        dan = set()
+        vip_added = []
+        focus_added = []
+        
+        print("\n" + "="*70)
+        print("🎯 DAN 65 OPTIMIZATION LOG (V10.6)")
+        print("="*70)
+        
+        if vip_numbers or focus_numbers:
+            print(f"\n[PHASE 0] Force Include VIP/Focus Numbers:")
+            
+            # Add VIP numbers (10 numbers)
+            for num in vip_numbers:
+                if num not in dan:
+                    dan.add(num)
+                    vip_added.append(num)
+            
+            if vip_added:
+                print(f"  ✅ VIP (10 numbers): {', '.join(vip_added)}")
+            
+            # Add Focus numbers (4 numbers)
+            for num in focus_numbers:
+                if num not in dan:
+                    dan.add(num)
+                    focus_added.append(num)
+            
+            if focus_added:
+                print(f"  ✅ Focus (4 numbers): {', '.join(focus_added)}")
+            
+            print(f"  📊 Total forced: {len(vip_added) + len(focus_added)} numbers")
+        
+        # === PHASE 1: IDENTIFY TOP PERFORMING SETS ===
+        set_scores = []
+        KEP_SETS = ["00", "11", "22", "33", "44"]  # Duplicate sets
+        
+        for bo_name, nums in BO_SO_DE.items():
+            freq = freq_bo.get(bo_name, 0)
+            gan = gan_bo.get(bo_name, 0)
+            
+            # Enhanced scoring formula (matches V10.3 UI evaluation)
+            base_score = freq * 1.5
+            gan_penalty = gan * 0.3  # Reduced 40% from 0.5
+            kep_bonus = 2.0 if bo_name in KEP_SETS else 0.0
+            recent_bonus = 1.5 if gan < 7 else 0.0
+            trending_bonus = 1.0 if freq >= 3 else 0.0
+            
+            total = base_score - gan_penalty + kep_bonus + recent_bonus + trending_bonus
+            set_scores.append((bo_name, total, freq, gan))
+        
+        # Sort and get top N sets
+        set_scores.sort(key=lambda x: x[1], reverse=True)
+        top_sets = [item[0] for item in set_scores[:top_sets_count]]
+        
+        print(f"\n[PHASE 1] Top {top_sets_count} Sets Identified:")
+        for i, (bo_name, score, freq, gan) in enumerate(set_scores[:top_sets_count], 1):
+            kep_tag = " [KEP]" if bo_name in KEP_SETS else ""
+            print(f"  {i}. Bộ {bo_name} (Score: {score:.1f}, Freq: {freq}, Gan: {gan}){kep_tag}")
+        
+        # === PHASE 2: FORCE INCLUDE NUMBERS FROM TOP SETS ===
+        # (dan already initialized with VIP/focus numbers)
+        included_from_top_sets = {}
+        
+        print(f"\n[PHASE 2] Add Numbers from Top Sets (after VIP/focus):")
+        
+        for bo_name in top_sets:
+            bo_nums = BO_SO_DE.get(bo_name, [])
+            
+            # Get numbers from this set, sorted by their individual scores
+            bo_candidates = [(num, score) for num, score, _ in all_scores if num in bo_nums]
+            bo_candidates.sort(key=lambda x: x[1], reverse=True)
+            
+            # Force include at least min_per_top_set numbers
+            added = 0
+            added_nums = []
+            for num, score in bo_candidates:
+                if added >= min_per_top_set:
+                    break
+                dan.add(num)
+                added_nums.append(num)
+                added += 1
+            
+            included_from_top_sets[bo_name] = added
+            if added > 0:
+                print(f"  ✅ Bộ {bo_name}: Added {added} numbers ({', '.join(added_nums)})")
+            else:
+                print(f"  ⚠️ Bộ {bo_name}: No numbers available")
+        
+        # === PHASE 3: FILL REMAINING SLOTS WITH HIGHEST SCORES ===
+        excluded_high_scorers = []
+        
+        for num, score, info in all_scores:
+            if len(dan) >= dan_size:
+                # Track high scorers that didn't make it
+                if score >= excluded_threshold:
+                    excluded_high_scorers.append((num, score, "Filled to capacity"))
+            else:
+                if num not in dan:
+                    dan.add(num)
+        
+        # Log excluded high scorers
+        if excluded_high_scorers:
+            print(f"\n[PHASE 3] Excluded High Scorers (Score ≥ {excluded_threshold}):")
+            for num, score, reason in excluded_high_scorers[:10]:  # Limit to top 10
+                print(f"  ❌ {num} (Score: {score:.1f}) - {reason}")
+            if len(excluded_high_scorers) > 10:
+                print(f"  ... and {len(excluded_high_scorers) - 10} more")
+        else:
+            print(f"\n[PHASE 3] No high scorers excluded (all fit within Dan {dan_size})")
+        
+        # === SUMMARY ===
+        total_from_top_sets = sum(included_from_top_sets.values())
+        total_vip_focus = len(vip_added) + len(focus_added)
+        total_from_others = len(dan) - total_from_top_sets - total_vip_focus
+        kep_count = sum(1 for bo in top_sets if bo in KEP_SETS and included_from_top_sets.get(bo, 0) > 0)
+        
+        print(f"\n[SUMMARY] Dan {dan_size} Statistics:")
+        print(f"  ✓ Total numbers: {len(dan)}")
+        print(f"  ✓ VIP/Focus forced: {total_vip_focus} ({len(vip_added)} VIP + {len(focus_added)} focus)")
+        print(f"  ✓ From top {top_sets_count} sets: {total_from_top_sets} ({total_from_top_sets/max(len(dan),1)*100:.1f}%)")
+        print(f"  ✓ From other sources: {total_from_others} ({total_from_others/max(len(dan),1)*100:.1f}%)")
+        print(f"  ✓ Duplicate sets represented: {kep_count}")
+        print(f"  ✓ Total sets represented: {len(set(bo for bo in BO_SO_DE.keys() if any(n in dan for n in BO_SO_DE[bo])))}/15")
+        print("="*70 + "\n")
+        
+        return sorted(dan), included_from_top_sets, excluded_high_scorers
+        
+    except Exception as e:
+        print(f"[ERROR] build_dan65_with_bo_priority failed: {e}")
+        import traceback
+        traceback.print_exc()
+        # Fallback to simple top N selection
+        return sorted([x[0] for x in all_scores[:dan_size]]), {}, []
+
     
 def calculate_top_touch_combinations(all_data, num_touches=4, days=15, market_stats=None):
     if not all_data: return []

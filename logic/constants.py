@@ -30,6 +30,34 @@ DEFAULT_SETTINGS = {
     "DATA_LIMIT_RESEARCH": 0,     # 0 = All
     "DATA_LIMIT_SCANNER": 500,    # Giới hạn số kỳ khi Dò Cầu Mới (0 = Full)
     "DE_MAX_LOSE_THRESHOLD": 20,  # Ngưỡng chuỗi Gãy tối đa cho cầu Đề (Phase 4 - Pruning)
+    
+    # [NEW V10.5] Dan 65 Optimization Configuration
+    "DAN65_TOP_SETS_COUNT": 5,        # Số lượng bộ top ưu tiên (default: 5)
+    "DAN65_MIN_PER_TOP_SET": 1,       # Số tối thiểu từ mỗi bộ top (1-4, default: 1)
+    "DAN65_SIZE": 65,                  # Kích thước dàn cuối cùng (default: 65)
+    "DAN65_LOG_EXCLUDED_THRESHOLD": 30.0,  # Log số bị loại nếu điểm >= ngưỡng này
+    
+    # [NEW V10.7] DE Bridge Filtering & Control Configuration
+    "ENABLE_DE_BRIDGES": True,         # Master switch for all DE bridges
+    "ENABLE_DE_LO": True,              # Enable LO bridges scanning/display
+    "ENABLE_DE_DE": True,              # Enable DE bridges scanning/display
+    
+    # DE_DYN Filtering (V10.7)
+    "DE_DYN_MIN_WINRATE": 93.3,       # Minimum win rate for DE_DYN (28/30 = 93.3%)
+    "DE_DYN_MAX_COUNT": 10,            # Maximum DE_DYN bridges to save
+    
+    # DE_KILLER Filtering (V10.7)
+    "DE_KILLER_MAX_COUNT": 0,          # Maximum DE_KILLER bridges (0 = disabled)
+    
+    # DE_SET Priority (V10.7)
+    "DE_SET_MIN_COUNT": 2,             # Minimum DE_SET bridges to guarantee
+    
+    # K2N Cache Control (V10.7)
+    "K2N_CACHE_LO_ENABLED": True,      # Enable K2N cache refresh for LO bridges
+    "K2N_CACHE_DE_ENABLED": True,      # Enable K2N cache refresh for DE bridges
+    
+    # Manager Rate Mode
+    "MANAGER_RATE_MODE": "K1N"         # Backtest mode for bridge rate calculation (K1N/K2N)
 }
 
 # Database Paths

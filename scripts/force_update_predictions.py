@@ -9,11 +9,12 @@ sys.path.insert(0, project_root)
 
 try:
     from logic.data_repository import get_all_data_ai
-    from logic.bridges.bridge_manager_core import _update_fixed_lo_bridges, find_and_auto_manage_bridges
+    from logic.bridges.lo_bridge_scanner import update_fixed_lo_bridges
+    from logic.bridges.bridge_manager_core import find_and_auto_manage_bridges
     from logic.db_manager import DB_NAME
 except ImportError as e:
     print(f"❌ Lỗi Import: {e}")
-    print("👉 Hãy đảm bảo bạn lưu script này vào thư mục 'code6/scripts/'")
+    print("👉 Hãy đảm bảo bạn lưu script này vào thư mục 'scripts/'")
     sys.exit(1)
 
 def force_update():
@@ -36,7 +37,7 @@ def force_update():
     print("\n------------------------------------------------")
     print("🔄 Đang tính toán lại 15 Cầu Cố Định (Fixed Bridges)...")
     try:
-        count = _update_fixed_lo_bridges(all_data, DB_NAME)
+        count = update_fixed_lo_bridges(all_data, DB_NAME)
         print(f"✅ Đã cập nhật thành công {count} cầu cố định.")
     except Exception as e:
         print(f"❌ Lỗi khi cập nhật Fixed Bridges: {e}")

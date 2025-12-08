@@ -156,15 +156,24 @@ class UiDeDashboard(ttk.Frame):
         self.tree_mx.tag_configure("S", background="#FFCDD2") 
         self.tree_mx.tag_configure("A", background="#C8E6C9")
 
-        # TAB 3: ĐÁNH GIÁ BỘ/CHẠM
-        t_eval = ttk.Frame(nb_res)
-        nb_res.add(t_eval, text="ĐÁNH GIÁ BỘ/CHẠM")
+        # TAB 3: ĐÁNH GIÁ CHẠM (SEPARATED)
+        t_eval_cham = ttk.Frame(nb_res)
+        nb_res.add(t_eval_cham, text="🎯 ĐÁNH GIÁ CHẠM")
         
-        self.tree_eval = self._create_tree(t_eval, ["Loại", "Giá Trị", "Về (30N)", "Gan", "Điểm ĐG"])
-        self.tree_eval.column("Loại", width=60)
-        self.tree_eval.column("Giá Trị", width=80)
-        self.tree_eval.column("Điểm ĐG", width=70)
-        self.tree_eval.tag_configure("HOT", background="#FFF9C4", foreground="red") 
+        self.tree_eval_cham = self._create_tree(t_eval_cham, ["Chạm", "Về (30N)", "Gan", "Điểm ĐG"])
+        self.tree_eval_cham.column("Chạm", width=80)
+        self.tree_eval_cham.column("Điểm ĐG", width=70)
+        self.tree_eval_cham.tag_configure("HOT", background="#FFF9C4", foreground="red")
+        
+        # TAB 4: ĐÁNH GIÁ BỘ (SEPARATED)
+        t_eval_bo = ttk.Frame(nb_res)
+        nb_res.add(t_eval_bo, text="🔵 ĐÁNH GIÁ BỘ")
+        
+        self.tree_eval_bo = self._create_tree(t_eval_bo, ["Bộ", "Về (30N)", "Gan", "Điểm ĐG"])
+        self.tree_eval_bo.column("Bộ", width=80)
+        self.tree_eval_bo.column("Điểm ĐG", width=70)
+        self.tree_eval_bo.tag_configure("HOT", background="#FFF9C4", foreground="red")
+        self.tree_eval_bo.tag_configure("KEP", background="#E1F5FE", font=("Arial", 9, "bold")) 
 
     def update_data(self, *args):
         try:
@@ -300,12 +309,45 @@ class UiDeDashboard(ttk.Frame):
         else:
             self._update_txt(self.txt_10, f"Lỗi: {matrix_res.get('message')}")
             
-        # 5. Update Dan 65
+        # 5. Update Dan 65 (WITH VIP/FOCUS + SET PRIORITY - V10.6)
         if scores:
-            top65 = [x[0] for x in scores[:65]]
-            top65.sort()
-            self._update_txt(self.txt_65, ",".join(top65))
-        else: self._update_txt(self.txt_65, "")
+            try:
+                from logic.de_analytics import build_dan65_with_bo_priority
+                
+                # Extract VIP (top 10) and Focus (top 4) numbers from ranked matrix
+                vip_numbers = []
+                focus_numbers = []
+                if ranked:
+                    vip_numbers = [x['so'] for x in ranked[:10]]  # Top 10 VIP
+                    focus_numbers = [x['so'] for x in ranked[:4]]  # Top 4 Focus (subset of VIP)
+                
+                # Build Dan 65 with VIP/Focus + set priority optimization
+                dan65, inclusions, excluded = build_dan65_with_bo_priority(
+                    all_scores=scores,
+                    freq_bo=freq_bo,
+                    gan_bo=gan_bo,
+                    vip_numbers=vip_numbers,    # FORCE include VIP 10
+                    focus_numbers=focus_numbers,  # FORCE include Focus 4
+                    top_sets_count=5,            # Prioritize top 5 sets
+                    dan_size=65,                 # Final Dan size
+                    min_per_top_set=1            # At least 1 number per top set
+                )
+                
+                self._update_txt(self.txt_65, ",".join(dan65))
+                
+                # Brief console summary
+                print(f"\n🎯 DAN 65 OPTIMIZED: {len(dan65)} numbers ({len(vip_numbers)} VIP, {sum(inclusions.values())} from top sets)")
+                
+            except Exception as e:
+                print(f"[WARNING] Dan 65 optimization failed, using simple method: {e}")
+                import traceback
+                traceback.print_exc()
+                # Fallback to simple method
+                top65 = [x[0] for x in scores[:65]]
+                top65.sort()
+                self._update_txt(self.txt_65, ",".join(top65))
+        else: 
+            self._update_txt(self.txt_65, "")
 
         # 6. Touch Combos
         if touch_combinations:
@@ -325,9 +367,41 @@ class UiDeDashboard(ttk.Frame):
         self._update_evaluation_and_top_sets(freq_bo, gan_bo, freq_cham, gan_cham)
 
     def _update_evaluation_and_top_sets(self, freq_bo, gan_bo, freq_cham, gan_cham):
-        for i in self.tree_eval.get_children(): self.tree_eval.delete(i)
+        """
+        [V3.9.22] TÁCH BIỆT ĐÁNH GIÁ: Cập nhật riêng 2 bảng Chạm và Bộ
+        - Bảng CHẠM: Thuật toán scoring (freq * 2.0) - (gan * 0.5)
+        - Bảng BỘ: Thuật toán cải tiến với bonus cho bộ kép, trending, vừa về
+        """
+        # === 1. ĐÁNH GIÁ CHẠM (SEPARATED) ===
+        for i in self.tree_eval_cham.get_children(): 
+            self.tree_eval_cham.delete(i)
         
-        # [FIX] CẬP NHẬT LOGIC HIỂN THỊ BỘ (Quét hết BO_SO_DE.keys())
+        cham_scores = []
+        for ch, freq in freq_cham.items():
+            gan = gan_cham.get(ch, 0)
+            # Scoring algorithm for CHẠM: Higher weight on frequency
+            score = (freq * 2.0) - (float(gan) * 0.5)
+            cham_scores.append({"val": str(ch), "f": freq, "g": gan, "s": score})
+        
+        # Sort by score descending
+        cham_scores.sort(key=lambda x: x['s'], reverse=True)
+        
+        # Display in CHẠM table
+        for item in cham_scores:
+            tags = ()
+            if item['s'] >= 5.0: 
+                tags = ("HOT",)
+            self.tree_eval_cham.insert("", "end", 
+                values=(item['val'], item['f'], item['g'], f"{item['s']:.1f}"), 
+                tags=tags)
+        
+        # === 2. ĐÁNH GIÁ BỘ (SEPARATED & IMPROVED) ===
+        for i in self.tree_eval_bo.get_children(): 
+            self.tree_eval_bo.delete(i)
+        
+        # Bộ kép (duplicate sets): 00, 11, 22, 33, 44 - có 4 số/bộ
+        KEP_SETS = {"00", "11", "22", "33", "44"}
+        
         bo_scores = []
         if BO_SO_DE:
             # Lấy danh sách tất cả các bộ từ utils (đảm bảo đủ 15 bộ)
@@ -335,29 +409,65 @@ class UiDeDashboard(ttk.Frame):
             for bo in all_bo_names:
                 f = freq_bo.get(bo, 0)
                 g = gan_bo.get(bo, 30) # Default Gan 30 ngày nếu không thấy
-                # Điểm: Tần suất * 1.5 - Gan * 0.5
-                score = (f * 1.5) - (float(g) * 0.5)
-                bo_scores.append({"type": "BỘ", "val": bo, "f": f, "g": g, "s": score})
+                
+                # === NEW SCORING FORMULA FOR BỘ ===
+                # Base score: frequency with moderate weight
+                base_score = f * 1.5
+                
+                # Reduced penalty: Gan penalty reduced from 0.5 to 0.3
+                gan_penalty = float(g) * 0.3
+                
+                # Bonus for duplicate sets (bộ kép): +2.0 points
+                kep_bonus = 2.0 if bo in KEP_SETS else 0.0
+                
+                # Bonus for recently appeared (gan < 7 days): +1.5 points
+                recent_bonus = 1.5 if g < 7 else 0.0
+                
+                # Bonus for trending (high frequency in last 30 days): +1.0 if freq >= 3
+                trending_bonus = 1.0 if f >= 3 else 0.0
+                
+                # Final score
+                score = base_score - gan_penalty + kep_bonus + recent_bonus + trending_bonus
+                
+                bo_scores.append({
+                    "val": bo, 
+                    "f": f, 
+                    "g": g, 
+                    "s": score,
+                    "is_kep": bo in KEP_SETS
+                })
         else:
             # Fallback nếu BO_SO_DE rỗng (hiếm)
             for bo, freq in freq_bo.items():
-                bo_scores.append({"type": "BỘ", "val": bo, "f": freq, "g": 0, "s": 0})
-
-        cham_scores = []
-        for ch, freq in freq_cham.items():
-            gan = gan_cham.get(ch, 0)
-            score = (freq * 2.0) - (float(gan) * 0.5)
-            cham_scores.append({"type": "CHẠM", "val": str(ch), "f": freq, "g": gan, "s": score})
-            
-        all_items = bo_scores + cham_scores
-        all_items.sort(key=lambda x: x['s'], reverse=True)
+                bo_scores.append({
+                    "val": bo, 
+                    "f": freq, 
+                    "g": 0, 
+                    "s": 0,
+                    "is_kep": False
+                })
         
-        for item in all_items:
-            tags = ()
-            if item['s'] >= 5.0: tags = ("HOT",) 
-            self.tree_eval.insert("", "end", values=(item['type'], item['val'], item['f'], item['g'], f"{item['s']:.1f}"), tags=tags)
+        # Sort by score descending
+        bo_scores.sort(key=lambda x: x['s'], reverse=True)
+        
+        # Display in BỘ table with special highlighting for bộ kép
+        for item in bo_scores:
+            tags = []
             
-        top_bo = sorted(bo_scores, key=lambda x: x['s'], reverse=True)[:5]
+            # HOT indicator for high scores
+            if item['s'] >= 5.0: 
+                tags.append("HOT")
+            
+            # KEP indicator for duplicate sets (blue background, bold)
+            if item.get('is_kep', False):
+                tags.append("KEP")
+            
+            self.tree_eval_bo.insert("", "end", 
+                values=(item['val'], item['f'], item['g'], f"{item['s']:.1f}"), 
+                tags=tuple(tags) if tags else ())
+        
+        # === 3. TOP BỘ SUMMARY ===
+        top_bo = bo_scores[:5]  # Already sorted
         str_top_bo = " | ".join([f"Bộ {b['val']} ({b['s']:.1f}đ)" for b in top_bo])
         self._update_txt(self.txt_bo_top, str_top_bo)
 
