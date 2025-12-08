@@ -709,25 +709,49 @@ class DeBridgeScanner:
             
             count = 0
             
-            # --- [SỬA ĐỔI BẮT ĐẦU] ---
-            # Cũ: Chỉ lưu Top 150 cầu tốt nhất
-            # for b in bridges[:150]: 
-            
-            # Mới: Ưu tiên lưu HẾT Cầu Bộ (DE_SET) + Top 300 cầu loại khác
-            
-            # 1. Tách Cầu Bộ và Cầu Bạc Nhớ ra riêng (ưu tiên lưu đầy đủ)
+            # --- [V10.7 - ENHANCED FILTERING] ---
+            # 1. Separate bridges by type
             set_bridges = [b for b in bridges if b.get('type') == 'DE_SET']
             memory_bridges = [b for b in bridges if b.get('type') == 'DE_MEMORY']
-            other_bridges = [b for b in bridges if b.get('type') not in ('DE_SET', 'DE_MEMORY')]
+            dyn_bridges = [b for b in bridges if b.get('type') == 'DE_DYNAMIC_K']
+            killer_bridges = [b for b in bridges if b.get('type') == 'DE_KILLER']
+            other_bridges = [b for b in bridges if b.get('type') not in ('DE_SET', 'DE_MEMORY', 'DE_DYNAMIC_K', 'DE_KILLER')]
             
-            # 2. Gộp lại: Cầu Bộ (Full) + Cầu Bạc Nhớ (Full) + Cầu Khác (Top 300)
-            # Lưu ý: Cầu Khác đã được sort điểm ở bước trước
-            bridges_to_save = set_bridges + memory_bridges + other_bridges[:300]
+            # 2. Apply strict filtering for DE_DYN: Only ≥28/30 (93.3%) win rate
+            MIN_DYN_WINRATE = 93.3  # 28 out of 30 days
+            MAX_DYN_COUNT = 10
+            dyn_filtered = [b for b in dyn_bridges if b.get('win_rate', 0) >= MIN_DYN_WINRATE][:MAX_DYN_COUNT]
             
-            print(f">>> [DE SCANNER] Lưu DB: {len(set_bridges)} Bộ, {len(memory_bridges)} Bạc Nhớ, {len(other_bridges[:300])} khác")
+            # 3. Disable DE_KILLER completely (set max to 0)
+            MAX_KILLER_COUNT = 0
+            killer_filtered = killer_bridges[:MAX_KILLER_COUNT]
+            
+            # 4. Ensure minimum DE_SET bridges (priority guarantee)
+            MIN_SET_COUNT = 2
+            if len(set_bridges) < MIN_SET_COUNT and len(set_bridges) > 0:
+                # Take all available SET bridges even if below normal threshold
+                print(f">>> [DE SCANNER] ⚠️  Chỉ có {len(set_bridges)} cầu DE_SET, giữ tất cả")
+                set_filtered = set_bridges
+            elif len(set_bridges) >= MIN_SET_COUNT:
+                set_filtered = set_bridges
+            else:
+                print(f">>> [DE SCANNER] ⚠️  KHÔNG tìm thấy cầu DE_SET nào!")
+                set_filtered = []
+            
+            # 5. Combine filtered bridges: SET + MEMORY + DYN + KILLER + Others
+            bridges_to_save = set_filtered + memory_bridges + dyn_filtered + killer_filtered + other_bridges[:200]
+            
+            # 6. Enhanced logging for filtering
+            print(f">>> [DE SCANNER] Lọc cầu Đề:")
+            print(f"    - DE_SET: {len(set_filtered)} (Tối thiểu: {MIN_SET_COUNT})")
+            print(f"    - DE_MEMORY: {len(memory_bridges)}")
+            print(f"    - DE_DYN: {len(dyn_filtered)}/{len(dyn_bridges)} (≥{MIN_DYN_WINRATE}%, Tối đa: {MAX_DYN_COUNT})")
+            print(f"    - DE_KILLER: {len(killer_filtered)} (TẠM DỪNG)")
+            print(f"    - Khác: {len(other_bridges[:200])}")
+            print(f">>> [DE SCANNER] Tổng lưu DB: {len(bridges_to_save)} cầu")
             
             for b in bridges_to_save:
-            # --- [SỬA ĐỔI KẾT THÚC] ---
+            # --- [V10.7 - END OF FILTERING] ---
             
                 desc = b.get('display_desc', '')
                 full_dan = b.get('full_dan', '')
