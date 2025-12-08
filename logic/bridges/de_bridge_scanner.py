@@ -704,6 +704,7 @@ class DeBridgeScanner:
         try:
             conn = sqlite3.connect(DB_NAME)
             cursor = conn.cursor()
+            # Delete old DE bridges including DE_MEMORY to refresh
             cursor.execute("DELETE FROM ManagedBridges WHERE type IN ('DE_DYNAMIC_K', 'DE_POS_SUM', 'DE_SET', 'DE_PASCAL', 'DE_KILLER', 'DE_MEMORY')")
             
             count = 0
@@ -714,13 +715,16 @@ class DeBridgeScanner:
             
             # Mới: Ưu tiên lưu HẾT Cầu Bộ (DE_SET) + Top 300 cầu loại khác
             
-            # 1. Tách Cầu Bộ ra riêng
+            # 1. Tách Cầu Bộ và Cầu Bạc Nhớ ra riêng (ưu tiên lưu đầy đủ)
             set_bridges = [b for b in bridges if b.get('type') == 'DE_SET']
-            other_bridges = [b for b in bridges if b.get('type') != 'DE_SET']
+            memory_bridges = [b for b in bridges if b.get('type') == 'DE_MEMORY']
+            other_bridges = [b for b in bridges if b.get('type') not in ('DE_SET', 'DE_MEMORY')]
             
-            # 2. Gộp lại: Cầu Bộ (Full) + Cầu Khác (Top 300)
+            # 2. Gộp lại: Cầu Bộ (Full) + Cầu Bạc Nhớ (Full) + Cầu Khác (Top 300)
             # Lưu ý: Cầu Khác đã được sort điểm ở bước trước
-            bridges_to_save = set_bridges + other_bridges[:300]
+            bridges_to_save = set_bridges + memory_bridges + other_bridges[:300]
+            
+            print(f">>> [DE SCANNER] Lưu DB: {len(set_bridges)} Bộ, {len(memory_bridges)} Bạc Nhớ, {len(other_bridges[:300])} khác")
             
             for b in bridges_to_save:
             # --- [SỬA ĐỔI KẾT THÚC] ---

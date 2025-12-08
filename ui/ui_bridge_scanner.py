@@ -275,8 +275,25 @@ class BridgeScannerTab(ttk.Frame):
                     streak = bridge.get('streak', 0)
                     rate_str = f"{win_rate:.1f}%" if isinstance(win_rate, (int, float)) else str(win_rate)
                     
-                    # Add to results table
-                    self.after(0, lambda n=name, d=desc, r=rate_str, s=streak: self._add_de_result_to_table(n, d, r, s))
+                    # Add type indicator to name for clarity
+                    bridge_type = bridge.get('type', 'UNKNOWN')
+                    type_display = ""
+                    if 'DE_MEMORY' in bridge_type or bridge_type == 'DE_MEMORY':
+                        type_display = " [BẠC NHỚ]"
+                    elif 'DE_SET' in bridge_type:
+                        type_display = " [BỘ]"
+                    elif 'DE_PASCAL' in bridge_type:
+                        type_display = " [PASCAL]"
+                    elif 'DE_KILLER' in bridge_type:
+                        type_display = " [LOẠI TRỪ]"
+                    elif 'DE_DYNAMIC' in bridge_type:
+                        type_display = " [ĐỘNG]"
+                    
+                    name_with_type = name + type_display
+                    
+                    # Add to results table with bridge type info
+                    self.after(0, lambda n=name_with_type, d=desc, r=rate_str, s=streak, bt=bridge_type: 
+                        self._add_de_result_to_table(n, d, r, s, bt))
                 
                 self.after(0, lambda c=count: messagebox.showinfo(
                     "Quét Cầu Đề", 
@@ -328,12 +345,13 @@ class BridgeScannerTab(ttk.Frame):
         )
         self.results_tree.tag_configure("new", background="#e3f2fd")
     
-    def _add_de_result_to_table(self, name, desc, rate, streak):
-        """Thêm kết quả cầu Đề vào bảng."""
-        self.results_tree.insert(
+    def _add_de_result_to_table(self, name, desc, rate, streak, bridge_type="ĐỀ"):
+        """Thêm kết quả cầu Đề vào bảng với thông tin type chính xác."""
+        # Store actual bridge type in hidden data
+        item_id = self.results_tree.insert(
             "", tk.END,
             values=("ĐỀ", name, desc, rate, str(streak), "❌ Chưa"),
-            tags=("new",)
+            tags=("new", bridge_type)  # Store bridge_type as tag for retrieval
         )
         self.results_tree.tag_configure("new", background="#e3f2fd")
     
@@ -357,10 +375,18 @@ class BridgeScannerTab(ttk.Frame):
                 continue
             
             # Extract bridge info
-            bridge_type = values[0]
+            display_type = values[0]  # "LÔ_V17" / "LÔ_BN" / "ĐỀ"
             name = values[1]
             desc = values[2]
             rate = values[3]
+            
+            # Get actual bridge type from tags (for DE bridges)
+            tags = self.results_tree.item(item, "tags")
+            actual_bridge_type = None
+            for tag in tags:
+                if tag.startswith('DE_') or tag in ['DE_MEMORY', 'DE_SET', 'DE_PASCAL', 'DE_KILLER', 'DE_DYNAMIC_K', 'DE_POS_SUM']:
+                    actual_bridge_type = tag
+                    break
             
             # Validate bridge name
             if not name or name == "N/A" or not name.strip():
@@ -368,15 +394,22 @@ class BridgeScannerTab(ttk.Frame):
                 continue
             
             # Validate bridge type
-            if not bridge_type or bridge_type not in ["LÔ_V17", "LÔ_BN", "LÔ_STL_FIXED", "ĐỀ"]:
-                error_list.append(f"- Cầu '{name}': Loại không xác định ({bridge_type})")
+            if not display_type or display_type not in ["LÔ_V17", "LÔ_BN", "LÔ_STL_FIXED", "ĐỀ"]:
+                error_list.append(f"- Cầu '{name}': Loại không xác định ({display_type})")
                 continue
             
             # Determine proper type for DB
-            db_type = "LO_POS" if bridge_type == "LÔ_V17" else \
-                      "LO_MEM" if bridge_type == "LÔ_BN" else \
-                      "LO_STL_FIXED" if bridge_type == "LÔ_STL_FIXED" else \
-                      "DE_ALGO"  # Default for DE bridges
+            if display_type == "LÔ_V17":
+                db_type = "LO_POS"
+            elif display_type == "LÔ_BN":
+                db_type = "LO_MEM"
+            elif display_type == "LÔ_STL_FIXED":
+                db_type = "LO_STL_FIXED"
+            elif display_type == "ĐỀ":
+                # Use actual bridge type if available, otherwise default
+                db_type = actual_bridge_type if actual_bridge_type else "DE_ALGO"
+            else:
+                db_type = "UNKNOWN"
             
             try:
                 success, msg = upsert_managed_bridge(

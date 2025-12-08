@@ -269,15 +269,17 @@ class BridgeManagementTab(ttk.Frame):
                     if not bridge_type.startswith(('LO_', 'LO')):
                         continue
                 elif filter_value == "DE":
-                    # Show only DE bridges
-                    if not bridge_type.startswith(('DE_', 'DE', 'CAU_DE')):
+                    # Show only DE bridges (including DE_MEMORY)
+                    valid_de_types = ['DE_DYNAMIC_K', 'DE_POS_SUM', 'DE_SET', 'DE_PASCAL', 'DE_KILLER', 'DE_MEMORY', 'CAU_DE']
+                    is_de = any(bridge_type.startswith(t) or bridge_type == t for t in valid_de_types)
+                    if not is_de:
                         continue
                 # If "ALL", show everything
                 
                 # Determine display type
                 if bridge_type.startswith('LO_'):
                     display_type = "🔵 Lô"
-                elif bridge_type.startswith('DE_') or bridge_type.startswith('CAU_DE'):
+                elif bridge_type.startswith('DE_') or bridge_type.startswith('CAU_DE') or bridge_type == 'DE_MEMORY':
                     display_type = "🔴 Đề"
                 else:
                     display_type = bridge_type[:8]  # Truncate if too long
