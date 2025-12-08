@@ -309,12 +309,34 @@ class UiDeDashboard(ttk.Frame):
         else:
             self._update_txt(self.txt_10, f"Lỗi: {matrix_res.get('message')}")
             
-        # 5. Update Dan 65
+        # 5. Update Dan 65 (WITH SET PRIORITY - V10.5)
         if scores:
-            top65 = [x[0] for x in scores[:65]]
-            top65.sort()
-            self._update_txt(self.txt_65, ",".join(top65))
-        else: self._update_txt(self.txt_65, "")
+            try:
+                from logic.de_analytics import build_dan65_with_bo_priority
+                
+                # Build Dan 65 with set priority optimization
+                dan65, inclusions, excluded = build_dan65_with_bo_priority(
+                    all_scores=scores,
+                    freq_bo=freq_bo,
+                    gan_bo=gan_bo,
+                    top_sets_count=5,      # Prioritize top 5 sets
+                    dan_size=65,           # Final Dan size
+                    min_per_top_set=1      # At least 1 number per top set
+                )
+                
+                self._update_txt(self.txt_65, ",".join(dan65))
+                
+                # Brief console summary
+                print(f"\n🎯 DAN 65 OPTIMIZED: {len(dan65)} numbers, {sum(inclusions.values())} from top sets")
+                
+            except Exception as e:
+                print(f"[WARNING] Dan 65 optimization failed, using simple method: {e}")
+                # Fallback to simple method
+                top65 = [x[0] for x in scores[:65]]
+                top65.sort()
+                self._update_txt(self.txt_65, ",".join(top65))
+        else: 
+            self._update_txt(self.txt_65, "")
 
         # 6. Touch Combos
         if touch_combinations:

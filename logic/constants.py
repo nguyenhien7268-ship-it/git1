@@ -30,6 +30,12 @@ DEFAULT_SETTINGS = {
     "DATA_LIMIT_RESEARCH": 0,     # 0 = All
     "DATA_LIMIT_SCANNER": 500,    # Giới hạn số kỳ khi Dò Cầu Mới (0 = Full)
     "DE_MAX_LOSE_THRESHOLD": 20,  # Ngưỡng chuỗi Gãy tối đa cho cầu Đề (Phase 4 - Pruning)
+    
+    # [NEW V10.5] Dan 65 Optimization Configuration
+    "DAN65_TOP_SETS_COUNT": 5,        # Số lượng bộ top ưu tiên (default: 5)
+    "DAN65_MIN_PER_TOP_SET": 1,       # Số tối thiểu từ mỗi bộ top (1-4, default: 1)
+    "DAN65_SIZE": 65,                  # Kích thước dàn cuối cùng (default: 65)
+    "DAN65_LOG_EXCLUDED_THRESHOLD": 30.0,  # Log số bị loại nếu điểm >= ngưỡng này
 }
 
 # Database Paths
