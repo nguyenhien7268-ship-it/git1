@@ -103,21 +103,22 @@ def get_cau_dong_for_tab_soi_cau_de(db_name=None, threshold_thong=None):
     
     # Normalize threshold to raw count (out of 30 periods)
     # Input can be:
-    # - Raw count: 28 (meaning 28 out of 30)
-    # - Percentage: 93.3 (meaning 93.3%)
-    # - Decimal: 0.933 (meaning 93.3%)
+    # - Raw count: 1-30 (e.g., 28 meaning 28 out of 30)
+    # - Percentage: 50-100 (e.g., 93.3 meaning 93.3%)
+    # - Decimal: 0.0-1.0 (e.g., 0.933 meaning 93.3%)
     
     if threshold_thong <= 1.0:
-        # Decimal format (0.933) -> convert to raw count
+        # Decimal format (0.0-1.0) -> convert to raw count
         threshold_raw = int(threshold_thong * 30)
-    elif threshold_thong >= 90:
-        # Percentage format (93.3%) -> convert to raw count
-        threshold_raw = int((threshold_thong / 100.0) * 30)
-    elif threshold_thong >= 1 and threshold_thong <= 30:
-        # Already in raw count format (28)
+    elif 1.0 < threshold_thong <= 30:
+        # Already in raw count format (1-30)
         threshold_raw = int(threshold_thong)
+    elif 30 < threshold_thong <= 100:
+        # Percentage format (30.1-100%) -> convert to raw count
+        threshold_raw = int((threshold_thong / 100.0) * 30)
     else:
-        # Invalid range, use default
+        # Invalid range (>100 or negative), use default 28
+        print(f"  [WARNING] Invalid threshold {threshold_thong}, using default 28")
         threshold_raw = 28
     
     print(f"[get_cau_dong_for_tab_soi_cau_de] Ngưỡng lọc DE_DYN: {threshold_raw}/30 ({threshold_raw/30.0*100:.1f}%)")
@@ -145,13 +146,19 @@ def get_cau_dong_for_tab_soi_cau_de(db_name=None, threshold_thong=None):
             # DB stores: current_streak (raw count) or win_rate (could be text or number)
             streak_value = bridge.get("current_streak", 0) or bridge.get("streak", 0)
             
-            # Normalize to raw count if it's a percentage
-            if streak_value > 30:
-                # It's a percentage (e.g., 93.3%) -> convert to raw count
+            # Normalize to raw count based on value range
+            if streak_value <= 0:
+                streak_raw = 0
+            elif streak_value <= 30:
+                # It's already a raw count (1-30)
+                streak_raw = int(streak_value)
+            elif 30 < streak_value <= 100:
+                # It's a percentage (30.1-100%) -> convert to raw count
                 streak_raw = int((streak_value / 100.0) * 30)
             else:
-                # It's already a raw count (e.g., 28)
-                streak_raw = int(streak_value) if streak_value else 0
+                # Invalid value (>100), treat as 0
+                print(f"  [WARNING] Invalid streak value {streak_value} for {bridge_name}, treating as 0")
+                streak_raw = 0
             
             if streak_raw < threshold_raw:
                 filtered_count["DE_DYN_LOW"] += 1
