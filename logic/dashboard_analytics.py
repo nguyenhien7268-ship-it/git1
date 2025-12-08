@@ -137,7 +137,14 @@ def get_cau_dong_for_tab_soi_cau_de(db_name=None, threshold_thong=None):
                 print(f"  [FILTERED] DE_DYN (thông={thong:.1f}% < {threshold_thong:.1f}%): {bridge_name}")
                 continue
         
-        # Keep this bridge
+        # Keep this bridge and normalize field names for UI compatibility
+        # UI expects: name, type, streak, predicted_value
+        # DB has: name, type, current_streak, next_prediction_stl
+        if "current_streak" in bridge and "streak" not in bridge:
+            bridge["streak"] = bridge["current_streak"]
+        if "next_prediction_stl" in bridge and "predicted_value" not in bridge:
+            bridge["predicted_value"] = bridge["next_prediction_stl"]
+        
         filtered_bridges.append(bridge)
     
     # Summary log
