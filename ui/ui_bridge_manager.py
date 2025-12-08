@@ -129,6 +129,17 @@ class BridgeManagerWindow:
         
         style = ttk.Style()
         style.configure("Smart.TButton", foreground="blue", font=("Helvetica", 10, "bold"))
+        style.configure("Scan.TButton", foreground="green", font=("Helvetica", 10, "bold"))
+
+        # [V11.0 NEW] Button to open DE Scanner
+        ttk.Button(
+            frame, 
+            text="🔍 Quét Cầu Đề Mới", 
+            style="Scan.TButton",
+            command=self.open_de_scanner
+        ).pack(side=tk.LEFT, padx=2)
+        
+        ttk.Separator(frame, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=5)
 
         ttk.Button(frame, text="Thêm Mới", command=self.add_bridge).pack(side=tk.LEFT, padx=2)
         ttk.Button(frame, text="Cập Nhật", command=self.update_selected_bridge).pack(side=tk.LEFT, padx=2)
@@ -333,3 +344,17 @@ class BridgeManagerWindow:
             self.tree.focus(item)
             try: self.context_menu.tk_popup(event.x_root, event.y_root)
             finally: self.context_menu.grab_release()
+    
+    def open_de_scanner(self):
+        """
+        [V11.0 NEW] Mở cửa sổ quét cầu Đề mới.
+        """
+        try:
+            from ui.ui_de_bridge_scanner import DeBridgeScannerWindow
+            DeBridgeScannerWindow(self.app)
+        except Exception as e:
+            messagebox.showerror(
+                "Lỗi", 
+                f"Không thể mở cửa sổ quét cầu:\n{e}",
+                parent=self.window
+            )

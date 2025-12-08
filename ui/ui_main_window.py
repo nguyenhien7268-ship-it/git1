@@ -223,7 +223,7 @@ class DataAnalysisApp:
         self.btn_train_ai = ttk.Button(sys_frame, text="🧠 Huấn Luyện AI", command=self.run_train_ai)
         self.btn_train_ai.grid(row=0, column=0, sticky="ew", padx=5, pady=2)
 
-        self.btn_auto_find = ttk.Button(sys_frame, text="🔍 Dò Tìm Cầu Mới", command=self.run_auto_find_bridges)
+        self.btn_auto_find = ttk.Button(sys_frame, text="🔍 Quét Cầu Đề Mới", command=self.show_de_scanner_window, style="Accent.TButton")
         self.btn_auto_find.grid(row=0, column=1, sticky="ew", padx=5, pady=2)
 
         self.btn_vote_stats = ttk.Button(sys_frame, text="📈 Thống Kê Vote", command=self.show_vote_statistics_window)
@@ -332,6 +332,15 @@ class DataAnalysisApp:
             return
 
         self.bridge_manager_window_instance = BridgeManagerWindow(self)
+    
+    def show_de_scanner_window(self):
+        """[V11.0 NEW] Mở cửa sổ Quét Cầu Đề Mới"""
+        try:
+            from ui.ui_de_bridge_scanner import DeBridgeScannerWindow
+            DeBridgeScannerWindow(self)
+        except Exception as e:
+            self.logger.log(f"Lỗi mở cửa sổ Quét Cầu: {e}")
+            messagebox.showerror("Lỗi", f"Không thể mở cửa sổ Quét Cầu: {e}")
 
     # --- CÁC HÀM MÀ CONTROLLER CÓ THỂ GỌI (GIỮ NGUYÊN) ---
     def clear_update_text_area(self):
