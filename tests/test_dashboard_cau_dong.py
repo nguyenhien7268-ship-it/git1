@@ -176,9 +176,46 @@ def test_filter_mixed_scenarios():
         print("✓ test_filter_mixed_scenarios passed")
 
 
+def test_filter_non_de_bridges():
+    """
+    Test that non-DE bridges (LO_*, etc.) are filtered out.
+    Only DE_* bridges should be included in the Soi Cầu Đề tab.
+    """
+    mock_bridges = [
+        {"id": 1, "name": "LO_V17_Shadow_1", "type": "LO_V17", "win_rate": 95, "current_streak": 30, "is_enabled": 1},
+        {"id": 2, "name": "LO_BAC_NHO_1", "type": "LO_BAC_NHO", "win_rate": 90, "current_streak": 28, "is_enabled": 1},
+        {"id": 3, "name": "DE_DYN_1", "type": "DE_DYN", "win_rate": 93.3, "current_streak": 28, "is_enabled": 1},
+        {"id": 4, "name": "DE_SET_1", "type": "DE_SET", "win_rate": 85, "current_streak": 25, "is_enabled": 1},
+        {"id": 5, "name": "UNKNOWN_TYPE", "type": "UNKNOWN", "win_rate": 80, "current_streak": 20, "is_enabled": 1},
+    ]
+    
+    with patch('logic.dashboard_analytics.get_all_managed_bridges', return_value=mock_bridges):
+        result = get_cau_dong_for_tab_soi_cau_de(threshold_thong=28)
+        
+        # Should filter out: LO_V17, LO_BAC_NHO, UNKNOWN
+        # Should keep: DE_DYN_1, DE_SET_1 = 2 bridges
+        assert len(result) == 2, f"Expected 2 DE bridges, got {len(result)}"
+        
+        # Check that all remaining bridges are DE_* type
+        for bridge in result:
+            bridge_type = (bridge.get("type", "") or "").upper()
+            assert bridge_type.startswith("DE_"), f"Non-DE bridge found: {bridge['name']} ({bridge_type})"
+        
+        # Verify specific bridges
+        bridge_names = [b["name"] for b in result]
+        assert "DE_DYN_1" in bridge_names
+        assert "DE_SET_1" in bridge_names
+        assert "LO_V17_Shadow_1" not in bridge_names
+        assert "LO_BAC_NHO_1" not in bridge_names
+        assert "UNKNOWN_TYPE" not in bridge_names
+        
+        print("✓ test_filter_non_de_bridges passed")
+
+
 if __name__ == "__main__":
     # Run tests manually
     test_filter_de_killer()
     test_filter_de_dyn_threshold()
     test_filter_mixed_scenarios()
+    test_filter_non_de_bridges()
     print("\n✅ All tests passed!")
