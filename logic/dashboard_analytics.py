@@ -101,14 +101,26 @@ def get_cau_dong_for_tab_soi_cau_de(db_name=None, threshold_thong=None):
     if threshold_thong is None:
         threshold_thong = DE_DYN_MIN_WINRATE
     
-    # Convert to percentage if needed (28/30 = 93.3%)
-    if threshold_thong <= 1.0:
-        threshold_thong = threshold_thong * 100
-    elif threshold_thong > 30 and threshold_thong < 35:
-        # If it's a ratio like 28 (out of 30), convert to percentage
-        threshold_thong = (threshold_thong / 30.0) * 100
+    # Normalize threshold to raw count (out of 30 periods)
+    # Input can be:
+    # - Raw count: 28 (meaning 28 out of 30)
+    # - Percentage: 93.3 (meaning 93.3%)
+    # - Decimal: 0.933 (meaning 93.3%)
     
-    print(f"[get_cau_dong_for_tab_soi_cau_de] Ngưỡng lọc DE_DYN: {threshold_thong:.1f}%")
+    if threshold_thong <= 1.0:
+        # Decimal format (0.933) -> convert to raw count
+        threshold_raw = int(threshold_thong * 30)
+    elif threshold_thong >= 90:
+        # Percentage format (93.3%) -> convert to raw count
+        threshold_raw = int((threshold_thong / 100.0) * 30)
+    elif threshold_thong >= 1 and threshold_thong <= 30:
+        # Already in raw count format (28)
+        threshold_raw = int(threshold_thong)
+    else:
+        # Invalid range, use default
+        threshold_raw = 28
+    
+    print(f"[get_cau_dong_for_tab_soi_cau_de] Ngưỡng lọc DE_DYN: {threshold_raw}/30 ({threshold_raw/30.0*100:.1f}%)")
     
     # Get all enabled bridges from DB
     all_bridges = get_all_managed_bridges(db_name, only_enabled=True)
@@ -127,14 +139,23 @@ def get_cau_dong_for_tab_soi_cau_de(db_name=None, threshold_thong=None):
             print(f"  [FILTERED] DE_KILLER: {bridge_name}")
             continue
         
-        # Rule 2: Lọc DE_DYN theo win_rate
+        # Rule 2: Lọc DE_DYN theo win_rate/streak
         if bridge_type == "DE_DYN":
-            # Check both win_rate and streak/thong fields
-            thong = bridge.get("streak", 0) or bridge.get("thong", 0) or win_rate
+            # Get the streak/win count value from DB
+            # DB stores: current_streak (raw count) or win_rate (could be text or number)
+            streak_value = bridge.get("current_streak", 0) or bridge.get("streak", 0)
             
-            if thong < threshold_thong:
+            # Normalize to raw count if it's a percentage
+            if streak_value > 30:
+                # It's a percentage (e.g., 93.3%) -> convert to raw count
+                streak_raw = int((streak_value / 100.0) * 30)
+            else:
+                # It's already a raw count (e.g., 28)
+                streak_raw = int(streak_value) if streak_value else 0
+            
+            if streak_raw < threshold_raw:
                 filtered_count["DE_DYN_LOW"] += 1
-                print(f"  [FILTERED] DE_DYN (thông={thong:.1f}% < {threshold_thong:.1f}%): {bridge_name}")
+                print(f"  [FILTERED] DE_DYN (thông={streak_raw}/30 < {threshold_raw}/30): {bridge_name}")
                 continue
         
         # Keep this bridge and normalize field names for UI compatibility

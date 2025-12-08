@@ -17,13 +17,14 @@ def test_filter_de_killer():
     Ensure function removes DE_KILLER.
     """
     # Mock data with DE_KILLER and other types
+    # Using current_streak field as it's in the DB schema
     mock_bridges = [
         {
             "id": 1,
             "name": "DE_KILLER_G1_G2_K5",
             "type": "DE_KILLER",
             "win_rate": 95.0,
-            "streak": 28,
+            "current_streak": 28,
             "predicted_value": "CHẠM 5",
             "is_enabled": 1
         },
@@ -32,7 +33,7 @@ def test_filter_de_killer():
             "name": "DE_DYN_GDB_G1_K3",
             "type": "DE_DYN",
             "win_rate": 93.3,
-            "streak": 28,
+            "current_streak": 28,
             "predicted_value": "CHẠM 7",
             "is_enabled": 1
         },
@@ -41,7 +42,7 @@ def test_filter_de_killer():
             "name": "DE_SET_Bo11",
             "type": "DE_SET",
             "win_rate": 85.0,
-            "streak": 25,
+            "current_streak": 25,
             "predicted_value": "BỘ 11",
             "is_enabled": 1
         }
@@ -74,13 +75,14 @@ def test_filter_de_dyn_threshold():
     Ensure only 28 is included when threshold=28.
     """
     # Mock data with DE_DYN bridges at different win rates
+    # Using current_streak field (raw count: 27, 28, 29 out of 30)
     mock_bridges = [
         {
             "id": 1,
             "name": "DE_DYN_Low_WinRate",
             "type": "DE_DYN",
             "win_rate": 90.0,  # 27/30 = 90% (below threshold)
-            "streak": 27,
+            "current_streak": 27,
             "predicted_value": "CHẠM 3",
             "is_enabled": 1
         },
@@ -89,7 +91,7 @@ def test_filter_de_dyn_threshold():
             "name": "DE_DYN_High_WinRate",
             "type": "DE_DYN",
             "win_rate": 93.3,  # 28/30 = 93.3% (meets threshold)
-            "streak": 28,
+            "current_streak": 28,
             "predicted_value": "CHẠM 7",
             "is_enabled": 1
         },
@@ -98,7 +100,7 @@ def test_filter_de_dyn_threshold():
             "name": "DE_DYN_Very_High_WinRate",
             "type": "DE_DYN",
             "win_rate": 96.7,  # 29/30 = 96.7% (above threshold)
-            "streak": 29,
+            "current_streak": 29,
             "predicted_value": "CHẠM 9",
             "is_enabled": 1
         },
@@ -107,7 +109,7 @@ def test_filter_de_dyn_threshold():
             "name": "DE_SET_Always_Keep",
             "type": "DE_SET",
             "win_rate": 80.0,  # Should be kept regardless of threshold
-            "streak": 24,
+            "current_streak": 24,
             "predicted_value": "BỘ 22",
             "is_enabled": 1
         }
@@ -129,18 +131,14 @@ def test_filter_de_dyn_threshold():
         assert "DE_SET_Always_Keep" in bridge_names, "DE_SET should be kept regardless"
         
         # Verify that all remaining DE_DYN bridges meet threshold
-        # Note: threshold_thong=28 means 28 out of 30 periods = 93.3%
-        # But in the function, it's interpreted as 28% in the conversion logic
-        # So we're checking that streak >= 28 (raw value from DB)
+        # threshold_thong=28 means 28 out of 30 periods (raw count format)
+        # The function normalizes both threshold and streak values to raw counts
+        # So we expect all remaining DE_DYN bridges to have streak >= 28
         for bridge in result:
             if bridge["type"] == "DE_DYN":
-                # The function checks streak/thong value directly against threshold
-                # When threshold=28, it becomes 28.0% after conversion
-                # But our mock data has streak values (27, 28, 29) not percentages
-                # So the comparison is: streak (27, 28, 29) >= threshold_converted (28.0%)
-                # This means 27 < 28.0, 28 >= 28.0, 29 >= 28.0
-                streak_value = bridge.get("streak", 0)
-                # Since threshold=28 gets converted to 28.0%, we expect streak >= 28
+                # Check the streak value (should be >= 28)
+                streak_value = bridge.get("streak", 0) or bridge.get("current_streak", 0)
+                # Mock data uses "streak" field with values 27, 28, 29
                 assert streak_value >= 28, f"DE_DYN bridge {bridge['name']} has streak={streak_value} < 28"
         
         print("✓ test_filter_de_dyn_threshold passed")
@@ -151,12 +149,12 @@ def test_filter_mixed_scenarios():
     Test with mixed scenarios: DE_KILLER + low DE_DYN + high DE_DYN + other types
     """
     mock_bridges = [
-        {"id": 1, "name": "DE_KILLER_1", "type": "DE_KILLER", "win_rate": 100, "streak": 30, "is_enabled": 1},
-        {"id": 2, "name": "DE_DYN_Low", "type": "DE_DYN", "win_rate": 86.7, "streak": 26, "is_enabled": 1},
-        {"id": 3, "name": "DE_DYN_High", "type": "DE_DYN", "win_rate": 93.3, "streak": 28, "is_enabled": 1},
-        {"id": 4, "name": "DE_SET_1", "type": "DE_SET", "win_rate": 75, "streak": 22, "is_enabled": 1},
-        {"id": 5, "name": "DE_MEMORY_1", "type": "DE_MEMORY", "win_rate": 65, "streak": 19, "is_enabled": 1},
-        {"id": 6, "name": "DE_PASCAL_1", "type": "DE_PASCAL", "win_rate": 70, "streak": 21, "is_enabled": 1},
+        {"id": 1, "name": "DE_KILLER_1", "type": "DE_KILLER", "win_rate": 100, "current_streak": 30, "is_enabled": 1},
+        {"id": 2, "name": "DE_DYN_Low", "type": "DE_DYN", "win_rate": 86.7, "current_streak": 26, "is_enabled": 1},
+        {"id": 3, "name": "DE_DYN_High", "type": "DE_DYN", "win_rate": 93.3, "current_streak": 28, "is_enabled": 1},
+        {"id": 4, "name": "DE_SET_1", "type": "DE_SET", "win_rate": 75, "current_streak": 22, "is_enabled": 1},
+        {"id": 5, "name": "DE_MEMORY_1", "type": "DE_MEMORY", "win_rate": 65, "current_streak": 19, "is_enabled": 1},
+        {"id": 6, "name": "DE_PASCAL_1", "type": "DE_PASCAL", "win_rate": 70, "current_streak": 21, "is_enabled": 1},
     ]
     
     with patch('logic.dashboard_analytics.get_all_managed_bridges', return_value=mock_bridges):
