@@ -56,10 +56,10 @@ class UiDeDashboard(ttk.Frame):
         toolbar = ttk.Frame(self, padding=5)
         toolbar.pack(fill=tk.X)
         
-        btn_scan = ttk.Button(toolbar, text="🚀 QUÉT & PHÂN TÍCH (V3.9.20)", command=self.on_scan_click)
+        btn_scan = ttk.Button(toolbar, text="📊 PHÂN TÍCH CẦU ĐÃ QUẢN LÝ (V11.0)", command=self.on_scan_click)
         btn_scan.pack(side=tk.LEFT, padx=5)
         
-        self.lbl_status = ttk.Label(toolbar, text="Sẵn sàng", foreground="blue")
+        self.lbl_status = ttk.Label(toolbar, text="Sẵn sàng (Chỉ phân tích cầu đã lưu)", foreground="blue")
         self.lbl_status.pack(side=tk.LEFT, padx=10)
 
         # MAIN LAYOUT
@@ -78,7 +78,7 @@ class UiDeDashboard(ttk.Frame):
         self.tree_bo = self._create_tab_tree(self.nb_stats, "Bộ", ["Bộ", "Về", "Gan"])
         
         # --- COL 2: BRIDGES ---
-        f_scan = ttk.LabelFrame(paned, text="🎯 Cầu Động")
+        f_scan = ttk.LabelFrame(paned, text="🎯 Cầu Đã Quản Lý")
         paned.add(f_scan, weight=2)
         self.tree_br = self._create_tree(f_scan, ["Tên", "Loại", "Thông", "Số"], height=15)
         # [THÊM MỚI] Gắn sự kiện Double Click vào bảng cầu để gọi Backtest
@@ -212,22 +212,46 @@ class UiDeDashboard(ttk.Frame):
         widget.config(state='disabled')
 
     def on_scan_click(self):
+        """
+        [V11.0 UPDATE] Phân tích dựa trên cầu đã quản lý, KHÔNG quét cầu mới.
+        """
         data = getattr(self.controller, 'all_data_ai', [])
         if not data: data = getattr(self.controller, 'df', None)
         if not data or len(data) == 0:
-            print("[UiDeDashboard] No data available for scan.")
+            print("[UiDeDashboard] No data available for analysis.")
             return 
         self.lbl_status.config(text="Đang phân tích...", foreground="orange")
         threading.Thread(target=self._run_logic, args=(data,), daemon=True).start()
 
     def _run_logic(self, data):
+        """
+        [V11.0 UPDATE] Chỉ phân tích cầu đã quản lý, không quét cầu mới.
+        """
         list_data = data
         if hasattr(data, "values"): list_data = data.values.tolist()
         
+        # [V11.0 CHANGE] Load bridges from managed DB instead of scanning
         bridges = []
-        if HAS_SCANNER:
-            try: _, bridges = run_de_scanner(list_data)
-            except: pass
+        try:
+            from logic.data_repository import get_all_managed_bridges
+            # Chỉ lấy cầu đã bật (is_enabled=1) và là cầu Đề
+            all_managed = get_all_managed_bridges(only_enabled=True)
+            # Filter only DE bridges
+            bridges = [b for b in all_managed if b.get('type', '').startswith('DE_')]
+            
+            # Convert to scanner format for compatibility with analytics
+            for b in bridges:
+                if 'streak' not in b:
+                    b['streak'] = b.get('current_streak', 0)
+                if 'predicted_value' not in b:
+                    b['predicted_value'] = b.get('next_prediction_stl', '')
+                if 'display_desc' not in b:
+                    b['display_desc'] = b.get('description', '')
+            
+            print(f"[V11.0] Loaded {len(bridges)} managed DE bridges for analysis")
+        except Exception as e:
+            print(f"[ERROR] Failed to load managed bridges: {e}")
+            bridges = []
         
         matrix_res = {"ranked": [], "message": "N/A"}
         if HAS_ANALYTICS:

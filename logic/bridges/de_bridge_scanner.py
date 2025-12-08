@@ -61,14 +61,22 @@ class DeBridgeScanner:
                 matrix.append([None] * 214) # Fallback nếu lỗi
         return matrix
 
-    def scan_all(self, all_data_ai: List[List[str]]) -> Tuple[int, List[Dict[str, Any]]]:
+    def scan_all(self, all_data_ai: List[List[str]], auto_save: bool = False) -> Tuple[int, List[Dict[str, Any]]]:
         """
         Hàm điều phối chính (Orchestrator).
+        
+        Args:
+            all_data_ai: Dữ liệu lịch sử xổ số
+            auto_save: [NEW V11] Nếu True, tự động lưu vào DB (backward compatible).
+                       Nếu False (default), chỉ trả về kết quả mà không lưu.
+        
+        Returns:
+            (số lượng cầu, danh sách cầu sau khi filter)
         """
         if not self._validate_input_data(all_data_ai):
             return 0, []
 
-        print(f">>> [DE SCANNER V10.1] Bắt đầu quét (Speed Optimized)...")
+        print(f">>> [DE SCANNER V11.0] Bắt đầu quét (Quality Filtering)...")
         
         # 1. [OPTIMIZATION] Tiền xử lý dữ liệu sang dạng số
         # data_matrix[i][j] trả về ngay giá trị số tại ngày i, vị trí j
@@ -87,17 +95,26 @@ class DeBridgeScanner:
         print(f">>> [DE SCANNER] Bạc Nhớ tìm thấy: {len(bridges_memory)}")
         found_bridges.extend(bridges_memory)
 
-        # 4. CHIẾN THUẬT LOẠI TRỪ (KILLER) (Sử dụng data_matrix)
+        # 4. CHIẾN THUẬT LOẠI TRỪ (KILLER) - KHÔNG THÊM VÀO KẾT QUẢ
+        # [V11.0 CHANGE] Killer bridges chỉ dùng để loại bỏ, không đề xuất
         bridges_killer = self._scan_killer_bridges(all_data_ai, data_matrix)
-        print(f">>> [DE SCANNER] Cầu Loại tìm thấy: {len(bridges_killer)}")
-        found_bridges.extend(bridges_killer)
+        print(f">>> [DE SCANNER] Cầu Loại phát hiện: {len(bridges_killer)} (sẽ KHÔNG đề xuất)")
 
-        # 5. TỔNG HỢP & LƯU TRỮ
-        self._rank_bridges(found_bridges)
-        self._save_to_db(found_bridges)
+        # 5. [V11.0 NEW] ÁP DỤNG BỘ LỌC CHẤT LƯỢNG
+        filtered_bridges = self._apply_quality_filters(found_bridges)
         
-        print(f">>> [DE SCANNER] Tổng cộng: {len(found_bridges)} cầu.")
-        return len(found_bridges), found_bridges
+        # 6. TỔNG HỢP
+        self._rank_bridges(filtered_bridges)
+        
+        # 7. [V11.0 CHANGE] CHỈ LƯU NẾU auto_save=True
+        if auto_save:
+            self._save_to_db(filtered_bridges)
+            print(f">>> [DE SCANNER] Đã tự động lưu {len(filtered_bridges)} cầu vào DB.")
+        else:
+            print(f">>> [DE SCANNER] Trả về {len(filtered_bridges)} cầu (chưa lưu DB).")
+        
+        print(f">>> [DE SCANNER] Hoàn tất quét.")
+        return len(filtered_bridges), filtered_bridges
 
     # --- CORE HELPERS ---
 
@@ -124,6 +141,58 @@ class DeBridgeScanner:
         stability_bonus = 1.5 if wins_10 >= 8 else 0.0
         return (streak * 1.5) + (wins_10 * 1.0) + type_bonus + stability_bonus
 
+    def _apply_quality_filters(self, bridges: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        [V11.0 NEW] Áp dụng bộ lọc chất lượng theo yêu cầu:
+        1. Loại bỏ TOÀN BỘ cầu DE_KILLER (không đề xuất)
+        2. Với DE_DYN (DE_DYNAMIC_K): Chỉ giữ cầu có tỷ lệ thông >= 28/30 (93.3%)
+        3. Các loại khác (DE_SET, DE_MEMORY, DE_PASCAL, DE_POS_SUM): Giữ nguyên
+        
+        Returns:
+            Danh sách cầu đã lọc
+        """
+        filtered = []
+        stats = {
+            'total_input': len(bridges),
+            'removed_killer': 0,
+            'removed_dyn_low_rate': 0,
+            'kept': 0
+        }
+        
+        for bridge in bridges:
+            bridge_type = bridge.get('type', '')
+            
+            # 1. LOẠI BỎ TUYỆT ĐỐI: DE_KILLER
+            if bridge_type == 'DE_KILLER':
+                stats['removed_killer'] += 1
+                print(f"    [FILTER] Loại bỏ DE_KILLER: {bridge.get('name')}")
+                continue
+            
+            # 2. LỌC THEO TỶ LỆ: DE_DYNAMIC_K (DE_DYN)
+            if bridge_type == 'DE_DYNAMIC_K':
+                streak = bridge.get('streak', 0)
+                # Yêu cầu: >= 28/30 = 93.3%
+                min_required_streak = 28
+                
+                if streak < min_required_streak:
+                    stats['removed_dyn_low_rate'] += 1
+                    win_rate = bridge.get('win_rate', 0)
+                    print(f"    [FILTER] Loại DE_DYN (tỷ lệ thấp {streak}/30 = {win_rate:.1f}%): {bridge.get('name')}")
+                    continue
+            
+            # 3. GIỮ LẠI các loại khác hoặc cầu đạt tiêu chuẩn
+            stats['kept'] += 1
+            filtered.append(bridge)
+        
+        # Log tổng kết
+        print(f"\n>>> [QUALITY FILTER] Kết quả lọc:")
+        print(f"    - Tổng đầu vào: {stats['total_input']}")
+        print(f"    - Loại DE_KILLER: {stats['removed_killer']}")
+        print(f"    - Loại DE_DYN (< 93.3%): {stats['removed_dyn_low_rate']}")
+        print(f"    - Giữ lại: {stats['kept']}\n")
+        
+        return filtered
+    
     def _rank_bridges(self, bridges: List[Dict[str, Any]]) -> None:
         for b in bridges:
             streak = b.get('streak', 0)
@@ -699,32 +768,32 @@ class DeBridgeScanner:
         # Map cho list 107 vị trí
         return getPositionName_V17_Shadow(idx).replace('[', '.').replace(']', '')
 
-    def _save_to_db(self, bridges: List[Dict[str, Any]]):
-        if not bridges: return
+    def _save_to_db(self, bridges: List[Dict[str, Any]], clear_existing: bool = True):
+        """
+        [V11.0 REFACTOR] Lưu danh sách cầu vào DB.
+        
+        Args:
+            bridges: Danh sách cầu cần lưu
+            clear_existing: Nếu True, xóa tất cả cầu tự động cũ trước khi lưu.
+                            Nếu False, chỉ thêm mới (cho approval workflow)
+        """
+        if not bridges: 
+            print(">>> [DB] Không có cầu nào để lưu.")
+            return
+        
         try:
             conn = sqlite3.connect(DB_NAME)
             cursor = conn.cursor()
-            cursor.execute("DELETE FROM ManagedBridges WHERE type IN ('DE_DYNAMIC_K', 'DE_POS_SUM', 'DE_SET', 'DE_PASCAL', 'DE_KILLER', 'DE_MEMORY')")
+            
+            if clear_existing:
+                # Xóa tất cả cầu tự động cũ (không xóa cầu thủ công)
+                cursor.execute("DELETE FROM ManagedBridges WHERE type IN ('DE_DYNAMIC_K', 'DE_POS_SUM', 'DE_SET', 'DE_PASCAL', 'DE_KILLER', 'DE_MEMORY')")
+                print(f">>> [DB] Đã xóa các cầu tự động cũ.")
             
             count = 0
             
-            # --- [SỬA ĐỔI BẮT ĐẦU] ---
-            # Cũ: Chỉ lưu Top 150 cầu tốt nhất
-            # for b in bridges[:150]: 
-            
-            # Mới: Ưu tiên lưu HẾT Cầu Bộ (DE_SET) + Top 300 cầu loại khác
-            
-            # 1. Tách Cầu Bộ ra riêng
-            set_bridges = [b for b in bridges if b.get('type') == 'DE_SET']
-            other_bridges = [b for b in bridges if b.get('type') != 'DE_SET']
-            
-            # 2. Gộp lại: Cầu Bộ (Full) + Cầu Khác (Top 300)
-            # Lưu ý: Cầu Khác đã được sort điểm ở bước trước
-            bridges_to_save = set_bridges + other_bridges[:300]
-            
-            for b in bridges_to_save:
-            # --- [SỬA ĐỔI KẾT THÚC] ---
-            
+            # Lưu tất cả cầu (không giới hạn số lượng)
+            for b in bridges:
                 desc = b.get('display_desc', '')
                 full_dan = b.get('full_dan', '')
                 final_desc = f"{desc}. Dàn: {full_dan}" if full_dan else desc
@@ -741,9 +810,33 @@ class DeBridgeScanner:
                 """, (b['name'], b['type'], final_desc, f"{b['win_rate']:.0f}%", b['streak'], b['predicted_value'], pos1_idx, pos2_idx))
                 count += 1
             
-            conn.commit(); conn.close()
-            print(f">>> [DB] Đã lưu thành công {count} cầu vào bảng ManagedBridges (Bao gồm {len(set_bridges)} Cầu Bộ).")
-        except Exception as e: print(f"Lỗi lưu DB: {e}")
+            conn.commit()
+            conn.close()
+            print(f">>> [DB] Đã lưu thành công {count} cầu vào ManagedBridges.")
+        except Exception as e: 
+            print(f">>> [ERROR] Lỗi lưu DB: {e}")
 
-def run_de_scanner(data):
-    return DeBridgeScanner().scan_all(data)
+    def save_bridges_to_db(self, bridges: List[Dict[str, Any]], clear_existing: bool = False):
+        """
+        [V11.0 NEW] Public method để lưu cầu vào DB.
+        Dùng cho approval workflow (user chọn cầu để thêm vào quản lý).
+        
+        Args:
+            bridges: Danh sách cầu cần lưu
+            clear_existing: Nếu True, xóa cầu tự động cũ. Default False (append mode)
+        """
+        return self._save_to_db(bridges, clear_existing=clear_existing)
+
+def run_de_scanner(data, auto_save=False):
+    """
+    [V11.0 UPDATE] Wrapper function cho scanner.
+    
+    Args:
+        data: Dữ liệu lịch sử xổ số
+        auto_save: Nếu True, tự động lưu vào DB (backward compatible).
+                   Nếu False (default), chỉ trả về kết quả.
+    
+    Returns:
+        (số lượng cầu, danh sách cầu)
+    """
+    return DeBridgeScanner().scan_all(data, auto_save=auto_save)
