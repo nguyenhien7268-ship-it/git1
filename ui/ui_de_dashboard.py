@@ -172,7 +172,8 @@ class UiDeDashboard(ttk.Frame):
         self.tree_eval_bo = self._create_tree(t_eval_bo, ["Bộ", "Về (30N)", "Gan", "Điểm ĐG"])
         self.tree_eval_bo.column("Bộ", width=80)
         self.tree_eval_bo.column("Điểm ĐG", width=70)
-        self.tree_eval_bo.tag_configure("HOT", background="#FFF9C4", foreground="red") 
+        self.tree_eval_bo.tag_configure("HOT", background="#FFF9C4", foreground="red")
+        self.tree_eval_bo.tag_configure("KEP", background="#E1F5FE", font=("Arial", 9, "bold")) 
 
     def update_data(self, *args):
         try:
@@ -334,9 +335,9 @@ class UiDeDashboard(ttk.Frame):
 
     def _update_evaluation_and_top_sets(self, freq_bo, gan_bo, freq_cham, gan_cham):
         """
-        [V3.9.21] TÁCH BIỆT ĐÁNH GIÁ: Cập nhật riêng 2 bảng Chạm và Bộ
+        [V3.9.22] TÁCH BIỆT ĐÁNH GIÁ: Cập nhật riêng 2 bảng Chạm và Bộ
         - Bảng CHẠM: Thuật toán scoring (freq * 2.0) - (gan * 0.5)
-        - Bảng BỘ: Thuật toán scoring (freq * 1.5) - (gan * 0.5)
+        - Bảng BỘ: Thuật toán cải tiến với bonus cho bộ kép, trending, vừa về
         """
         # === 1. ĐÁNH GIÁ CHẠM (SEPARATED) ===
         for i in self.tree_eval_cham.get_children(): 
@@ -361,9 +362,12 @@ class UiDeDashboard(ttk.Frame):
                 values=(item['val'], item['f'], item['g'], f"{item['s']:.1f}"), 
                 tags=tags)
         
-        # === 2. ĐÁNH GIÁ BỘ (SEPARATED) ===
+        # === 2. ĐÁNH GIÁ BỘ (SEPARATED & IMPROVED) ===
         for i in self.tree_eval_bo.get_children(): 
             self.tree_eval_bo.delete(i)
+        
+        # Bộ kép (duplicate sets): 00, 11, 22, 33, 44 - có 4 số/bộ
+        KEP_SETS = {"00", "11", "22", "33", "44"}
         
         bo_scores = []
         if BO_SO_DE:
@@ -372,25 +376,62 @@ class UiDeDashboard(ttk.Frame):
             for bo in all_bo_names:
                 f = freq_bo.get(bo, 0)
                 g = gan_bo.get(bo, 30) # Default Gan 30 ngày nếu không thấy
-                # Scoring algorithm for BỘ: Moderate weight on frequency
-                score = (f * 1.5) - (float(g) * 0.5)
-                bo_scores.append({"val": bo, "f": f, "g": g, "s": score})
+                
+                # === NEW SCORING FORMULA FOR BỘ ===
+                # Base score: frequency with moderate weight
+                base_score = f * 1.5
+                
+                # Reduced penalty: Gan penalty reduced from 0.5 to 0.3
+                gan_penalty = float(g) * 0.3
+                
+                # Bonus for duplicate sets (bộ kép): +2.0 points
+                kep_bonus = 2.0 if bo in KEP_SETS else 0.0
+                
+                # Bonus for recently appeared (gan < 7 days): +1.5 points
+                recent_bonus = 1.5 if g < 7 else 0.0
+                
+                # Bonus for trending (high frequency in last 30 days): +1.0 if freq >= 3
+                trending_bonus = 1.0 if f >= 3 else 0.0
+                
+                # Final score
+                score = base_score - gan_penalty + kep_bonus + recent_bonus + trending_bonus
+                
+                bo_scores.append({
+                    "val": bo, 
+                    "f": f, 
+                    "g": g, 
+                    "s": score,
+                    "is_kep": bo in KEP_SETS
+                })
         else:
             # Fallback nếu BO_SO_DE rỗng (hiếm)
             for bo, freq in freq_bo.items():
-                bo_scores.append({"val": bo, "f": freq, "g": 0, "s": 0})
+                bo_scores.append({
+                    "val": bo, 
+                    "f": freq, 
+                    "g": 0, 
+                    "s": 0,
+                    "is_kep": False
+                })
         
         # Sort by score descending
         bo_scores.sort(key=lambda x: x['s'], reverse=True)
         
-        # Display in BỘ table
+        # Display in BỘ table with special highlighting for bộ kép
         for item in bo_scores:
-            tags = ()
+            tags = []
+            
+            # HOT indicator for high scores
             if item['s'] >= 5.0: 
-                tags = ("HOT",)
+                tags.append("HOT")
+            
+            # KEP indicator for duplicate sets (blue background, bold)
+            if item.get('is_kep', False):
+                tags.append("KEP")
+            
             self.tree_eval_bo.insert("", "end", 
                 values=(item['val'], item['f'], item['g'], f"{item['s']:.1f}"), 
-                tags=tags)
+                tags=tuple(tags) if tags else ())
         
         # === 3. TOP BỘ SUMMARY ===
         top_bo = bo_scores[:5]  # Already sorted
