@@ -202,17 +202,19 @@ def calculate_number_scores(bridges, market_stats=None):
     return sorted([(k, v, f"{bridge_count_per_num[k]} cầu") for k, v in scores.items()], key=lambda x: x[1], reverse=True)
 
 
-def build_dan65_with_bo_priority(all_scores, freq_bo, gan_bo, top_sets_count=None, dan_size=None, min_per_top_set=None):
+def build_dan65_with_bo_priority(all_scores, freq_bo, gan_bo, vip_numbers=None, focus_numbers=None, top_sets_count=None, dan_size=None, min_per_top_set=None):
     """
-    [V10.5] Build Dan 65 with SET PRIORITY
+    [V10.6] Build Dan 65 with VIP/FOCUS PRIORITY + SET PRIORITY
     
-    Ensures top-performing sets (bộ) are represented in the final Dan 65,
-    preventing the issue where high-value duplicate/trending sets are excluded.
+    Ensures VIP and focus numbers are ALWAYS included, then adds top-performing
+    sets (bộ) representation, preventing exclusion of critical numbers.
     
     Args:
         all_scores: List of (number_str, score, info) tuples from calculate_number_scores
         freq_bo: Dict of set frequencies {bo_name: count}
         gan_bo: Dict of set gan days {bo_name: days}
+        vip_numbers: List of VIP numbers (10 numbers) - FORCED inclusion
+        focus_numbers: List of focus numbers (4 numbers) - FORCED inclusion
         top_sets_count: How many top sets to prioritize (None = use config, default 5)
         dan_size: Final Dan size (None = use config, default 65)
         min_per_top_set: Minimum numbers to include from each top set (None = use config, default 1)
@@ -234,13 +236,45 @@ def build_dan65_with_bo_priority(all_scores, freq_bo, gan_bo, top_sets_count=Non
         
         excluded_threshold = DEFAULT_SETTINGS.get("DAN65_LOG_EXCLUDED_THRESHOLD", 30.0)
         
+        # Normalize VIP/focus numbers
+        vip_numbers = vip_numbers or []
+        focus_numbers = focus_numbers or []
+        
+        # === PHASE 0: FORCE INCLUDE VIP AND FOCUS NUMBERS ===
+        dan = set()
+        vip_added = []
+        focus_added = []
+        
+        print("\n" + "="*70)
+        print("🎯 DAN 65 OPTIMIZATION LOG (V10.6)")
+        print("="*70)
+        
+        if vip_numbers or focus_numbers:
+            print(f"\n[PHASE 0] Force Include VIP/Focus Numbers:")
+            
+            # Add VIP numbers (10 numbers)
+            for num in vip_numbers:
+                if num not in dan:
+                    dan.add(num)
+                    vip_added.append(num)
+            
+            if vip_added:
+                print(f"  ✅ VIP (10 numbers): {', '.join(vip_added)}")
+            
+            # Add Focus numbers (4 numbers)
+            for num in focus_numbers:
+                if num not in dan:
+                    dan.add(num)
+                    focus_added.append(num)
+            
+            if focus_added:
+                print(f"  ✅ Focus (4 numbers): {', '.join(focus_added)}")
+            
+            print(f"  📊 Total forced: {len(vip_added) + len(focus_added)} numbers")
+        
         # === PHASE 1: IDENTIFY TOP PERFORMING SETS ===
         set_scores = []
         KEP_SETS = ["00", "11", "22", "33", "44"]  # Duplicate sets
-        
-        print("\n" + "="*70)
-        print("🎯 DAN 65 OPTIMIZATION LOG")
-        print("="*70)
         
         for bo_name, nums in BO_SO_DE.items():
             freq = freq_bo.get(bo_name, 0)
@@ -266,10 +300,10 @@ def build_dan65_with_bo_priority(all_scores, freq_bo, gan_bo, top_sets_count=Non
             print(f"  {i}. Bộ {bo_name} (Score: {score:.1f}, Freq: {freq}, Gan: {gan}){kep_tag}")
         
         # === PHASE 2: FORCE INCLUDE NUMBERS FROM TOP SETS ===
-        dan = set()
+        # (dan already initialized with VIP/focus numbers)
         included_from_top_sets = {}
         
-        print(f"\n[PHASE 2] Forced Inclusions from Top Sets:")
+        print(f"\n[PHASE 2] Add Numbers from Top Sets (after VIP/focus):")
         
         for bo_name in top_sets:
             bo_nums = BO_SO_DE.get(bo_name, [])
@@ -318,13 +352,15 @@ def build_dan65_with_bo_priority(all_scores, freq_bo, gan_bo, top_sets_count=Non
         
         # === SUMMARY ===
         total_from_top_sets = sum(included_from_top_sets.values())
-        total_from_others = len(dan) - total_from_top_sets
+        total_vip_focus = len(vip_added) + len(focus_added)
+        total_from_others = len(dan) - total_from_top_sets - total_vip_focus
         kep_count = sum(1 for bo in top_sets if bo in KEP_SETS and included_from_top_sets.get(bo, 0) > 0)
         
         print(f"\n[SUMMARY] Dan {dan_size} Statistics:")
         print(f"  ✓ Total numbers: {len(dan)}")
-        print(f"  ✓ From top {top_sets_count} sets: {total_from_top_sets} ({total_from_top_sets/len(dan)*100:.1f}%)")
-        print(f"  ✓ From other sets: {total_from_others} ({total_from_others/len(dan)*100:.1f}%)")
+        print(f"  ✓ VIP/Focus forced: {total_vip_focus} ({len(vip_added)} VIP + {len(focus_added)} focus)")
+        print(f"  ✓ From top {top_sets_count} sets: {total_from_top_sets} ({total_from_top_sets/max(len(dan),1)*100:.1f}%)")
+        print(f"  ✓ From other sources: {total_from_others} ({total_from_others/max(len(dan),1)*100:.1f}%)")
         print(f"  ✓ Duplicate sets represented: {kep_count}")
         print(f"  ✓ Total sets represented: {len(set(bo for bo in BO_SO_DE.keys() if any(n in dan for n in BO_SO_DE[bo])))}/15")
         print("="*70 + "\n")

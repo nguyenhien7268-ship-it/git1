@@ -309,28 +309,39 @@ class UiDeDashboard(ttk.Frame):
         else:
             self._update_txt(self.txt_10, f"Lỗi: {matrix_res.get('message')}")
             
-        # 5. Update Dan 65 (WITH SET PRIORITY - V10.5)
+        # 5. Update Dan 65 (WITH VIP/FOCUS + SET PRIORITY - V10.6)
         if scores:
             try:
                 from logic.de_analytics import build_dan65_with_bo_priority
                 
-                # Build Dan 65 with set priority optimization
+                # Extract VIP (top 10) and Focus (top 4) numbers from ranked matrix
+                vip_numbers = []
+                focus_numbers = []
+                if ranked:
+                    vip_numbers = [x['so'] for x in ranked[:10]]  # Top 10 VIP
+                    focus_numbers = [x['so'] for x in ranked[:4]]  # Top 4 Focus (subset of VIP)
+                
+                # Build Dan 65 with VIP/Focus + set priority optimization
                 dan65, inclusions, excluded = build_dan65_with_bo_priority(
                     all_scores=scores,
                     freq_bo=freq_bo,
                     gan_bo=gan_bo,
-                    top_sets_count=5,      # Prioritize top 5 sets
-                    dan_size=65,           # Final Dan size
-                    min_per_top_set=1      # At least 1 number per top set
+                    vip_numbers=vip_numbers,    # FORCE include VIP 10
+                    focus_numbers=focus_numbers,  # FORCE include Focus 4
+                    top_sets_count=5,            # Prioritize top 5 sets
+                    dan_size=65,                 # Final Dan size
+                    min_per_top_set=1            # At least 1 number per top set
                 )
                 
                 self._update_txt(self.txt_65, ",".join(dan65))
                 
                 # Brief console summary
-                print(f"\n🎯 DAN 65 OPTIMIZED: {len(dan65)} numbers, {sum(inclusions.values())} from top sets")
+                print(f"\n🎯 DAN 65 OPTIMIZED: {len(dan65)} numbers ({len(vip_numbers)} VIP, {sum(inclusions.values())} from top sets)")
                 
             except Exception as e:
                 print(f"[WARNING] Dan 65 optimization failed, using simple method: {e}")
+                import traceback
+                traceback.print_exc()
                 # Fallback to simple method
                 top65 = [x[0] for x in scores[:65]]
                 top65.sort()
