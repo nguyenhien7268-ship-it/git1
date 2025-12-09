@@ -31,7 +31,7 @@ except ImportError as e:
     def run_intersection_matrix_analysis(*a): return {"ranked": [], "message": str(e)}
     def calculate_top_touch_combinations(*a, **k): return []
 
-# --- 3. IMPORT SCANNER ---
+# --- 3. IMPORT SCANNER (Legacy - not used in PR1) ---
 try:
     from logic.bridges.de_bridge_scanner import run_de_scanner
     HAS_SCANNER = True
@@ -39,6 +39,15 @@ except ImportError as e:
     print(f"[UI ERROR] Scanner Import Failed: {e}")
     HAS_SCANNER = False
     def run_de_scanner(d): return 0, []
+
+# --- 4. IMPORT DB LOADER (PR1: Load bridges from DB instead of scanning) ---
+try:
+    from logic.dashboard_analytics import get_cau_dong_for_tab_soi_cau_de
+    HAS_DB_LOADER = True
+except ImportError as e:
+    print(f"[UI ERROR] DB Loader Import Failed: {e}")
+    HAS_DB_LOADER = False
+    def get_cau_dong_for_tab_soi_cau_de(*a, **k): return []
 
 class UiDeDashboard(ttk.Frame):
     def __init__(self, parent, controller):
@@ -233,8 +242,20 @@ class UiDeDashboard(ttk.Frame):
         list_data = data
         if hasattr(data, "values"): list_data = data.values.tolist()
         
+        # PR1: Load bridges from DB (Managed Bridges) instead of scanning
         bridges = []
-        if HAS_SCANNER:
+        if HAS_DB_LOADER:
+            try:
+                bridges = get_cau_dong_for_tab_soi_cau_de()
+                print(f"[UI] Loaded {len(bridges)} bridges from DB (filtered)")
+            except Exception as e:
+                print(f"[UI ERROR] Failed to load bridges from DB: {e}")
+                # Fallback to scanner if DB load fails
+                if HAS_SCANNER:
+                    try: _, bridges = run_de_scanner(list_data)
+                    except: pass
+        elif HAS_SCANNER:
+            # Legacy fallback: use scanner
             try: _, bridges = run_de_scanner(list_data)
             except: pass
         

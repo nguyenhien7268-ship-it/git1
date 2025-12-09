@@ -46,6 +46,11 @@ DEFAULT_SETTINGS = {
     "DE_DYN_MIN_WINRATE": 93.3,       # Minimum win rate for DE_DYN (28/30 = 93.3%)
     "DE_DYN_MAX_COUNT": 10,            # Maximum DE_DYN bridges to save
     
+    # DE Visibility Policy (V11.0 - Hysteresis)
+    "DE_WINDOW_KYS": 30,               # Window size for DE metrics (last N periods)
+    "DE_DYN_ENABLE_RAW": 28,           # Enable threshold: wins >= 28 out of 30
+    "DE_DYN_DISABLE_RAW": 26,          # Disable threshold: wins <= 26 out of 30
+    
     # DE_KILLER Filtering (V10.7)
     "DE_KILLER_MAX_COUNT": 0,          # Maximum DE_KILLER bridges (0 = disabled)
     

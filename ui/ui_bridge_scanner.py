@@ -358,15 +358,29 @@ class BridgeScannerTab(ttk.Frame):
     # ==================== ACTION FUNCTIONS ====================
     
     def _add_selected_to_management(self):
-        """Thêm các cầu đã chọn vào hệ thống quản lý."""
+        """
+        Thêm các cầu đã chọn vào hệ thống quản lý.
+        V11.1: Enhanced with detailed logging to logs/batch_add.log
+        """
+        import os
+        import json
+        from datetime import datetime
+        
         selected = self.results_tree.selection()
         if not selected:
             messagebox.showwarning("Chưa Chọn", "Vui lòng chọn ít nhất một cầu để thêm.")
             return
         
+        # Prepare log file
+        logs_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "logs")
+        if not os.path.exists(logs_dir):
+            os.makedirs(logs_dir)
+        log_file = os.path.join(logs_dir, "batch_add.log")
+        
         added_count = 0
         skipped_count = 0
         error_list = []
+        log_entries = []
         
         for item in selected:
             values = self.results_tree.item(item, "values")
@@ -390,12 +404,28 @@ class BridgeScannerTab(ttk.Frame):
             
             # Validate bridge name
             if not name or name == "N/A" or not name.strip():
-                error_list.append(f"- Cầu '{desc[:30]}': Tên không hợp lệ")
+                error_msg = f"- Cầu '{desc[:30]}': Tên không hợp lệ"
+                error_list.append(error_msg)
+                log_entries.append({
+                    "timestamp": datetime.now().isoformat(),
+                    "bridge_name": desc[:30],
+                    "action": "add",
+                    "status": "failed",
+                    "reason": "Invalid name"
+                })
                 continue
             
             # Validate bridge type
             if not display_type or display_type not in ["LÔ_V17", "LÔ_BN", "LÔ_STL_FIXED", "ĐỀ"]:
-                error_list.append(f"- Cầu '{name}': Loại không xác định ({display_type})")
+                error_msg = f"- Cầu '{name}': Loại không xác định ({display_type})"
+                error_list.append(error_msg)
+                log_entries.append({
+                    "timestamp": datetime.now().isoformat(),
+                    "bridge_name": name,
+                    "action": "add",
+                    "status": "failed",
+                    "reason": f"Unknown type: {display_type}"
+                })
                 continue
             
             # Determine proper type for DB
@@ -429,6 +459,14 @@ class BridgeScannerTab(ttk.Frame):
                     ))
                     self.results_tree.item(item, tags=("added",))
                     added_count += 1
+                    log_entries.append({
+                        "timestamp": datetime.now().isoformat(),
+                        "bridge_name": name,
+                        "bridge_type": db_type,
+                        "action": "add",
+                        "status": "success",
+                        "message": msg
+                    })
                 else:
                     # Bridge already exists or other error
                     if "đã tồn tại" in msg.lower() or "already exists" in msg.lower():
@@ -438,10 +476,42 @@ class BridgeScannerTab(ttk.Frame):
                         ))
                         self.results_tree.item(item, tags=("added",))
                         skipped_count += 1
+                        log_entries.append({
+                            "timestamp": datetime.now().isoformat(),
+                            "bridge_name": name,
+                            "bridge_type": db_type,
+                            "action": "add",
+                            "status": "skipped",
+                            "reason": "Already exists"
+                        })
                     else:
                         error_list.append(f"- Cầu '{name}': {msg}")
+                        log_entries.append({
+                            "timestamp": datetime.now().isoformat(),
+                            "bridge_name": name,
+                            "bridge_type": db_type,
+                            "action": "add",
+                            "status": "failed",
+                            "error": msg
+                        })
             except Exception as e:
-                error_list.append(f"- Cầu '{name}': Lỗi thêm - {str(e)}")
+                error_msg = f"- Cầu '{name}': Lỗi thêm - {str(e)}"
+                error_list.append(error_msg)
+                log_entries.append({
+                    "timestamp": datetime.now().isoformat(),
+                    "bridge_name": name,
+                    "action": "add",
+                    "status": "failed",
+                    "exception": str(e)
+                })
+        
+        # Write logs to file
+        try:
+            with open(log_file, 'a', encoding='utf-8') as f:
+                for entry in log_entries:
+                    f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+        except Exception as e:
+            print(f"Warning: Could not write to log file: {e}")
         
         self.results_tree.tag_configure("added", background="#c8e6c9")
         

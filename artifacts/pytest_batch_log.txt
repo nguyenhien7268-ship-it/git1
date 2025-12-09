@@ -1,0 +1,10 @@
+============================= test session starts =============================
+platform win32 -- Python 3.14.0, pytest-9.0.1, pluggy-1.6.0
+rootdir: C:\Users\KAKA\Documents\27loto\code8
+configfile: pytest.ini
+plugins: anyio-4.11.0, cov-7.0.0
+collected 6 items
+
+tests\test_batch_operations.py ssssss                                    [100%]
+
+============================= 6 skipped in 0.07s ==============================
