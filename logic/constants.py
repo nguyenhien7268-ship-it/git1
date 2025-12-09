@@ -62,7 +62,21 @@ DEFAULT_SETTINGS = {
     "K2N_CACHE_DE_ENABLED": True,      # Enable K2N cache refresh for DE bridges
     
     # Manager Rate Mode
-    "MANAGER_RATE_MODE": "K1N"         # Backtest mode for bridge rate calculation (K1N/K2N)
+    "MANAGER_RATE_MODE": "K1N",        # Backtest mode for bridge rate calculation (K1N/K2N)
+    
+    # [NEW V11.2] K1N-Primary Detection Flow Configuration
+    "THRESHOLD_K1N_LO": 85.0,          # K1N threshold for LO bridges (%)
+    "THRESHOLD_K1N_DE": 90.0,          # K1N threshold for DE bridges (%)
+    "THRESHOLD_K2N_LO": 80.0,          # K2N threshold for LO bridges (%)
+    "THRESHOLD_K2N_DE": 85.0,          # K2N threshold for DE bridges (%)
+    "POLICY_TYPE": "k1n_primary",      # Import policy: 'k1n_primary', 'k2n_primary', 'combined'
+    "FALLBACK_TO_K2N": True,           # Fallback to K2N when K1N is missing
+    "AUTO_IMPORT_DEFAULT_ENABLE": False,   # Default enabled state for auto-imported bridges
+    "AUTO_IMPORT_DEFAULT_PENDING": True,   # Default pending state for auto-imported bridges
+    
+    # Combined policy weights (when POLICY_TYPE='combined')
+    "WEIGHT_K1N": 0.6,                 # Weight for K1N in combined score
+    "WEIGHT_K2N": 0.4,                 # Weight for K2N in combined score
 }
 
 # Database Paths
