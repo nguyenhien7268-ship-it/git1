@@ -1,0 +1,53 @@
+*** Begin Patch
+*** Update File: tests/test_batch_operations.py
+@@
+-import os
+-import tempfile
+-import sqlite3
++import os
++import tempfile
++import sqlite3
++import gc
++import time
+@@
+-    def tearDown(self):
+-        os.unlink(self.db_path)
++    def tearDown(self):
++        """
++        Ensure any sqlite3 connections are closed before removing the temporary DB file.
++        On Windows a file cannot be unlinked while a handle is open, so tests must
++        explicitly close connections. We try to close:
++          - self.conn when present
++          - any sqlite3.Connection objects discovered via the GC
++        Finally attempt to unlink; if PermissionError occurs, print a warning but do not fail teardown.
++        """
++        try:
++            # Close known connection stored on the test instance
++            if hasattr(self, "conn") and self.conn:
++                try:
++                    self.conn.close()
++                except Exception:
++                    pass
++
++            # Close any other sqlite3.Connection objects found by GC
++            # This helps when module-under-test created connections that were not closed.
++            for obj in gc.get_objects():
++                try:
++                    if isinstance(obj, sqlite3.Connection):
++                        try:
++                            obj.close()
++                        except Exception:
++                            pass
++                except Exception:
++                    # Some objects may raise during GC inspection; ignore them.
++                    continue
++
++            # Allow a short time for OS to release file handles on Windows
++            time.sleep(0.05)
++        finally:
++            try:
++                os.unlink(self.db_path)
++            except PermissionError as e:
++                # Warn instead of failing teardown to avoid masking test results with cleanup errors.
++                print(f"[WARN] Could not remove temp DB {self.db_path}: {e}")
+*** End Patch

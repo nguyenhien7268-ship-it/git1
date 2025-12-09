@@ -1,0 +1,104 @@
+*** Begin Patch
+*** Update File: logic/dashboard_analytics.py
+@@
+ def get_cau_dong_for_tab_soi_cau_de(db_name=None, threshold_thong=None):
+@@
+-    # Get all enabled bridges from DB
+-    all_bridges = get_all_managed_bridges(db_name, only_enabled=True)
+-
+-    filtered_bridges = []
+-    filtered_count = {"DE_KILLER": 0, "DE_DYN_LOW": 0}
+-    
+-    for bridge in all_bridges:
+-        bridge_type = bridge.get("type", "")
+-        bridge_name = bridge.get("name", "N/A")
+-        win_rate = bridge.get("win_rate", 0) or 0  # Handle None
+-        
+-        # Rule 1: Loại bỏ hoàn toàn DE_KILLER
+-        if bridge_type == "DE_KILLER":
+-            filtered_count["DE_KILLER"] += 1
+-            print(f"  [FILTERED] DE_KILLER: {bridge_name}")
+-            continue
+-        
+-        # Rule 2: Lọc DE_DYN theo win_rate/streak
+-        if bridge_type == "DE_DYN":
+-            # Get the streak/win count value from DB
+-            # DB stores: current_streak (raw count) or win_rate (could be text or number)
+-            streak_value = bridge.get("current_streak", 0) or bridge.get("streak", 0)
+-            
+-            # Normalize to raw count based on value range
+-            if streak_value <= 0:
+-                streak_raw = 0
+-            elif streak_value <= 30:
+-                # It's already a raw count (1-30)
+-                streak_raw = int(streak_value)
+-            elif 30 < streak_value <= 100:
+-                # It's a percentage (30.1-100%) -> convert to raw count
+-                streak_raw = int((streak_value / 100.0) * 30)
+-            else:
+-                # Invalid value (>100), treat as 0
+-                print(f"  [WARNING] Invalid streak value {streak_value} for {bridge_name}, treating as 0")
+-                streak_raw = 0
+-            
+-            if streak_raw < threshold_raw:
+-                filtered_count["DE_DYN_LOW"] += 1
+-                print(f"  [FILTERED] DE_DYN (thông={streak_raw}/30 < {threshold_raw}/30): {bridge_name}")
+-                continue
+-        
+-        # Keep this bridge and normalize field names for UI compatibility
+-        # UI expects: name, type, streak, predicted_value
+-        # DB has: name, type, current_streak, next_prediction_stl
+-        if "current_streak" in bridge and "streak" not in bridge:
+-            bridge["streak"] = bridge["current_streak"]
+-        if "next_prediction_stl" in bridge and "predicted_value" not in bridge:
+-            bridge["predicted_value"] = bridge["next_prediction_stl"]
+-        
+-        filtered_bridges.append(bridge)
++    # Get all enabled bridges from DB
++    all_bridges = get_all_managed_bridges(db_name, only_enabled=True)
++
++    filtered_bridges = []
++    filtered_count = {"NON_DE": 0, "DE_KILLER": 0, "DE_DYN_LOW": 0}
++
++    for bridge in all_bridges:
++        bridge_type = (bridge.get("type", "") or "").upper()
++        bridge_name = bridge.get("name", "N/A")
++
++        # NEW RULE: Only include DE_* bridges in this tab
++        if not bridge_type.startswith("DE_"):
++            filtered_count["NON_DE"] += 1
++            print(f"  [FILTERED] Non-DE bridge skipped: {bridge_name} ({bridge_type})")
++            continue
++
++        # Rule 1: Loại bỏ hoàn toàn DE_KILLER
++        if bridge_type == "DE_KILLER":
++            filtered_count["DE_KILLER"] += 1
++            print(f"  [FILTERED] DE_KILLER: {bridge_name}")
++            continue
++
++        # Rule 2: Lọc DE_DYN theo win_rate/streak
++        if bridge_type == "DE_DYN":
++            streak_value = bridge.get("current_streak", 0) or bridge.get("streak", 0)
++            if streak_value <= 0:
++                streak_raw = 0
++            elif streak_value <= 30:
++                streak_raw = int(streak_value)
++            elif 30 < streak_value <= 100:
++                streak_raw = int((streak_value / 100.0) * 30)
++            else:
++                print(f"  [WARNING] Invalid streak value {streak_value} for {bridge_name}, treating as 0")
++                streak_raw = 0
++
++            if streak_raw < threshold_raw:
++                filtered_count["DE_DYN_LOW"] += 1
++                print(f"  [FILTERED] DE_DYN (thông={streak_raw}/30 < {threshold_raw}/30): {bridge_name}")
++                continue
++
++        # Normalize field names for UI compatibility
++        if "current_streak" in bridge and "streak" not in bridge:
++            bridge["streak"] = bridge["current_streak"]
++        if "next_prediction_stl" in bridge and "predicted_value" not in bridge:
++            bridge["predicted_value"] = bridge["next_prediction_stl"]
++
++        filtered_bridges.append(bridge)
+*** End Patch
