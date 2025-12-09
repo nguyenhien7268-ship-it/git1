@@ -1,20 +1,56 @@
 # logic/bridges/de_performance.py
 """
-DE Performance Evaluator
+DE Performance Evaluator (Auto-Detection Enhanced)
 
 Pure functions for evaluating DE bridge visibility and performance.
 No database writes - evaluation only.
 
+Features:
+- Auto-detects dynamic bridge variants (DE_DYN, DE_DYNAMIC, etc.)
+- Evaluates visibility with manual override, auto flags, and hysteresis
+- No side effects, no DB access
+
 Usage:
     from logic.bridges.de_performance import evaluate_de_visibility
     
-    visible, reason = evaluate_de_visibility(bridge, thresholds)
+    visible, reason, needs_eval = evaluate_de_visibility(bridge, thresholds)
 """
+
+
+def is_dynamic_bridge_type(bridge_type):
+    """
+    Check if a bridge type is a dynamic variant.
+    
+    Matches patterns like:
+    - DE_DYN
+    - DE_DYNAMIC
+    - DE_DYNAMIC_K
+    - DE_DYNAMIC-*
+    - etc.
+    
+    Args:
+        bridge_type: String bridge type (case-insensitive)
+    
+    Returns:
+        bool: True if dynamic type, False otherwise
+    """
+    if not bridge_type:
+        return False
+    
+    bridge_type_upper = bridge_type.upper()
+    
+    # Match DE_DYN* or DE_DYNAMIC*
+    return (
+        bridge_type_upper.startswith('DE_DYN') or
+        bridge_type_upper.startswith('DE_DYNAMIC')
+    )
 
 
 def evaluate_de_visibility(bridge, thresholds=None):
     """
-    Evaluate if a DE_DYN bridge should be visible based on performance metrics.
+    Evaluate if a dynamic DE bridge should be visible based on performance metrics.
+    
+    Auto-detects dynamic bridge variants (DE_DYN, DE_DYNAMIC, etc.)
     
     Implements the visibility policy with precedence:
     1. Manual override (de_manual_override == 1): use de_manual_override_value
@@ -30,17 +66,17 @@ def evaluate_de_visibility(bridge, thresholds=None):
         tuple: (visible: bool, reason: str, needs_evaluation: bool)
         
     Examples:
-        >>> bridge = {"de_manual_override": 1, "de_manual_override_value": 1}
+        >>> bridge = {"type": "DE_DYN", "de_manual_override": 1, "de_manual_override_value": 1}
         >>> visible, reason, needs_eval = evaluate_de_visibility(bridge)
         >>> print(visible, reason)
         True "manual override (value=1)"
         
-        >>> bridge = {"de_auto_enabled": 1, "de_win_count_last30": 20}
+        >>> bridge = {"type": "DE_DYNAMIC", "de_auto_enabled": 1, "de_win_count_last30": 20}
         >>> visible, reason, needs_eval = evaluate_de_visibility(bridge)
         >>> print(visible)
         True
         
-        >>> bridge = {"de_win_count_last30": 28, "de_auto_enabled": 0}
+        >>> bridge = {"type": "DE_DYN", "de_win_count_last30": 28, "de_auto_enabled": 0}
         >>> visible, reason, needs_eval = evaluate_de_visibility(bridge)
         >>> print(visible)
         True
@@ -58,6 +94,12 @@ def evaluate_de_visibility(bridge, thresholds=None):
     window = thresholds.get("window", 30)
     
     bridge_name = bridge.get("name", "N/A")
+    bridge_type = bridge.get("type", "")
+    
+    # Check if this is a dynamic bridge (auto-detect variants)
+    if not is_dynamic_bridge_type(bridge_type):
+        # Non-dynamic bridges don't use this visibility logic
+        return True, f"non-dynamic type ({bridge_type}), always visible", False
     
     # Priority 1: Manual override
     de_manual_override = bridge.get("de_manual_override", 0)
@@ -201,6 +243,7 @@ def get_visibility_summary(bridges, thresholds=None):
 
 
 __all__ = [
+    "is_dynamic_bridge_type",
     "evaluate_de_visibility",
     "compute_de_score",
     "format_de_status",

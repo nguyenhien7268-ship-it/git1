@@ -18,6 +18,8 @@ def test_manual_override_show():
     """Test manual override with value=1 (show)."""
     bridge = {
         "name": "DE_DYN_Test",
+        "type": "DE_DYN",
+        "type": "DE_DYN",  # Add type field
         "de_manual_override": 1,
         "de_manual_override_value": 1,
         "de_win_count_last30": 10,  # Low wins, but override
@@ -36,6 +38,7 @@ def test_manual_override_hide():
     """Test manual override with value=0 (hide)."""
     bridge = {
         "name": "DE_DYN_Test",
+        "type": "DE_DYN",
         "de_manual_override": 1,
         "de_manual_override_value": 0,
         "de_win_count_last30": 30,  # High wins, but override
@@ -54,6 +57,7 @@ def test_auto_enabled_flag():
     """Test auto enabled flag."""
     bridge = {
         "name": "DE_DYN_Test",
+        "type": "DE_DYN",
         "de_manual_override": 0,
         "de_auto_enabled": 1,
         "de_win_count_last30": 20  # Below threshold, but auto-enabled
@@ -71,6 +75,7 @@ def test_wins_above_enable_threshold():
     """Test wins >= enable threshold (28)."""
     bridge = {
         "name": "DE_DYN_Test",
+        "type": "DE_DYN",
         "de_manual_override": 0,
         "de_auto_enabled": 0,
         "de_win_count_last30": 28
@@ -88,6 +93,7 @@ def test_wins_below_disable_threshold():
     """Test wins <= disable threshold (26)."""
     bridge = {
         "name": "DE_DYN_Test",
+        "type": "DE_DYN",
         "de_manual_override": 0,
         "de_auto_enabled": 0,
         "de_win_count_last30": 26
@@ -105,6 +111,7 @@ def test_hysteresis_zone_prev_enabled():
     """Test hysteresis zone (27) with prev enabled."""
     bridge = {
         "name": "DE_DYN_Test",
+        "type": "DE_DYN",
         "de_manual_override": 0,
         "de_auto_enabled": 1,  # Previous state
         "de_win_count_last30": 27
@@ -122,6 +129,7 @@ def test_hysteresis_zone_prev_disabled():
     """Test hysteresis zone (27) with prev disabled."""
     bridge = {
         "name": "DE_DYN_Test",
+        "type": "DE_DYN",
         "de_manual_override": 0,
         "de_auto_enabled": 0,  # Previous state
         "de_win_count_last30": 27
@@ -139,6 +147,7 @@ def test_no_metrics_needs_evaluation():
     """Test bridge with no metrics."""
     bridge = {
         "name": "DE_DYN_Test",
+        "type": "DE_DYN",
         "de_manual_override": 0,
         "de_auto_enabled": 0
         # No de_win_count_last30, no current_streak, no streak
@@ -156,6 +165,7 @@ def test_legacy_current_streak_fallback():
     """Test fallback to legacy current_streak field."""
     bridge = {
         "name": "DE_DYN_Test",
+        "type": "DE_DYN",
         "de_manual_override": 0,
         "de_auto_enabled": 0,
         "current_streak": 28  # Legacy field
@@ -194,6 +204,7 @@ def test_format_de_status():
     """Test status formatting."""
     bridge = {
         "name": "DE_DYN_Test",
+        "type": "DE_DYN",
         "de_win_count_last30": 28,
         "de_win_rate_last30": 93.3,
         "de_score": 9.33,
@@ -214,11 +225,11 @@ def test_format_de_status():
 def test_get_visibility_summary():
     """Test visibility summary for multiple bridges."""
     bridges = [
-        {"name": "B1", "de_manual_override": 1, "de_manual_override_value": 1},
-        {"name": "B2", "de_auto_enabled": 1, "de_win_count_last30": 20},
-        {"name": "B3", "de_win_count_last30": 28, "de_auto_enabled": 0, "de_manual_override": 0},
-        {"name": "B4", "de_win_count_last30": 25, "de_auto_enabled": 0, "de_manual_override": 0},
-        {"name": "B5", "de_auto_enabled": 0, "de_manual_override": 0},  # No metrics
+        {"type": "DE_DYN", "name": "B1", "de_manual_override": 1, "de_manual_override_value": 1},
+        {"type": "DE_DYN", "name": "B2", "de_auto_enabled": 1, "de_win_count_last30": 20},
+        {"type": "DE_DYN", "name": "B3", "de_win_count_last30": 28, "de_auto_enabled": 0, "de_manual_override": 0},
+        {"type": "DE_DYN", "name": "B4", "de_win_count_last30": 25, "de_auto_enabled": 0, "de_manual_override": 0},
+        {"type": "DE_DYN", "name": "B5", "de_auto_enabled": 0, "de_manual_override": 0},  # No metrics
     ]
     
     summary = get_visibility_summary(bridges)
@@ -238,6 +249,7 @@ def test_custom_thresholds():
     """Test with custom thresholds."""
     bridge = {
         "name": "DE_DYN_Test",
+        "type": "DE_DYN",
         "de_win_count_last30": 25,
         "de_auto_enabled": 0,
         "de_manual_override": 0

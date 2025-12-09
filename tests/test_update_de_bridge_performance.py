@@ -82,26 +82,30 @@ def test_dry_run_mode():
         # Import job module
         sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts", "jobs"))
         from update_de_bridge_performance import get_db_connection, get_de_bridges, process_bridge, load_config
+        from db_schema_detector import detect_schema_info
         
         # Connect and get initial state
         conn = get_db_connection(db_path)
-        bridges_before = get_de_bridges(conn, limit=1)
+        schema_info = detect_schema_info(conn)
+        bridges_before = get_de_bridges(conn, schema_info, limit=1)
         initial_metrics = bridges_before[0]["de_win_count_last30"]
         conn.close()
         
         # Run in dry-run mode
         conn = get_db_connection(db_path)
         config = load_config()
-        bridges = get_de_bridges(conn, limit=1)
+        schema_info = detect_schema_info(conn)
+        bridges = get_de_bridges(conn, schema_info, limit=1)
         
         for bridge in bridges:
-            process_bridge(conn, bridge, config, dry_run=True)
+            process_bridge(conn, bridge, config, schema_info, dry_run=True)
         
         conn.close()
         
         # Check that nothing was written
         conn = get_db_connection(db_path)
-        bridges_after = get_de_bridges(conn, limit=1)
+        schema_info = detect_schema_info(conn)
+        bridges_after = get_de_bridges(conn, schema_info, limit=1)
         final_metrics = bridges_after[0]["de_win_count_last30"]
         conn.close()
         
@@ -120,17 +124,19 @@ def test_actual_update():
         # Import job module
         sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts", "jobs"))
         from update_de_bridge_performance import get_db_connection, get_de_bridges, process_bridge, load_config
+        from db_schema_detector import detect_schema_info
         
         # Run actual update
         conn = get_db_connection(db_path)
         config = load_config()
-        bridges = get_de_bridges(conn, limit=1)
+        schema_info = detect_schema_info(conn)
+        bridges = get_de_bridges(conn, schema_info, limit=1)
         
         # Process first bridge (DE_DYN with current_streak=28)
         bridge = bridges[0]
         initial_auto = bridge["de_auto_enabled"]
         
-        process_bridge(conn, bridge, config, dry_run=False)
+        process_bridge(conn, bridge, config, schema_info, dry_run=False)
         conn.commit()
         
         # Check that it was updated
@@ -157,9 +163,11 @@ def test_audit_entry_created():
     try:
         sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts", "jobs"))
         from update_de_bridge_performance import get_db_connection, get_de_bridges, process_bridge, load_config
+        from db_schema_detector import detect_schema_info
         
         conn = get_db_connection(db_path)
         config = load_config()
+        schema_info = detect_schema_info(conn)
         
         # Get bridge with auto_enabled=0 initially
         cursor = conn.cursor()
@@ -167,7 +175,7 @@ def test_audit_entry_created():
         bridge = dict(zip([d[0] for d in cursor.description], cursor.fetchone()))
         
         # Process it (should enable due to streak=28)
-        process_bridge(conn, bridge, config, dry_run=False)
+        process_bridge(conn, bridge, config, schema_info, dry_run=False)
         conn.commit()
         
         # Check audit entry was created
@@ -206,16 +214,18 @@ def test_get_de_bridges():
     try:
         sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts", "jobs"))
         from update_de_bridge_performance import get_db_connection, get_de_bridges
+        from db_schema_detector import detect_schema_info
         
         conn = get_db_connection(db_path)
-        bridges = get_de_bridges(conn)
+        schema_info = detect_schema_info(conn)
+        bridges = get_de_bridges(conn, schema_info)
         
-        # Should have 2 DE_DYN bridges (DE_SET is excluded from processing in job)
+        # Should have 3 DE bridges (all DE_* types)
         de_bridges = [b for b in bridges if b["type"].startswith("DE_")]
         assert len(de_bridges) == 3, f"Expected 3 DE bridges, got {len(de_bridges)}"
         
         # Test limit
-        limited = get_de_bridges(conn, limit=1)
+        limited = get_de_bridges(conn, schema_info, limit=1)
         assert len(limited) == 1, "Limit should work"
         
         conn.close()

@@ -209,8 +209,11 @@ def get_cau_dong_for_tab_soi_cau_de(db_name=None, threshold_thong=None):
             print(f"  [FILTERED] DE_KILLER: {bridge_name}")
             continue
         
-        # Rule 2: DE_DYN visibility with auto/manual/hysteresis policy
-        if bridge_type == "DE_DYN":
+        # Rule 2: Dynamic bridge visibility with auto/manual/hysteresis policy
+        # Auto-detect dynamic variants (DE_DYN, DE_DYNAMIC, DE_DYNAMIC_K, etc.)
+        from logic.bridges.de_performance import is_dynamic_bridge_type
+        
+        if is_dynamic_bridge_type(bridge_type):
             visible, reason = _determine_de_dyn_visibility(
                 bridge, 
                 enable_threshold_raw, 
@@ -219,7 +222,7 @@ def get_cau_dong_for_tab_soi_cau_de(db_name=None, threshold_thong=None):
             
             if not visible:
                 filtered_count["DE_DYN_HIDDEN"] += 1
-                print(f"  [FILTERED] DE_DYN hidden: {bridge_name} - {reason}")
+                print(f"  [FILTERED] Dynamic bridge hidden: {bridge_name} ({bridge_type}) - {reason}")
                 
                 # Check if it needs evaluation
                 if bridge.get("needs_evaluation", False):
@@ -227,7 +230,7 @@ def get_cau_dong_for_tab_soi_cau_de(db_name=None, threshold_thong=None):
                 
                 continue
             else:
-                print(f"  [VISIBLE] DE_DYN: {bridge_name} - {reason}")
+                print(f"  [VISIBLE] Dynamic bridge: {bridge_name} ({bridge_type}) - {reason}")
         
         # Normalize field names for UI compatibility
         if "current_streak" in bridge and "streak" not in bridge:
