@@ -221,6 +221,43 @@ def delete_managed_bridge(bridge_id, db_name=DB_NAME):
     finally:
         if conn: conn.close()
 
+
+def delete_managed_bridges(ids_list, db_name=DB_NAME):
+    """
+    Xóa nhiều cầu cùng lúc theo danh sách IDs.
+    V11.1: Bulk delete operation with logging.
+    
+    Args:
+        ids_list: List of bridge IDs to delete
+        db_name: Database name
+    
+    Returns:
+        Tuple (success: bool, message: str, deleted_count: int)
+    """
+    conn = None
+    try:
+        if not ids_list:
+            return True, "Không có cầu nào để xóa.", 0
+        
+        conn = sqlite3.connect(db_name)
+        cursor = conn.cursor()
+        
+        # Build placeholders for IN clause
+        placeholders = ','.join('?' * len(ids_list))
+        sql_delete = f"DELETE FROM ManagedBridges WHERE id IN ({placeholders})"
+        
+        cursor.execute(sql_delete, ids_list)
+        deleted_count = cursor.rowcount
+        conn.commit()
+        
+        return True, f"Đã xóa {deleted_count} cầu thành công.", deleted_count
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        return False, f"Lỗi delete_managed_bridges: {e}", 0
+    finally:
+        if conn: conn.close()
+
 def toggle_pin_bridge(bridge_name, db_name=DB_NAME):
     conn = None
     try:
@@ -244,98 +281,145 @@ def toggle_pin_bridge(bridge_name, db_name=DB_NAME):
     finally:
         if conn: conn.close()
 
-def upsert_managed_bridge(bridge_name, description=None, win_rate=None, db_name=DB_NAME, pos1_idx=None, pos2_idx=None, bridge_data=None):
+def _upsert_managed_bridge_impl(conn, bridge_dict, db_name=DB_NAME):
+    """
+    Implementation của upsert_managed_bridge.
+    Internal function - nên gọi qua wrapper upsert_managed_bridge().
+    """
+    cursor = conn.cursor()
+    
+    # Normalize key names
+    name = bridge_dict.get('name') or bridge_dict.get('ten') or bridge_dict.get('bridge_name')
+    if not name:
+        raise ValueError("Bridge name is required")
+    
+    description = bridge_dict.get('description') or bridge_dict.get('mo_ta', '')
+    win_rate_text = bridge_dict.get('win_rate_text') or bridge_dict.get('win_rate') or bridge_dict.get('ty_le', 'N/A')
+    pos1_idx = bridge_dict.get('pos1_idx')
+    pos2_idx = bridge_dict.get('pos2_idx')
+    bridge_type = bridge_dict.get('type') or bridge_dict.get('loai', 'UNKNOWN')
+    is_enabled = bridge_dict.get('is_enabled', 1)
+    search_rate_text = bridge_dict.get('search_rate_text', '0.00%')
+    search_period = bridge_dict.get('search_period', 0)
+    max_lose_streak = bridge_dict.get('max_lose_streak', 0)
+    recent_win_count_10 = bridge_dict.get('recent_win_count_10', 0)
+    
+    # Kiểm tra tồn tại
+    cursor.execute("SELECT * FROM ManagedBridges WHERE name = ?", (name,))
+    existing_row = cursor.fetchone()
+    
+    if existing_row:
+        cursor.execute("PRAGMA table_info(ManagedBridges)")
+        col_names = [c[1] for c in cursor.fetchall()]
+        existing_data = dict(zip(col_names, existing_row))
+    else:
+        existing_data = None
+
+    if not existing_data:
+        # INSERT MỚI
+        # Mặc định: Nếu có search_rate thì dùng nó cho cả win_rate để tránh N/A ban đầu
+        if win_rate_text == 'N/A' and search_rate_text != '0.00%':
+            win_rate_text = search_rate_text
+
+        sql_insert = """
+        INSERT INTO ManagedBridges (
+            name, pos1_idx, pos2_idx, is_enabled, win_rate_text, max_lose_streak_k2n, recent_win_count_10, 
+            search_rate_text, search_period, description, type
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        values = (
+            name, pos1_idx, pos2_idx, is_enabled,
+            win_rate_text, max_lose_streak, recent_win_count_10,
+            search_rate_text, search_period, description, bridge_type
+        )
+        cursor.execute(sql_insert, values)
+        success_msg = f"Đã thêm cầu mới '{name}'."
+    else:
+        # UPDATE
+        # Logic: Chỉ cập nhật search_rate nếu có input mới
+        # Giữ nguyên các trường nếu input không có
+        new_search_rate = search_rate_text if search_rate_text != '0.00%' else existing_data.get('search_rate_text')
+        new_win_rate = win_rate_text if win_rate_text != 'N/A' else existing_data.get('win_rate_text')
+        
+        # Self-Healing: Nếu Win Rate cũ là N/A mà Search Rate mới có dữ liệu -> Update Win Rate luôn
+        if (not new_win_rate or new_win_rate == 'N/A') and (new_search_rate and new_search_rate != '0.00%'):
+            new_win_rate = new_search_rate
+
+        sql_update = """
+        UPDATE ManagedBridges SET 
+            pos1_idx=?, pos2_idx=?, is_enabled=?, win_rate_text=?, 
+            max_lose_streak_k2n=?, recent_win_count_10=?, description=?,
+            search_rate_text=?, search_period=?, type=?
+        WHERE name=?
+        """
+        values_update = (
+            pos1_idx if pos1_idx is not None else existing_data.get('pos1_idx'),
+            pos2_idx if pos2_idx is not None else existing_data.get('pos2_idx'),
+            is_enabled,
+            new_win_rate,
+            max_lose_streak if max_lose_streak > 0 else existing_data.get('max_lose_streak_k2n'),
+            recent_win_count_10 if recent_win_count_10 > 0 else existing_data.get('recent_win_count_10'),
+            description,
+            new_search_rate,
+            search_period if search_period > 0 else existing_data.get('search_period'),
+            bridge_type,
+            name
+        )
+        cursor.execute(sql_update, values_update)
+        success_msg = f"Đã CẬP NHẬT cầu '{name}'."
+
+    return True, success_msg
+
+
+def upsert_managed_bridge(bridge_name=None, description=None, win_rate=None, db_name=DB_NAME, pos1_idx=None, pos2_idx=None, bridge_data=None, **kwargs):
     """
     Chèn hoặc cập nhật cầu trong database.
     (V8.5: Logic bảo vệ Search Rate và Win Rate)
+    (V11.1: Shim wrapper hỗ trợ dict hoặc kwargs)
+    
+    Accepts:
+      - upsert_managed_bridge(name="...", description="...", ...)  # kwargs
+      - upsert_managed_bridge(bridge_dict={"name": "...", ...})    # dict via kwargs
+      - upsert_managed_bridge("name", "desc", ...)                  # positional
     """
     conn = None
     try:
         conn = sqlite3.connect(db_name)
-        cursor = conn.cursor()
-
-        if bridge_data is None: bridge_data = {}
-        # Merge tham số vào bridge_data
-        if description: bridge_data['description'] = description
-        if win_rate: bridge_data['win_rate_text'] = win_rate
-        if pos1_idx is not None: bridge_data['pos1_idx'] = pos1_idx
-        if pos2_idx is not None: bridge_data['pos2_idx'] = pos2_idx
-
-        name = bridge_name
         
-        # Kiểm tra tồn tại
-        cursor.execute("SELECT * FROM ManagedBridges WHERE name = ?", (name,))
-        existing_row = cursor.fetchone()
+        # Determine if we're using dict or individual params
+        if bridge_data is not None:
+            # Legacy mode: bridge_data dict provided
+            bridge_dict = bridge_data.copy()
+            if bridge_name: bridge_dict['name'] = bridge_name
+            if description: bridge_dict['description'] = description
+            if win_rate: bridge_dict['win_rate_text'] = win_rate
+            if pos1_idx is not None: bridge_dict['pos1_idx'] = pos1_idx
+            if pos2_idx is not None: bridge_dict['pos2_idx'] = pos2_idx
+        elif kwargs.get('bridge_dict'):
+            # New mode: bridge_dict passed as kwarg
+            bridge_dict = kwargs['bridge_dict'].copy()
+        elif bridge_name or kwargs:
+            # Build dict from individual params
+            bridge_dict = kwargs.copy()
+            if bridge_name: bridge_dict['name'] = bridge_name
+            if description: bridge_dict['description'] = description
+            if win_rate: bridge_dict['win_rate_text'] = win_rate
+            if pos1_idx is not None: bridge_dict['pos1_idx'] = pos1_idx
+            if pos2_idx is not None: bridge_dict['pos2_idx'] = pos2_idx
+        else:
+            raise ValueError("No bridge data provided")
         
-        if existing_row:
-            cursor.execute("PRAGMA table_info(ManagedBridges)")
-            col_names = [c[1] for c in cursor.fetchall()]
-            existing_data = dict(zip(col_names, existing_row))
-        else:
-            existing_data = None
-
-        if not existing_data:
-            # INSERT MỚI
-            # Mặc định: Nếu có search_rate thì dùng nó cho cả win_rate để tránh N/A ban đầu
-            search_rate = bridge_data.get('search_rate_text', '0.00%')
-            win_rate_val = bridge_data.get('win_rate_text', 'N/A')
-            if win_rate_val == 'N/A' and search_rate != '0.00%':
-                win_rate_val = search_rate
-
-            sql_insert = """
-            INSERT INTO ManagedBridges (
-                name, pos1_idx, pos2_idx, is_enabled, win_rate_text, max_lose_streak_k2n, recent_win_count_10, 
-                search_rate_text, search_period, description, type
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """
-            values = (
-                name, bridge_data.get('pos1_idx'), bridge_data.get('pos2_idx'), bridge_data.get('is_enabled', 1),
-                win_rate_val, bridge_data.get('max_lose_streak', 0), bridge_data.get('recent_win_count_10', 0),
-                search_rate, bridge_data.get('search_period', 0), bridge_data.get('description', ''), bridge_data.get('type', 'UNKNOWN')
-            )
-            cursor.execute(sql_insert, values)
-            success_msg = f"Đã thêm cầu mới '{name}'."
-        else:
-            # UPDATE
-            # Logic: Chỉ cập nhật search_rate nếu có input mới
-            # Giữ nguyên các trường nếu input không có
-            new_search_rate = bridge_data.get('search_rate_text', existing_data.get('search_rate_text'))
-            new_win_rate = bridge_data.get('win_rate_text', existing_data.get('win_rate_text'))
-            
-            # Self-Healing: Nếu Win Rate cũ là N/A mà Search Rate mới có dữ liệu -> Update Win Rate luôn
-            if (not new_win_rate or new_win_rate == 'N/A') and (new_search_rate and new_search_rate != '0.00%'):
-                new_win_rate = new_search_rate
-
-            sql_update = """
-            UPDATE ManagedBridges SET 
-                pos1_idx=?, pos2_idx=?, is_enabled=?, win_rate_text=?, 
-                max_lose_streak_k2n=?, recent_win_count_10=?, description=?,
-                search_rate_text=?, search_period=?, type=?
-            WHERE name=?
-            """
-            values_update = (
-                bridge_data.get('pos1_idx', existing_data.get('pos1_idx')),
-                bridge_data.get('pos2_idx', existing_data.get('pos2_idx')),
-                bridge_data.get('is_enabled', existing_data.get('is_enabled')),
-                new_win_rate,
-                bridge_data.get('max_lose_streak', existing_data.get('max_lose_streak_k2n')),
-                bridge_data.get('recent_win_count_10', existing_data.get('recent_win_count_10')),
-                bridge_data.get('description', existing_data.get('description')),
-                new_search_rate,
-                bridge_data.get('search_period', existing_data.get('search_period')),
-                bridge_data.get('type', existing_data.get('type')),
-                name
-            )
-            cursor.execute(sql_update, values_update)
-            success_msg = f"Đã CẬP NHẬT cầu '{name}'."
-
+        success, msg = _upsert_managed_bridge_impl(conn, bridge_dict, db_name)
         conn.commit()
-        return True, success_msg
+        return success, msg
 
     except Exception as e:
+        if conn:
+            conn.rollback()
         return False, f"Lỗi upsert_managed_bridge: {e}"
     finally:
         if conn: conn.close()
+
 
 def update_bridge_k2n_cache_batch(cache_data_list, db_name=DB_NAME):
     """
