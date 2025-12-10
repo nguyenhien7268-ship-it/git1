@@ -293,13 +293,14 @@ def normalize_bridge_name(name: str) -> str:
 
     - Strips whitespace
     - Converts to lowercase
-    - Removes special characters
+    - Removes special characters and Vietnamese diacritics
+    - Normalizes to ASCII-safe form
 
     Args:
         name: Bridge name to normalize
 
     Returns:
-        Normalized bridge name
+        Normalized bridge name (ASCII-safe)
 
     Examples:
         >>> normalize_bridge_name("  Bridge 1  ")
@@ -310,11 +311,37 @@ def normalize_bridge_name(name: str) -> str:
     if not name:
         return ""
 
+    import unicodedata
+    
     name = str(name).strip().lower()
-    # Remove common special characters but keep alphanumeric
-    name = re.sub(r'[^\w\s]', '', name)
-    # Remove extra whitespace
-    name = re.sub(r'\s+', '', name)
+    
+    # Vietnamese character mapping to ASCII
+    vietnamese_map = {
+        'à': 'a', 'á': 'a', 'ả': 'a', 'ã': 'a', 'ạ': 'a',
+        'ă': 'a', 'ằ': 'a', 'ắ': 'a', 'ẳ': 'a', 'ẵ': 'a', 'ặ': 'a',
+        'â': 'a', 'ầ': 'a', 'ấ': 'a', 'ẩ': 'a', 'ẫ': 'a', 'ậ': 'a',
+        'đ': 'd',
+        'è': 'e', 'é': 'e', 'ẻ': 'e', 'ẽ': 'e', 'ẹ': 'e',
+        'ê': 'e', 'ề': 'e', 'ế': 'e', 'ể': 'e', 'ễ': 'e', 'ệ': 'e',
+        'ì': 'i', 'í': 'i', 'ỉ': 'i', 'ĩ': 'i', 'ị': 'i',
+        'ò': 'o', 'ó': 'o', 'ỏ': 'o', 'õ': 'o', 'ọ': 'o',
+        'ô': 'o', 'ồ': 'o', 'ố': 'o', 'ổ': 'o', 'ỗ': 'o', 'ộ': 'o',
+        'ơ': 'o', 'ờ': 'o', 'ớ': 'o', 'ở': 'o', 'ỡ': 'o', 'ợ': 'o',
+        'ù': 'u', 'ú': 'u', 'ủ': 'u', 'ũ': 'u', 'ụ': 'u',
+        'ư': 'u', 'ừ': 'u', 'ứ': 'u', 'ử': 'u', 'ữ': 'u', 'ự': 'u',
+        'ỳ': 'y', 'ý': 'y', 'ỷ': 'y', 'ỹ': 'y', 'ỵ': 'y'
+    }
+    
+    # Replace Vietnamese characters
+    for viet_char, ascii_char in vietnamese_map.items():
+        name = name.replace(viet_char, ascii_char)
+    
+    # Normalize Unicode and remove remaining diacritics
+    name = unicodedata.normalize('NFD', name)
+    name = ''.join(char for char in name if unicodedata.category(char) != 'Mn')
+    
+    # Remove all non-alphanumeric characters (including underscore)
+    name = re.sub(r'[^a-z0-9]', '', name)
     return name
 
 
