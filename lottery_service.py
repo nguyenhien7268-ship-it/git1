@@ -11,7 +11,7 @@ các file con trong thư mục /logic.
 """
 # 1. LOGIC DB & REPO
 try:
-    from logic.data_repository import get_all_managed_bridges, load_data_ai_from_db
+    from logic.data_repository import get_all_managed_bridges, load_data_ai_from_db, delete_managed_bridges_batch
     from logic.db_manager import (
         DB_NAME,
         add_managed_bridge,
@@ -29,6 +29,9 @@ try:
     print(">>> (V7.3) Tải logic.db_manager & data_repository thành công.")
 except ImportError as e_db:
     print(f"LỖI NGHIÊM TRỌNG: Không thể import logic DB/Repo: {e_db}")
+    # Fallback for delete_managed_bridges_batch if import fails
+    def delete_managed_bridges_batch(names, db_name=None, transactional=False, chunk_size=500):
+        return {"requested": len(names or []), "deleted": [], "missing": list(names or []), "failed": [{"error": "delete_managed_bridges_batch not available"}]}
 
 # 2. LOGIC PARSING (XỬ LÝ DỮ LIỆU)
 try:
@@ -143,12 +146,13 @@ except ImportError as e_ai:
 
 # Thêm __all__ để đánh dấu các hàm này là 'được sử dụng' (để export)
 __all__ = [
-    # DB & Repo (11)
+    # DB & Repo (12)
     "get_all_managed_bridges",
     "load_data_ai_from_db",
     "DB_NAME",
     "add_managed_bridge",
     "delete_managed_bridge",
+    "delete_managed_bridges_batch",
     "get_all_kys_from_db",
     "get_results_by_ky",
     "setup_database",
