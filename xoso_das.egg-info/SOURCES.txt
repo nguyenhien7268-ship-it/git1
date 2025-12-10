@@ -1,4 +1,5 @@
 README.md
+pyproject.toml
 setup.py
 logic/__init__.py
 logic/adaptive_trainer.py
@@ -73,6 +74,7 @@ tests/test_recent_appearance_bonus.py
 tests/test_recent_form_calculation.py
 tests/test_recent_form_integration.py
 tests/test_recommendation_system.py
+tests/test_scanner_refactor.py
 tests/test_scoring_functions.py
 tests/test_smart_filtering.py
 tests/test_ui_main_window.py
@@ -101,5 +103,4 @@ ui/popups/ui_backtest_popup.py
 xoso_das.egg-info/PKG-INFO
 xoso_das.egg-info/SOURCES.txt
 xoso_das.egg-info/dependency_links.txt
-xoso_das.egg-info/requires.txt
 xoso_das.egg-info/top_level.txt
