@@ -1,6 +1,7 @@
 # Tên file: logic/bridges/de_bridge_scanner.py
-# (PHIÊN BẢN V11.2 - K1N-PRIMARY REFACTOR: READ-ONLY SCANNER)
-# Returns Candidate objects instead of writing to DB directly.
+# (PHIÊN BẢN V11.3 - CLEAN CODE REFACTOR)
+# Update: Tách logic tính toán Streak/Rate ra method riêng (DRY Principle).
+# Fix: Logic tính streak dừng ngay khi gặp gãy (Strict Mode).
 
 import sqlite3
 from collections import Counter
@@ -10,6 +11,7 @@ from typing import List, Dict, Any, Optional, Tuple, Set
 try:
     from logic.db_manager import DB_NAME, get_all_managed_bridge_names, load_rates_cache
     from logic.bridges.bridges_v16 import getAllPositions_V17_Shadow, getPositionName_V17_Shadow
+    from logic.common_utils import normalize_bridge_name, calculate_strict_performance # <--- Thêm hàm này
     from logic.de_utils import (
         get_gdb_last_2, check_cham, get_touches_by_offset, 
         generate_dan_de_from_touches, get_set_name_of_number, BO_SO_DE
@@ -23,7 +25,7 @@ except ImportError:
 class DeBridgeScanner:
     """
     Bộ quét cầu Đề tự động (Automated DE Bridge Scanner)
-    Phiên bản: V10.1 (Speed Optimized)
+    Phiên bản: V11.3 (Clean Code Refactor)
     Chiến thuật: Sử dụng Ma trận số nguyên (Integer Matrix) để loại bỏ chi phí xử lý chuỗi.
     """
 
@@ -63,6 +65,40 @@ class DeBridgeScanner:
                 matrix.append([None] * 214) # Fallback nếu lỗi
         return matrix
 
+    # def _calculate_performance_metrics(self, results_recent_to_past: List[bool]) -> Dict[str, Any]:
+    #     """
+    #     [CLEAN CODE HELPER] Tính toán các chỉ số hiệu suất từ danh sách kết quả.
+    #     Input: List bool [Hôm nay, Hôm qua, Hôm kia...] (Mới -> Cũ)
+    #     Output: Dict chứa streak, total_wins, win_rate, wins_10
+    #     """
+    #     streak = 0
+    #     total_wins = 0
+    #     is_broken = False
+        
+    #     # Tính toán trên toàn bộ danh sách (mặc định là scan_depth = 30)
+    #     total_days = len(results_recent_to_past)
+        
+    #     for idx, is_win in enumerate(results_recent_to_past):
+    #         if is_win:
+    #             total_wins += 1
+    #             if not is_broken:
+    #                 streak += 1
+    #         else:
+    #             is_broken = True
+        
+    #     # Tính wins trong 10 ngày gần nhất
+    #     wins_10 = sum(1 for x in results_recent_to_past[:10] if x)
+        
+    #     win_rate = (total_wins / total_days * 100) if total_days > 0 else 0.0
+        
+    #     return {
+    #         "streak": streak,
+    #         "total_wins": total_wins,
+    #         "win_rate": win_rate,
+    #         "wins_10": wins_10,
+    #         "total_days": total_days
+    #     }
+
     def scan_all(
         self, 
         all_data_ai: List[List[str]], 
@@ -70,26 +106,11 @@ class DeBridgeScanner:
     ) -> Tuple[List[Candidate], Dict[str, Any]]:
         """
         Scan for DE bridges and return Candidate objects (READ-ONLY, no DB writes).
-        
-        V11.2 K1N-Primary Refactor:
-        - Returns Candidate objects instead of writing to DB
-        - Attaches K1N/K2N rates from cache
-        - Excludes existing bridges before returning
-        - Returns metadata about scan results
-        
-        Args:
-            all_data_ai: Historical lottery data
-            db_name: Database path for reading existing bridges
-            
-        Returns:
-            Tuple of (candidates: List[Candidate], meta: Dict):
-                - candidates: List of bridge candidates with rates attached
-                - meta: Dict with 'found_total', 'excluded_existing', 'returned_count'
         """
         if not self._validate_input_data(all_data_ai):
             return [], {'found_total': 0, 'excluded_existing': 0, 'returned_count': 0}
 
-        print(f">>> [DE SCANNER V11.2] Bắt đầu quét (K1N-Primary Read-Only)...")
+        print(f">>> [DE SCANNER V11.3] Bắt đầu quét (Clean Code & Strict Streak)...")
         
         # 1. [OPTIMIZATION] Tiền xử lý dữ liệu sang dạng số
         data_matrix = self._preprocess_data(all_data_ai)
@@ -176,20 +197,7 @@ class DeBridgeScanner:
         existing_names: Set[str],
         rates_cache: Dict[str, Dict[str, float]]
     ) -> List[Candidate]:
-        """
-        Convert bridge dicts to Candidate objects with K1N/K2N rates attached.
-        
-        Excludes bridges whose normalized names already exist in DB.
-        Attaches rates from cache, sets rate_missing flag if not found.
-        
-        Args:
-            bridges: List of bridge dictionaries from scan
-            existing_names: Set of normalized existing bridge names
-            rates_cache: Dict mapping normalized names to rates
-            
-        Returns:
-            List of Candidate objects (excluding existing bridges)
-        """
+        """Convert bridge dicts to Candidate objects with K1N/K2N rates attached."""
         candidates = []
         
         for b in bridges:
@@ -271,12 +279,10 @@ class DeBridgeScanner:
         if start_idx < 1: return True
 
         val_wins = 0
-        # data_matrix index tương ứng với all_data_ai index
         scan_slice_indices = range(start_idx, end_idx)
         
         for real_idx in scan_slice_indices:
-            row_curr = all_data_ai[real_idx] # Vẫn cần row gốc để lấy GĐB
-            # row_prev lấy từ matrix để nhanh hơn
+            row_curr = all_data_ai[real_idx] 
             row_prev_vals = data_matrix[real_idx - 1] 
             
             gdb = get_gdb_last_2(row_curr)
@@ -284,14 +290,12 @@ class DeBridgeScanner:
             
             try:
                 is_win = False
-                # Lấy giá trị trực tiếp từ matrix, không cần parse
                 v1 = row_prev_vals[idx1]
                 v2 = row_prev_vals[idx2] if idx2 is not None else None
                 
                 if v1 is None or (idx2 is not None and v2 is None): continue
                 
                 if mode == "DYNAMIC":
-                    # Dynamic offset logic
                     touches = get_touches_by_offset((v1 + v2) % 10, k_param)
                     is_win = check_cham(gdb, touches)
                 elif mode == "DE_POS_SUM":
@@ -389,38 +393,32 @@ class DeBridgeScanner:
     def _scan_killer_bridges(self, all_data_ai: List[List[str]], data_matrix: List[List[Optional[int]]]) -> List[Dict[str, Any]]:
         results = []
         try:
-            # 117 Vị trí (107 gốc + 10 bóng)
             limit_pos = 117
-            
-            # Chỉ số bắt đầu quét
             scan_end_idx = len(all_data_ai)
-            scan_start_idx = max(1, scan_end_idx - self.scan_depth)
             
             for i in range(limit_pos):
                 for j in range(i, limit_pos):
                     killer_streak = 0
                     # Quét ngược từ gần nhất về quá khứ
                     for k in range(scan_end_idx - 1, 0, -1):
-                        # Dừng nếu vượt quá độ sâu quét
                         if scan_end_idx - k > self.scan_depth: break
                         
                         gdb = get_gdb_last_2(all_data_ai[k])
-                        # Lấy giá trị trực tiếp từ matrix [k-1] (ngày trước đó)
                         row_prev_vals = data_matrix[k-1]
                         
-                        v1 = row_prev_vals[i]
-                        v2 = row_prev_vals[j]
-                        
+                        v1, v2 = row_prev_vals[i], row_prev_vals[j]
                         if not gdb or v1 is None or v2 is None: break
                         
                         pred_touch = (v1 + v2) % 10
                         has_touch = check_cham(gdb, [pred_touch])
                         
-                        if not has_touch: killer_streak += 1
-                        else: break
+                        # Cầu loại cần "KHÔNG chạm", nếu có chạm là GÃY
+                        if not has_touch: 
+                            killer_streak += 1
+                        else: 
+                            break # STRICT BREAK
 
                     if killer_streak >= self.min_killer_streak:
-                        # Dự đoán cho ngày mai
                         curr_vals = data_matrix[-1]
                         v1, v2 = curr_vals[i], curr_vals[j]
                         
@@ -460,15 +458,16 @@ class DeBridgeScanner:
         ]
 
         for src in sources:
+            # 1. Quét tìm cầu tiềm năng (Strict Streak)
             consecutive_streak = 0
             wins_10 = 0
+            
             for k in range(len(scan_data) - 1, 0, -1):
                 row_curr = scan_data[k]
                 row_prev = scan_data[k-1]
                 gdb = get_gdb_last_2(row_curr)
                 if not gdb: break
                 
-                # Pascal vẫn cần xử lý chuỗi vì cấu trúc đặc thù, nhưng số lượng ít nên không sao
                 input_digits = []
                 valid_input = True
                 for col_idx in src["cols"]:
@@ -485,16 +484,17 @@ class DeBridgeScanner:
                 rev_val = f"{final_pair[1]}{final_pair[0]}"
                 is_win = (gdb == pred_val or gdb == rev_val)
                 days_ago = len(scan_data) - 1 - k
+                
                 if is_win:
                     if consecutive_streak == days_ago: consecutive_streak += 1
                     if days_ago < self.history_check_len: wins_10 += 1
                 else:
-                    if consecutive_streak > 0: break 
+                    if consecutive_streak > 0: break # STRICT BREAK
             
             if consecutive_streak >= self.min_streak or wins_10 >= self.rescue_wins_10:
-                # [FIX] Tính tổng số kỳ thắng trên 30 ngày để khớp với Popup
-                total_wins_30 = 0
-                total_days_30 = 0
+                # 2. Thu thập kết quả và dùng Helper để tính Metrics
+                results_bool = [] # Mới -> Cũ
+                
                 for k in range(len(scan_data) - 1, 0, -1):
                     row_curr = scan_data[k]
                     row_prev = scan_data[k-1]
@@ -509,17 +509,17 @@ class DeBridgeScanner:
                         input_digits.extend([int(d) for d in val_str])
                     
                     if not valid_input or len(input_digits) < 2: continue
-                    
                     final_pair = self._compute_pascal_reduction(input_digits)
                     if final_pair is None: continue
                     
-                    # Only count this day if we have valid data
-                    total_days_30 += 1
-                    
                     pred_val = f"{final_pair[0]}{final_pair[1]}"
                     rev_val = f"{final_pair[1]}{final_pair[0]}"
-                    if gdb == pred_val or gdb == rev_val: total_wins_30 += 1
-                
+                    is_win = (gdb == pred_val or gdb == rev_val)
+                    results_bool.append(is_win)
+
+                # Sử dụng Helper Function
+                metrics = calculate_strict_performance(results_bool)
+
                 last_row = all_data_ai[-1]
                 next_input = []
                 for col_idx in src["cols"]:
@@ -533,10 +533,10 @@ class DeBridgeScanner:
                     results.append({
                         "name": f"DE_PASCAL_{src['name']}",
                         "type": "DE_PASCAL",
-                        "streak": total_wins_30,
+                        "streak": metrics["streak"],
                         "predicted_value": display_val,
                         "full_dan": display_val,
-                        "win_rate": (total_wins_30 / total_days_30 * 100) if total_days_30 > 0 else 0,
+                        "win_rate": metrics["win_rate"],
                         "display_desc": f"Cầu Pascal ({src['name']}) - STL: {display_val}"
                     })
         return results
@@ -560,85 +560,64 @@ class DeBridgeScanner:
     def _scan_dynamic_offset(self, all_data_ai: List[List[str]], data_matrix: List[List[Optional[int]]]) -> List[Dict[str, Any]]:
         results = []
         scan_len = len(all_data_ai)
-        scan_start_idx = max(1, scan_len - self.scan_depth)
         
         last_row_vals = data_matrix[-1]
-        
-        # Chỉ quét các vị trí GĐB (0-4), G1 (5-9), G7 (99-106) để tối ưu hơn nữa nếu cần
-        # Nhưng với Matrix, ta có thể quét full 117 vị trí nhanh chóng.
-        # Lưu ý: data_matrix chứa 214 vị trí (bao gồm bóng).
-        # Ta quét 117 vị trí đầu (gốc + bóng vip)
         num_cols = 117
         
         pairs = []
-        # Tối ưu cặp quét: 
-        # Chỉ quét i, j trong khoảng 0-117.
         for i in range(num_cols):
             for j in range(i + 1, num_cols):
                 pairs.append((i, j))
         
         for idx1, idx2 in pairs:
-            # Lấy giá trị kỳ cuối để dự đoán (nếu cầu tốt)
             val1_last = last_row_vals[idx1]
             val2_last = last_row_vals[idx2]
             if val1_last is None or val2_last is None: continue
             
-            # Thử 10 offset K
             for k in range(10): 
-                total_wins = 0
-                check_window = 0
+                # 1. Validation nhanh (10 kỳ gần nhất)
+                total_wins_check = 0
                 valid_history = True
                 
-                # Check history (Backtest nhanh)
-                # Dùng data_matrix để truy xuất cực nhanh
                 for day_idx in range(scan_len - 1, scan_len - 1 - self.history_check_len, -1):
                     if day_idx < 1: break
-                    check_window += 1
-                    
-                    gdb_today = get_gdb_last_2(all_data_ai[day_idx]) # GĐB vẫn lấy từ raw vì là string "00"-"99"
+                    gdb_today = get_gdb_last_2(all_data_ai[day_idx])
                     if not gdb_today: continue
                     
                     row_prev_vals = data_matrix[day_idx-1]
-                    d1 = row_prev_vals[idx1]
-                    d2 = row_prev_vals[idx2]
+                    d1, d2 = row_prev_vals[idx1], row_prev_vals[idx2]
                     
                     if d1 is None or d2 is None: 
                         valid_history = False; break
                     
                     base_sum = (d1 + d2) % 10
                     touches = get_touches_by_offset(base_sum, k)
-                    
-                    if check_cham(gdb_today, touches): total_wins += 1
+                    if check_cham(gdb_today, touches): total_wins_check += 1
                 
                 if not valid_history: continue
                 
-                # Nếu đạt chuẩn history, validate kỹ hơn và lưu
-                if total_wins >= self.min_wins_required:
+                # 2. Nếu đạt chuẩn, thu thập kết quả và tính toán (30 ngày)
+                if total_wins_check >= self.min_wins_required:
                     if self._validate_bridge(all_data_ai, data_matrix, idx1, idx2, k, "DYNAMIC"):
                         
-                        # [FIX] Tính lại streak trên scan_depth (30 kỳ) để khớp với Popup
-                        streak_30 = 0
-                        total_days_30 = 0
+                        results_bool = [] # Mới -> Cũ
+
                         for day_idx in range(scan_len - 1, max(0, scan_len - 1 - self.scan_depth), -1):
                             if day_idx < 1: break
-                            
                             gdb_today = get_gdb_last_2(all_data_ai[day_idx])
                             if not gdb_today: continue
                             
                             row_prev_vals = data_matrix[day_idx-1]
-                            d1 = row_prev_vals[idx1]
-                            d2 = row_prev_vals[idx2]
-                            
+                            d1, d2 = row_prev_vals[idx1], row_prev_vals[idx2]
                             if d1 is None or d2 is None: continue
-                            
-                            # Only count this day if we have valid data
-                            total_days_30 += 1
                             
                             base_sum = (d1 + d2) % 10
                             touches = get_touches_by_offset(base_sum, k)
-                            
-                            if check_cham(gdb_today, touches): streak_30 += 1
-                        
+                            results_bool.append(check_cham(gdb_today, touches))
+
+                        # Sử dụng Helper Function
+                        metrics = calculate_strict_performance(results_bool)
+
                         base_last = (val1_last + val2_last) % 10
                         final_touches = get_touches_by_offset(base_last, k)
                         final_dan = generate_dan_de_from_touches(final_touches)
@@ -649,10 +628,10 @@ class DeBridgeScanner:
                         results.append({
                             "name": f"DE_DYN_{name1}_{name2}_K{k}",
                             "type": "DE_DYNAMIC_K",
-                            "streak": streak_30,
+                            "streak": metrics["streak"],
                             "predicted_value": ",".join(map(str, final_touches)),
                             "full_dan": ",".join(final_dan),
-                            "win_rate": (streak_30 / total_days_30 * 100) if total_days_30 > 0 else 0,
+                            "win_rate": metrics["win_rate"],
                             "display_desc": f"Đuôi {name1} + Đuôi {name2} (K={k})",
                             "pos1_idx": idx1,
                             "pos2_idx": idx2,
@@ -668,37 +647,36 @@ class DeBridgeScanner:
             
             for i in range(limit_pos):
                 for j in range(i, limit_pos):
+                    # 1. Quét sơ bộ tìm ứng viên
                     consecutive_streak = 0
                     wins_10 = 0
                     
-                    # Backtest Loop (consecutive wins)
                     for k in range(scan_len - 1, 0, -1):
                         if scan_len - k > self.scan_depth: break
                         
                         gdb = get_gdb_last_2(all_data_ai[k])
                         row_prev_vals = data_matrix[k-1]
-                        
                         v1, v2 = row_prev_vals[i], row_prev_vals[j]
                         if not gdb or v1 is None or v2 is None: break
                         
                         pred = (v1 + v2) % 10
                         is_win = check_cham(gdb, [pred])
-                        
                         days_ago = scan_len - 1 - k
+                        
                         if is_win:
                             if consecutive_streak == days_ago: consecutive_streak += 1 
                             if days_ago < self.history_check_len: wins_10 += 1
                         else:
                             if consecutive_streak > 0: break 
                     
+                    # 2. Nếu đạt chuẩn, thu thập kết quả và tính toán
                     if consecutive_streak >= self.min_streak or wins_10 >= self.rescue_wins_10:
                         if self._validate_bridge(all_data_ai, data_matrix, i, j, 0, "DE_POS_SUM"):
-                            # [FIX] Tính tổng số kỳ thắng trên 30 ngày để khớp với Popup
-                            total_wins_30 = 0
-                            total_days_30 = 0
+                            
+                            results_bool = [] # Mới -> Cũ
+
                             for k in range(scan_len - 1, max(0, scan_len - 1 - self.scan_depth), -1):
                                 if k < 1: break
-                                
                                 gdb = get_gdb_last_2(all_data_ai[k])
                                 if not gdb: continue
                                 
@@ -706,13 +684,12 @@ class DeBridgeScanner:
                                 v1, v2 = row_prev_vals[i], row_prev_vals[j]
                                 if v1 is None or v2 is None: continue
                                 
-                                # Only count this day if we have valid data
-                                total_days_30 += 1
-                                
                                 pred = (v1 + v2) % 10
-                                if check_cham(gdb, [pred]): total_wins_30 += 1
+                                results_bool.append(check_cham(gdb, [pred]))
+
+                            # Sử dụng Helper Function
+                            metrics = calculate_strict_performance(results_bool)
                             
-                            # Calc Prediction
                             curr_vals = data_matrix[-1]
                             v1, v2 = curr_vals[i], curr_vals[j]
                             next_val = (v1 + v2) % 10
@@ -724,10 +701,10 @@ class DeBridgeScanner:
                             results.append({
                                 "name": f"DE_POS_{p1_name}_{p2_name}",
                                 "type": "DE_POS_SUM",
-                                "streak": total_wins_30,
+                                "streak": metrics["streak"],
                                 "predicted_value": str(next_val),
                                 "full_dan": "",
-                                "win_rate": (total_wins_30 / total_days_30 * 100) if total_days_30 > 0 else 0,
+                                "win_rate": metrics["win_rate"],
                                 "display_desc": f"Tổng vị trí: {p1_name} + {p2_name}{note}",
                                 "pos1_idx": i,
                                 "pos2_idx": j
@@ -744,6 +721,7 @@ class DeBridgeScanner:
             
             for i in range(limit_pos):
                 for j in range(i + 1, limit_pos):
+                    # 1. Quét sơ bộ
                     consecutive_streak = 0
                     wins_10 = 0
                     for k in range(scan_len - 1, 0, -1):
@@ -752,12 +730,10 @@ class DeBridgeScanner:
                         gdb = get_gdb_last_2(all_data_ai[k])
                         row_prev_vals = data_matrix[k-1]
                         v1, v2 = row_prev_vals[i], row_prev_vals[j]
-                        
                         if not gdb or v1 is None or v2 is None: break
                         
                         set_name = get_set_name_of_number(f"{v1}{v2}")
                         if not set_name: break
-                        
                         set_nums = BO_SO_DE.get(set_name, [])
                         if not set_nums: break
                         
@@ -768,16 +744,15 @@ class DeBridgeScanner:
                             if consecutive_streak == days_ago: consecutive_streak += 1
                             if days_ago < self.history_check_len: wins_10 += 1
                         else:
-                            if consecutive_streak > 0: break
+                            if consecutive_streak > 0: break 
                             
                     if consecutive_streak >= self.min_streak_bo and wins_10 >= self.min_wins_bo_10:
                         if self._validate_bridge(all_data_ai, data_matrix, i, j, 0, "SET"):
-                            # [FIX] Tính tổng số kỳ thắng trên 30 ngày để khớp với Popup
-                            total_wins_30 = 0
-                            total_days_30 = 0
+                            
+                            results_bool = [] # Mới -> Cũ
+
                             for k in range(scan_len - 1, max(0, scan_len - 1 - self.scan_depth), -1):
                                 if k < 1: break
-                                
                                 gdb = get_gdb_last_2(all_data_ai[k])
                                 if not gdb: continue
                                 
@@ -787,14 +762,13 @@ class DeBridgeScanner:
                                 
                                 set_name = get_set_name_of_number(f"{v1}{v2}")
                                 if not set_name: continue
-                                
                                 set_nums = BO_SO_DE.get(set_name, [])
                                 if not set_nums: continue
                                 
-                                # Only count this day if we have valid data
-                                total_days_30 += 1
-                                
-                                if gdb in set_nums: total_wins_30 += 1
+                                results_bool.append(gdb in set_nums)
+
+                            # Sử dụng Helper Function
+                            metrics = calculate_strict_performance(results_bool)
                             
                             curr_vals = data_matrix[-1]
                             v1_curr, v2_curr = curr_vals[i], curr_vals[j]
@@ -806,10 +780,10 @@ class DeBridgeScanner:
                                 results.append({
                                     "name": f"DE_SET_{p1_n}_{p2_n}",
                                     "type": "DE_SET",
-                                    "streak": total_wins_30,
+                                    "streak": metrics["streak"],
                                     "predicted_value": pred_set_name,
                                     "full_dan": ",".join(BO_SO_DE.get(pred_set_name, [])),
-                                    "win_rate": (total_wins_30 / total_days_30 * 100) if total_days_30 > 0 else 0,
+                                    "win_rate": metrics["win_rate"],
                                     "display_desc": f"Bộ: {p1_n} + {p2_n} (Bộ {pred_set_name})",
                                     "pos1_idx": i,
                                     "pos2_idx": j
@@ -822,21 +796,10 @@ class DeBridgeScanner:
         if total_cols <= 11:
             mapping = {2: "GDB", 3: "G1", 4: "G2", 5: "G3", 6: "G4", 7: "G5", 8: "G6", 9: "G7"}
             return mapping.get(idx, f"C{idx}")
-        # Map cho list 107 vị trí
         return getPositionName_V17_Shadow(idx).replace('[', '.').replace(']', '')
-
-    # REMOVED: _save_to_db method - Scanner is now read-only (V11.2 K1N-Primary Refactor)
-    # DB writes are handled by BridgeImporter after policy-based filtering
 
 def run_de_scanner(data, db_name=DB_NAME):
     """
     V11.2 K1N-Primary: Returns (candidates, meta) instead of (count, bridges).
-    
-    Args:
-        data: Historical lottery data
-        db_name: Database path (for reading existing bridges only)
-        
-    Returns:
-        Tuple of (candidates: List[Candidate], meta: Dict)
     """
     return DeBridgeScanner().scan_all(data, db_name)

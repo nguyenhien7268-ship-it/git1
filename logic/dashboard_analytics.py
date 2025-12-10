@@ -139,21 +139,130 @@ def _determine_de_dyn_visibility(bridge, enable_threshold_raw, disable_threshold
             return False, f"wins30={wins_last30} in hysteresis zone, prev_auto=0"
 
 
+# def get_cau_dong_for_tab_soi_cau_de(db_name=None, threshold_thong=None):
+#     """
+#     V11.0: Lấy danh sách cầu động đã lọc từ DB cho Tab Soi Cầu Đề.
+    
+#     Implements strict visibility policy with auto/manual/hysteresis rules:
+#     - Only DE_* bridges are included
+#     - DE_KILLER always excluded
+#     - DE_DYN visibility determined by: manual override > auto_enabled > computed metrics with hysteresis
+    
+#     Args:
+#         db_name: Đường dẫn database (None = mặc định)
+#         threshold_thong: Legacy parameter (kept for compatibility, not used in new policy)
+    
+#     Returns:
+#         List[Dict]: Danh sách các bridge dict đã lọc, với needs_evaluation flag nếu thiếu metrics
+#     """
+#     # Import DB_NAME locally to avoid circular dependencies
+#     if db_name is None:
+#         try:
+#             from logic.db_manager import DB_NAME
+#             db_name = DB_NAME
+#         except ImportError:
+#             db_name = "data/xo_so_prizes_all_logic.db"
+    
+#     # Load configuration from constants
+#     try:
+#         from logic.constants import DEFAULT_SETTINGS
+#         window_kys = DEFAULT_SETTINGS.get("DE_WINDOW_KYS", 30)
+#         enable_threshold_raw = DEFAULT_SETTINGS.get("DE_DYN_ENABLE_RAW", 28)
+#         disable_threshold_raw = DEFAULT_SETTINGS.get("DE_DYN_DISABLE_RAW", 26)
+#     except ImportError:
+#         # Fallback defaults
+#         window_kys = 30
+#         enable_threshold_raw = 28
+#         disable_threshold_raw = 26
+    
+#     print(f"[get_cau_dong_for_tab_soi_cau_de] DE Visibility Policy:")
+#     print(f"  - Window: {window_kys} periods")
+#     print(f"  - Enable threshold: {enable_threshold_raw}/{window_kys}")
+#     print(f"  - Disable threshold: {disable_threshold_raw}/{window_kys}")
+#     print(f"  - Hysteresis zone: {disable_threshold_raw+1} to {enable_threshold_raw-1}")
+    
+#     # Get all enabled bridges from DB
+#     all_bridges = get_all_managed_bridges(db_name, only_enabled=True)
+    
+#     filtered_bridges = []
+#     filtered_count = {
+#         "NON_DE": 0,
+#         "DE_KILLER": 0, 
+#         "DE_DYN_HIDDEN": 0,
+#         "NEEDS_EVAL": 0
+#     }
+    
+#     for bridge in all_bridges:
+#         bridge_type = (bridge.get("type", "") or "").upper()
+#         bridge_name = bridge.get("name", "N/A")
+#         bridge_id = bridge.get("id", "?")
+        
+#         # Rule 0: Only include DE_* bridges in this tab
+#         if not bridge_type.startswith("DE_"):
+#             filtered_count["NON_DE"] += 1
+#             print(f"  [FILTERED] Non-DE bridge: {bridge_name} ({bridge_type})")
+#             continue
+        
+#         # Rule 1: Always exclude DE_KILLER
+#         if bridge_type == "DE_KILLER":
+#             filtered_count["DE_KILLER"] += 1
+#             print(f"  [FILTERED] DE_KILLER: {bridge_name}")
+#             continue
+        
+#         # Rule 2: Dynamic bridge visibility with auto/manual/hysteresis policy
+#         # Auto-detect dynamic variants (DE_DYN, DE_DYNAMIC, DE_DYNAMIC_K, etc.)
+#         from logic.bridges.de_performance import is_dynamic_bridge_type
+        
+#         if is_dynamic_bridge_type(bridge_type):
+#             visible, reason = _determine_de_dyn_visibility(
+#                 bridge, 
+#                 enable_threshold_raw, 
+#                 disable_threshold_raw
+#             )
+            
+#             if not visible:
+#                 filtered_count["DE_DYN_HIDDEN"] += 1
+#                 print(f"  [FILTERED] Dynamic bridge hidden: {bridge_name} ({bridge_type}) - {reason}")
+                
+#                 # Check if it needs evaluation
+#                 if bridge.get("needs_evaluation", False):
+#                     filtered_count["NEEDS_EVAL"] += 1
+                
+#                 continue
+#             else:
+#                 print(f"  [VISIBLE] Dynamic bridge: {bridge_name} ({bridge_type}) - {reason}")
+        
+#         # Normalize field names for UI compatibility
+#         if "current_streak" in bridge and "streak" not in bridge:
+#             bridge["streak"] = bridge["current_streak"]
+#         if "next_prediction_stl" in bridge and "predicted_value" not in bridge:
+#             bridge["predicted_value"] = bridge["next_prediction_stl"]
+        
+#         filtered_bridges.append(bridge)
+    
+#     # Summary log
+#     print(f"\n[get_cau_dong_for_tab_soi_cau_de] Summary:")
+#     print(f"  - Total from DB: {len(all_bridges)}")
+#     print(f"  - Filtered Non-DE (LO_*, etc.): {filtered_count['NON_DE']}")
+#     print(f"  - Filtered DE_KILLER: {filtered_count['DE_KILLER']}")
+#     print(f"  - Filtered DE_DYN (hidden): {filtered_count['DE_DYN_HIDDEN']}")
+#     print(f"  - Needs evaluation: {filtered_count['NEEDS_EVAL']}")
+#     print(f"  - Final result: {len(filtered_bridges)}")
+    
+#     return filtered_bridges
+
 def get_cau_dong_for_tab_soi_cau_de(db_name=None, threshold_thong=None):
     """
-    V11.0: Lấy danh sách cầu động đã lọc từ DB cho Tab Soi Cầu Đề.
-    
-    Implements strict visibility policy with auto/manual/hysteresis rules:
-    - Only DE_* bridges are included
-    - DE_KILLER always excluded
-    - DE_DYN visibility determined by: manual override > auto_enabled > computed metrics with hysteresis
-    
+    Simplified visibility: only apply DE_KILLER exclusion. All other bridges
+    (including DE_*, non-DE, dynamic variants, etc.) will be returned as-is,
+    except those explicitly of type 'DE_KILLER' which are always excluded.
+
     Args:
         db_name: Đường dẫn database (None = mặc định)
-        threshold_thong: Legacy parameter (kept for compatibility, not used in new policy)
-    
+        threshold_thong: Legacy parameter (kept for compatibility, not used)
+
     Returns:
-        List[Dict]: Danh sách các bridge dict đã lọc, với needs_evaluation flag nếu thiếu metrics
+        List[Dict]: Danh sách các bridge dict đã lọc
     """
     # Import DB_NAME locally to avoid circular dependencies
     if db_name is None:
@@ -162,95 +271,42 @@ def get_cau_dong_for_tab_soi_cau_de(db_name=None, threshold_thong=None):
             db_name = DB_NAME
         except ImportError:
             db_name = "data/xo_so_prizes_all_logic.db"
-    
-    # Load configuration from constants
-    try:
-        from logic.constants import DEFAULT_SETTINGS
-        window_kys = DEFAULT_SETTINGS.get("DE_WINDOW_KYS", 30)
-        enable_threshold_raw = DEFAULT_SETTINGS.get("DE_DYN_ENABLE_RAW", 28)
-        disable_threshold_raw = DEFAULT_SETTINGS.get("DE_DYN_DISABLE_RAW", 26)
-    except ImportError:
-        # Fallback defaults
-        window_kys = 30
-        enable_threshold_raw = 28
-        disable_threshold_raw = 26
-    
-    print(f"[get_cau_dong_for_tab_soi_cau_de] DE Visibility Policy:")
-    print(f"  - Window: {window_kys} periods")
-    print(f"  - Enable threshold: {enable_threshold_raw}/{window_kys}")
-    print(f"  - Disable threshold: {disable_threshold_raw}/{window_kys}")
-    print(f"  - Hysteresis zone: {disable_threshold_raw+1} to {enable_threshold_raw-1}")
-    
-    # Get all enabled bridges from DB
+
+    # Get all enabled bridges from DB (preserve existing behaviour)
     all_bridges = get_all_managed_bridges(db_name, only_enabled=True)
-    
+
     filtered_bridges = []
     filtered_count = {
-        "NON_DE": 0,
-        "DE_KILLER": 0, 
-        "DE_DYN_HIDDEN": 0,
-        "NEEDS_EVAL": 0
+        "DE_KILLER": 0,
     }
-    
+
     for bridge in all_bridges:
         bridge_type = (bridge.get("type", "") or "").upper()
         bridge_name = bridge.get("name", "N/A")
-        bridge_id = bridge.get("id", "?")
-        
-        # Rule 0: Only include DE_* bridges in this tab
-        if not bridge_type.startswith("DE_"):
-            filtered_count["NON_DE"] += 1
-            print(f"  [FILTERED] Non-DE bridge: {bridge_name} ({bridge_type})")
-            continue
-        
-        # Rule 1: Always exclude DE_KILLER
+
+        # Only apply Rule 1: exclude DE_KILLER
         if bridge_type == "DE_KILLER":
             filtered_count["DE_KILLER"] += 1
+            # Keep a debug print for visibility
             print(f"  [FILTERED] DE_KILLER: {bridge_name}")
             continue
-        
-        # Rule 2: Dynamic bridge visibility with auto/manual/hysteresis policy
-        # Auto-detect dynamic variants (DE_DYN, DE_DYNAMIC, DE_DYNAMIC_K, etc.)
-        from logic.bridges.de_performance import is_dynamic_bridge_type
-        
-        if is_dynamic_bridge_type(bridge_type):
-            visible, reason = _determine_de_dyn_visibility(
-                bridge, 
-                enable_threshold_raw, 
-                disable_threshold_raw
-            )
-            
-            if not visible:
-                filtered_count["DE_DYN_HIDDEN"] += 1
-                print(f"  [FILTERED] Dynamic bridge hidden: {bridge_name} ({bridge_type}) - {reason}")
-                
-                # Check if it needs evaluation
-                if bridge.get("needs_evaluation", False):
-                    filtered_count["NEEDS_EVAL"] += 1
-                
-                continue
-            else:
-                print(f"  [VISIBLE] Dynamic bridge: {bridge_name} ({bridge_type}) - {reason}")
-        
-        # Normalize field names for UI compatibility
+
+        # No other filtering: include the bridge
+        # Normalize field names for UI compatibility (keep existing normalizations)
         if "current_streak" in bridge and "streak" not in bridge:
             bridge["streak"] = bridge["current_streak"]
         if "next_prediction_stl" in bridge and "predicted_value" not in bridge:
             bridge["predicted_value"] = bridge["next_prediction_stl"]
-        
+
         filtered_bridges.append(bridge)
-    
+
     # Summary log
     print(f"\n[get_cau_dong_for_tab_soi_cau_de] Summary:")
     print(f"  - Total from DB: {len(all_bridges)}")
-    print(f"  - Filtered Non-DE (LO_*, etc.): {filtered_count['NON_DE']}")
     print(f"  - Filtered DE_KILLER: {filtered_count['DE_KILLER']}")
-    print(f"  - Filtered DE_DYN (hidden): {filtered_count['DE_DYN_HIDDEN']}")
-    print(f"  - Needs evaluation: {filtered_count['NEEDS_EVAL']}")
     print(f"  - Final result: {len(filtered_bridges)}")
-    
-    return filtered_bridges
 
+    return filtered_bridges
 
 __all__ = [
     'get_loto_stats_last_n_days',

@@ -246,8 +246,19 @@ class UiDeDashboard(ttk.Frame):
         bridges = []
         if HAS_DB_LOADER:
             try:
-                bridges = get_cau_dong_for_tab_soi_cau_de()
-                print(f"[UI] Loaded {len(bridges)} bridges from DB (filtered)")
+                # Lấy tất cả cầu (có thể lẫn cả Lô)
+                all_bridges = get_cau_dong_for_tab_soi_cau_de()
+                
+                # [FIX] LỌC CHỈ LẤY CẦU ĐỀ (DE)
+                # Loại bỏ các cầu bắt đầu bằng LO_ hoặc không phải loại Đề
+                bridges = [
+                    b for b in all_bridges 
+                    if str(b.get('type', '')).upper().startswith(('DE_', 'CAU_DE')) 
+                    or "Đề" in str(b.get('name', ''))
+                    or "DE" in str(b.get('name', '')).upper()
+                ]
+                
+                print(f"[UI] Loaded {len(bridges)} DE bridges from DB (Filtered from {len(all_bridges)})")
             except Exception as e:
                 print(f"[UI ERROR] Failed to load bridges from DB: {e}")
                 # Fallback to scanner if DB load fails

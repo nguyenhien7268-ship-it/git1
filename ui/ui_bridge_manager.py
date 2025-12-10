@@ -291,15 +291,73 @@ class BridgeManagerWindow:
             messagebox.showerror("Lỗi", msg, parent=self.window)
 
     def delete_selected_bridge(self):
-        selected = self.tree.focus()
-        if not selected: return
-        bridge_id = self.tree.item(selected, "values")[0]
-        if messagebox.askyesno("Xác nhận", "Bạn có chắc muốn xóa cầu này?", parent=self.window):
-            success, msg = delete_managed_bridge(bridge_id)
-            if success:
-                self.app.logger.log(f"Đã xóa cầu {bridge_id}")
-                self.refresh_bridge_list()
-                self.reset_form()
+        """
+        [FIX V3] Cập nhật để hỗ trợ xóa nhiều dòng bằng cách lặp qua self.tree.selection().
+        Đồng thời, đảm bảo lấy đúng bridge_id (index 0) và hiển thị thông báo kết quả chi tiết.
+        """
+        # 1. Lấy tất cả ID của các dòng đang chọn
+        selected_items = self.tree.selection()
+        
+        if not selected_items:
+            messagebox.showwarning("Chưa chọn", "Vui lòng chọn ít nhất một cầu để xóa.", parent=self.window)
+            return
+
+        num_selected = len(selected_items)
+        
+        # Tạo thông báo xác nhận dựa trên số lượng dòng được chọn
+        try:
+            # Bridge name nằm ở cột thứ 2 (index 1)
+            first_bridge_name = self.tree.item(selected_items[0], "values")[1] 
+        except IndexError:
+            first_bridge_name = "đã chọn"
+
+        if num_selected == 1:
+            confirm_msg = f"Bạn có chắc muốn xóa cầu '{first_bridge_name}'?"
+        else:
+            confirm_msg = f"Bạn có chắc muốn xóa {num_selected} cầu đã chọn?"
+
+        if not messagebox.askyesno("Xác nhận Xóa", confirm_msg, parent=self.window):
+            return
+        
+        deleted_count = 0
+        failed_names = []
+        
+        # 2. LẶP QUA TẤT CẢ CÁC DÒNG ĐƯỢC CHỌN VÀ THỰC HIỆN XÓA
+        for selected_item_id in selected_items:
+            try:
+                # Bridge ID nằm ở cột đầu tiên (index 0)
+                values = self.tree.item(selected_item_id, "values")
+                bridge_id = values[0]
+                bridge_name = values[1]
+
+                # Gọi hàm xóa từ service
+                success, msg = delete_managed_bridge(bridge_id)
+                
+                if success:
+                    deleted_count += 1
+                else:
+                    failed_names.append((bridge_name, msg))
+                    
+            except Exception as e:
+                # Ghi lại lỗi nếu không đọc được dữ liệu dòng
+                failed_names.append((f"Lỗi đọc dữ liệu dòng {selected_item_id}", str(e)))
+                
+        # 3. Cập nhật giao diện và thông báo kết quả
+        if deleted_count > 0:
+            self.refresh_bridge_list()
+            self.reset_form()
+            
+        if deleted_count == num_selected:
+            messagebox.showinfo("Thành công", f"Đã xóa thành công {deleted_count} cầu.", parent=self.window)
+        elif deleted_count > 0:
+            error_details = "\n".join([f"- {name}: {msg}" for name, msg in failed_names])
+            messagebox.showwarning("Hoàn thành có lỗi", 
+                                  f"Đã xóa thành công {deleted_count}/{num_selected} cầu. "
+                                  f"Có {len(failed_names)} cầu không thể xóa:\n{error_details}", 
+                                  parent=self.window)
+        elif num_selected > 0:
+             error_details = "\n".join([f"- {name}: {msg}" for name, msg in failed_names])
+             messagebox.showerror("Lỗi Xóa", f"Không thể xóa bất kỳ cầu nào ({num_selected} cầu). Chi tiết:\n{error_details}", parent=self.window)
 
     def _on_delete_selected(self):
         """Handle bulk delete of selected bridges"""
