@@ -5,11 +5,15 @@ Common utility functions used across multiple modules.
 Contains: validation helpers, date/time utilities, shared helper functions.
 
 Created during Phase 1 refactoring to reduce code duplication.
+V11.2: Enhanced with retry decorator and timestamp helpers for K1N-primary flow.
 """
 
 import re
+import time
+import functools
+import sqlite3
 from datetime import datetime
-from typing import Any, List, Optional, Tuple
+from typing import Any, List, Optional, Tuple, Callable
 
 
 # =============================================================================
@@ -289,13 +293,14 @@ def normalize_bridge_name(name: str) -> str:
 
     - Strips whitespace
     - Converts to lowercase
-    - Removes special characters
+    - Removes special characters and Vietnamese diacritics
+    - Normalizes to ASCII-safe form
 
     Args:
         name: Bridge name to normalize
 
     Returns:
-        Normalized bridge name
+        Normalized bridge name (ASCII-safe)
 
     Examples:
         >>> normalize_bridge_name("  Bridge 1  ")
@@ -306,9 +311,116 @@ def normalize_bridge_name(name: str) -> str:
     if not name:
         return ""
 
+    import unicodedata
+    
     name = str(name).strip().lower()
-    # Remove common special characters but keep alphanumeric
-    name = re.sub(r'[^\w\s]', '', name)
-    # Remove extra whitespace
-    name = re.sub(r'\s+', '', name)
+    
+    # Vietnamese character mapping to ASCII
+    vietnamese_map = {
+        'à': 'a', 'á': 'a', 'ả': 'a', 'ã': 'a', 'ạ': 'a',
+        'ă': 'a', 'ằ': 'a', 'ắ': 'a', 'ẳ': 'a', 'ẵ': 'a', 'ặ': 'a',
+        'â': 'a', 'ầ': 'a', 'ấ': 'a', 'ẩ': 'a', 'ẫ': 'a', 'ậ': 'a',
+        'đ': 'd',
+        'è': 'e', 'é': 'e', 'ẻ': 'e', 'ẽ': 'e', 'ẹ': 'e',
+        'ê': 'e', 'ề': 'e', 'ế': 'e', 'ể': 'e', 'ễ': 'e', 'ệ': 'e',
+        'ì': 'i', 'í': 'i', 'ỉ': 'i', 'ĩ': 'i', 'ị': 'i',
+        'ò': 'o', 'ó': 'o', 'ỏ': 'o', 'õ': 'o', 'ọ': 'o',
+        'ô': 'o', 'ồ': 'o', 'ố': 'o', 'ổ': 'o', 'ỗ': 'o', 'ộ': 'o',
+        'ơ': 'o', 'ờ': 'o', 'ớ': 'o', 'ở': 'o', 'ỡ': 'o', 'ợ': 'o',
+        'ù': 'u', 'ú': 'u', 'ủ': 'u', 'ũ': 'u', 'ụ': 'u',
+        'ư': 'u', 'ừ': 'u', 'ứ': 'u', 'ử': 'u', 'ữ': 'u', 'ự': 'u',
+        'ỳ': 'y', 'ý': 'y', 'ỷ': 'y', 'ỹ': 'y', 'ỵ': 'y'
+    }
+    
+    # Replace Vietnamese characters
+    for viet_char, ascii_char in vietnamese_map.items():
+        name = name.replace(viet_char, ascii_char)
+    
+    # Normalize Unicode and remove remaining diacritics
+    name = unicodedata.normalize('NFD', name)
+    name = ''.join(char for char in name if unicodedata.category(char) != 'Mn')
+    
+    # Remove all non-alphanumeric characters
+    # Note: This removes spaces, hyphens, underscores, and special characters
+    # to create an ASCII-safe identifier for duplicate checking
+    name = re.sub(r'[^a-z0-9]', '', name)
     return name
+
+
+# =============================================================================
+# RETRY DECORATOR (V11.2)
+# =============================================================================
+
+def retry_on_db_lock(max_retries: int = 3, initial_delay: float = 0.1):
+    """
+    Decorator to retry database operations on sqlite3.OperationalError.
+    
+    Uses exponential backoff for retries.
+    
+    Args:
+        max_retries: Maximum number of retry attempts
+        initial_delay: Initial delay in seconds (doubles each retry)
+        
+    Example:
+        >>> @retry_on_db_lock(max_retries=3)
+        ... def my_db_operation():
+        ...     # Database code here
+        ...     pass
+    """
+    def decorator(func: Callable) -> Callable:
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            delay = initial_delay
+            last_exception = None
+            
+            for attempt in range(max_retries):
+                try:
+                    return func(*args, **kwargs)
+                except sqlite3.OperationalError as e:
+                    last_exception = e
+                    if "locked" in str(e).lower() and attempt < max_retries - 1:
+                        print(f"[WARN] Database locked, retrying in {delay}s... (attempt {attempt+1}/{max_retries})")
+                        time.sleep(delay)
+                        delay *= 2  # Exponential backoff
+                    else:
+                        raise
+                except Exception:
+                    raise
+            
+            # If we get here, all retries failed
+            raise last_exception
+        
+        return wrapper
+    return decorator
+
+
+# =============================================================================
+# TIMESTAMP HELPERS (V11.2)
+# =============================================================================
+
+def get_current_timestamp() -> str:
+    """
+    Get current timestamp in SQL format.
+    
+    Returns:
+        Timestamp string in format 'YYYY-MM-DD HH:MM:SS'
+        
+    Example:
+        >>> get_current_timestamp()
+        '2024-12-09 15:30:45'
+    """
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
+def get_current_date() -> str:
+    """
+    Get current date in SQL format.
+    
+    Returns:
+        Date string in format 'YYYY-MM-DD'
+        
+    Example:
+        >>> get_current_date()
+        '2024-12-09'
+    """
+    return datetime.now().strftime("%Y-%m-%d")

@@ -3,6 +3,8 @@
 
 import sqlite3
 import os
+import time
+from typing import List, Dict, Set, Optional, Tuple, Any
 
 # --- CẤU HÌNH ĐƯỜNG DẪN DB TUYỆT ĐỐI ---
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -76,13 +78,21 @@ def setup_database(db_name=DB_NAME):
     )
 
     # Self-Healing: Thêm cột nếu thiếu (Migration)
+    # V11.2: K1N-primary detection flow - add rate columns
     columns_to_add = [
         ("max_lose_streak_k2n", "INTEGER DEFAULT 0"),
         ("recent_win_count_10", "INTEGER DEFAULT 0"),
         ("is_pinned", "INTEGER DEFAULT 0"),
         ("search_rate_text", "TEXT DEFAULT '0.00%'"),
         ("search_period", "INTEGER DEFAULT 0"),
-        ("type", "TEXT DEFAULT 'UNKNOWN'")
+        ("type", "TEXT DEFAULT 'UNKNOWN'"),
+        # K1N/K2N rate columns (V11.2)
+        ("k1n_rate_lo", "REAL DEFAULT 0.0"),
+        ("k1n_rate_de", "REAL DEFAULT 0.0"),
+        ("k2n_rate_lo", "REAL DEFAULT 0.0"),
+        ("k2n_rate_de", "REAL DEFAULT 0.0"),
+        ("is_pending", "INTEGER DEFAULT 1"),
+        ("imported_at", "TEXT DEFAULT (datetime('now','localtime'))")
     ]
     
     for col_name, col_type in columns_to_add:
@@ -508,3 +518,421 @@ def update_bridge_recent_win_count_batch(recent_win_data_list, db_name=DB_NAME):
         return False, f"Lỗi SQL cập nhật Phong Độ 10 Kỳ: {e}"
     finally:
         if conn: conn.close()
+
+
+# ===================================================================================
+# IV. K1N-PRIMARY BULK IMPORT APIs (V11.2)
+# ===================================================================================
+
+def get_all_managed_bridge_names(db_name: str = DB_NAME) -> Set[str]:
+    """
+    Get all managed bridge names from database.
+    
+    Returns normalized bridge names for efficient duplicate checking.
+    Used by scanner to exclude existing bridges.
+    
+    Args:
+        db_name: Database file path
+        
+    Returns:
+        Set of normalized bridge names (lowercase, no special chars)
+        
+    Example:
+        >>> names = get_all_managed_bridge_names()
+        >>> 'cau-de-01' in names  # Fast O(1) lookup
+        True
+    """
+    conn = None
+    try:
+        conn = sqlite3.connect(db_name)
+        cursor = conn.cursor()
+        cursor.execute("SELECT name FROM ManagedBridges")
+        rows = cursor.fetchall()
+        
+        # Import normalize function
+        try:
+            from logic.common_utils import normalize_bridge_name
+        except ImportError:
+            # Fallback: simple normalization
+            def normalize_bridge_name(name):
+                return str(name).strip().lower()
+        
+        return {normalize_bridge_name(row[0]) for row in rows if row[0]}
+    except Exception as e:
+        print(f"[ERROR] get_all_managed_bridge_names: {e}")
+        return set()
+    finally:
+        if conn:
+            conn.close()
+
+
+def load_rates_cache(db_name: str = DB_NAME) -> Dict[str, Dict[str, float]]:
+    """
+    Load K1N/K2N rates cache from ManagedBridges table.
+    
+    Returns a dictionary mapping normalized bridge names to their rates.
+    Used by scanners to attach rate information to candidates.
+    
+    Args:
+        db_name: Database file path
+        
+    Returns:
+        Dict[normalized_name, rates_dict] where rates_dict contains:
+            - k1n_rate_lo: K1N rate for LO bridges
+            - k1n_rate_de: K1N rate for DE bridges  
+            - k2n_rate_lo: K2N rate for LO bridges
+            - k2n_rate_de: K2N rate for DE bridges
+            
+    Example:
+        >>> cache = load_rates_cache()
+        >>> rates = cache.get('cau-de-01', {})
+        >>> k1n_de = rates.get('k1n_rate_de', 0.0)
+    """
+    conn = None
+    try:
+        conn = sqlite3.connect(db_name)
+        cursor = conn.cursor()
+        
+        # Load all bridges with their rates
+        cursor.execute("""
+            SELECT name, k1n_rate_lo, k1n_rate_de, k2n_rate_lo, k2n_rate_de
+            FROM ManagedBridges
+        """)
+        rows = cursor.fetchall()
+        
+        # Import normalize function
+        try:
+            from logic.common_utils import normalize_bridge_name
+        except ImportError:
+            # Fallback: simple normalization
+            def normalize_bridge_name(name):
+                return str(name).strip().lower()
+        
+        # Build cache dictionary
+        cache = {}
+        for row in rows:
+            if not row[0]:
+                continue
+                
+            name = row[0]
+            normalized = normalize_bridge_name(name)
+            
+            cache[normalized] = {
+                'k1n_rate_lo': row[1] if row[1] is not None else 0.0,
+                'k1n_rate_de': row[2] if row[2] is not None else 0.0,
+                'k2n_rate_lo': row[3] if row[3] is not None else 0.0,
+                'k2n_rate_de': row[4] if row[4] is not None else 0.0,
+            }
+        
+        return cache
+    except Exception as e:
+        print(f"[ERROR] load_rates_cache: {e}")
+        return {}
+    finally:
+        if conn:
+            conn.close()
+
+
+def bulk_upsert_managed_bridges(
+    bridges: List[Dict[str, Any]], 
+    db_name: str = DB_NAME,
+    transactional: bool = True
+) -> Dict[str, int]:
+    """
+    Bulk upsert managed bridges with atomic transaction support.
+    
+    Performs efficient INSERT/UPDATE operations using executemany.
+    Includes retry logic for sqlite3.OperationalError (database locked).
+    
+    Args:
+        bridges: List of bridge dictionaries with keys:
+            - name (required): Bridge name
+            - description: Bridge description
+            - type: Bridge type (LO_*, DE_*)
+            - k1n_rate_lo: K1N rate for LO
+            - k1n_rate_de: K1N rate for DE
+            - k2n_rate_lo: K2N rate for LO
+            - k2n_rate_de: K2N rate for DE
+            - is_pending: Whether bridge is pending approval (0 or 1)
+            - is_enabled: Whether bridge is enabled (0 or 1)
+            - pos1_idx, pos2_idx: Position indices
+            - Other optional fields...
+            
+        db_name: Database file path
+        transactional: If True, all operations in single transaction (rollback on error)
+        
+    Returns:
+        Dict with keys: 'added', 'updated', 'skipped', 'errors'
+        
+    Example:
+        >>> bridges = [
+        ...     {'name': 'Bridge-01', 'type': 'DE_DYN', 'k1n_rate_de': 95.5},
+        ...     {'name': 'Bridge-02', 'type': 'LO_V16', 'k1n_rate_lo': 87.3}
+        ... ]
+        >>> result = bulk_upsert_managed_bridges(bridges)
+        >>> print(f"Added: {result['added']}, Updated: {result['updated']}")
+    """
+    stats = {'added': 0, 'updated': 0, 'skipped': 0, 'errors': 0}
+    
+    if not bridges:
+        return stats
+    
+    conn = None
+    max_retries = 3
+    retry_delay = 0.1  # Start with 100ms
+    
+    for attempt in range(max_retries):
+        try:
+            conn = sqlite3.connect(db_name, timeout=10.0)
+            cursor = conn.cursor()
+            
+            # Get existing bridges for duplicate check
+            cursor.execute("SELECT name FROM ManagedBridges")
+            existing_names = {row[0].strip().lower() for row in cursor.fetchall()}
+            
+            # Prepare batch operations
+            to_insert = []
+            to_update = []
+            
+            for bridge in bridges:
+                name = bridge.get('name')
+                if not name:
+                    stats['skipped'] += 1
+                    continue
+                
+                # Check if exists
+                is_existing = name.strip().lower() in existing_names
+                
+                # Prepare values (with defaults)
+                description = bridge.get('description', '')
+                bridge_type = bridge.get('type', 'UNKNOWN')
+                k1n_rate_lo = bridge.get('k1n_rate_lo', 0.0)
+                k1n_rate_de = bridge.get('k1n_rate_de', 0.0)
+                k2n_rate_lo = bridge.get('k2n_rate_lo', 0.0)
+                k2n_rate_de = bridge.get('k2n_rate_de', 0.0)
+                is_pending = bridge.get('is_pending', 1)
+                is_enabled = bridge.get('is_enabled', 0)  # Default disabled for new bridges
+                pos1_idx = bridge.get('pos1_idx')
+                pos2_idx = bridge.get('pos2_idx')
+                win_rate_text = bridge.get('win_rate_text', 'N/A')
+                search_rate_text = bridge.get('search_rate_text', '0.00%')
+                current_streak = bridge.get('current_streak', 0)
+                next_prediction_stl = bridge.get('next_prediction_stl', 'N/A')
+                
+                if is_existing:
+                    # UPDATE
+                    to_update.append((
+                        description, bridge_type, k1n_rate_lo, k1n_rate_de,
+                        k2n_rate_lo, k2n_rate_de, is_pending, is_enabled,
+                        pos1_idx, pos2_idx, win_rate_text, search_rate_text,
+                        current_streak, next_prediction_stl,
+                        name  # WHERE clause
+                    ))
+                else:
+                    # INSERT
+                    to_insert.append((
+                        name, description, bridge_type, k1n_rate_lo, k1n_rate_de,
+                        k2n_rate_lo, k2n_rate_de, is_pending, is_enabled,
+                        pos1_idx, pos2_idx, win_rate_text, search_rate_text,
+                        current_streak, next_prediction_stl
+                    ))
+            
+            # Execute batch INSERT
+            if to_insert:
+                sql_insert = """
+                INSERT INTO ManagedBridges (
+                    name, description, type, k1n_rate_lo, k1n_rate_de,
+                    k2n_rate_lo, k2n_rate_de, is_pending, is_enabled,
+                    pos1_idx, pos2_idx, win_rate_text, search_rate_text,
+                    current_streak, next_prediction_stl
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """
+                cursor.executemany(sql_insert, to_insert)
+                # Note: cursor.rowcount with executemany is unreliable in SQLite
+                # Use actual count from prepared list
+                stats['added'] = len(to_insert)
+            
+            # Execute batch UPDATE
+            if to_update:
+                sql_update = """
+                UPDATE ManagedBridges SET
+                    description=?, type=?, k1n_rate_lo=?, k1n_rate_de=?,
+                    k2n_rate_lo=?, k2n_rate_de=?, is_pending=?, is_enabled=?,
+                    pos1_idx=?, pos2_idx=?, win_rate_text=?, search_rate_text=?,
+                    current_streak=?, next_prediction_stl=?
+                WHERE name=?
+                """
+                cursor.executemany(sql_update, to_update)
+                # Note: cursor.rowcount with executemany is unreliable in SQLite
+                # Use actual count from prepared list
+                stats['updated'] = len(to_update)
+            
+            # Commit transaction
+            if transactional:
+                conn.commit()
+            
+            print(f"[INFO] bulk_upsert: Added {stats['added']}, Updated {stats['updated']}, Skipped {stats['skipped']}")
+            return stats
+            
+        except sqlite3.OperationalError as e:
+            # Database locked - retry with exponential backoff
+            if attempt < max_retries - 1:
+                print(f"[WARN] Database locked, retrying in {retry_delay}s... (attempt {attempt+1}/{max_retries})")
+                time.sleep(retry_delay)
+                retry_delay *= 2  # Exponential backoff
+                if conn:
+                    try:
+                        conn.close()
+                    except:
+                        pass
+                continue
+            else:
+                print(f"[ERROR] bulk_upsert failed after {max_retries} attempts: {e}")
+                stats['errors'] = len(bridges) - stats['added'] - stats['updated'] - stats['skipped']
+                if conn and transactional:
+                    conn.rollback()
+                return stats
+                
+        except Exception as e:
+            print(f"[ERROR] bulk_upsert_managed_bridges: {e}")
+            stats['errors'] = len(bridges) - stats['added'] - stats['updated'] - stats['skipped']
+            if conn and transactional:
+                conn.rollback()
+            return stats
+        finally:
+            if conn:
+                conn.close()
+    
+    return stats
+
+
+def update_managed_bridges_batch(
+    updates: List[Dict[str, Any]],
+    db_name: str = DB_NAME
+) -> Dict[str, int]:
+    """
+    Update multiple managed bridges in a single transaction.
+    
+    Args:
+        updates: List of update dictionaries with 'name' (required) and fields to update
+        db_name: Database file path
+        
+    Returns:
+        Dict with keys: 'updated', 'skipped', 'errors'
+        
+    Example:
+        >>> updates = [
+        ...     {'name': 'Bridge-01', 'is_enabled': 1, 'k1n_rate_lo': 92.0},
+        ...     {'name': 'Bridge-02', 'is_pending': 0}
+        ... ]
+        >>> result = update_managed_bridges_batch(updates)
+    """
+    stats = {'updated': 0, 'skipped': 0, 'errors': 0}
+    
+    if not updates:
+        return stats
+    
+    conn = None
+    try:
+        conn = sqlite3.connect(db_name)
+        cursor = conn.cursor()
+        
+        allowed_fields = [
+            'description', 'type', 'k1n_rate_lo', 'k1n_rate_de',
+            'k2n_rate_lo', 'k2n_rate_de', 'is_pending', 'is_enabled',
+            'pos1_idx', 'pos2_idx', 'win_rate_text', 'search_rate_text',
+            'current_streak', 'next_prediction_stl', 'max_lose_streak_k2n',
+            'recent_win_count_10', 'is_pinned'
+        ]
+        
+        for update_dict in updates:
+            name = update_dict.get('name')
+            if not name:
+                stats['skipped'] += 1
+                continue
+            
+            # Build dynamic UPDATE query
+            set_parts = []
+            values = []
+            
+            for field in allowed_fields:
+                if field in update_dict:
+                    set_parts.append(f"{field}=?")
+                    values.append(update_dict[field])
+            
+            if not set_parts:
+                stats['skipped'] += 1
+                continue
+            
+            sql_update = f"UPDATE ManagedBridges SET {', '.join(set_parts)} WHERE name=?"
+            values.append(name)
+            
+            cursor.execute(sql_update, values)
+            if cursor.rowcount > 0:
+                stats['updated'] += 1
+            else:
+                stats['skipped'] += 1
+        
+        conn.commit()
+        print(f"[INFO] update_batch: Updated {stats['updated']}, Skipped {stats['skipped']}")
+        return stats
+        
+    except Exception as e:
+        print(f"[ERROR] update_managed_bridges_batch: {e}")
+        stats['errors'] = len(updates) - stats['updated'] - stats['skipped']
+        if conn:
+            conn.rollback()
+        return stats
+    finally:
+        if conn:
+            conn.close()
+
+
+def delete_managed_bridges_batch(
+    names: List[str],
+    db_name: str = DB_NAME
+) -> Dict[str, int]:
+    """
+    Delete multiple managed bridges by names in a single transaction.
+    
+    Args:
+        names: List of bridge names to delete
+        db_name: Database file path
+        
+    Returns:
+        Dict with keys: 'deleted', 'errors'
+        
+    Example:
+        >>> result = delete_managed_bridges_batch(['Bridge-01', 'Bridge-02'])
+        >>> print(f"Deleted: {result['deleted']}")
+    """
+    stats = {'deleted': 0, 'errors': 0}
+    
+    if not names:
+        return stats
+    
+    conn = None
+    try:
+        conn = sqlite3.connect(db_name)
+        cursor = conn.cursor()
+        
+        # Use IN clause for efficient batch delete
+        placeholders = ','.join('?' * len(names))
+        sql_delete = f"DELETE FROM ManagedBridges WHERE name IN ({placeholders})"
+        
+        cursor.execute(sql_delete, names)
+        stats['deleted'] = cursor.rowcount
+        
+        conn.commit()
+        print(f"[INFO] delete_batch: Deleted {stats['deleted']} bridges")
+        return stats
+        
+    except Exception as e:
+        print(f"[ERROR] delete_managed_bridges_batch: {e}")
+        stats['errors'] = len(names)
+        if conn:
+            conn.rollback()
+        return stats
+    finally:
+        if conn:
+            conn.close()
