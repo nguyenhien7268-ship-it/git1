@@ -1,6 +1,6 @@
 # Tên file: logic/bridges/de_bridge_scanner.py
-# (PHIÊN BẢN V10.1 - SPEED OPTIMIZED: PRE-CALCULATED INTEGER MATRIX)
-# Tốc độ dự kiến: Nhanh hơn 5-10 lần nhờ loại bỏ String Parsing trong vòng lặp.
+# (PHIÊN BẢN V11.2 - K1N-PRIMARY REFACTOR: READ-ONLY SCANNER)
+# Returns Candidate objects instead of writing to DB directly.
 
 import sqlite3
 from collections import Counter
@@ -8,12 +8,14 @@ from typing import List, Dict, Any, Optional, Tuple, Set
 
 # Fallback imports
 try:
-    from logic.db_manager import DB_NAME
+    from logic.db_manager import DB_NAME, get_all_managed_bridge_names, load_rates_cache
     from logic.bridges.bridges_v16 import getAllPositions_V17_Shadow, getPositionName_V17_Shadow
     from logic.de_utils import (
         get_gdb_last_2, check_cham, get_touches_by_offset, 
         generate_dan_de_from_touches, get_set_name_of_number, BO_SO_DE
     )
+    from logic.models import Candidate
+    from logic.common_utils import normalize_bridge_name
 except ImportError:
     DB_NAME = "lottery.db"
     pass 
@@ -61,17 +63,35 @@ class DeBridgeScanner:
                 matrix.append([None] * 214) # Fallback nếu lỗi
         return matrix
 
-    def scan_all(self, all_data_ai: List[List[str]]) -> Tuple[int, List[Dict[str, Any]]]:
+    def scan_all(
+        self, 
+        all_data_ai: List[List[str]], 
+        db_name: str = DB_NAME
+    ) -> Tuple[List[Candidate], Dict[str, Any]]:
         """
-        Hàm điều phối chính (Orchestrator).
+        Scan for DE bridges and return Candidate objects (READ-ONLY, no DB writes).
+        
+        V11.2 K1N-Primary Refactor:
+        - Returns Candidate objects instead of writing to DB
+        - Attaches K1N/K2N rates from cache
+        - Excludes existing bridges before returning
+        - Returns metadata about scan results
+        
+        Args:
+            all_data_ai: Historical lottery data
+            db_name: Database path for reading existing bridges
+            
+        Returns:
+            Tuple of (candidates: List[Candidate], meta: Dict):
+                - candidates: List of bridge candidates with rates attached
+                - meta: Dict with 'found_total', 'excluded_existing', 'returned_count'
         """
         if not self._validate_input_data(all_data_ai):
-            return 0, []
+            return [], {'found_total': 0, 'excluded_existing': 0, 'returned_count': 0}
 
-        print(f">>> [DE SCANNER V10.1] Bắt đầu quét (Speed Optimized)...")
+        print(f">>> [DE SCANNER V11.2] Bắt đầu quét (K1N-Primary Read-Only)...")
         
         # 1. [OPTIMIZATION] Tiền xử lý dữ liệu sang dạng số
-        # data_matrix[i][j] trả về ngay giá trị số tại ngày i, vị trí j
         data_matrix = self._preprocess_data(all_data_ai)
         
         found_bridges: List[Dict[str, Any]] = []
@@ -92,12 +112,27 @@ class DeBridgeScanner:
         print(f">>> [DE SCANNER] Cầu Loại tìm thấy: {len(bridges_killer)}")
         found_bridges.extend(bridges_killer)
 
-        # 5. TỔNG HỢP & LƯU TRỮ
+        # 5. RANK AND CONVERT TO CANDIDATES (NO DB WRITE)
         self._rank_bridges(found_bridges)
-        self._save_to_db(found_bridges)
+        found_total = len(found_bridges)
         
-        print(f">>> [DE SCANNER] Tổng cộng: {len(found_bridges)} cầu.")
-        return len(found_bridges), found_bridges
+        # 6. LOAD EXISTING NAMES AND RATES CACHE (SINGLE DB CALL EACH)
+        print(f">>> [DE SCANNER] Loading existing bridges and rates cache...")
+        existing_names = get_all_managed_bridge_names(db_name)
+        rates_cache = load_rates_cache(db_name)
+        
+        # 7. CONVERT TO CANDIDATES WITH RATES AND EXCLUDE EXISTING
+        candidates = self._convert_to_candidates(found_bridges, existing_names, rates_cache)
+        excluded_count = found_total - len(candidates)
+        
+        meta = {
+            'found_total': found_total,
+            'excluded_existing': excluded_count,
+            'returned_count': len(candidates)
+        }
+        
+        print(f">>> [DE SCANNER] Kết quả: {found_total} tìm thấy, {excluded_count} đã tồn tại, {len(candidates)} trả về.")
+        return candidates, meta
 
     # --- CORE HELPERS ---
 
@@ -134,6 +169,97 @@ class DeBridgeScanner:
                 wins_10 = 0
             b['ranking_score'] = self._calculate_ranking_score(streak, wins_10, b.get('type', ''))
         bridges.sort(key=lambda x: x['ranking_score'], reverse=True)
+    
+    def _convert_to_candidates(
+        self, 
+        bridges: List[Dict[str, Any]], 
+        existing_names: Set[str],
+        rates_cache: Dict[str, Dict[str, float]]
+    ) -> List[Candidate]:
+        """
+        Convert bridge dicts to Candidate objects with K1N/K2N rates attached.
+        
+        Excludes bridges whose normalized names already exist in DB.
+        Attaches rates from cache, sets rate_missing flag if not found.
+        
+        Args:
+            bridges: List of bridge dictionaries from scan
+            existing_names: Set of normalized existing bridge names
+            rates_cache: Dict mapping normalized names to rates
+            
+        Returns:
+            List of Candidate objects (excluding existing bridges)
+        """
+        candidates = []
+        
+        for b in bridges:
+            name = b.get('name', '')
+            if not name:
+                continue
+            
+            # Normalize name for duplicate checking
+            norm_name = normalize_bridge_name(name)
+            
+            # Skip if already exists
+            if norm_name in existing_names:
+                continue
+            
+            # Get rates from cache
+            rates = rates_cache.get(norm_name, {})
+            k1n_lo = rates.get('k1n_rate_lo', 0.0)
+            k1n_de = rates.get('k1n_rate_de', 0.0)
+            k2n_lo = rates.get('k2n_rate_lo', 0.0)
+            k2n_de = rates.get('k2n_rate_de', 0.0)
+            
+            # Set rate_missing flag if no rates found
+            rate_missing = (k1n_de == 0.0 and k2n_de == 0.0)
+            
+            # Build description
+            desc = b.get('display_desc', '')
+            full_dan = b.get('full_dan', '')
+            final_desc = f"{desc}. Dàn: {full_dan}" if full_dan else desc
+            streak = b.get('streak', 0)
+            final_desc += f". Thông {streak} kỳ."
+            
+            # Determine kind (single vs set)
+            bridge_type = b.get('type', '')
+            kind = 'set' if bridge_type == 'DE_SET' else 'single'
+            
+            # Calculate win_count_10 from win_rate
+            try:
+                wr = float(b.get('win_rate', 0))
+                win_count_10 = int((wr / 100.0) * 10)
+            except (ValueError, TypeError):
+                win_count_10 = 0
+            
+            # Create Candidate object
+            candidate = Candidate(
+                name=name,
+                normalized_name=norm_name,
+                type='de',
+                kind=kind,
+                k1n_lo=k1n_lo,
+                k1n_de=k1n_de,
+                k2n_lo=k2n_lo,
+                k2n_de=k2n_de,
+                stl=b.get('predicted_value', 'N/A'),
+                reason=bridge_type,
+                pos1_idx=b.get('pos1_idx'),
+                pos2_idx=b.get('pos2_idx'),
+                description=final_desc,
+                streak=streak,
+                win_count_10=win_count_10,
+                rate_missing=rate_missing,
+                metadata={
+                    'win_rate': b.get('win_rate', 0.0),
+                    'full_dan': full_dan,
+                    'ranking_score': b.get('ranking_score', 0.0)
+                }
+            )
+            
+            candidates.append(candidate)
+        
+        return candidates
 
     def _validate_bridge(self, all_data_ai, data_matrix, idx1, idx2, k_param, mode) -> bool:
         """
@@ -699,79 +825,18 @@ class DeBridgeScanner:
         # Map cho list 107 vị trí
         return getPositionName_V17_Shadow(idx).replace('[', '.').replace(']', '')
 
-    def _save_to_db(self, bridges: List[Dict[str, Any]]):
-        if not bridges: return
-        try:
-            conn = sqlite3.connect(DB_NAME)
-            cursor = conn.cursor()
-            # Delete old DE bridges including DE_MEMORY to refresh
-            cursor.execute("DELETE FROM ManagedBridges WHERE type IN ('DE_DYNAMIC_K', 'DE_POS_SUM', 'DE_SET', 'DE_PASCAL', 'DE_KILLER', 'DE_MEMORY')")
-            
-            count = 0
-            
-            # --- [V10.7 - ENHANCED FILTERING] ---
-            # 1. Separate bridges by type
-            set_bridges = [b for b in bridges if b.get('type') == 'DE_SET']
-            memory_bridges = [b for b in bridges if b.get('type') == 'DE_MEMORY']
-            dyn_bridges = [b for b in bridges if b.get('type') == 'DE_DYNAMIC_K']
-            killer_bridges = [b for b in bridges if b.get('type') == 'DE_KILLER']
-            other_bridges = [b for b in bridges if b.get('type') not in ('DE_SET', 'DE_MEMORY', 'DE_DYNAMIC_K', 'DE_KILLER')]
-            
-            # 2. Apply strict filtering for DE_DYN: Only ≥28/30 (93.3%) win rate
-            MIN_DYN_WINRATE = 93.3  # 28 out of 30 days
-            MAX_DYN_COUNT = 10
-            dyn_filtered = [b for b in dyn_bridges if b.get('win_rate', 0) >= MIN_DYN_WINRATE][:MAX_DYN_COUNT]
-            
-            # 3. Disable DE_KILLER completely (set max to 0)
-            MAX_KILLER_COUNT = 0
-            killer_filtered = killer_bridges[:MAX_KILLER_COUNT]
-            
-            # 4. Ensure minimum DE_SET bridges (priority guarantee)
-            MIN_SET_COUNT = 2
-            if len(set_bridges) < MIN_SET_COUNT and len(set_bridges) > 0:
-                # Take all available SET bridges even if below normal threshold
-                print(f">>> [DE SCANNER] ⚠️  Chỉ có {len(set_bridges)} cầu DE_SET, giữ tất cả")
-                set_filtered = set_bridges
-            elif len(set_bridges) >= MIN_SET_COUNT:
-                set_filtered = set_bridges
-            else:
-                print(f">>> [DE SCANNER] ⚠️  KHÔNG tìm thấy cầu DE_SET nào!")
-                set_filtered = []
-            
-            # 5. Combine filtered bridges: SET + MEMORY + DYN + KILLER + Others
-            bridges_to_save = set_filtered + memory_bridges + dyn_filtered + killer_filtered + other_bridges[:200]
-            
-            # 6. Enhanced logging for filtering
-            print(f">>> [DE SCANNER] Lọc cầu Đề:")
-            print(f"    - DE_SET: {len(set_filtered)} (Tối thiểu: {MIN_SET_COUNT})")
-            print(f"    - DE_MEMORY: {len(memory_bridges)}")
-            print(f"    - DE_DYN: {len(dyn_filtered)}/{len(dyn_bridges)} (≥{MIN_DYN_WINRATE}%, Tối đa: {MAX_DYN_COUNT})")
-            print(f"    - DE_KILLER: {len(killer_filtered)} (TẠM DỪNG)")
-            print(f"    - Khác: {len(other_bridges[:200])}")
-            print(f">>> [DE SCANNER] Tổng lưu DB: {len(bridges_to_save)} cầu")
-            
-            for b in bridges_to_save:
-            # --- [V10.7 - END OF FILTERING] ---
-            
-                desc = b.get('display_desc', '')
-                full_dan = b.get('full_dan', '')
-                final_desc = f"{desc}. Dàn: {full_dan}" if full_dan else desc
-                final_desc += f". Thông {b['streak']} kỳ."
-                
-                # Extract pos1_idx, pos2_idx if available
-                pos1_idx = b.get('pos1_idx')
-                pos2_idx = b.get('pos2_idx')
-                
-                cursor.execute("""
-                    INSERT INTO ManagedBridges 
-                    (name, type, description, win_rate_text, current_streak, next_prediction_stl, is_enabled, pos1_idx, pos2_idx) 
-                    VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)
-                """, (b['name'], b['type'], final_desc, f"{b['win_rate']:.0f}%", b['streak'], b['predicted_value'], pos1_idx, pos2_idx))
-                count += 1
-            
-            conn.commit(); conn.close()
-            print(f">>> [DB] Đã lưu thành công {count} cầu vào bảng ManagedBridges (Bao gồm {len(set_bridges)} Cầu Bộ).")
-        except Exception as e: print(f"Lỗi lưu DB: {e}")
+    # REMOVED: _save_to_db method - Scanner is now read-only (V11.2 K1N-Primary Refactor)
+    # DB writes are handled by BridgeImporter after policy-based filtering
 
-def run_de_scanner(data):
-    return DeBridgeScanner().scan_all(data)
+def run_de_scanner(data, db_name=DB_NAME):
+    """
+    V11.2 K1N-Primary: Returns (candidates, meta) instead of (count, bridges).
+    
+    Args:
+        data: Historical lottery data
+        db_name: Database path (for reading existing bridges only)
+        
+    Returns:
+        Tuple of (candidates: List[Candidate], meta: Dict)
+    """
+    return DeBridgeScanner().scan_all(data, db_name)

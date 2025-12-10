@@ -566,6 +566,73 @@ def get_all_managed_bridge_names(db_name: str = DB_NAME) -> Set[str]:
             conn.close()
 
 
+def load_rates_cache(db_name: str = DB_NAME) -> Dict[str, Dict[str, float]]:
+    """
+    Load K1N/K2N rates cache from ManagedBridges table.
+    
+    Returns a dictionary mapping normalized bridge names to their rates.
+    Used by scanners to attach rate information to candidates.
+    
+    Args:
+        db_name: Database file path
+        
+    Returns:
+        Dict[normalized_name, rates_dict] where rates_dict contains:
+            - k1n_rate_lo: K1N rate for LO bridges
+            - k1n_rate_de: K1N rate for DE bridges  
+            - k2n_rate_lo: K2N rate for LO bridges
+            - k2n_rate_de: K2N rate for DE bridges
+            
+    Example:
+        >>> cache = load_rates_cache()
+        >>> rates = cache.get('cau-de-01', {})
+        >>> k1n_de = rates.get('k1n_rate_de', 0.0)
+    """
+    conn = None
+    try:
+        conn = sqlite3.connect(db_name)
+        cursor = conn.cursor()
+        
+        # Load all bridges with their rates
+        cursor.execute("""
+            SELECT name, k1n_rate_lo, k1n_rate_de, k2n_rate_lo, k2n_rate_de
+            FROM ManagedBridges
+        """)
+        rows = cursor.fetchall()
+        
+        # Import normalize function
+        try:
+            from logic.common_utils import normalize_bridge_name
+        except ImportError:
+            # Fallback: simple normalization
+            def normalize_bridge_name(name):
+                return str(name).strip().lower()
+        
+        # Build cache dictionary
+        cache = {}
+        for row in rows:
+            if not row[0]:
+                continue
+                
+            name = row[0]
+            normalized = normalize_bridge_name(name)
+            
+            cache[normalized] = {
+                'k1n_rate_lo': row[1] if row[1] is not None else 0.0,
+                'k1n_rate_de': row[2] if row[2] is not None else 0.0,
+                'k2n_rate_lo': row[3] if row[3] is not None else 0.0,
+                'k2n_rate_de': row[4] if row[4] is not None else 0.0,
+            }
+        
+        return cache
+    except Exception as e:
+        print(f"[ERROR] load_rates_cache: {e}")
+        return {}
+    finally:
+        if conn:
+            conn.close()
+
+
 def bulk_upsert_managed_bridges(
     bridges: List[Dict[str, Any]], 
     db_name: str = DB_NAME,
