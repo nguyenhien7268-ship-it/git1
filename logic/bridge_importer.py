@@ -7,7 +7,6 @@ Handles importing bridge candidates with policy-based filtering and bulk DB oper
 
 import time
 from typing import List, Dict, Optional, Callable, Any
-from dataclasses import asdict
 
 try:
     from logic.models import Candidate, ImportConfig, ScanResult

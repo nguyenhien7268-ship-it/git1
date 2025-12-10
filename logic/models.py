@@ -10,6 +10,11 @@ from typing import Optional, List, Dict, Any
 from datetime import datetime
 
 
+def _get_current_timestamp() -> str:
+    """Factory function for default timestamp (proper default factory)."""
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
 @dataclass
 class Candidate:
     """
@@ -56,7 +61,7 @@ class Candidate:
     # Bridge details
     stl: str = "N/A"
     reason: str = ""
-    detected_at: str = field(default_factory=lambda: datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+    detected_at: str = field(default_factory=_get_current_timestamp)
     
     # Position indices
     pos1_idx: Optional[int] = None

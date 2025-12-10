@@ -340,7 +340,9 @@ def normalize_bridge_name(name: str) -> str:
     name = unicodedata.normalize('NFD', name)
     name = ''.join(char for char in name if unicodedata.category(char) != 'Mn')
     
-    # Remove all non-alphanumeric characters (including underscore)
+    # Remove all non-alphanumeric characters
+    # Note: This removes spaces, hyphens, underscores, and special characters
+    # to create an ASCII-safe identifier for duplicate checking
     name = re.sub(r'[^a-z0-9]', '', name)
     return name
 

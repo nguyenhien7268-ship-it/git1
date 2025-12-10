@@ -681,7 +681,9 @@ def bulk_upsert_managed_bridges(
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """
                 cursor.executemany(sql_insert, to_insert)
-                stats['added'] = cursor.rowcount
+                # Note: cursor.rowcount with executemany is unreliable in SQLite
+                # Use actual count from prepared list
+                stats['added'] = len(to_insert)
             
             # Execute batch UPDATE
             if to_update:
@@ -694,7 +696,9 @@ def bulk_upsert_managed_bridges(
                 WHERE name=?
                 """
                 cursor.executemany(sql_update, to_update)
-                stats['updated'] = cursor.rowcount
+                # Note: cursor.rowcount with executemany is unreliable in SQLite
+                # Use actual count from prepared list
+                stats['updated'] = len(to_update)
             
             # Commit transaction
             if transactional:
