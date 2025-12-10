@@ -1,13 +1,12 @@
 # Tên file: logic/bridges/lo_bridge_scanner.py
-# (PHIÊN BẢN V1.0 - TÁCH LOGIC SCANNING TỪ BRIDGE_MANAGER_CORE)
+# (PHIÊN BẢN V11.2 - K1N-PRIMARY REFACTOR: READ-ONLY SCANNER)
 #
-# Mục đích: Tách riêng logic Dò tìm (Scanning/Discovery) cầu Lô
-#           khỏi logic Quản lý (Management) để tuân thủ SRP.
+# Returns Candidate objects instead of writing to DB directly.
 
 import os
 import sqlite3
 import sys
-from typing import Dict
+from typing import Dict, List, Tuple, Set, Any
 
 # =========================================================================
 # PATH FIX
@@ -31,14 +30,16 @@ except ImportError:
 try:
     from logic.data_repository import get_all_managed_bridges
     from logic.db_manager import (
-        DB_NAME, upsert_managed_bridge,
-        update_bridge_k2n_cache_batch
+        DB_NAME, get_all_managed_bridge_names, load_rates_cache
     )
+    from logic.models import Candidate
+    from logic.common_utils import normalize_bridge_name
 except ImportError:
     DB_NAME = "data/xo_so_prizes_all_logic.db"
-    def upsert_managed_bridge(*args, **kwargs): return False, "Lỗi Import"
-    def update_bridge_k2n_cache_batch(*args, **kwargs): return False, "Lỗi Import"
+    def get_all_managed_bridge_names(*args, **kwargs): return set()
+    def load_rates_cache(*args, **kwargs): return {}
     def get_all_managed_bridges(*args, **kwargs): return []
+    def normalize_bridge_name(name): return str(name).lower().strip()
 
 try:
     from logic.bridges.bridges_classic import (
@@ -456,3 +457,204 @@ def update_fixed_lo_bridges(all_data_ai, db_name):
     conn.commit()
     conn.close()
     return updated_count
+
+
+# ===================================================================================
+# V. K1N-PRIMARY REFACTORED WRAPPERS (V11.2)
+# ===================================================================================
+
+def scan_lo_bridges_v17(
+    toan_bo_A_I, 
+    ky_bat_dau_kiem_tra, 
+    ky_ket_thuc_kiem_tra, 
+    db_name=DB_NAME
+) -> Tuple[List[Candidate], Dict[str, Any]]:
+    """
+    V11.2 K1N-Primary: Scan LO V17 bridges and return Candidate objects (READ-ONLY).
+    
+    Wraps TIM_CAU_TOT_NHAT_V16 but returns Candidates instead of writing to DB.
+    
+    Args:
+        toan_bo_A_I: Historical lottery data
+        ky_bat_dau_kiem_tra: Start period for checking
+        ky_ket_thuc_kiem_tra: End period for checking
+        db_name: Database path (for reading existing bridges only)
+        
+    Returns:
+        Tuple of (candidates: List[Candidate], meta: Dict):
+            - candidates: List of bridge candidates with rates attached
+            - meta: Dict with 'found_total', 'excluded_existing', 'returned_count'
+    """
+    print(">>> [LO SCANNER V11.2] Scanning V17 bridges (K1N-Primary Read-Only)...")
+    
+    # Get data from original scanner
+    allData = toan_bo_A_I
+    finalEndRow = ky_ket_thuc_kiem_tra
+    startCheckRow = ky_bat_dau_kiem_tra + 1
+    offset = ky_bat_dau_kiem_tra
+    
+    last_row_real = allData[-1]
+    try:
+        last_positions = getAllPositions_V17_Shadow(last_row_real)
+    except:
+        return [], {'found_total': 0, 'excluded_existing': 0, 'returned_count': 0}
+    
+    try:
+        positions_shadow = getAllPositions_V17_Shadow(allData[0])
+        num_positions_shadow = len(positions_shadow)
+    except:
+        return [], {'found_total': 0, 'excluded_existing': 0, 'returned_count': 0}
+    
+    if num_positions_shadow == 0:
+        return [], {'found_total': 0, 'excluded_existing': 0, 'returned_count': 0}
+    
+    algorithms = []
+    for i in range(num_positions_shadow):
+        for j in range(i, num_positions_shadow):
+            algorithms.append((i, j))
+    
+    processedData = []
+    for k in range(startCheckRow, finalEndRow + 1):
+        prevRow_idx, actualRow_idx = k - 1 - offset, k - offset
+        if actualRow_idx >= len(allData) or prevRow_idx < 0:
+            continue
+        processedData.append({
+            "prevPositions": getAllPositions_V17_Shadow(allData[prevRow_idx]),
+            "actualLotoSet": set(getAllLoto_V30(allData[actualRow_idx])),
+        })
+    
+    AUTO_ADD_MIN_RATE = SETTINGS.AUTO_ADD_MIN_RATE
+    bridge_dicts = []
+    
+    for idx1, idx2 in algorithms:
+        pos1_name = getPositionName_V17_Shadow(idx1)
+        pos2_name = getPositionName_V17_Shadow(idx2)
+        safe_p1 = _sanitize_name_v2(pos1_name)
+        safe_p2 = _sanitize_name_v2(pos2_name)
+        std_id = f"LO_POS_{safe_p1}_{safe_p2}"
+        
+        win_count, current_streak, max_streak = 0, 0, 0
+        for dayData in processedData:
+            a, b = dayData["prevPositions"][idx1], dayData["prevPositions"][idx2]
+            if a is None or b is None:
+                current_streak = 0
+                continue
+            
+            if "✅" in checkHitSet_V30_K2N(taoSTL_V30_Bong(a, b), dayData["actualLotoSet"]):
+                win_count += 1
+                current_streak += 1
+            else:
+                current_streak = 0
+            max_streak = max(max_streak, current_streak)
+        
+        totalTestDays = len(processedData)
+        if totalTestDays > 0:
+            scan_rate = (win_count / totalTestDays) * 100
+            
+            # Only include if meets threshold
+            if scan_rate >= AUTO_ADD_MIN_RATE:
+                a_pred, b_pred = last_positions[idx1], last_positions[idx2]
+                if a_pred is not None and b_pred is not None:
+                    next_pred_str = calculate_bridge_stl(a_pred, b_pred)
+                else:
+                    next_pred_str = "N/A"
+                
+                bridge_dicts.append({
+                    'name': std_id,
+                    'type': 'LO_POS',
+                    'description': f"Vị trí: {pos1_name} + {pos2_name}",
+                    'win_rate': scan_rate,
+                    'streak': current_streak,
+                    'predicted_value': next_pred_str,
+                    'pos1_idx': idx1,
+                    'pos2_idx': idx2,
+                    'win_count_10': win_count if totalTestDays <= 10 else int((scan_rate / 100.0) * 10)
+                })
+    
+    found_total = len(bridge_dicts)
+    
+    # Load existing names and rates cache (SINGLE DB CALL EACH)
+    print(f">>> [LO SCANNER] Loading existing bridges and rates cache...")
+    existing_names = get_all_managed_bridge_names(db_name)
+    rates_cache = load_rates_cache(db_name)
+    
+    # Convert to Candidates with rates and exclude existing
+    candidates = _convert_lo_bridges_to_candidates(bridge_dicts, existing_names, rates_cache)
+    excluded_count = found_total - len(candidates)
+    
+    meta = {
+        'found_total': found_total,
+        'excluded_existing': excluded_count,
+        'returned_count': len(candidates)
+    }
+    
+    print(f">>> [LO SCANNER] Kết quả V17: {found_total} tìm thấy, {excluded_count} đã tồn tại, {len(candidates)} trả về.")
+    return candidates, meta
+
+
+def _convert_lo_bridges_to_candidates(
+    bridge_dicts: List[Dict[str, Any]],
+    existing_names: Set[str],
+    rates_cache: Dict[str, Dict[str, float]]
+) -> List[Candidate]:
+    """
+    Convert LO bridge dicts to Candidate objects with K1N/K2N rates attached.
+    
+    Args:
+        bridge_dicts: List of bridge dictionaries from scan
+        existing_names: Set of normalized existing bridge names
+        rates_cache: Dict mapping normalized names to rates
+        
+    Returns:
+        List of Candidate objects (excluding existing bridges)
+    """
+    candidates = []
+    
+    for b in bridge_dicts:
+        name = b.get('name', '')
+        if not name:
+            continue
+        
+        # Normalize name for duplicate checking
+        norm_name = normalize_bridge_name(name)
+        
+        # Skip if already exists
+        if norm_name in existing_names:
+            continue
+        
+        # Get rates from cache
+        rates = rates_cache.get(norm_name, {})
+        k1n_lo = rates.get('k1n_rate_lo', 0.0)
+        k1n_de = rates.get('k1n_rate_de', 0.0)
+        k2n_lo = rates.get('k2n_rate_lo', 0.0)
+        k2n_de = rates.get('k2n_rate_de', 0.0)
+        
+        # Set rate_missing flag if no rates found
+        rate_missing = (k1n_lo == 0.0 and k2n_lo == 0.0)
+        
+        # Create Candidate object
+        candidate = Candidate(
+            name=name,
+            normalized_name=norm_name,
+            type='lo',
+            kind='single',
+            k1n_lo=k1n_lo,
+            k1n_de=k1n_de,
+            k2n_lo=k2n_lo,
+            k2n_de=k2n_de,
+            stl=b.get('predicted_value', 'N/A'),
+            reason=b.get('type', 'LO_UNKNOWN'),
+            pos1_idx=b.get('pos1_idx'),
+            pos2_idx=b.get('pos2_idx'),
+            description=b.get('description', ''),
+            streak=b.get('streak', 0),
+            win_count_10=b.get('win_count_10', 0),
+            rate_missing=rate_missing,
+            metadata={
+                'win_rate': b.get('win_rate', 0.0)
+            }
+        )
+        
+        candidates.append(candidate)
+    
+    return candidates
