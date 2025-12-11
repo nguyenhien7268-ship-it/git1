@@ -48,6 +48,81 @@ def check_cham(val_str, cham_list):
         return (n1 in cham_list) or (n2 in cham_list)
     except: return False
 
+def normalize_value(v):
+    """Normalize value to int 0..9 (extract last digit)"""
+    try:
+        s = str(v).strip()
+        digits = ''.join(ch for ch in s if ch.isdigit())
+        return int(digits[-1]) if digits else None
+    except:
+        return None
+
+def compute_touch_metrics(touches, all_data, window_n=30):
+    """
+    Compute comprehensive touch metrics for a touch combination.
+    
+    Args:
+        touches: list/set of touch digits (0..9)
+        all_data: full data rows (ordered oldest to newest)
+        window_n: window size for analysis
+    
+    Returns:
+        dict with keys:
+            - total_count: number of rows in window where touch matched
+            - max_consecutive: maximum consecutive matches
+            - covers_last_n: True if touch appears in ALL last N rows
+            - rate_percent: (total_count / window_n) * 100
+            - occur_kys: list of ky where matches occurred
+            - window: actual window size used
+    """
+    if not all_data:
+        return {
+            'total_count': 0,
+            'max_consecutive': 0,
+            'covers_last_n': False,
+            'rate_percent': 0.0,
+            'occur_kys': [],
+            'window': 0
+        }
+    
+    # Ensure touches is a set of ints
+    touch_set = set(int(t) if isinstance(t, str) else t for t in touches)
+    
+    # Get last N rows
+    last_rows = all_data[-window_n:] if len(all_data) >= window_n else all_data[:]
+    actual_window = len(last_rows)
+    
+    # Compute metrics
+    total_count = 0
+    occur_kys = []
+    max_consecutive = 0
+    current_streak = 0
+    
+    for row in last_rows:
+        de = local_get_gdb_last_2(row)
+        if de and check_cham(de, touch_set):
+            total_count += 1
+            occur_kys.append(str(row[0]) if row else "?")
+            current_streak += 1
+            max_consecutive = max(max_consecutive, current_streak)
+        else:
+            current_streak = 0
+    
+    # covers_last_n is True iff touch appears in EVERY row of the window
+    covers_last_n = (total_count == actual_window) and (actual_window == window_n)
+    
+    # Rate is independent of consecutive coverage
+    rate_percent = round((total_count / actual_window) * 100, 1) if actual_window > 0 else 0.0
+    
+    return {
+        'total_count': total_count,
+        'max_consecutive': max_consecutive,
+        'covers_last_n': covers_last_n,
+        'rate_percent': rate_percent,
+        'occur_kys': occur_kys,
+        'window': actual_window
+    }
+
 # =============================================================================
 # LOGIC THỐNG KÊ & TÍNH ĐIỂM (UPDATED)
 # =============================================================================
@@ -376,9 +451,21 @@ def build_dan65_with_bo_priority(all_scores, freq_bo, gan_bo, vip_numbers=None, 
 
     
 def calculate_top_touch_combinations(all_data, num_touches=4, days=15, market_stats=None):
+    """
+    Calculate top touch combinations with comprehensive metrics.
+    Now returns covers_last_n, total_count, max_consecutive, and rate_percent.
+    """
     if not all_data: return []
     try:
-        recent = all_data[-days:]
+        # Import window size from constants
+        try:
+            from logic.constants import DEFAULT_SETTINGS
+            window_n = DEFAULT_SETTINGS.get('DE_WINDOW_KYS', 30)
+        except:
+            window_n = 30
+        
+        # Use window_n instead of days for consistent analysis
+        recent = all_data[-window_n:]
         res = []
         freq = Counter()
         for row in recent:
@@ -395,18 +482,23 @@ def calculate_top_touch_combinations(all_data, num_touches=4, days=15, market_st
             seen_combos.add(combo)
             
             t_list = list(combo)
-            wins = 0; streak = 0; max_s = 0
-            for row in recent:
-                de = local_get_gdb_last_2(row)
-                if de and check_cham(de, t_list):
-                    wins +=1; streak +=1; max_s = max(max_s, streak)
-                else: streak = 0
+            
+            # Use new comprehensive metrics function
+            metrics = compute_touch_metrics(t_list, all_data, window_n)
+            
+            # Filter based on rate or max_consecutive
+            if metrics['rate_percent'] > 60 or metrics['max_consecutive'] >= 2:
+                res.append({
+                    'touches': t_list,
+                    'total_count': metrics['total_count'],
+                    'max_consecutive': metrics['max_consecutive'],
+                    'covers_last_n': metrics['covers_last_n'],
+                    'rate_percent': metrics['rate_percent'],
+                    'occur_kys': metrics['occur_kys'],
+                    'window': metrics['window']
+                })
                 
-            rate = (wins/len(recent))*100 if len(recent)>0 else 0
-            if rate > 60 or max_s >= 2:
-                res.append({'touches': t_list, 'streak': wins, 'rate_percent': rate})
-                
-        res.sort(key=lambda x: (x['streak'], x['rate_percent']), reverse=True)
+        res.sort(key=lambda x: (x['total_count'], x['rate_percent']), reverse=True)
         return res[:5]
     except: return []
 

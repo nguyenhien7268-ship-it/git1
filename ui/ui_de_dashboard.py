@@ -383,13 +383,30 @@ class UiDeDashboard(ttk.Frame):
 
         # 6. Touch Combos
         if touch_combinations:
-            top_streak = sorted(touch_combinations, key=lambda x: x['streak'], reverse=True)[:3]
-            str_streak = " | ".join([f"C{','.join(map(str, x['touches']))}({x['streak']} lần)" for x in top_streak])
+            # Sort by total_count (prefer covers_last_n combinations)
+            top_by_count = sorted(touch_combinations, key=lambda x: (x.get('covers_last_n', False), x.get('total_count', 0)), reverse=True)[:3]
             
+            # Build display string with clear consecutive coverage indicator
+            def format_touch_display(x):
+                touches_str = ','.join(map(str, x['touches']))
+                total = x.get('total_count', x.get('streak', 0))  # Backward compat
+                window = x.get('window', 30)
+                covers = x.get('covers_last_n', False)
+                
+                if covers:
+                    # Full consecutive coverage - show clearly
+                    return f"C{touches_str} — Thông: {total}/{window} ✓"
+                else:
+                    # Partial coverage - show count and window
+                    return f"C{touches_str} ({total} lần / {window} kỳ)"
+            
+            str_thong = " | ".join([format_touch_display(x) for x in top_by_count])
+            
+            # Rate display remains independent
             top_rate = sorted(touch_combinations, key=lambda x: x['rate_percent'], reverse=True)[:3]
-            str_rate = " | ".join([f"C{','.join(map(str, x['touches']))}({x['rate_percent']:.0f}%)" for x in top_rate])
+            str_rate = " | ".join([f"C{','.join(map(str, x['touches']))} ({x['rate_percent']:.1f}%)" for x in top_rate])
             
-            self._update_txt(self.txt_4c_thong, str_streak)
+            self._update_txt(self.txt_4c_thong, str_thong)
             self._update_txt(self.txt_4c_tile, str_rate)
         else:
             self._update_txt(self.txt_4c_thong, "---")
