@@ -119,6 +119,298 @@ public class ScannerService
     }
 
     /// <summary>
+    /// Scan for Cau 5 - TDB1 pattern
+    /// Uses G7[0] first char and G7[3] last char
+    /// </summary>
+    public List<string> ScanCau5Tdb1(LotteryResult result)
+    {
+        try
+        {
+            var g7Parts = result.G7?.Split(',') ?? Array.Empty<string>();
+            var a = g7Parts.Length > 0 
+                ? g7Parts[0].Trim().Substring(0, 1) 
+                : "0";
+            var b = g7Parts.Length > 3 
+                ? g7Parts[3].Trim().Substring(g7Parts[3].Trim().Length - 1) 
+                : "0";
+
+            return LotteryUtils.CreateStlBongPair(a, b);
+        }
+        catch
+        {
+            return new List<string> { "00", "55" };
+        }
+    }
+
+    /// <summary>
+    /// Scan for Cau 6 - VT5 pattern
+    /// Uses G7[1] last char and G7[2] first char
+    /// </summary>
+    public List<string> ScanCau6Vt5(LotteryResult result)
+    {
+        try
+        {
+            var g7Parts = result.G7?.Split(',') ?? Array.Empty<string>();
+            var a = g7Parts.Length > 1 
+                ? g7Parts[1].Trim().Substring(g7Parts[1].Trim().Length - 1) 
+                : "0";
+            var b = g7Parts.Length > 2 
+                ? g7Parts[2].Trim().Substring(0, 1) 
+                : "0";
+
+            return LotteryUtils.CreateStlBongPair(a, b);
+        }
+        catch
+        {
+            return new List<string> { "00", "55" };
+        }
+    }
+
+    /// <summary>
+    /// Scan for Cau 7 - Moi1 pattern
+    /// Uses G5[0] first char and G7[0] first char
+    /// </summary>
+    public List<string> ScanCau7Moi1(LotteryResult result)
+    {
+        try
+        {
+            var g5Parts = result.G5?.Split(',') ?? Array.Empty<string>();
+            var g7Parts = result.G7?.Split(',') ?? Array.Empty<string>();
+            
+            var a = g5Parts.Length > 0 
+                ? g5Parts[0].Trim().Substring(0, 1) 
+                : "0";
+            var b = g7Parts.Length > 0 
+                ? g7Parts[0].Trim().Substring(0, 1) 
+                : "0";
+
+            return LotteryUtils.CreateStlBongPair(a, b);
+        }
+        catch
+        {
+            return new List<string> { "00", "55" };
+        }
+    }
+
+    /// <summary>
+    /// Scan for Cau 8 - Moi2 pattern
+    /// Uses G3[0] first char and G4[0] first char
+    /// </summary>
+    public List<string> ScanCau8Moi2(LotteryResult result)
+    {
+        try
+        {
+            var g3Parts = result.G3?.Split(',') ?? Array.Empty<string>();
+            var g4Parts = result.G4?.Split(',') ?? Array.Empty<string>();
+            
+            var a = g3Parts.Length > 0 
+                ? g3Parts[0].Trim().Substring(0, 1) 
+                : "0";
+            var b = g4Parts.Length > 0 
+                ? g4Parts[0].Trim().Substring(0, 1) 
+                : "0";
+
+            return LotteryUtils.CreateStlBongPair(a, b);
+        }
+        catch
+        {
+            return new List<string> { "00", "55" };
+        }
+    }
+
+    /// <summary>
+    /// Scan for Cau 9 - Moi3 pattern
+    /// Uses GDB first char and G1 first char
+    /// </summary>
+    public List<string> ScanCau9Moi3(LotteryResult result)
+    {
+        try
+        {
+            var a = result.Gdb?.Trim().Substring(0, 1) ?? "0";
+            var b = result.G1?.Trim().Substring(0, 1) ?? "0";
+
+            return LotteryUtils.CreateStlBongPair(a, b);
+        }
+        catch
+        {
+            return new List<string> { "00", "55" };
+        }
+    }
+
+    /// <summary>
+    /// Scan for Cau 10 - Moi4 pattern
+    /// Uses G2[1] position 1 and G3[2] last char
+    /// </summary>
+    public List<string> ScanCau10Moi4(LotteryResult result)
+    {
+        try
+        {
+            var g2Parts = result.G2?.Split(',') ?? Array.Empty<string>();
+            var g3Parts = result.G3?.Split(',') ?? Array.Empty<string>();
+            
+            var a = g2Parts.Length > 1 && g2Parts[1].Trim().Length > 1
+                ? g2Parts[1].Trim().Substring(1, 1) 
+                : "0";
+            var b = g3Parts.Length > 2 
+                ? g3Parts[2].Trim().Substring(g3Parts[2].Trim().Length - 1) 
+                : "0";
+
+            return LotteryUtils.CreateStlBongPair(a, b);
+        }
+        catch
+        {
+            return new List<string> { "00", "55" };
+        }
+    }
+
+    /// <summary>
+    /// Scan for Cau 11 - Moi5 pattern
+    /// Uses GDB position 1 and G3[1] last char
+    /// </summary>
+    public List<string> ScanCau11Moi5(LotteryResult result)
+    {
+        try
+        {
+            var gdb = result.Gdb?.Trim() ?? "00";
+            var g3Parts = result.G3?.Split(',') ?? Array.Empty<string>();
+            
+            var a = gdb.Length > 1 ? gdb.Substring(1, 1) : "0";
+            var b = g3Parts.Length > 1 
+                ? g3Parts[1].Trim().Substring(g3Parts[1].Trim().Length - 1) 
+                : "0";
+
+            return LotteryUtils.CreateStlBongPair(a, b);
+        }
+        catch
+        {
+            return new List<string> { "00", "55" };
+        }
+    }
+
+    /// <summary>
+    /// Scan for Cau 12 - Moi6 pattern
+    /// Uses GDB last char and G3[2] position 2
+    /// </summary>
+    public List<string> ScanCau12Moi6(LotteryResult result)
+    {
+        try
+        {
+            var gdb = result.Gdb?.Trim() ?? "00000";
+            var g3Parts = result.G3?.Split(',') ?? Array.Empty<string>();
+            
+            var a = gdb.Substring(gdb.Length - 1);
+            var b = g3Parts.Length > 2 && g3Parts[2].Trim().Length > 2
+                ? g3Parts[2].Trim().Substring(2, 1) 
+                : "0";
+
+            return LotteryUtils.CreateStlBongPair(a, b);
+        }
+        catch
+        {
+            return new List<string> { "00", "55" };
+        }
+    }
+
+    /// <summary>
+    /// Scan for Cau 13 - G7_3_P8 pattern
+    /// Uses G7[2] last 2 digits, adds 8 to each
+    /// </summary>
+    public List<string> ScanCau13G7P8(LotteryResult result)
+    {
+        try
+        {
+            var g7Parts = result.G7?.Split(',') ?? Array.Empty<string>();
+            var baseNum = g7Parts.Length > 2 
+                ? g7Parts[2].Trim().PadLeft(2, '0').Substring(g7Parts[2].Trim().Length >= 2 ? g7Parts[2].Trim().Length - 2 : 0, 2)
+                : "00";
+
+            var a = int.Parse(baseNum[0].ToString());
+            var b = int.Parse(baseNum[1].ToString());
+            var x = (a + 8) % 10;
+            var y = (b + 8) % 10;
+
+            return LotteryUtils.CreateStlBongPair(x.ToString()[0], y.ToString()[0]);
+        }
+        catch
+        {
+            return new List<string> { "00", "55" };
+        }
+    }
+
+    /// <summary>
+    /// Scan for Cau 14 - G1_P2 pattern
+    /// Uses G1 last 2 digits, adds 2 to each
+    /// </summary>
+    public List<string> ScanCau14G1P2(LotteryResult result)
+    {
+        try
+        {
+            var g1 = result.G1?.Trim() ?? "00";
+            var baseNum = g1.Substring(g1.Length >= 2 ? g1.Length - 2 : 0).PadLeft(2, '0');
+
+            var a = int.Parse(baseNum[0].ToString());
+            var b = int.Parse(baseNum[1].ToString());
+            var x = (a + 2) % 10;
+            var y = (b + 2) % 10;
+
+            return LotteryUtils.CreateStlBongPair(x.ToString()[0], y.ToString()[0]);
+        }
+        catch
+        {
+            return new List<string> { "00", "55" };
+        }
+    }
+
+    /// <summary>
+    /// Scan for Cau 15 - DE_P7 pattern
+    /// Uses GDB last 2 digits, adds 7 to each
+    /// </summary>
+    public List<string> ScanCau15DeP7(LotteryResult result)
+    {
+        try
+        {
+            var gdb = result.Gdb?.Trim() ?? "00000";
+            var baseNum = gdb.Substring(gdb.Length >= 2 ? gdb.Length - 2 : 0).PadLeft(2, '0');
+
+            var a = int.Parse(baseNum[0].ToString());
+            var b = int.Parse(baseNum[1].ToString());
+            var x = (a + 7) % 10;
+            var y = (b + 7) % 10;
+
+            return LotteryUtils.CreateStlBongPair(x.ToString()[0], y.ToString()[0]);
+        }
+        catch
+        {
+            return new List<string> { "00", "55" };
+        }
+    }
+
+    /// <summary>
+    /// Get all 15 bridge scanning functions
+    /// </summary>
+    public List<Func<LotteryResult, List<string>>> GetAllBridgeScanners()
+    {
+        return new List<Func<LotteryResult, List<string>>>
+        {
+            ScanCau1StlP5,
+            ScanCau2Vt1,
+            ScanCau3Vt2,
+            ScanCau4G2G3,
+            ScanCau5Tdb1,
+            ScanCau6Vt5,
+            ScanCau7Moi1,
+            ScanCau8Moi2,
+            ScanCau9Moi3,
+            ScanCau10Moi4,
+            ScanCau11Moi5,
+            ScanCau12Moi6,
+            ScanCau13G7P8,
+            ScanCau14G1P2,
+            ScanCau15DeP7
+        };
+    }
+
+    /// <summary>
     /// Backtest a bridge pattern against historical results
     /// Returns win rate and other statistics
     /// </summary>
