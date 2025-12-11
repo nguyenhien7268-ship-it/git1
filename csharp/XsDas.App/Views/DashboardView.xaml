@@ -1,0 +1,105 @@
+<UserControl x:Class="XsDas.App.Views.DashboardView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+             xmlns:lvc="clr-namespace:LiveChartsCore.SkiaSharpView.WPF;assembly=LiveChartsCore.SkiaSharpView.WPF"
+             mc:Ignorable="d" 
+             d:DesignHeight="600" d:DesignWidth="1000">
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+        
+        <!-- Header -->
+        <materialDesign:Card Grid.Row="0" Padding="16" Margin="0,0,0,16">
+            <StackPanel>
+                <TextBlock Style="{StaticResource MaterialDesignHeadline5TextBlock}"
+                          Text="📊 Dashboard - Lottery Analytics"/>
+                <TextBlock Text="{Binding StatusMessage}" 
+                          Foreground="{DynamicResource MaterialDesignBody}"
+                          Margin="0,8,0,0"/>
+            </StackPanel>
+        </materialDesign:Card>
+        
+        <!-- Action Bar -->
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,16">
+            <Button Content="🔄 Refresh" 
+                    Command="{Binding RefreshCommand}"
+                    Style="{StaticResource MaterialDesignRaisedButton}"
+                    Margin="0,0,8,0"/>
+            <Button Content="📈 Analyze" 
+                    Style="{StaticResource MaterialDesignRaisedButton}"
+                    Margin="0,0,8,0"/>
+            <ProgressBar IsIndeterminate="True" 
+                        Visibility="{Binding IsLoading, Converter={StaticResource BooleanToVisibilityConverter}}"
+                        Width="100" Height="4" Margin="8,0,0,0"/>
+        </StackPanel>
+        
+        <!-- Content Area -->
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="2*"/>
+                <ColumnDefinition Width="8"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            
+            <!-- Bridges List -->
+            <materialDesign:Card Grid.Column="0">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Top" 
+                              Style="{StaticResource MaterialDesignHeadline6TextBlock}"
+                              Text="🔍 Active Bridges" 
+                              Margin="16,16,16,8"/>
+                    <DataGrid ItemsSource="{Binding Bridges}"
+                             AutoGenerateColumns="False"
+                             CanUserAddRows="False"
+                             IsReadOnly="True"
+                             SelectionMode="Single">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="*"/>
+                            <DataGridTextColumn Header="Type" Binding="{Binding Type}" Width="80"/>
+                            <DataGridTextColumn Header="STL" Binding="{Binding Stl}" Width="60"/>
+                            <DataGridTextColumn Header="Streak" Binding="{Binding Streak}" Width="60"/>
+                            <DataGridTextColumn Header="Rate %" Binding="{Binding WinRate, StringFormat=N1}" Width="70"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </DockPanel>
+            </materialDesign:Card>
+            
+            <GridSplitter Grid.Column="1" Width="8" HorizontalAlignment="Center" 
+                         Background="Transparent"/>
+            
+            <!-- Number Scores -->
+            <materialDesign:Card Grid.Column="2">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Top" 
+                              Style="{StaticResource MaterialDesignHeadline6TextBlock}"
+                              Text="🔥 Hot Numbers" 
+                              Margin="16,16,16,8"/>
+                    <ListBox ItemsSource="{Binding NumberScores}">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{Binding Number}" 
+                                              FontWeight="Bold" 
+                                              FontSize="16"
+                                              Width="40"/>
+                                    <TextBlock Text="{Binding Score, StringFormat=N1}" 
+                                              Foreground="{DynamicResource PrimaryHueMidBrush}"
+                                              Width="50"/>
+                                    <materialDesign:PackIcon Kind="Fire" 
+                                                            Visibility="{Binding IsHot, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                            Foreground="OrangeRed"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </materialDesign:Card>
+        </Grid>
+    </Grid>
+</UserControl>
