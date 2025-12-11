@@ -1,0 +1,136 @@
+﻿<Window x:Class="XsDas.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:XsDas.App"
+        xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+        mc:Ignorable="d"
+        Title="XS-DAS - Lottery Analytics System" 
+        Height="700" Width="1200"
+        WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource MaterialDesign.Brush.Background}"
+        TextElement.Foreground="{DynamicResource MaterialDesign.Brush.Foreground}"
+        TextElement.FontWeight="Regular"
+        TextElement.FontSize="13"
+        FontFamily="{materialDesign:MaterialDesignFont}">
+    
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <materialDesign:ColorZone Grid.Row="0" 
+                                  Mode="PrimaryMid" 
+                                  Padding="16">
+            <StackPanel Orientation="Horizontal">
+                <materialDesign:PackIcon Kind="ChartLine" 
+                                         Width="32" 
+                                         Height="32" 
+                                         VerticalAlignment="Center"
+                                         Margin="0,0,16,0"/>
+                <TextBlock Text="XS-DAS - Xổ Số Data Analysis System" 
+                           VerticalAlignment="Center"
+                           FontSize="20"
+                           FontWeight="Medium"/>
+                <TextBlock Text="(C# .NET 8 Migration - Phase 1 Complete)" 
+                           VerticalAlignment="Center"
+                           FontSize="12"
+                           Margin="16,0,0,0"
+                           Opacity="0.7"/>
+            </StackPanel>
+        </materialDesign:ColorZone>
+
+        <!-- Main Content Area -->
+        <TabControl Grid.Row="1" 
+                    Margin="8"
+                    Style="{StaticResource MaterialDesignTabControl}">
+            
+            <!-- Dashboard Tab -->
+            <TabItem Header="Dashboard">
+                <TabItem.HeaderTemplate>
+                    <DataTemplate>
+                        <StackPanel Orientation="Horizontal">
+                            <materialDesign:PackIcon Kind="ViewDashboard" 
+                                                     VerticalAlignment="Center"
+                                                     Margin="0,0,8,0"/>
+                            <TextBlock Text="Dashboard" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </DataTemplate>
+                </TabItem.HeaderTemplate>
+                
+                <Grid Margin="16">
+                    <TextBlock Text="Dashboard view will be implemented here" 
+                               FontSize="16"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               Opacity="0.6"/>
+                </Grid>
+            </TabItem>
+
+            <!-- Bridge Management Tab -->
+            <TabItem Header="Bridge Management">
+                <TabItem.HeaderTemplate>
+                    <DataTemplate>
+                        <StackPanel Orientation="Horizontal">
+                            <materialDesign:PackIcon Kind="Bridge" 
+                                                     VerticalAlignment="Center"
+                                                     Margin="0,0,8,0"/>
+                            <TextBlock Text="Bridges" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </DataTemplate>
+                </TabItem.HeaderTemplate>
+                
+                <Grid Margin="16">
+                    <TextBlock Text="Bridge management view will be implemented here" 
+                               FontSize="16"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               Opacity="0.6"/>
+                </Grid>
+            </TabItem>
+
+            <!-- Settings Tab -->
+            <TabItem Header="Settings">
+                <TabItem.HeaderTemplate>
+                    <DataTemplate>
+                        <StackPanel Orientation="Horizontal">
+                            <materialDesign:PackIcon Kind="Settings" 
+                                                     VerticalAlignment="Center"
+                                                     Margin="0,0,8,0"/>
+                            <TextBlock Text="Settings" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </DataTemplate>
+                </TabItem.HeaderTemplate>
+                
+                <Grid Margin="16">
+                    <TextBlock Text="Settings view will be implemented here" 
+                               FontSize="16"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               Opacity="0.6"/>
+                </Grid>
+            </TabItem>
+        </TabControl>
+
+        <!-- Status Bar -->
+        <materialDesign:ColorZone Grid.Row="2" 
+                                  Mode="PrimaryDark" 
+                                  Padding="8"
+                                  Height="32">
+            <Grid>
+                <TextBlock Text="Ready" 
+                           VerticalAlignment="Center"
+                           FontSize="12"/>
+                <TextBlock Text="Database: Connected" 
+                           VerticalAlignment="Center"
+                           HorizontalAlignment="Right"
+                           FontSize="12"
+                           Opacity="0.8"/>
+            </Grid>
+        </materialDesign:ColorZone>
+    </Grid>
+</Window>
