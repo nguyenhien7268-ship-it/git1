@@ -537,7 +537,7 @@ def calculate_top_touch_combinations(all_data, num_touches=4, days=15, market_st
                 
         # Sort by consecutive_at_end first (prefer true "chạm thông"), then by total_count
         res.sort(key=lambda x: (x.get('covers_last_n_at_end', False), x.get('consecutive_at_end', 0), x['total_count'], x['rate_percent']), reverse=True)
-        return res[:5]
+        return res[:10] # Tăng giới hạn trả về từ 5 lên 10 để UI có đủ dữ liệu
     except: return []
 
 # =============================================================================

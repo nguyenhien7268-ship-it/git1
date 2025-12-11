@@ -37,6 +37,10 @@ DEFAULT_SETTINGS = {
     "DAN65_SIZE": 65,                  # Kích thước dàn cuối cùng (default: 65)
     "DAN65_LOG_EXCLUDED_THRESHOLD": 30.0,  # Log số bị loại nếu điểm >= ngưỡng này
     
+    # [NEW V11.3] DE Display Limits (Fixing low line count issue)
+    "DE_CHOT_SO_CHAM_LIMIT": 8,        # Max number of top CHAM to display in summary
+    "DE_CHOT_SO_BO_LIMIT": 8,          # Max number of top BO to display in summary
+    
     # [NEW V10.7] DE Bridge Filtering & Control Configuration
     "ENABLE_DE_BRIDGES": True,         # Master switch for all DE bridges
     "ENABLE_DE_LO": True,              # Enable LO bridges scanning/display
