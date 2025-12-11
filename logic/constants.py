@@ -57,6 +57,9 @@ DEFAULT_SETTINGS = {
     # DE_SET Priority (V10.7)
     "DE_SET_MIN_COUNT": 2,             # Minimum DE_SET bridges to guarantee
     
+    # Chạm Thông Consecutive Requirement (V11.1)
+    "CHAM_THONG_MIN_CONSEC": 8,        # Minimum consecutive matches at end for "chạm thông"
+    
     # K2N Cache Control (V10.7)
     "K2N_CACHE_LO_ENABLED": True,      # Enable K2N cache refresh for LO bridges
     "K2N_CACHE_DE_ENABLED": True,      # Enable K2N cache refresh for DE bridges

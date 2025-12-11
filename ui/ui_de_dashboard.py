@@ -383,18 +383,27 @@ class UiDeDashboard(ttk.Frame):
 
         # 6. Touch Combos
         if touch_combinations:
-            # Sort by total_count (prefer covers_last_n combinations)
-            top_by_count = sorted(touch_combinations, key=lambda x: (x.get('covers_last_n', False), x.get('total_count', 0)), reverse=True)[:3]
+            # Sort by covers_last_n_at_end first (true "chạm thông"), then consecutive_at_end, then total_count
+            top_by_count = sorted(touch_combinations, 
+                                 key=lambda x: (x.get('covers_last_n_at_end', False), 
+                                               x.get('consecutive_at_end', 0),
+                                               x.get('total_count', 0)), 
+                                 reverse=True)[:3]
             
             # Build display string with clear consecutive coverage indicator
             def format_touch_display(x):
                 touches_str = ','.join(map(str, x['touches']))
                 total = x.get('total_count', x.get('streak', 0))  # Backward compat
                 window = x.get('window', 30)
-                covers = x.get('covers_last_n', False)
+                covers_full = x.get('covers_last_n', False)
+                covers_end = x.get('covers_last_n_at_end', False)
+                consec_end = x.get('consecutive_at_end', 0)
                 
-                if covers:
-                    # Full consecutive coverage - show clearly
+                if covers_end:
+                    # Consecutive coverage at end (true "chạm thông") - show prominently
+                    return f"C{touches_str} — Thông: {consec_end}/{consec_end} ✓"
+                elif covers_full:
+                    # Full window coverage - show clearly
                     return f"C{touches_str} — Thông: {total}/{window} ✓"
                 else:
                     # Partial coverage - show count and window
