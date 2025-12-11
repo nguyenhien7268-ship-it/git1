@@ -384,7 +384,7 @@ class UiDeDashboard(ttk.Frame):
         # 6. Touch Combos
         if touch_combinations:
             top_streak = sorted(touch_combinations, key=lambda x: x['streak'], reverse=True)[:3]
-            str_streak = " | ".join([f"C{','.join(map(str, x['touches']))}({x['streak']}N)" for x in top_streak])
+            str_streak = " | ".join([f"C{','.join(map(str, x['touches']))}({x['streak']} lần)" for x in top_streak])
             
             top_rate = sorted(touch_combinations, key=lambda x: x['rate_percent'], reverse=True)[:3]
             str_rate = " | ".join([f"C{','.join(map(str, x['touches']))}({x['rate_percent']:.0f}%)" for x in top_rate])

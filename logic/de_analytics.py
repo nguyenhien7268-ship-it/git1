@@ -404,7 +404,7 @@ def calculate_top_touch_combinations(all_data, num_touches=4, days=15, market_st
                 
             rate = (wins/len(recent))*100 if len(recent)>0 else 0
             if rate > 60 or max_s >= 2:
-                res.append({'touches': t_list, 'streak': max_s, 'rate_percent': rate})
+                res.append({'touches': t_list, 'streak': wins, 'rate_percent': rate})
                 
         res.sort(key=lambda x: (x['streak'], x['rate_percent']), reverse=True)
         return res[:5]
