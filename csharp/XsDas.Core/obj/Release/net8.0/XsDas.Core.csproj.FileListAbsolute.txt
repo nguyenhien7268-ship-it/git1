@@ -1,0 +1,12 @@
+/home/runner/work/git1/git1/csharp/XsDas.Core/bin/Release/net8.0/XsDas.Core.deps.json
+/home/runner/work/git1/git1/csharp/XsDas.Core/bin/Release/net8.0/XsDas.Core.dll
+/home/runner/work/git1/git1/csharp/XsDas.Core/bin/Release/net8.0/XsDas.Core.pdb
+/home/runner/work/git1/git1/csharp/XsDas.Core/obj/Release/net8.0/XsDas.Core.GeneratedMSBuildEditorConfig.editorconfig
+/home/runner/work/git1/git1/csharp/XsDas.Core/obj/Release/net8.0/XsDas.Core.AssemblyInfoInputs.cache
+/home/runner/work/git1/git1/csharp/XsDas.Core/obj/Release/net8.0/XsDas.Core.AssemblyInfo.cs
+/home/runner/work/git1/git1/csharp/XsDas.Core/obj/Release/net8.0/XsDas.Core.csproj.CoreCompileInputs.cache
+/home/runner/work/git1/git1/csharp/XsDas.Core/obj/Release/net8.0/XsDas.Core.sourcelink.json
+/home/runner/work/git1/git1/csharp/XsDas.Core/obj/Release/net8.0/XsDas.Core.dll
+/home/runner/work/git1/git1/csharp/XsDas.Core/obj/Release/net8.0/refint/XsDas.Core.dll
+/home/runner/work/git1/git1/csharp/XsDas.Core/obj/Release/net8.0/XsDas.Core.pdb
+/home/runner/work/git1/git1/csharp/XsDas.Core/obj/Release/net8.0/ref/XsDas.Core.dll
