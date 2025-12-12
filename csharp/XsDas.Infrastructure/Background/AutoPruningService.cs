@@ -64,41 +64,62 @@ public class AutoPruningService : BackgroundService
             var bridges = await _bridgeRepository.FindAsync(b => b.IsEnabled);
             var bridgesList = bridges.ToList();
 
+            // Validate data before pruning to prevent anomalies
+            if (!bridgesList.Any())
+            {
+                _logger.LogWarning("No bridges found in database, skipping pruning cycle");
+                return;
+            }
+
             int disabledCount = 0;
             int deletedCount = 0;
 
             foreach (var bridge in bridgesList)
             {
-                // Pruning criteria:
-                // 1. Disable bridges with K1N rate < 70%
-                // 2. Delete bridges with K1N rate < 50% that have been disabled for > 7 days
-
-                var primaryRate = Math.Max(bridge.K1nRateLo, bridge.K1nRateDe);
-
-                if (primaryRate < 70 && bridge.IsEnabled)
+                // Validate bridge data before processing
+                if (!ValidateBridgeData(bridge))
                 {
-                    bridge.IsEnabled = false;
-                    await _bridgeRepository.UpdateAsync(bridge);
-                    disabledCount++;
-                    _logger.LogInformation(
-                        "Disabled weak bridge: {Name} (Rate: {Rate}%)",
-                        bridge.Name, primaryRate);
+                    continue; // Skip invalid bridges
                 }
-                else if (primaryRate < 50 && !bridge.IsEnabled)
+
+                try
                 {
-                    // Check if disabled for more than 7 days
-                    if (DateTime.TryParse(bridge.DateAdded, out var addedDate))
+                    // Pruning criteria:
+                    // 1. Disable bridges with K1N rate < 70%
+                    // 2. Delete bridges with K1N rate < 50% that have been disabled for > 7 days
+
+                    var primaryRate = Math.Max(bridge.K1nRateLo, bridge.K1nRateDe);
+
+                    if (primaryRate < 70 && bridge.IsEnabled)
                     {
-                        var daysSinceAdded = (DateTime.Now - addedDate).TotalDays;
-                        if (daysSinceAdded > 7)
+                        bridge.IsEnabled = false;
+                        await _bridgeRepository.UpdateAsync(bridge);
+                        disabledCount++;
+                        _logger.LogInformation(
+                            "Disabled weak bridge: {Name} (Rate: {Rate}%)",
+                            bridge.Name, primaryRate);
+                    }
+                    else if (primaryRate < 50 && !bridge.IsEnabled)
+                    {
+                        // Check if disabled for more than 7 days
+                        if (DateTime.TryParse(bridge.DateAdded, out var addedDate))
                         {
-                            await _bridgeRepository.DeleteAsync(bridge);
-                            deletedCount++;
-                            _logger.LogInformation(
-                                "Deleted very weak bridge: {Name} (Rate: {Rate}%)",
-                                bridge.Name, primaryRate);
+                            var daysSinceAdded = (DateTime.Now - addedDate).TotalDays;
+                            if (daysSinceAdded > 7)
+                            {
+                                await _bridgeRepository.DeleteAsync(bridge);
+                                deletedCount++;
+                                _logger.LogInformation(
+                                    "Deleted very weak bridge: {Name} (Rate: {Rate}%)",
+                                    bridge.Name, primaryRate);
+                            }
                         }
                     }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error processing bridge: {Name}", bridge.Name);
+                    // Continue with other bridges even if one fails
                 }
             }
 
@@ -110,6 +131,31 @@ public class AutoPruningService : BackgroundService
         {
             _logger.LogError(ex, "Error during bridge pruning");
         }
+    }
+
+    /// <summary>
+    /// Validates bridge data to prevent anomalies
+    /// </summary>
+    private bool ValidateBridgeData(ManagedBridge bridge)
+    {
+        // Check if rates are within valid range (0-100)
+        if (bridge.K1nRateLo < 0 || bridge.K1nRateLo > 100 ||
+            bridge.K1nRateDe < 0 || bridge.K1nRateDe > 100)
+        {
+            _logger.LogWarning(
+                "Invalid rate data for bridge {Name}: K1N Lo={K1nLo}, De={K1nDe}",
+                bridge.Name, bridge.K1nRateLo, bridge.K1nRateDe);
+            return false;
+        }
+
+        // Check if bridge has a valid name
+        if (string.IsNullOrWhiteSpace(bridge.Name))
+        {
+            _logger.LogWarning("Bridge has no name, ID: {Id}", bridge.Id);
+            return false;
+        }
+
+        return true;
     }
 
     public override async Task StopAsync(CancellationToken stoppingToken)

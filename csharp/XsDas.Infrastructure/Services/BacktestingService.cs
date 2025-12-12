@@ -52,6 +52,23 @@ public class BacktestingService : IBacktestingService
                 return result;
             }
 
+            // Validate data completeness
+            var invalidRecords = dataList.Where(d => 
+                string.IsNullOrWhiteSpace(d.ColAKy) || 
+                string.IsNullOrWhiteSpace(d.ColBGdb)).ToList();
+            
+            if (invalidRecords.Any())
+            {
+                _logger.LogWarning("Found {Count} incomplete records, filtering them out", invalidRecords.Count);
+                dataList = dataList.Except(invalidRecords).ToList();
+            }
+
+            if (!dataList.Any())
+            {
+                _logger.LogWarning("No valid data remaining after filtering incomplete records");
+                return result;
+            }
+
             // Filter by date range if specified
             if (!string.IsNullOrEmpty(startKy))
             {
