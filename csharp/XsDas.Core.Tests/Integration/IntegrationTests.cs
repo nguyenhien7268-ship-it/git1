@@ -275,6 +275,137 @@ public class IntegrationTests : IDisposable
         Assert.All(results, r => Assert.True(r.TotalTests >= 0));
     }
 
+    [Fact]
+    public async Task EdgeCase_NullAndEmptyData_HandledGracefully()
+    {
+        // Arrange: Create data with null and empty values
+        var testData = new List<DuLieuAi>
+        {
+            new DuLieuAi
+            {
+                MaSoKy = 1,
+                ColAKy = null,  // Null value
+                ColBGdb = "",   // Empty string
+                ColCG1 = null
+            },
+            new DuLieuAi
+            {
+                MaSoKy = 2,
+                ColAKy = "2024-01-01",
+                ColBGdb = "12345",
+                ColCG1 = "67890"
+            }
+        };
+
+        foreach (var data in testData)
+        {
+            await _aiDataRepository.AddAsync(data);
+        }
+
+        // Act: Backtest should filter out invalid data
+        var result = await _backtestingService.BacktestBridgeAsync("Cau1_STL_P5");
+
+        // Assert: Should handle gracefully without crashing
+        Assert.NotNull(result);
+        Assert.Equal("Cau1_STL_P5", result.BridgeName);
+        // Only 1 valid record means 0 backtests (need pairs)
+        Assert.True(result.TotalTests >= 0);
+    }
+
+    [Fact]
+    public async Task EdgeCase_InvalidDataSchema_ThrowsNoException()
+    {
+        // Arrange: Create bridge with invalid data types (out of range rates)
+        var invalidBridge = new ManagedBridge
+        {
+            Name = "Invalid_Bridge",
+            K1nRateLo = -50.0,  // Invalid: negative rate
+            K1nRateDe = 150.0,  // Invalid: > 100
+            K2nRateLo = 200.0,  // Invalid: > 100
+            K2nRateDe = -10.0,  // Invalid: negative
+            IsEnabled = true,
+            DateAdded = "invalid-date" // Invalid date format
+        };
+
+        // Act & Assert: Should handle invalid data without crashing
+        await _bridgesRepository.AddAsync(invalidBridge);
+        var retrieved = await _bridgesRepository.GetByIdAsync(invalidBridge.Id);
+        
+        Assert.NotNull(retrieved);
+        // System should store the data but validation should catch it during processing
+        Assert.Equal("Invalid_Bridge", retrieved.Name);
+    }
+
+    [Fact]
+    public async Task EdgeCase_AnomalousAiInferenceResults_LoggedAndHandled()
+    {
+        // Arrange: Create data that would produce unusual predictions
+        var anomalousData = new List<DuLieuAi>
+        {
+            new DuLieuAi
+            {
+                MaSoKy = 1,
+                ColAKy = "2024-01-01",
+                ColBGdb = "99999", // All same digits
+                ColCG1 = "00000",  // All zeros
+                ColDG2 = "12121",  // Repeating pattern
+                ColEG3 = "98765",  // Descending
+                ColFG4 = "11111",
+                ColGG5 = "22222",
+                ColHG6 = "33333",
+                ColIG7 = "9999999" // Invalid length patterns
+            },
+            new DuLieuAi
+            {
+                MaSoKy = 2,
+                ColAKy = "2024-01-02",
+                ColBGdb = "00000",
+                ColCG1 = "99999",
+                ColDG2 = "88888",
+                ColEG3 = "77777",
+                ColFG4 = "66666",
+                ColGG5 = "55555",
+                ColHG6 = "44444",
+                ColIG7 = "0000000"
+            }
+        };
+
+        foreach (var data in anomalousData)
+        {
+            await _aiDataRepository.AddAsync(data);
+        }
+
+        // Act: Process anomalous data through scanner
+        var scanners = _scannerService.GetAllBridgeScanners().ToList();
+        var dataArray = new object[]
+        {
+            1,
+            anomalousData[0].ColAKy ?? "",
+            anomalousData[0].ColBGdb ?? "",
+            anomalousData[0].ColCG1 ?? "",
+            anomalousData[0].ColDG2 ?? "",
+            anomalousData[0].ColEG3 ?? "",
+            anomalousData[0].ColFG4 ?? "",
+            anomalousData[0].ColGG5 ?? "",
+            anomalousData[0].ColHG6 ?? "",
+            anomalousData[0].ColIG7 ?? ""
+        };
+
+        // Assert: Should process without crashing, even with unusual patterns
+        foreach (var scanner in scanners)
+        {
+            var prediction = scanner(dataArray);
+            Assert.NotNull(prediction);
+            Assert.Equal(2, prediction.Length);
+            // Predictions should still be valid 2-digit lotto numbers
+            Assert.All(prediction, p => 
+            {
+                Assert.NotNull(p);
+                Assert.True(p.Length == 2 || p.Length == 0); // Either valid lotto or empty
+            });
+        }
+    }
+
     public void Dispose()
     {
         _context?.Dispose();

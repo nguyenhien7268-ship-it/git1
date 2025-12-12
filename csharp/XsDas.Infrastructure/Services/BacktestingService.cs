@@ -33,7 +33,8 @@ public class BacktestingService : IBacktestingService
         string? startKy = null, 
         string? endKy = null)
     {
-        _logger.LogInformation("Starting backtest for bridge: {BridgeName}", bridgeName);
+        _logger.LogInformation("→ Starting backtest: {BridgeName} (Range: {Start} to {End})", 
+            bridgeName, startKy ?? "ALL", endKy ?? "ALL");
 
         var result = new BacktestResult
         {
@@ -45,12 +46,15 @@ public class BacktestingService : IBacktestingService
             // Get historical data from DuLieu_AI table
             var allData = await _aiDataRepository.GetAllAsync();
             var dataList = allData.OrderBy(d => d.MaSoKy).ToList();
+            var originalCount = dataList.Count;
 
             if (!dataList.Any())
             {
-                _logger.LogWarning("No historical data found for backtesting");
+                _logger.LogWarning("⚠️ No historical data available for backtesting");
                 return result;
             }
+
+            _logger.LogInformation("📊 Loaded {Count} historical records", originalCount);
 
             // Validate data completeness
             var invalidRecords = dataList.Where(d => 
@@ -59,31 +63,51 @@ public class BacktestingService : IBacktestingService
             
             if (invalidRecords.Any())
             {
-                _logger.LogWarning("Found {Count} incomplete records, filtering them out", invalidRecords.Count);
+                var invalidPercentage = (invalidRecords.Count * 100.0) / originalCount;
+                
+                if (invalidPercentage > 20) // More than 20% invalid
+                {
+                    _logger.LogWarning(
+                        "⚠️ High rate of incomplete data: {Count}/{Total} records ({Percentage:F1}%) - Data quality issue detected",
+                        invalidRecords.Count, originalCount, invalidPercentage);
+                }
+                else
+                {
+                    _logger.LogInformation(
+                        "🔍 Filtering {Count} incomplete records ({Percentage:F1}%)",
+                        invalidRecords.Count, invalidPercentage);
+                }
+                
                 dataList = dataList.Except(invalidRecords).ToList();
             }
 
             if (!dataList.Any())
             {
-                _logger.LogWarning("No valid data remaining after filtering incomplete records");
+                _logger.LogError("❌ No valid data after filtering - Cannot proceed with backtest");
                 return result;
             }
 
             // Filter by date range if specified
             if (!string.IsNullOrEmpty(startKy))
             {
+                var beforeFilter = dataList.Count;
                 dataList = dataList.Where(d => string.Compare(d.ColAKy, startKy) >= 0).ToList();
+                _logger.LogInformation("📅 Date range filter (start): {Before} → {After} records", 
+                    beforeFilter, dataList.Count);
             }
             if (!string.IsNullOrEmpty(endKy))
             {
+                var beforeFilter = dataList.Count;
                 dataList = dataList.Where(d => string.Compare(d.ColAKy, endKy) <= 0).ToList();
+                _logger.LogInformation("📅 Date range filter (end): {Before} → {After} records", 
+                    beforeFilter, dataList.Count);
             }
 
             // Get the appropriate scanner based on bridge name
             var scanner = GetScannerByName(bridgeName);
             if (scanner == null)
             {
-                _logger.LogError("Scanner not found for bridge: {BridgeName}", bridgeName);
+                _logger.LogError("❌ Scanner not found: {BridgeName} - Invalid bridge name", bridgeName);
                 return result;
             }
 
@@ -146,22 +170,36 @@ public class BacktestingService : IBacktestingService
             result.K2nRateLo = result.WinRate * 1.1; // Simulated optimistic
             result.K2nRateDe = result.WinRate;
 
-            _logger.LogInformation(
-                "Backtest complete for {BridgeName}: {Wins}/{TotalTests} wins ({WinRate:F2}%)",
-                bridgeName, wins, result.TotalTests, result.WinRate);
+            // Enhanced completion logging
+            if (result.TotalTests == 0)
+            {
+                _logger.LogWarning("⚠️ No tests performed for {BridgeName} - Insufficient data pairs", bridgeName);
+            }
+            else if (result.WinRate < 50)
+            {
+                _logger.LogWarning(
+                    "⚠️ Low win rate: {BridgeName} = {Wins}/{Total} ({WinRate:F1}%) | Streak: {Streak} | Max Win/Lose: {MaxWin}/{MaxLose}",
+                    bridgeName, wins, result.TotalTests, result.WinRate, currentStreak, maxWinStreak, maxLoseStreak);
+            }
+            else
+            {
+                _logger.LogInformation(
+                    "✅ Backtest complete: {BridgeName} = {Wins}/{Total} ({WinRate:F1}%) | Streak: {Streak} | Max Win/Lose: {MaxWin}/{MaxLose}",
+                    bridgeName, wins, result.TotalTests, result.WinRate, currentStreak, maxWinStreak, maxLoseStreak);
+            }
 
             return result;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error during backtest for bridge: {BridgeName}", bridgeName);
+            _logger.LogError(ex, "❌ Critical error during backtest: {BridgeName}", bridgeName);
             return result;
         }
     }
 
     public async Task<List<BacktestResult>> BacktestAllBridgesAsync(double minWinRate = 0)
     {
-        _logger.LogInformation("Starting backtest for all bridges (minWinRate: {MinWinRate}%)", minWinRate);
+        _logger.LogInformation("→ Starting batch backtest for all 15 bridges (Min win rate filter: {MinWinRate:F1}%)", minWinRate);
 
         var results = new List<BacktestResult>();
         var bridgeNames = new[]

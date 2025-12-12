@@ -295,6 +295,127 @@ public class PerformanceBenchmarks : IDisposable
         return string.Join("", Enumerable.Range(0, length).Select(_ => random.Next(0, 10)));
     }
 
+    [Fact]
+    public async Task Benchmark_SQLite_BulkWrite_15000Records_Extended()
+    {
+        // Arrange
+        var records = GenerateTestData(15000);
+        var stopwatch = Stopwatch.StartNew();
+
+        // Act: Bulk insert larger dataset
+        foreach (var record in records)
+        {
+            await _aiDataRepository.AddAsync(record);
+        }
+
+        stopwatch.Stop();
+
+        // Assert & Report
+        _output.WriteLine($"[EXTENDED] SQLite Bulk Write (15,000 records): {stopwatch.ElapsedMilliseconds}ms");
+        _output.WriteLine($"Average: {stopwatch.ElapsedMilliseconds / 15000.0:F3}ms per record");
+        _output.WriteLine($"Throughput: {15000 * 1000.0 / stopwatch.ElapsedMilliseconds:F0} records/sec");
+        
+        Assert.True(stopwatch.ElapsedMilliseconds < 45000, 
+            "Bulk write of 15,000 records should complete within 45 seconds");
+    }
+
+    [Fact]
+    public async Task Benchmark_SQLite_BulkWrite_20000Records_Stress()
+    {
+        // Arrange
+        var records = GenerateTestData(20000);
+        var stopwatch = Stopwatch.StartNew();
+
+        // Act: Bulk insert stress test
+        foreach (var record in records)
+        {
+            await _aiDataRepository.AddAsync(record);
+        }
+
+        stopwatch.Stop();
+
+        // Assert & Report
+        _output.WriteLine($"[STRESS] SQLite Bulk Write (20,000 records): {stopwatch.ElapsedMilliseconds}ms");
+        _output.WriteLine($"Average: {stopwatch.ElapsedMilliseconds / 20000.0:F3}ms per record");
+        _output.WriteLine($"Throughput: {20000 * 1000.0 / stopwatch.ElapsedMilliseconds:F0} records/sec");
+        
+        Assert.True(stopwatch.ElapsedMilliseconds < 60000, 
+            "Bulk write of 20,000 records should complete within 60 seconds");
+    }
+
+    [Fact]
+    public async Task Benchmark_ConcurrentOperations_10Threads_ParallelProcessing()
+    {
+        // Arrange
+        var testData = GenerateTestData(200);
+        foreach (var record in testData)
+        {
+            await _aiDataRepository.AddAsync(record);
+        }
+
+        var stopwatch = Stopwatch.StartNew();
+
+        // Act: Run 10 concurrent backtest operations
+        var tasks = new List<Task>
+        {
+            _backtestingService.BacktestBridgeAsync("Cau1_STL_P5"),
+            _backtestingService.BacktestBridgeAsync("Cau2_VT1"),
+            _backtestingService.BacktestBridgeAsync("Cau3_VT2"),
+            _backtestingService.BacktestBridgeAsync("Cau4_VT3"),
+            _backtestingService.BacktestBridgeAsync("Cau5_TDB1"),
+            _backtestingService.BacktestBridgeAsync("Cau6_VT5"),
+            _backtestingService.BacktestBridgeAsync("Cau7_Moi1"),
+            _backtestingService.BacktestBridgeAsync("Cau8_Moi2"),
+            _backtestingService.BacktestBridgeAsync("Cau9_Moi3"),
+            _backtestingService.BacktestBridgeAsync("Cau10_Moi4")
+        };
+
+        await Task.WhenAll(tasks);
+
+        stopwatch.Stop();
+
+        // Assert & Report
+        _output.WriteLine($"[PARALLEL] Concurrent Operations (10 tasks): {stopwatch.ElapsedMilliseconds}ms");
+        _output.WriteLine($"Concurrency Efficiency: {10.0 * 100.0 / (stopwatch.ElapsedMilliseconds / 1000.0):F0} tasks/sec");
+        
+        Assert.True(stopwatch.ElapsedMilliseconds < 10000, 
+            "10 concurrent backtest operations should complete within 10 seconds");
+    }
+
+    [Fact]
+    public async Task Benchmark_MemoryUsage_LargeDataset_20000Records()
+    {
+        // Arrange
+        var initialMemory = GC.GetTotalMemory(true);
+        
+        // Act: Process large dataset
+        var records = GenerateTestData(20000);
+        foreach (var record in records)
+        {
+            await _aiDataRepository.AddAsync(record);
+        }
+
+        // Read all data back
+        var allData = await _aiDataRepository.GetAllAsync();
+        var dataList = allData.ToList();
+
+        // Force garbage collection
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GC.Collect();
+
+        var finalMemory = GC.GetTotalMemory(true);
+        var memoryUsed = (finalMemory - initialMemory) / 1024.0 / 1024.0; // MB
+
+        // Report
+        _output.WriteLine($"[MEMORY] Large Dataset (20,000 records): {memoryUsed:F2} MB");
+        _output.WriteLine($"Records loaded: {dataList.Count}");
+        _output.WriteLine($"Memory per record: {memoryUsed * 1024.0 / dataList.Count:F3} KB");
+        
+        Assert.True(memoryUsed < 150, 
+            "Memory usage for 20,000 records should be less than 150 MB");
+    }
+
     public void Dispose()
     {
         _context?.Dispose();

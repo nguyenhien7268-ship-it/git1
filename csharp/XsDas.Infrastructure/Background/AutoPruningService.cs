@@ -56,29 +56,37 @@ public class AutoPruningService : BackgroundService
 
     private async Task PerformPruningAsync()
     {
-        _logger.LogInformation("Starting bridge pruning cycle");
+        _logger.LogInformation("→ Starting bridge pruning cycle");
 
         try
         {
             // Get all enabled bridges
             var bridges = await _bridgeRepository.FindAsync(b => b.IsEnabled);
             var bridgesList = bridges.ToList();
+            
+            var totalBridges = await _bridgeRepository.GetAllAsync();
+            var totalCount = totalBridges.Count();
 
             // Validate data before pruning to prevent anomalies
             if (!bridgesList.Any())
             {
-                _logger.LogWarning("No bridges found in database, skipping pruning cycle");
+                _logger.LogWarning("⚠️ No enabled bridges found, skipping pruning (Total bridges: {Total})", totalCount);
                 return;
             }
 
+            _logger.LogInformation("📊 Processing {EnabledCount} enabled bridges (Total: {TotalCount})", 
+                bridgesList.Count, totalCount);
+
             int disabledCount = 0;
             int deletedCount = 0;
+            int skippedCount = 0;
 
             foreach (var bridge in bridgesList)
             {
                 // Validate bridge data before processing
                 if (!ValidateBridgeData(bridge))
                 {
+                    skippedCount++;
                     continue; // Skip invalid bridges
                 }
 
@@ -96,7 +104,7 @@ public class AutoPruningService : BackgroundService
                         await _bridgeRepository.UpdateAsync(bridge);
                         disabledCount++;
                         _logger.LogInformation(
-                            "Disabled weak bridge: {Name} (Rate: {Rate}%)",
+                            "🔒 Disabled weak bridge: {Name} (K1N: {Rate:F1}%, Threshold: 70%)",
                             bridge.Name, primaryRate);
                     }
                     else if (primaryRate < 50 && !bridge.IsEnabled)
@@ -110,26 +118,35 @@ public class AutoPruningService : BackgroundService
                                 await _bridgeRepository.DeleteAsync(bridge);
                                 deletedCount++;
                                 _logger.LogInformation(
-                                    "Deleted very weak bridge: {Name} (Rate: {Rate}%)",
-                                    bridge.Name, primaryRate);
+                                    "🗑️ Deleted very weak bridge: {Name} (K1N: {Rate:F1}%, Age: {Days:F0} days)",
+                                    bridge.Name, primaryRate, daysSinceAdded);
                             }
                         }
                     }
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Error processing bridge: {Name}", bridge.Name);
+                    _logger.LogError(ex, "❌ Error processing bridge: {Name}", bridge.Name);
                     // Continue with other bridges even if one fails
                 }
             }
 
+            // Warning if large number of bridges affected
+            var totalAffected = disabledCount + deletedCount;
+            if (totalAffected > bridgesList.Count * 0.3) // More than 30% affected
+            {
+                _logger.LogWarning(
+                    "⚠️ Large-scale pruning detected: {Affected}/{Total} bridges affected ({Percentage:F1}%)",
+                    totalAffected, bridgesList.Count, (totalAffected * 100.0 / bridgesList.Count));
+            }
+
             _logger.LogInformation(
-                "Pruning cycle complete: {Disabled} disabled, {Deleted} deleted",
-                disabledCount, deletedCount);
+                "✅ Pruning complete: {Disabled} disabled, {Deleted} deleted, {Skipped} skipped (Total processed: {Total})",
+                disabledCount, deletedCount, skippedCount, bridgesList.Count);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error during bridge pruning");
+            _logger.LogError(ex, "❌ Critical error during bridge pruning");
         }
     }
 
