@@ -186,3 +186,6 @@ except Exception as e:
 
     SETTINGS = FallbackSettings()
     print("-> Đã kích hoạt chế độ Fallback Settings (Sử dụng Default).")
+
+# Backward compatibility alias
+AppSettings = ConfigManager
