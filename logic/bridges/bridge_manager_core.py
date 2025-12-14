@@ -59,6 +59,32 @@ except ImportError:
     def _ensure_core_db_columns(*args, **kwargs): pass
 
 # ===================================================================================
+# HELPER FUNCTIONS
+# ===================================================================================
+
+def is_de_bridge(bridge):
+    """
+    Determine if a bridge is a De (Đề) bridge based on its name or type.
+    
+    Args:
+        bridge: Bridge dict with 'name' and optional 'type' keys
+        
+    Returns:
+        bool: True if it's a De bridge, False if it's a Lo bridge
+    """
+    bridge_name = bridge.get('name', '')
+    bridge_type = bridge.get('type', '')
+    
+    # Check if bridge name or type indicates it's a De bridge
+    de_indicators = ['DE_', 'Đề', 'de_', 'đề']
+    
+    for indicator in de_indicators:
+        if indicator in bridge_name or indicator in bridge_type:
+            return True
+    
+    return False
+
+# ===================================================================================
 # MANAGEMENT FUNCTIONS (Các hàm quản lý cầu)
 # ===================================================================================
 # Note: Scanning functions (TIM_CAU_TOT_NHAT_V16, TIM_CAU_BAC_NHO_TOT_NHAT, 
@@ -101,6 +127,7 @@ def find_and_auto_manage_bridges(all_data_ai, db_name=DB_NAME):
 def prune_bad_bridges(all_data_ai, db_name=DB_NAME):
     """
     Lọc và tắt các cầu yếu (Low performance bridges).
+    Sử dụng dual-config để áp dụng ngưỡng khác nhau cho cầu Lô và Đề.
     
     Args:
         all_data_ai: Dữ liệu toàn bộ kỳ quay (unused but kept for API compatibility)
@@ -109,13 +136,23 @@ def prune_bad_bridges(all_data_ai, db_name=DB_NAME):
     Returns:
         String message about pruning results
     """
+    # Get thresholds from dual-config (with fallback)
     try:
-        AUTO_PRUNE_MIN_RATE = SETTINGS.AUTO_PRUNE_MIN_RATE
+        lo_config = SETTINGS.get('lo_config', {})
+        de_config = SETTINGS.get('de_config', {})
+        
+        lo_remove_threshold = lo_config.get('remove_threshold', 43.0)
+        de_remove_threshold = de_config.get('remove_threshold', 80.0)
     except:
-        AUTO_PRUNE_MIN_RATE = 40.0
+        # Fallback to old settings if dual-config not available
+        lo_remove_threshold = getattr(SETTINGS, 'AUTO_PRUNE_MIN_RATE', 43.0)
+        de_remove_threshold = 80.0
 
     disabled_count = 0
+    disabled_lo_count = 0
+    disabled_de_count = 0
     skipped_pinned = 0
+    
     try:
         bridges = get_all_managed_bridges(db_name, only_enabled=True)
         if not bridges:
@@ -128,24 +165,31 @@ def prune_bad_bridges(all_data_ai, db_name=DB_NAME):
                     skipped_pinned += 1
                     continue
                 
-                k2n_str = str(b.get("search_rate_text", "0")).replace("%", "")
-                try:
-                    k2n_val = float(k2n_str)
-                except:
-                    k2n_val = 0.0
+                # Determine if this is a De bridge
+                is_de = is_de_bridge(b)
+                remove_threshold = de_remove_threshold if is_de else lo_remove_threshold
                 
+                # Get K1N rate (primary metric)
                 k1n_str = str(b.get("win_rate_text", "0")).replace("%", "")
                 try:
                     k1n_val = float(k1n_str)
                 except:
                     k1n_val = 0.0
+                
+                # Get K2N rate (secondary metric)
+                k2n_str = str(b.get("search_rate_text", "0")).replace("%", "")
+                try:
+                    k2n_val = float(k2n_str)
+                except:
+                    k2n_val = 0.0
 
                 should_disable = False
                 
-                if k2n_val > 0 or k1n_val > 0:
-                    is_k2n_ok = (k2n_val >= AUTO_PRUNE_MIN_RATE)
-                    is_k1n_ok = (k1n_val >= AUTO_PRUNE_MIN_RATE)
-                    if not is_k2n_ok and not is_k1n_ok:
+                # Logic: Disable if BOTH K1N and K2N are below threshold
+                if k1n_val > 0 or k2n_val > 0:
+                    is_k1n_ok = (k1n_val >= remove_threshold)
+                    is_k2n_ok = (k2n_val >= remove_threshold)
+                    if not is_k1n_ok and not is_k2n_ok:
                         should_disable = True
                 else:
                     should_disable = False
@@ -153,6 +197,10 @@ def prune_bad_bridges(all_data_ai, db_name=DB_NAME):
                 if should_disable:
                     update_managed_bridge(b["id"], b["description"], 0, db_name)
                     disabled_count += 1
+                    if is_de:
+                        disabled_de_count += 1
+                    else:
+                        disabled_lo_count += 1
                     
             except Exception as e_inner:
                 print(f"Lỗi check cầu {b.get('name')}: {e_inner}")
@@ -161,7 +209,8 @@ def prune_bad_bridges(all_data_ai, db_name=DB_NAME):
     except Exception as e:
         return f"Lỗi lọc cầu: {e}"
 
-    msg = f"Lọc cầu hoàn tất. Đã TẮT {disabled_count} cầu yếu (Cả K1N & K2N < {AUTO_PRUNE_MIN_RATE}%)."
+    msg = f"Lọc cầu hoàn tất. Đã TẮT {disabled_count} cầu yếu "
+    msg += f"(Lô: {disabled_lo_count} < {lo_remove_threshold}%, Đề: {disabled_de_count} < {de_remove_threshold}%)."
     if skipped_pinned > 0:
         msg += f" Bỏ qua {skipped_pinned} cầu đã ghim."
     return msg
@@ -169,8 +218,8 @@ def prune_bad_bridges(all_data_ai, db_name=DB_NAME):
 
 def auto_manage_bridges(all_data_ai, db_name=DB_NAME):
     """
-    Wrapper function for automatic bridge management.
-    Currently just calls prune_bad_bridges.
+    Tự động quản lý cầu: Bật lại các cầu có hiệu suất tốt.
+    Sử dụng dual-config để áp dụng ngưỡng khác nhau cho cầu Lô và Đề.
     
     Args:
         all_data_ai: Dữ liệu toàn bộ kỳ quay
@@ -179,7 +228,76 @@ def auto_manage_bridges(all_data_ai, db_name=DB_NAME):
     Returns:
         String message about management results
     """
-    return prune_bad_bridges(all_data_ai, db_name)
+    # Get thresholds from dual-config (with fallback)
+    try:
+        lo_config = SETTINGS.get('lo_config', {})
+        de_config = SETTINGS.get('de_config', {})
+        
+        lo_add_threshold = lo_config.get('add_threshold', 45.0)
+        de_add_threshold = de_config.get('add_threshold', 88.0)
+    except:
+        # Fallback to old settings if dual-config not available
+        lo_add_threshold = getattr(SETTINGS, 'AUTO_ADD_MIN_RATE', 45.0)
+        de_add_threshold = 88.0
+    
+    enabled_count = 0
+    enabled_lo_count = 0
+    enabled_de_count = 0
+    skipped_pinned = 0
+    
+    try:
+        # Get all disabled bridges (is_enabled=0)
+        bridges = get_all_managed_bridges(db_name, only_enabled=False)
+        if not bridges:
+            return "Không có cầu để quản lý."
+        
+        # Filter to only disabled bridges
+        disabled_bridges = [b for b in bridges if b.get('is_enabled', 1) == 0]
+        
+        if not disabled_bridges:
+            return "Không có cầu bị tắt để kiểm tra."
+        
+        for b in disabled_bridges:
+            try:
+                is_pinned = b.get("is_pinned", 0)
+                if is_pinned:
+                    skipped_pinned += 1
+                    continue
+                
+                # Determine if this is a De bridge
+                is_de = is_de_bridge(b)
+                add_threshold = de_add_threshold if is_de else lo_add_threshold
+                
+                # Get K1N rate (primary metric)
+                k1n_str = str(b.get("win_rate_text", "0")).replace("%", "")
+                try:
+                    k1n_val = float(k1n_str)
+                except:
+                    k1n_val = 0.0
+                
+                # Logic: Re-enable if K1N is above add_threshold
+                should_enable = (k1n_val >= add_threshold)
+                
+                if should_enable:
+                    update_managed_bridge(b["id"], b["description"], 1, db_name)
+                    enabled_count += 1
+                    if is_de:
+                        enabled_de_count += 1
+                    else:
+                        enabled_lo_count += 1
+                    
+            except Exception as e_inner:
+                print(f"Lỗi check cầu {b.get('name')}: {e_inner}")
+                pass
+                
+    except Exception as e:
+        return f"Lỗi quản lý cầu: {e}"
+    
+    msg = f"Quản lý cầu hoàn tất. Đã BẬT LẠI {enabled_count} cầu tiềm năng "
+    msg += f"(Lô: {enabled_lo_count} >= {lo_add_threshold}%, Đề: {enabled_de_count} >= {de_add_threshold}%)."
+    if skipped_pinned > 0:
+        msg += f" Bỏ qua {skipped_pinned} cầu đã ghim."
+    return msg
 
 def init_all_756_memory_bridges_to_db(db_name=DB_NAME, progress_callback=None, enable_all=False):
     """

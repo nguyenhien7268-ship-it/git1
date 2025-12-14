@@ -84,6 +84,17 @@ DEFAULT_SETTINGS = {
     # Combined policy weights (when POLICY_TYPE='combined')
     "WEIGHT_K1N": 0.6,                 # Weight for K1N in combined score
     "WEIGHT_K2N": 0.4,                 # Weight for K2N in combined score
+    
+    # [NEW V8.0] Dual-Config Architecture (Lô/Đề)
+    # Separate thresholds for Lo and De bridges
+    "lo_config": {
+        "remove_threshold": 43.0,      # Tắt cầu Lô khi tỷ lệ < 43%
+        "add_threshold": 45.0,         # Bật lại cầu Lô khi tỷ lệ >= 45%
+    },
+    "de_config": {
+        "remove_threshold": 80.0,      # Tắt cầu Đề khi tỷ lệ < 80%
+        "add_threshold": 88.0,         # Bật lại cầu Đề khi tỷ lệ >= 88%
+    },
 }
 
 # Database Paths

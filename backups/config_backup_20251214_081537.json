@@ -2,6 +2,8 @@
     "STATS_DAYS": 7,
     "GAN_DAYS": 7,
     "HIGH_WIN_THRESHOLD": 47.0,
+    "AUTO_ADD_MIN_RATE": 46.0,
+    "AUTO_PRUNE_MIN_RATE": 45.5,
     "K2N_RISK_START_THRESHOLD": 3,
     "K2N_RISK_PENALTY_PER_FRAME": 0.55,
     "AI_PROB_THRESHOLD": 55.0,
@@ -31,13 +33,5 @@
     "FILTER_ENABLED": false,
     "MANAGER_RATE_MODE": "K1N",
     "DE_CHOT_SO_CHAM_LIMIT": 8,
-    "DE_CHOT_SO_BO_LIMIT": 8,
-    "lo_config": {
-        "remove_threshold": 45.5,
-        "add_threshold": 46.0
-    },
-    "de_config": {
-        "remove_threshold": 80.0,
-        "add_threshold": 88.0
-    }
+    "DE_CHOT_SO_BO_LIMIT": 8
 }
