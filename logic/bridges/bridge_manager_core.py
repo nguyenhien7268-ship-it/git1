@@ -75,9 +75,14 @@ def is_de_bridge(bridge):
     bridge_name = bridge.get('name', '')
     bridge_type = bridge.get('type', '')
     
-    # Check if bridge name or type indicates it's a De bridge
-    de_indicators = ['DE_', 'Đề', 'de_', 'đề']
+    # Get De indicators from constants (with fallback)
+    try:
+        from logic.constants import DEFAULT_SETTINGS
+        de_indicators = DEFAULT_SETTINGS.get('DE_BRIDGE_INDICATORS', ['DE_', 'Đề', 'de_', 'đề'])
+    except:
+        de_indicators = ['DE_', 'Đề', 'de_', 'đề']
     
+    # Check if bridge name or type indicates it's a De bridge
     for indicator in de_indicators:
         if indicator in bridge_name or indicator in bridge_type:
             return True
@@ -182,17 +187,11 @@ def prune_bad_bridges(all_data_ai, db_name=DB_NAME):
                     k2n_val = float(k2n_str)
                 except:
                     k2n_val = 0.0
-
-                should_disable = False
                 
                 # Logic: Disable if BOTH K1N and K2N are below threshold
-                if k1n_val > 0 or k2n_val > 0:
-                    is_k1n_ok = (k1n_val >= remove_threshold)
-                    is_k2n_ok = (k2n_val >= remove_threshold)
-                    if not is_k1n_ok and not is_k2n_ok:
-                        should_disable = True
-                else:
-                    should_disable = False
+                is_k1n_ok = (k1n_val >= remove_threshold)
+                is_k2n_ok = (k2n_val >= remove_threshold)
+                should_disable = (not is_k1n_ok and not is_k2n_ok)
 
                 if should_disable:
                     update_managed_bridge(b["id"], b["description"], 0, db_name)

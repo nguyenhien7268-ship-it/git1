@@ -68,6 +68,5 @@
     "K2N_RISK_PROGRESSIVE": true,
     "FILTER_MIN_CONFIDENCE": 0,
     "FILTER_MIN_AI_PROB": 0,
-    "FILTER_ENABLED": false,
-    "INVALID_KEY": "10"
+    "FILTER_ENABLED": false
 }

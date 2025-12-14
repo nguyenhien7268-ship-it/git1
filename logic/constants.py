@@ -64,6 +64,9 @@ DEFAULT_SETTINGS = {
     # Chạm Thông Consecutive Requirement (V11.1)
     "CHAM_THONG_MIN_CONSEC": 8,        # Minimum consecutive matches at end for "chạm thông"
     
+    # [NEW V8.0] Bridge Classification Indicators
+    "DE_BRIDGE_INDICATORS": ["DE_", "Đề", "de_", "đề"],  # Indicators for De bridges
+    
     # K2N Cache Control (V10.7)
     "K2N_CACHE_LO_ENABLED": True,      # Enable K2N cache refresh for LO bridges
     "K2N_CACHE_DE_ENABLED": True,      # Enable K2N cache refresh for DE bridges
