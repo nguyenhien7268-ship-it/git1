@@ -351,7 +351,7 @@ class TestValidateConfig:
             "de_config": {
                 "remove_threshold": 38.0,
                 "add_threshold": 45.0,
-                "enable_threshold": 40.0  # Should be <= remove_threshold
+                "enable_threshold": 41.0  # Should be <= remove_threshold (38.0)
             },
             "AUTO_PRUNE_MIN_RATE_DEPRECATED": 43.0,
             "AUTO_ADD_MIN_RATE_DEPRECATED": 45.0
