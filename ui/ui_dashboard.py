@@ -291,7 +291,7 @@ class DashboardWindow(ttk.Frame):
 
     def _create_recent_form_ui(self, parent_frame):
         self.recent_form_frame = ttk.Labelframe(
-            parent_frame, text="🔥 Thông 10 Kỳ (>= 5/10)"
+            parent_frame, text="🔥 Phong Độ 10 Kỳ (Cầu ≥ 9/10 Thắng, Đang Bật)"
         )
         tree_frame = ttk.Frame(self.recent_form_frame)
         tree_frame.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
@@ -486,19 +486,33 @@ class DashboardWindow(ttk.Frame):
                     only_enabled=True
                 )
                 good_bridges = []
+                # Get configurable threshold (default: 9 wins out of 10)
+                min_recent_wins = SETTINGS.get("DASHBOARD_MIN_RECENT_WINS", 9)
+                
                 for b in all_bridges:
                     # [CLEAN CODE FIX] Filter out DE bridges to avoid pollution in Loto table
                     bridge_type = str(b.get("type", "")).upper()
                     if bridge_type.startswith("DE"):
                         continue 
 
+                    # Parse recent_win_count_10
                     recent_wins = b.get("recent_win_count_10", 0)
                     if isinstance(recent_wins, str):
                         try:
                             recent_wins = int(recent_wins)
                         except ValueError:
                             recent_wins = 0
-                    if recent_wins >= 5:
+                    
+                    # Parse is_enabled status
+                    is_enabled = b.get("is_enabled", 0)
+                    if isinstance(is_enabled, str):
+                        try:
+                            is_enabled = int(is_enabled)
+                        except ValueError:
+                            is_enabled = 0
+                    
+                    # Filter: Must be ENABLED + High recent form (>= min_recent_wins)
+                    if is_enabled == 1 and recent_wins >= min_recent_wins:
                         good_bridges.append(b)
 
                 good_bridges.sort(key=lambda x: x.get("recent_win_count_10", 0), reverse=True)

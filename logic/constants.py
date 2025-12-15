@@ -26,6 +26,7 @@ DEFAULT_SETTINGS = {
     "RECENT_FORM_MIN_HIGH": 8,
     "RECENT_FORM_MIN_MED": 6,
     "RECENT_FORM_MIN_LOW": 5,
+    "DASHBOARD_MIN_RECENT_WINS": 9,  # Dashboard filter: Show bridges with >= 9/10 recent wins
     "DATA_LIMIT_DASHBOARD": 1000, # 0 = All
     "DATA_LIMIT_RESEARCH": 0,     # 0 = All
     "DATA_LIMIT_SCANNER": 500,    # Giới hạn số kỳ khi Dò Cầu Mới (0 = Full)
