@@ -2,8 +2,6 @@
     "STATS_DAYS": 7,
     "GAN_DAYS": 8,
     "HIGH_WIN_THRESHOLD": 45.0,
-    "AUTO_ADD_MIN_RATE": 45.0,
-    "AUTO_PRUNE_MIN_RATE": 43.0,
     "K2N_RISK_START_THRESHOLD": 3,
     "K2N_RISK_PENALTY_PER_FRAME": 0.75,
     "AI_PROB_THRESHOLD": 55.0,
@@ -26,5 +24,19 @@
     "K2N_RISK_PROGRESSIVE": true,
     "FILTER_MIN_CONFIDENCE": 5,
     "FILTER_MIN_AI_PROB": 0,
-    "FILTER_ENABLED": true
+    "FILTER_ENABLED": true,
+    "lo_config": {
+        "remove_threshold": 43.0,
+        "add_threshold": 45.0,
+        "enable_threshold": 40.0,
+        "description": "Configuration for Lo bridges (2-digit lottery numbers)"
+    },
+    "de_config": {
+        "remove_threshold": 43.0,
+        "add_threshold": 45.0,
+        "enable_threshold": 40.0,
+        "description": "Configuration for De bridges (1-digit lottery numbers)"
+    },
+    "AUTO_PRUNE_MIN_RATE_DEPRECATED": 43.0,
+    "AUTO_ADD_MIN_RATE_DEPRECATED": 45.0
 }
