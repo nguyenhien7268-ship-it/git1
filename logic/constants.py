@@ -46,3 +46,40 @@ MAX_LINES = 100_000
 
 # Allowed File Extensions
 ALLOWED_FILE_EXTENSIONS = ['.txt', '.json']
+
+# =============================================================================
+# Bridge Management Constants (for normalization and defaulting)
+# =============================================================================
+import re
+from typing import Tuple
+
+# Bridge types (display / storage)
+BRIDGE_TYPE_MANUAL_LO = "manual_lo"
+BRIDGE_TYPE_MANUAL_DE = "manual_de"
+BRIDGE_TYPE_ALGO_LO = "algo_lo"
+BRIDGE_TYPE_ALGO_DE = "algo_de"
+
+# Default numeric text values used in DB payloads
+DEFAULT_WIN_RATE = "50"      # stored as text in existing DB schema
+DEFAULT_SEARCH_RATE = "10"   # stored as text
+
+# Mapping UI display types (or shorthand) to DB canonical types
+# Example: UI might show "LO" or "LO_manual"; map to DB constants above.
+WHITELIST_DISPLAY_TYPES: Tuple[Tuple[str, str], ...] = (
+    ("lo_manual", BRIDGE_TYPE_MANUAL_LO),
+    ("de_manual", BRIDGE_TYPE_MANUAL_DE),
+    ("lo_algo", BRIDGE_TYPE_ALGO_LO),
+    ("de_algo", BRIDGE_TYPE_ALGO_DE),
+    ("manual_lo", BRIDGE_TYPE_MANUAL_LO),
+    ("manual_de", BRIDGE_TYPE_MANUAL_DE),
+    ("algo_lo", BRIDGE_TYPE_ALGO_LO),
+    ("algo_de", BRIDGE_TYPE_ALGO_DE),
+)
+
+# Naming sanitation regex: keep unicode letters, numbers, hyphen, underscore, space
+# Replace other chars with single space, then collapse whitespace.
+# This constant is intentionally conservative to preserve user input while avoiding DB issues.
+NAME_SANITIZE_REGEX = re.compile(r"[^\w\-\s\u00C0-\u024F\u1E00-\u1EFF]+", flags=re.UNICODE)
+
+# Helper: allowed minimum length after strip
+MIN_NAME_LENGTH = 1

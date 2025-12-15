@@ -10,7 +10,7 @@ from tkinter import filedialog, messagebox, simpledialog, ttk
 
 # (GIỮ NGUYÊN)
 try:
-    from lottery_service import DB_NAME, upsert_managed_bridge
+    from lottery_service import DB_NAME, upsert_managed_bridge, add_managed_bridge_adapter
 except ImportError:
     print(
         "LỖI NGHIÊM TRỌNG: Không tìm thấy file 'lottery_service.py' hoặc gói '/logic'."
@@ -727,7 +727,12 @@ class DataAnalysisApp:
                 return
 
             # (SỬA F405) Giờ đã được import tường minh
-            success, message = upsert_managed_bridge(bridge_name, description, win_rate)
+            # Use adapter for normalization and validation
+            success, message = add_managed_bridge_adapter(
+                bridge_name=bridge_name,
+                description=description,
+                win_rate=win_rate
+            )
 
             if success:
                 self.logger.log(f"LƯU/CẬP NHẬT CẦU: {message}")
