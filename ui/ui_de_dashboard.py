@@ -1,5 +1,5 @@
 # Tên file: code6/ui/ui_de_dashboard.py
-# (PHIÊN BẢN V3.9.20 - FIX: HIỂN THỊ ĐỦ 15 BỘ SỐ KỂ CẢ KHI KHÔNG VỀ)
+# (PHIÊN BẢN V3.9.25 - REFACTOR: DÙNG TREEVIEW CHO CẢ CHỐT CHẠM & BỘ)
 
 import tkinter as tk
 from tkinter import ttk, messagebox, font
@@ -49,6 +49,16 @@ except ImportError as e:
     HAS_DB_LOADER = False
     def get_cau_dong_for_tab_soi_cau_de(*a, **k): return []
 
+# --- 5. IMPORT CONFIG MANAGER ---
+try:
+    from logic.config_manager import ConfigManager
+except ImportError:
+    # Fallback an toàn nếu chưa có
+    class MockConfigManager:
+        def get_config(self, key, default): return default
+    ConfigManager = MockConfigManager
+    
+
 class UiDeDashboard(ttk.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent)
@@ -65,7 +75,7 @@ class UiDeDashboard(ttk.Frame):
         toolbar = ttk.Frame(self, padding=5)
         toolbar.pack(fill=tk.X)
         
-        btn_scan = ttk.Button(toolbar, text="🚀 QUÉT & PHÂN TÍCH (V3.9.20)", command=self.on_scan_click)
+        btn_scan = ttk.Button(toolbar, text="🚀 QUÉT & PHÂN TÍCH (V3.9.25)", command=self.on_scan_click)
         btn_scan.pack(side=tk.LEFT, padx=5)
         
         self.lbl_status = ttk.Label(toolbar, text="Sẵn sàng", foreground="blue")
@@ -141,14 +151,35 @@ class UiDeDashboard(ttk.Frame):
         self.txt_10.tag_configure("center", justify='center')
         self.txt_10.pack(fill="x", pady=(0, 5))
 
-        # === KHU VỰC 2: CẦU & BỘ ===
+        # === KHU VỰC 2: CẦU & BỘ (ĐÃ SỬA: DÙNG TREEVIEW GOM CỘT CHO CẢ CHẠM & BỘ) ===
         fr_cau = ttk.LabelFrame(self.scroll_frame, text="⚡ BỘ SỐ & CẦU CHẠM", padding=5)
         fr_cau.pack(fill="x", padx=5, pady=5)
         
-        self.txt_bo_top = self._create_info_row(fr_cau, "Bộ Số Tiềm Năng:", height=2)
+        # 1. BỘ SỐ TIỀM NĂNG (Thay bằng Treeview 3 cột)
+        ttk.Label(fr_cau, text="💎 TOP BỘ SỐ TIỀM NĂNG (Top 8):", font=self.font_label, foreground="#00796B").pack(anchor="w", pady=(5, 2))
+        self.tree_chot_bo = self._create_tree(fr_cau, ["Bộ", "Điểm ĐG", "Trạng thái"], height=4, 
+                                              width_map={"Bộ": 50, "Điểm ĐG": 60, "Trạng thái": 80})
+        self.tree_chot_bo.tag_configure("HOT", background="#FFF9C4", foreground="red")
+
+
+        # 2. BẢNG CHỐT CHẠM (2 bảng nhỏ riêng biệt)
         
-        self.txt_4c_thong = self._create_info_row(fr_cau, "4 Chạm (Thông):")
-        self.txt_4c_tile = self._create_info_row(fr_cau, "4 Chạm (Tỉ Lệ):")
+        # Tạo Frame chứa 2 Treeview Chạm (đặt cạnh nhau)
+        cham_frame = ttk.Frame(fr_cau)
+        cham_frame.pack(fill="x", expand=True, pady=(5,0))
+        
+        # CHẠM THÔNG (Ưu tiên Consecutive streak)
+        f_thong = ttk.LabelFrame(cham_frame, text="🎯 Chạm Thông (Streak)", padding=5)
+        f_thong.pack(side="left", fill="both", expand=True, padx=(0, 2))
+        # Áp dụng width_map để cân đối cột
+        self.tree_chot_cham_thong = self._create_tree(f_thong, ["Chạm", "Streak"], height=8, width_map={"Chạm": 70, "Streak": 70})
+        
+        # CHẠM TỈ LỆ (Ưu tiên Win Rate %)
+        f_tile = ttk.LabelFrame(cham_frame, text="📈 Chạm Tỉ Lệ (Rate %)", padding=5)
+        f_tile.pack(side="left", fill="both", expand=True, padx=(2, 0))
+        # Áp dụng width_map để cân đối cột
+        self.tree_chot_cham_tile = self._create_tree(f_tile, ["Chạm", "Rate %"], height=8, width_map={"Chạm": 70, "Rate %": 70})
+
 
         # === KHU VỰC 3: DÀN SỐ ===
         fr_dan = ttk.LabelFrame(self.scroll_frame, text="📋 DÀN SỐ & LỌC", padding=5)
@@ -201,16 +232,23 @@ class UiDeDashboard(ttk.Frame):
     def _create_info_row(self, parent, label_text, height=1):
         container = ttk.Frame(parent)
         container.pack(fill="x", pady=2)
-        ttk.Label(container, text=label_text, font=("Arial", 9, "bold"), width=15, anchor="w").pack(side="left")
+        ttk.Label(container, text=label_text, font=("Arial", 9, "bold"), width=25, anchor="w").pack(side="left")
         txt = tk.Text(container, height=height, font=("Consolas", 9), wrap="word", bd=1, relief="solid")
         txt.pack(side="left", fill="x", expand=True)
         return txt
 
-    def _create_tree(self, parent, cols, height=None):
+    def _create_tree(self, parent, cols, height=None, width_map=None):
         tree = ttk.Treeview(parent, columns=cols, show="headings", height=height if height else 8)
-        for c in cols:
-            tree.heading(c, text=c)
-            tree.column(c, width=50, anchor="center")
+        
+        if width_map: # Áp dụng custom width map (cho 2 bảng Chạm mới và bảng Bộ mới)
+            for col, width in width_map.items():
+                tree.column(col, width=width, anchor="center")
+                tree.heading(col, text=col)
+        else: # Logic chung cho các Treeview khác
+            for c in cols:
+                tree.heading(c, text=c)
+                tree.column(c, width=50, anchor="center")
+                
         sb = ttk.Scrollbar(parent, orient="vertical", command=tree.yview)
         tree.configure(yscrollcommand=sb.set)
         sb.pack(side="right", fill="y")
@@ -246,8 +284,42 @@ class UiDeDashboard(ttk.Frame):
         bridges = []
         if HAS_DB_LOADER:
             try:
-                bridges = get_cau_dong_for_tab_soi_cau_de()
-                print(f"[UI] Loaded {len(bridges)} bridges from DB (filtered)")
+                # Get min recent wins threshold from config
+                try:
+                    config_mgr = ConfigManager.get_instance()
+                    min_recent_wins = config_mgr.get_config("DE_DASHBOARD_MIN_RECENT_WINS", 9)
+                except:
+                    min_recent_wins = 9  # Safe fallback
+                
+                # Lấy tất cả cầu (có thể lẫn cả Lô)
+                all_bridges = get_cau_dong_for_tab_soi_cau_de()
+                
+                # [FIX] LỌC CHỈ LẤY CẦU ĐỀ (DE)
+                # Loại bỏ các cầu bắt đầu bằng LO_ hoặc không phải loại Đề
+                de_bridges = [
+                    b for b in all_bridges 
+                    if str(b.get('type', '')).upper().startswith(('DE_', 'CAU_DE')) 
+                    or "Đề" in str(b.get('name', ''))
+                    or "DE" in str(b.get('name', '')).upper()
+                ]
+                
+                # [NEW V8.2] Apply smart filtering: Only show ENABLED bridges with high recent form
+                bridges = []
+                for b in de_bridges:
+                    # Parse values safely (handle both int and string)
+                    recent_wins = b.get("recent_win_count_10", 0)
+                    if isinstance(recent_wins, str):
+                        recent_wins = int(recent_wins) if recent_wins.isdigit() else 0
+                    
+                    is_enabled = b.get("is_enabled", 0)
+                    if isinstance(is_enabled, str):
+                        is_enabled = int(is_enabled) if is_enabled.isdigit() else 0
+                    
+                    # Filter: Must be ENABLED + Recent form >= threshold
+                    if is_enabled == 1 and recent_wins >= min_recent_wins:
+                        bridges.append(b)
+                
+                print(f"[UI] DE dashboard: loaded {len(all_bridges)} total, {len(de_bridges)} DE-type, {len(bridges)} shown (>={min_recent_wins} & enabled)")
             except Exception as e:
                 print(f"[UI ERROR] Failed to load bridges from DB: {e}")
                 # Fallback to scanner if DB load fails
@@ -292,7 +364,15 @@ class UiDeDashboard(ttk.Frame):
                         break
                     except ValueError: continue
         except: pass
-        self.lbl_ky_pred.config(text=f"KỲ: {next_ky_str}")
+        
+        # [V8.2] Add filter badge to KY label
+        try:
+            config_mgr = ConfigManager.get_instance()
+            min_recent_wins = config_mgr.get_config("DE_DASHBOARD_MIN_RECENT_WINS", 9)
+        except:
+            min_recent_wins = 9
+        
+        self.lbl_ky_pred.config(text=f"KỲ: {next_ky_str} (Hiển thị: Đề ≥{min_recent_wins}/10, Đang Bật)")
         self.lbl_date_pred.config(text=f"NGÀY: {next_date_str}")
         
         # 2. Update Stats (Left Tabs)
@@ -370,28 +450,64 @@ class UiDeDashboard(ttk.Frame):
         else: 
             self._update_txt(self.txt_65, "")
 
-        # 6. Touch Combos
+        # 6. Touch Combos (ĐÃ SỬA: DÙNG 2 BẢNG TREEVIEW RIÊNG CHO CHẠM)
+        
+        # Xóa dữ liệu cũ của 2 bảng mới
+        for i in self.tree_chot_cham_thong.get_children(): 
+            self.tree_chot_cham_thong.delete(i)
+        for i in self.tree_chot_cham_tile.get_children(): 
+            self.tree_chot_cham_tile.delete(i)
+            
         if touch_combinations:
-            top_streak = sorted(touch_combinations, key=lambda x: x['streak'], reverse=True)[:3]
-            str_streak = " | ".join([f"C{','.join(map(str, x['touches']))}({x['streak']}N)" for x in top_streak])
+            try:
+                config_manager = ConfigManager.get_instance()
+                DISPLAY_LIMIT = config_manager.get_config("DE_CHOT_SO_CHAM_LIMIT", 8) 
+            except Exception:
+                DISPLAY_LIMIT = 8
+
+            # Sắp xếp tổng hợp: Ưu tiên Chạm Thông (covers_last_n_at_end), sau đó đến Streak, sau đó đến Rate %
+
+            # 6a. CHẠM THÔNG (Sắp xếp theo Streak & Covers_end)
+            top_thong = sorted(touch_combinations, 
+                                 key=lambda x: (x.get('covers_last_n_at_end', False), 
+                                               x.get('consecutive_at_end', 0)), 
+                                 reverse=True)[:DISPLAY_LIMIT]
             
-            top_rate = sorted(touch_combinations, key=lambda x: x['rate_percent'], reverse=True)[:3]
-            str_rate = " | ".join([f"C{','.join(map(str, x['touches']))}({x['rate_percent']:.0f}%)" for x in top_rate])
+            for x in top_thong:
+                touches_str = ','.join(map(str, x['touches']))
+                consec_end = x.get('consecutive_at_end', 0)
+                covers_end = x.get('covers_last_n_at_end', False)
+                
+                tag = "HOT" if covers_end else ""
+                
+                self.tree_chot_cham_thong.insert("", "end", 
+                    values=(
+                        touches_str, 
+                        f"{consec_end}N"
+                    ),
+                    tags=(tag,)
+                )
+                
+            # 6b. CHẠM TỈ LỆ (Sắp xếp theo Rate %)
+            top_rate = sorted(touch_combinations, key=lambda x: x.get('rate_percent', 0.0), reverse=True)[:DISPLAY_LIMIT] 
             
-            self._update_txt(self.txt_4c_thong, str_streak)
-            self._update_txt(self.txt_4c_tile, str_rate)
-        else:
-            self._update_txt(self.txt_4c_thong, "---")
-            self._update_txt(self.txt_4c_tile, "---")
-            
+            for x in top_rate:
+                touches_str = ','.join(map(str, x['touches']))
+                rate_percent = x.get('rate_percent', 0.0)
+                
+                self.tree_chot_cham_tile.insert("", "end", 
+                    values=(
+                        touches_str, 
+                        f"{rate_percent:.1f}%"
+                    )
+                )
+
         # 7. UPDATE EVALUATION & TOP SETS
         self._update_evaluation_and_top_sets(freq_bo, gan_bo, freq_cham, gan_cham)
 
     def _update_evaluation_and_top_sets(self, freq_bo, gan_bo, freq_cham, gan_cham):
         """
-        [V3.9.22] TÁCH BIỆT ĐÁNH GIÁ: Cập nhật riêng 2 bảng Chạm và Bộ
-        - Bảng CHẠM: Thuật toán scoring (freq * 2.0) - (gan * 0.5)
-        - Bảng BỘ: Thuật toán cải tiến với bonus cho bộ kép, trending, vừa về
+        [V3.9.25] Cập nhật: Thay Textbox Bộ số bằng Treeview
         """
         # === 1. ĐÁNH GIÁ CHẠM (SEPARATED) ===
         for i in self.tree_eval_cham.get_children(): 
@@ -487,10 +603,34 @@ class UiDeDashboard(ttk.Frame):
                 values=(item['val'], item['f'], item['g'], f"{item['s']:.1f}"), 
                 tags=tuple(tags) if tags else ())
         
-        # === 3. TOP BỘ SUMMARY ===
-        top_bo = bo_scores[:5]  # Already sorted
-        str_top_bo = " | ".join([f"Bộ {b['val']} ({b['s']:.1f}đ)" for b in top_bo])
-        self._update_txt(self.txt_bo_top, str_top_bo)
+        # === 3. TOP BỘ SUMMARY (ĐÃ SỬA: CHUYỂN SANG TREEVIEW) ===
+        for i in self.tree_chot_bo.get_children(): 
+            self.tree_chot_bo.delete(i)
+            
+        try:
+            config_manager = ConfigManager.get_instance()
+            BO_LIMIT = config_manager.get_config("DE_CHOT_SO_BO_LIMIT", 8)
+        except Exception:
+            BO_LIMIT = 8
+            
+        top_bo = bo_scores[:BO_LIMIT]
+
+        for item in top_bo:
+            trang_thai = "Hot" if item['s'] >= 5.0 else "Thường"
+            if item.get('is_kep', False):
+                trang_thai += " (Kép)"
+            
+            tags = ("HOT",) if item['s'] >= 5.0 else ()
+
+            self.tree_chot_bo.insert("", "end", 
+                values=(
+                    item['val'], 
+                    f"{item['s']:.1f}", 
+                    trang_thai
+                ),
+                tags=tags
+            )
+
 
     def _fill_stat_tree(self, tree, freq, gan):
         for i in tree.get_children(): tree.delete(i)

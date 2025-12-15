@@ -106,7 +106,7 @@ class BridgeManagerWindow:
         frame.rowconfigure(0, weight=1)
 
         columns = ("id", "name", "desc", "win_rate_k1n", "win_rate_scan", "status", "pinned", "created_at")
-        self.tree = ttk.Treeview(frame, columns=columns, show="headings", selectmode="browse")
+        self.tree = ttk.Treeview(frame, columns=columns, show="headings", selectmode="extended")
         self._setup_treeview_columns()
 
         scrollbar = ttk.Scrollbar(frame, orient=tk.VERTICAL, command=self.tree.yview)
@@ -116,6 +116,13 @@ class BridgeManagerWindow:
         scrollbar.grid(row=0, column=1, sticky="ns")
 
         self.tree.bind("<<TreeviewSelect>>", self.on_bridge_select)
+        
+        # Add controls frame for bulk operations
+        controls_frame = ttk.Frame(frame)
+        controls_frame.grid(row=1, column=0, sticky="ew", pady=(5, 0))
+        self.delete_selected_btn = ttk.Button(controls_frame, text="Delete selected", command=self._on_delete_selected)
+        self.delete_selected_btn.pack(side=tk.LEFT, padx=(0, 5))
+        self.delete_selected_btn.state(['disabled'])
         
         self.context_menu = tk.Menu(self.window, tearoff=0)
         self.context_menu.add_command(label="📌 Ghim/Bỏ Ghim", command=self.toggle_pin_selected_bridge)
@@ -232,6 +239,16 @@ class BridgeManagerWindow:
             print(f"Lỗi refresh_bridge_list (Ignored): {e}")
 
     def on_bridge_select(self, event):
+        selected_items = self.tree.selection()
+        
+        # Enable/disable bulk delete button based on selection
+        if hasattr(self, 'delete_selected_btn'):
+            if selected_items:
+                self.delete_selected_btn.state(['!disabled'])
+            else:
+                self.delete_selected_btn.state(['disabled'])
+        
+        # For single selection, populate the form fields
         selected = self.tree.focus()
         if not selected: return
         values = self.tree.item(selected, "values")
@@ -274,15 +291,146 @@ class BridgeManagerWindow:
             messagebox.showerror("Lỗi", msg, parent=self.window)
 
     def delete_selected_bridge(self):
-        selected = self.tree.focus()
-        if not selected: return
-        bridge_id = self.tree.item(selected, "values")[0]
-        if messagebox.askyesno("Xác nhận", "Bạn có chắc muốn xóa cầu này?", parent=self.window):
-            success, msg = delete_managed_bridge(bridge_id)
-            if success:
-                self.app.logger.log(f"Đã xóa cầu {bridge_id}")
-                self.refresh_bridge_list()
-                self.reset_form()
+        """
+        [FIX V3] Cập nhật để hỗ trợ xóa nhiều dòng bằng cách lặp qua self.tree.selection().
+        Đồng thời, đảm bảo lấy đúng bridge_id (index 0) và hiển thị thông báo kết quả chi tiết.
+        """
+        # 1. Lấy tất cả ID của các dòng đang chọn
+        selected_items = self.tree.selection()
+        
+        if not selected_items:
+            messagebox.showwarning("Chưa chọn", "Vui lòng chọn ít nhất một cầu để xóa.", parent=self.window)
+            return
+
+        num_selected = len(selected_items)
+        
+        # Tạo thông báo xác nhận dựa trên số lượng dòng được chọn
+        try:
+            # Bridge name nằm ở cột thứ 2 (index 1)
+            first_bridge_name = self.tree.item(selected_items[0], "values")[1] 
+        except IndexError:
+            first_bridge_name = "đã chọn"
+
+        if num_selected == 1:
+            confirm_msg = f"Bạn có chắc muốn xóa cầu '{first_bridge_name}'?"
+        else:
+            confirm_msg = f"Bạn có chắc muốn xóa {num_selected} cầu đã chọn?"
+
+        if not messagebox.askyesno("Xác nhận Xóa", confirm_msg, parent=self.window):
+            return
+        
+        deleted_count = 0
+        failed_names = []
+        
+        # 2. LẶP QUA TẤT CẢ CÁC DÒNG ĐƯỢC CHỌN VÀ THỰC HIỆN XÓA
+        for selected_item_id in selected_items:
+            try:
+                # Bridge ID nằm ở cột đầu tiên (index 0)
+                values = self.tree.item(selected_item_id, "values")
+                bridge_id = values[0]
+                bridge_name = values[1]
+
+                # Gọi hàm xóa từ service
+                success, msg = delete_managed_bridge(bridge_id)
+                
+                if success:
+                    deleted_count += 1
+                else:
+                    failed_names.append((bridge_name, msg))
+                    
+            except Exception as e:
+                # Ghi lại lỗi nếu không đọc được dữ liệu dòng
+                failed_names.append((f"Lỗi đọc dữ liệu dòng {selected_item_id}", str(e)))
+                
+        # 3. Cập nhật giao diện và thông báo kết quả
+        if deleted_count > 0:
+            self.refresh_bridge_list()
+            self.reset_form()
+            
+        if deleted_count == num_selected:
+            messagebox.showinfo("Thành công", f"Đã xóa thành công {deleted_count} cầu.", parent=self.window)
+        elif deleted_count > 0:
+            error_details = "\n".join([f"- {name}: {msg}" for name, msg in failed_names])
+            messagebox.showwarning("Hoàn thành có lỗi", 
+                                  f"Đã xóa thành công {deleted_count}/{num_selected} cầu. "
+                                  f"Có {len(failed_names)} cầu không thể xóa:\n{error_details}", 
+                                  parent=self.window)
+        elif num_selected > 0:
+             error_details = "\n".join([f"- {name}: {msg}" for name, msg in failed_names])
+             messagebox.showerror("Lỗi Xóa", f"Không thể xóa bất kỳ cầu nào ({num_selected} cầu). Chi tiết:\n{error_details}", parent=self.window)
+
+    def _on_delete_selected(self):
+        """Handle bulk delete of selected bridges"""
+        selected_items = self.tree.selection()
+        if not selected_items:
+            return
+        
+        # Collect names - name is in column index 1
+        names = []
+        for iid in selected_items:
+            row = self.tree.item(iid)
+            values = row.get('values') or []
+            if values:
+                bridge_name = values[1]  # name column
+            else:
+                bridge_name = iid
+            names.append(bridge_name)
+
+        confirm = messagebox.askyesno(
+            "Confirm bulk delete",
+            f"Bạn sắp xóa {len(names)} cầu. Hành động không thể hoàn tác. Tiếp tục?",
+            parent=self.window
+        )
+        if not confirm:
+            return
+
+        try:
+            from lottery_service import delete_managed_bridges_batch
+        except Exception:
+            from logic.data_repository import delete_managed_bridges_batch
+
+        result = delete_managed_bridges_batch(names, transactional=False)
+
+        # Remove successfully deleted rows from tree
+        deleted_set = set(result.get("deleted", []))
+        for iid in list(selected_items):
+            row = self.tree.item(iid)
+            vals = row.get('values') or []
+            name = vals[1] if len(vals) > 1 else iid
+            if name in deleted_set:
+                try:
+                    self.tree.delete(iid)
+                except Exception:
+                    pass
+
+        # Show summary to user
+        deleted_count = len(result.get("deleted", []))
+        missing_count = len(result.get("missing", []))
+        failed = result.get("failed", [])
+        summary = f"Deleted: {deleted_count}. Missing: {missing_count}."
+        if failed:
+            summary += f" Failed: {len(failed)} (see logs)."
+        messagebox.showinfo("Bulk delete result", summary, parent=self.window)
+
+        # Audit append to file
+        try:
+            import json
+            import time
+            import os
+            log_dir = "logs"
+            os.makedirs(log_dir, exist_ok=True)
+            entry = {
+                "ts": int(time.time()),
+                "user": getattr(self.app, 'current_user', 'unknown'),
+                "names_count": len(names),
+                "deleted": result.get("deleted", []),
+                "missing": result.get("missing", []),
+                "failed": result.get("failed", [])
+            }
+            with open(os.path.join(log_dir, "bulk_delete_audit.log"), "a", encoding="utf-8") as f:
+                f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+        except Exception as e:
+            print(f"Failed to write audit log: {e}")
 
     def reset_form(self):
         self.name_entry.delete(0, tk.END)

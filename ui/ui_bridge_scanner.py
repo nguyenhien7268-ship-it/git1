@@ -210,16 +210,21 @@ class BridgeScannerTab(ttk.Frame):
         def worker():
             try:
                 scan_func()
-                self.after(0, lambda: self.scan_status_label.config(
-                    text=f"✅ Quét {scan_type} hoàn tất!", 
+                # FIX: Capture scan_type in lambda default parameter
+                self.after(0, lambda st=scan_type: self.scan_status_label.config(
+                    text=f"✅ Quét {st} hoàn tất!", 
                     foreground="green"
                 ))
             except Exception as e:
-                self.after(0, lambda: self.scan_status_label.config(
-                    text=f"❌ Lỗi quét {scan_type}: {str(e)}", 
+                # FIX: Capture variables in lambda default parameters
+                error_msg = str(e)
+                self.after(0, lambda st=scan_type, err=error_msg: self.scan_status_label.config(
+                    text=f"❌ Lỗi quét {st}: {err}", 
                     foreground="red"
                 ))
-                self.after(0, lambda: messagebox.showerror("Lỗi Quét", f"Không thể quét {scan_type}:\n{e}"))
+                self.after(0, lambda st=scan_type, err=error_msg: messagebox.showerror(
+                    "Lỗi Quét", f"Không thể quét {st}:\n{err}"
+                ))
         
         thread = threading.Thread(target=worker, daemon=True)
         thread.start()
@@ -255,7 +260,15 @@ class BridgeScannerTab(ttk.Frame):
         ))
     
     def _do_scan_de(self):
-        """Thực hiện quét Đề."""
+        """
+        Thực hiện quét Đề với xử lý robust cho nhiều dạng kết quả.
+        
+        V8.3: Enhanced with normalization for diverse scanner return formats:
+        - Handles (list, int), (int, list), list, or single objects
+        - Normalizes bridge attributes from dict/object
+        - Handles win_rate as fraction/percentage/list
+        - Captures all variables in lambda closures properly
+        """
         all_data, _ = load_data_ai_from_db(self.db_name)
         if not all_data:
             raise Exception("Không có dữ liệu xổ số")
@@ -263,20 +276,87 @@ class BridgeScannerTab(ttk.Frame):
         # Import DE scanner directly to get full results
         try:
             from logic.bridges.de_bridge_scanner import run_de_scanner
-            count, found_bridges = run_de_scanner(all_data)
+            scanner_result = run_de_scanner(all_data)
+            
+            # ROBUST NORMALIZATION: Handle various return formats
+            count = 0
+            found_bridges = []
+            
+            if scanner_result is None:
+                count = 0
+                found_bridges = []
+            elif isinstance(scanner_result, tuple) and len(scanner_result) == 2:
+                # Could be (list, int) or (int, list)
+                if isinstance(scanner_result[0], (list, tuple)) and isinstance(scanner_result[1], int):
+                    found_bridges, count = scanner_result[0], scanner_result[1]
+                elif isinstance(scanner_result[0], int) and isinstance(scanner_result[1], (list, tuple)):
+                    count, found_bridges = scanner_result[0], scanner_result[1]
+                else:
+                    # Fallback: treat first as bridges
+                    found_bridges = scanner_result[0] if isinstance(scanner_result[0], (list, tuple)) else [scanner_result[0]]
+                    count = len(found_bridges)
+            elif isinstance(scanner_result, (list, tuple)):
+                found_bridges = scanner_result
+                count = len(found_bridges)
+            else:
+                # Single object
+                found_bridges = [scanner_result]
+                count = 1
             
             # Process and display results
             if found_bridges and count > 0:
                 for bridge in found_bridges:
-                    # Extract bridge info
-                    name = bridge.get('name', 'N/A')
-                    desc = bridge.get('description', 'N/A')
-                    win_rate = bridge.get('win_rate', 0)
-                    streak = bridge.get('streak', 0)
-                    rate_str = f"{win_rate:.1f}%" if isinstance(win_rate, (int, float)) else str(win_rate)
+                    # NORMALIZE BRIDGE: Handle dict or object with attributes
+                    bridge_dict = bridge if isinstance(bridge, dict) else {}
+                    
+                    # Try various attribute names for name
+                    if isinstance(bridge, dict):
+                        name = bridge.get('name') or bridge.get('normalized_name') or bridge.get('description', 'N/A')
+                    else:
+                        name = getattr(bridge, 'name', None) or getattr(bridge, 'normalized_name', None) or getattr(bridge, 'description', 'N/A')
+                    
+                    # Description
+                    if isinstance(bridge, dict):
+                        desc = bridge.get('description', bridge.get('name', 'N/A'))
+                    else:
+                        desc = getattr(bridge, 'description', getattr(bridge, 'name', 'N/A'))
+                    
+                    # Win rate - handle fraction (0-1), percentage, or list
+                    if isinstance(bridge, dict):
+                        win_rate = bridge.get('win_rate', 0)
+                    else:
+                        win_rate = getattr(bridge, 'win_rate', 0)
+                    
+                    if isinstance(win_rate, (list, tuple)):
+                        # Join list of rates
+                        rate_str = ', '.join([f"{r:.1f}%" if isinstance(r, (int, float)) else str(r) for r in win_rate])
+                    elif isinstance(win_rate, (int, float)):
+                        # Convert fraction to percentage if needed
+                        if 0 < win_rate <= 1:
+                            rate_str = f"{win_rate * 100:.1f}%"
+                        else:
+                            rate_str = f"{win_rate:.1f}%"
+                    else:
+                        rate_str = str(win_rate)
+                    
+                    # Streak - handle int, list, or string
+                    if isinstance(bridge, dict):
+                        streak = bridge.get('streak', 0)
+                    else:
+                        streak = getattr(bridge, 'streak', 0)
+                    
+                    if isinstance(streak, (list, tuple)):
+                        streak_str = ', '.join([str(s) for s in streak])
+                    else:
+                        streak_str = str(streak)
+                    
+                    # Bridge type
+                    if isinstance(bridge, dict):
+                        bridge_type = bridge.get('type', 'UNKNOWN')
+                    else:
+                        bridge_type = getattr(bridge, 'type', 'UNKNOWN')
                     
                     # Add type indicator to name for clarity
-                    bridge_type = bridge.get('type', 'UNKNOWN')
                     type_display = ""
                     if 'DE_MEMORY' in bridge_type or bridge_type == 'DE_MEMORY':
                         type_display = " [BẠC NHỚ]"
@@ -289,25 +369,29 @@ class BridgeScannerTab(ttk.Frame):
                     elif 'DE_DYNAMIC' in bridge_type:
                         type_display = " [ĐỘNG]"
                     
-                    name_with_type = name + type_display
+                    name_with_type = str(name) + type_display
                     
-                    # Add to results table with bridge type info
-                    self.after(0, lambda n=name_with_type, d=desc, r=rate_str, s=streak, bt=bridge_type: 
+                    # FIX: Add to results table with ALL variables captured in default params
+                    self.after(0, lambda n=name_with_type, d=desc, r=rate_str, s=streak_str, bt=bridge_type: 
                         self._add_de_result_to_table(n, d, r, s, bt))
                 
+                # FIX: Capture count in default parameter
                 self.after(0, lambda c=count: messagebox.showinfo(
                     "Quét Cầu Đề", 
                     f"Đã tìm thấy {c} cầu Đề. Xem kết quả bên dưới."
                 ))
             else:
+                # FIX: No closure issue here (no variables), but keep consistent style
                 self.after(0, lambda: messagebox.showinfo(
                     "Quét Cầu Đề", 
                     "Không tìm thấy cầu Đề mới."
                 ))
         except Exception as e:
-            self.after(0, lambda: messagebox.showerror(
+            # FIX: Capture error message in default parameter
+            error_msg = str(e)
+            self.after(0, lambda err=error_msg: messagebox.showerror(
                 "Lỗi Quét Đề",
-                f"Không thể quét cầu Đề:\n{str(e)}"
+                f"Không thể quét cầu Đề:\n{err}"
             ))
     
     def _do_scan_all_lo(self):
@@ -319,15 +403,17 @@ class BridgeScannerTab(ttk.Frame):
     def _process_scan_results(self, results, bridge_type):
         """Xử lý và hiển thị kết quả quét."""
         if not results or len(results) <= 1:  # Chỉ có header
-            self.after(0, lambda: messagebox.showinfo(
+            # FIX: Capture bridge_type in default parameter
+            self.after(0, lambda bt=bridge_type: messagebox.showinfo(
                 "Kết Quả Quét", 
-                f"Không tìm thấy cầu mới loại {bridge_type}."
+                f"Không tìm thấy cầu mới loại {bt}."
             ))
             return
         
         # Skip header row
         for row in results[1:]:
             if len(row) >= 4:  # STT, Tên, Mô tả, Tỷ lệ, Chuỗi
+                # FIX: Already captured correctly with r=row, bt=bridge_type
                 self.after(0, lambda r=row, bt=bridge_type: self._add_result_to_table(r, bt))
     
     def _add_result_to_table(self, row, bridge_type):

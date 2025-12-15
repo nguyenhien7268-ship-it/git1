@@ -424,3 +424,41 @@ def get_current_date() -> str:
         '2024-12-09'
     """
     return datetime.now().strftime("%Y-%m-%d")
+
+# =============================================================================
+# PERFORMANCE METRICS UTILS (V11.3 - Fix Streak Calculation)
+# =============================================================================
+
+def calculate_strict_performance(results_recent_to_past: list) -> dict:
+    """
+    Tính toán chỉ số hiệu suất với chế độ Strict Streak (Dừng khi gặp gãy).
+    Input: List bool [Hôm nay, Hôm qua, Hôm kia...] (Mới -> Cũ)
+    
+    CẢNH BÁO: Dữ liệu đầu vào bắt buộc phải theo thứ tự MỚI NHẤT -> CŨ NHẤT.
+    """
+    streak = 0
+    total_wins = 0
+    is_broken = False
+    total_days = len(results_recent_to_past)
+    
+    for is_win in results_recent_to_past:
+        if is_win:
+            total_wins += 1
+            if not is_broken:
+                streak += 1
+        else:
+            # Đây là điểm mấu chốt: Gặp thua là đánh dấu gãy ngay
+            # Không cộng thêm streak nữa
+            is_broken = True
+            
+    # Tính wins trong 10 ngày gần nhất (đã xếp mới -> cũ nên lấy 10 phần tử đầu)
+    wins_10 = sum(1 for x in results_recent_to_past[:10] if x)
+    
+    win_rate = (total_wins / total_days * 100) if total_days > 0 else 0.0
+    
+    return {
+        "streak": streak,
+        "total_wins": total_wins,
+        "win_rate": win_rate,
+        "wins_10": wins_10
+    }

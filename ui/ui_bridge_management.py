@@ -118,7 +118,7 @@ class BridgeManagementTab(ttk.Frame):
             ).pack(side=tk.LEFT, padx=5)
         
         columns = ("id", "type", "name", "desc", "win_rate_k1n", "win_rate_scan", "status", "pinned", "created_at")
-        self.tree = ttk.Treeview(frame, columns=columns, show="headings", selectmode="browse")
+        self.tree = ttk.Treeview(frame, columns=columns, show="headings", selectmode="extended")
         
         self.tree.heading("id", text="ID")
         self.tree.column("id", width=40, anchor="center")
@@ -405,28 +405,58 @@ class BridgeManagementTab(ttk.Frame):
             messagebox.showerror("Lỗi", f"Không thể cập nhật:\n{msg}")
     
     def _delete_bridge(self):
-        """Xóa cầu đã chọn."""
-        selected = self.tree.focus()
-        if not selected:
-            messagebox.showwarning("Chưa Chọn", "Vui lòng chọn một cầu để xóa.")
+        """Xóa các cầu đã chọn (Hỗ trợ xóa nhiều dòng)."""
+        # 1. Lấy danh sách ID các dòng đang chọn
+        selected_items = self.tree.selection()
+        
+        if not selected_items:
+            messagebox.showwarning("Chưa Chọn", "Vui lòng chọn ít nhất một cầu để xóa.")
             return
         
-        values = self.tree.item(selected, "values")
-        bridge_id = values[0]
-        bridge_name = values[2]  # name is now at index 2 (id, type, name, ...)
-        
-        if not messagebox.askyesno("Xác Nhận", f"Xóa cầu '{bridge_name}'?"):
+        # 2. Xác nhận xóa
+        count = len(selected_items)
+        if count == 1:
+            # Logic cũ: Lấy tên cầu để hỏi cho chi tiết
+            item = selected_items[0]
+            values = self.tree.item(item, "values")
+            # Lưu ý: Cột name trong file này nằm ở index 2 (id, type, name...)
+            bridge_name = values[2] 
+            msg = f"Bạn có chắc muốn xóa cầu '{bridge_name}'?"
+        else:
+            msg = f"Bạn có chắc muốn xóa {count} cầu đã chọn?"
+
+        if not messagebox.askyesno("Xác Nhận", msg):
             return
         
-        success, msg = delete_managed_bridge(bridge_id)
+        # 3. Thực hiện xóa
+        deleted_count = 0
+        errors = []
         
-        if success:
-            messagebox.showinfo("Thành Công", f"Đã xóa cầu: {bridge_name}")
-            self.refresh_bridge_list()
+        for item_id in selected_items:
+            # Lấy ID cầu từ cột đầu tiên
+            values = self.tree.item(item_id, "values")
+            bridge_id = values[0]
+            
+            # Gọi hàm xóa
+            success, err_msg = delete_managed_bridge(bridge_id)
+            if success:
+                deleted_count += 1
+            else:
+                errors.append(f"{bridge_id}: {err_msg}")
+        
+        # 4. Thông báo kết quả và làm mới
+        if deleted_count > 0:
+            if errors:
+                messagebox.showwarning("Kết Quả", f"Đã xóa {deleted_count} cầu.\nLỗi {len(errors)} cầu: {errors[0]}...")
+            else:
+                messagebox.showinfo("Thành Công", f"Đã xóa thành công {deleted_count} cầu.")
+            
+            # Reset form và reload bảng
             self.name_entry.delete(0, tk.END)
             self.desc_entry.delete(0, tk.END)
-        else:
-            messagebox.showerror("Lỗi", f"Không thể xóa:\n{msg}")
+            self.refresh_bridge_list()
+        elif errors:
+            messagebox.showerror("Lỗi", f"Không xóa được cầu nào.\nLỗi: {errors[0]}")
     
     def _toggle_pin(self):
         """Ghim/Bỏ ghim cầu."""

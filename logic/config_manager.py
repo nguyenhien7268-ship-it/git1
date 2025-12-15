@@ -64,7 +64,9 @@ class ConfigManager:
         self._initialized = True
 
     def load_settings(self):
-        """Tải cài đặt từ file JSON, merge với mặc định."""
+        """Tải cài đặt từ file JSON, merge với mặc định, với tính năng Self-Healing."""
+        needs_healing = False
+        
         if os.path.exists(self.config_file):
             try:
                 with open(self.config_file, 'r', encoding='utf-8') as f:
@@ -79,6 +81,27 @@ class ConfigManager:
                 print(f"Lỗi tải config: {e}. Sử dụng mặc định.")
         else:
             print(f"Chưa có file {self.config_file}, sẽ tạo mới khi lưu.")
+            needs_healing = True
+        
+        # [NEW V8.0] Self-Healing: Check for missing dual-config structure
+        if 'lo_config' not in self.settings:
+            print("⚠️  Self-Healing: Missing 'lo_config', adding defaults...")
+            self.settings['lo_config'] = DEFAULT_SETTINGS['lo_config'].copy()
+            needs_healing = True
+        
+        if 'de_config' not in self.settings:
+            print("⚠️  Self-Healing: Missing 'de_config', adding defaults...")
+            self.settings['de_config'] = DEFAULT_SETTINGS['de_config'].copy()
+            needs_healing = True
+        
+        # Auto-save if healing was needed
+        if needs_healing:
+            print("💾 Self-Healing: Saving updated config with missing keys...")
+            success, msg = self.save_settings()
+            if success:
+                print("✅ Self-Healing: Config auto-saved successfully")
+            else:
+                print(f"❌ Self-Healing: Failed to save config: {msg}")
         
         # Cập nhật attribute access (để dùng SETTINGS.KEY)
         self._update_attributes()
@@ -163,3 +186,6 @@ except Exception as e:
 
     SETTINGS = FallbackSettings()
     print("-> Đã kích hoạt chế độ Fallback Settings (Sử dụng Default).")
+
+# Backward compatibility alias
+AppSettings = ConfigManager

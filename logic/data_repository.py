@@ -295,3 +295,90 @@ def get_bridge_by_name(bridge_name, db_name=DB_NAME):
         return None
     finally:
         if conn: conn.close()
+
+
+def delete_managed_bridges_batch(
+    names: list,
+    db_name: str = None,
+    transactional: bool = False,
+    chunk_size: int = 500,
+) -> dict:
+    """
+    Delete bridges by name in batch.
+
+    Args:
+        names: list of bridge names (strings)
+        db_name: path to sqlite DB
+        transactional: if True try to delete all in a single transaction (may lock)
+        chunk_size: when not transactional, delete in chunks of this size
+
+    Returns:
+        dict: {
+            "requested": int,
+            "deleted": [names...],
+            "missing": [names...],
+            "failed": [{"name": name, "error": str}],
+        }
+    """
+    if db_name is None:
+        db_name = DB_NAME
+
+    result = {"requested": len(names), "deleted": [], "missing": [], "failed": []}
+    if not names:
+        return result
+
+    # Normalize unique names preserving order
+    unique_names = list(dict.fromkeys(names))
+
+    def _select_existing(cursor, chunk):
+        placeholders = ",".join("?" for _ in chunk)
+        cursor.execute(f"SELECT name FROM ManagedBridges WHERE name IN ({placeholders})", chunk)
+        return {row[0] for row in cursor.fetchall()}
+
+    try:
+        conn = sqlite3.connect(db_name, timeout=30)
+        cur = conn.cursor()
+
+        if transactional:
+            try:
+                conn.execute("BEGIN")
+                existing = _select_existing(cur, unique_names)
+                missing = [n for n in unique_names if n not in existing]
+                if existing:
+                    placeholders = ",".join("?" for _ in unique_names)
+                    cur.execute(f"DELETE FROM ManagedBridges WHERE name IN ({placeholders})", unique_names)
+                conn.commit()
+                result["deleted"] = list(existing)
+                result["missing"] = missing
+            except Exception as e:
+                conn.rollback()
+                result["failed"].append({"error": str(e)})
+            finally:
+                conn.close()
+            return result
+
+        # Best-effort chunked deletes
+        existing = set()
+        for i in range(0, len(unique_names), chunk_size):
+            chunk = unique_names[i : i + chunk_size]
+            existing.update(_select_existing(cur, chunk))
+        result["missing"] = [n for n in unique_names if n not in existing]
+
+        # Delete existing in chunks
+        for i in range(0, len(unique_names), chunk_size):
+            chunk = [n for n in unique_names[i : i + chunk_size] if n in existing]
+            if not chunk:
+                continue
+            try:
+                placeholders = ",".join("?" for _ in chunk)
+                cur.execute(f"DELETE FROM ManagedBridges WHERE name IN ({placeholders})", chunk)
+                conn.commit()
+                result["deleted"].extend(chunk)
+            except Exception as e:
+                conn.rollback()
+                for n in chunk:
+                    result["failed"].append({"name": n, "error": str(e)})
+        conn.close()
+    except Exception as e_outer:
+        result["failed"].append({"error": str(e_outer)})
+    return result
