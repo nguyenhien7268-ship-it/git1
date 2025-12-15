@@ -26,6 +26,8 @@ DEFAULT_SETTINGS = {
     "RECENT_FORM_MIN_HIGH": 8,
     "RECENT_FORM_MIN_MED": 6,
     "RECENT_FORM_MIN_LOW": 5,
+    "DASHBOARD_MIN_RECENT_WINS": 9,  # Lo Dashboard filter: Show bridges with >= 9/10 recent wins
+    "DE_DASHBOARD_MIN_RECENT_WINS": 9,  # De Dashboard filter: Show bridges with >= 9/10 recent wins
     "DATA_LIMIT_DASHBOARD": 1000, # 0 = All
     "DATA_LIMIT_RESEARCH": 0,     # 0 = All
     "DATA_LIMIT_SCANNER": 500,    # Giới hạn số kỳ khi Dò Cầu Mới (0 = Full)
@@ -64,6 +66,9 @@ DEFAULT_SETTINGS = {
     # Chạm Thông Consecutive Requirement (V11.1)
     "CHAM_THONG_MIN_CONSEC": 8,        # Minimum consecutive matches at end for "chạm thông"
     
+    # [NEW V8.0] Bridge Classification Indicators
+    "DE_BRIDGE_INDICATORS": ["DE_", "Đề", "de_", "đề"],  # Indicators for De bridges
+    
     # K2N Cache Control (V10.7)
     "K2N_CACHE_LO_ENABLED": True,      # Enable K2N cache refresh for LO bridges
     "K2N_CACHE_DE_ENABLED": True,      # Enable K2N cache refresh for DE bridges
@@ -84,6 +89,17 @@ DEFAULT_SETTINGS = {
     # Combined policy weights (when POLICY_TYPE='combined')
     "WEIGHT_K1N": 0.6,                 # Weight for K1N in combined score
     "WEIGHT_K2N": 0.4,                 # Weight for K2N in combined score
+    
+    # [NEW V8.0] Dual-Config Architecture (Lô/Đề)
+    # Separate thresholds for Lo and De bridges
+    "lo_config": {
+        "remove_threshold": 43.0,      # Tắt cầu Lô khi tỷ lệ < 43%
+        "add_threshold": 45.0,         # Bật lại cầu Lô khi tỷ lệ >= 45%
+    },
+    "de_config": {
+        "remove_threshold": 80.0,      # Tắt cầu Đề khi tỷ lệ < 80%
+        "add_threshold": 88.0,         # Bật lại cầu Đề khi tỷ lệ >= 88%
+    },
 }
 
 # Database Paths

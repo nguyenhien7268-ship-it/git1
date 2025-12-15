@@ -284,19 +284,42 @@ class UiDeDashboard(ttk.Frame):
         bridges = []
         if HAS_DB_LOADER:
             try:
+                # Get min recent wins threshold from config
+                try:
+                    config_mgr = ConfigManager.get_instance()
+                    min_recent_wins = config_mgr.get_config("DE_DASHBOARD_MIN_RECENT_WINS", 9)
+                except:
+                    min_recent_wins = 9  # Safe fallback
+                
                 # Lấy tất cả cầu (có thể lẫn cả Lô)
                 all_bridges = get_cau_dong_for_tab_soi_cau_de()
                 
                 # [FIX] LỌC CHỈ LẤY CẦU ĐỀ (DE)
                 # Loại bỏ các cầu bắt đầu bằng LO_ hoặc không phải loại Đề
-                bridges = [
+                de_bridges = [
                     b for b in all_bridges 
                     if str(b.get('type', '')).upper().startswith(('DE_', 'CAU_DE')) 
                     or "Đề" in str(b.get('name', ''))
                     or "DE" in str(b.get('name', '')).upper()
                 ]
                 
-                print(f"[UI] Loaded {len(bridges)} DE bridges from DB (Filtered from {len(all_bridges)})")
+                # [NEW V8.2] Apply smart filtering: Only show ENABLED bridges with high recent form
+                bridges = []
+                for b in de_bridges:
+                    # Parse values safely (handle both int and string)
+                    recent_wins = b.get("recent_win_count_10", 0)
+                    if isinstance(recent_wins, str):
+                        recent_wins = int(recent_wins) if recent_wins.isdigit() else 0
+                    
+                    is_enabled = b.get("is_enabled", 0)
+                    if isinstance(is_enabled, str):
+                        is_enabled = int(is_enabled) if is_enabled.isdigit() else 0
+                    
+                    # Filter: Must be ENABLED + Recent form >= threshold
+                    if is_enabled == 1 and recent_wins >= min_recent_wins:
+                        bridges.append(b)
+                
+                print(f"[UI] DE dashboard: loaded {len(all_bridges)} total, {len(de_bridges)} DE-type, {len(bridges)} shown (>={min_recent_wins} & enabled)")
             except Exception as e:
                 print(f"[UI ERROR] Failed to load bridges from DB: {e}")
                 # Fallback to scanner if DB load fails
@@ -341,7 +364,15 @@ class UiDeDashboard(ttk.Frame):
                         break
                     except ValueError: continue
         except: pass
-        self.lbl_ky_pred.config(text=f"KỲ: {next_ky_str}")
+        
+        # [V8.2] Add filter badge to KY label
+        try:
+            config_mgr = ConfigManager.get_instance()
+            min_recent_wins = config_mgr.get_config("DE_DASHBOARD_MIN_RECENT_WINS", 9)
+        except:
+            min_recent_wins = 9
+        
+        self.lbl_ky_pred.config(text=f"KỲ: {next_ky_str} (Hiển thị: Đề ≥{min_recent_wins}/10, Đang Bật)")
         self.lbl_date_pred.config(text=f"NGÀY: {next_date_str}")
         
         # 2. Update Stats (Left Tabs)
