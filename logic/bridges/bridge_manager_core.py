@@ -72,8 +72,14 @@ def is_de_bridge(bridge):
     Returns:
         bool: True if it's a De bridge, False if it's a Lo bridge
     """
-    bridge_name = bridge.get('name', '')
-    bridge_type = bridge.get('type', '')
+    bridge_name = bridge.get('name', '') or ''
+    bridge_type = bridge.get('type', '') or ''
+    
+    # Ensure strings (handle None, int, list, etc.)
+    if not isinstance(bridge_name, str):
+        bridge_name = str(bridge_name) if bridge_name else ''
+    if not isinstance(bridge_type, str):
+        bridge_type = str(bridge_type) if bridge_type else ''
     
     # Get De indicators from constants (with fallback)
     try:
