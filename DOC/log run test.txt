@@ -1,390 +1,632 @@
-===================================== test session starts ======================================
-platform win32 -- Python 3.14.0, pytest-9.0.1, pluggy-1.6.0 -- C:\Users\KAKA\AppData\Local\Programs\Python\Python314\python.exe
-cachedir: .pytest_cache
-rootdir: C:\Users\KAKA\Documents\27loto\CODE5\git1
-configfile: pytest.ini
-plugins: anyio-4.11.0, cov-7.0.0
-collected 293 items
+[DEBUG de_utils] BO_SO_DE initialized successfully: 15 sets (Standardized)
 
-tests/test_auto_manage_integration.py::test_auto_manage_uses_prune_threshold PASSED       [  0%]
-tests/test_auto_manage_integration.py::test_old_vs_new_logic PASSED                       [  0%]
-tests/test_auto_manage_integration.py::test_add_threshold_still_used_for_discovery PASSED [  1%]
-tests/test_auto_manage_integration.py::test_thresholds_purpose_documented PASSED          [  1%]
-tests/test_auto_manage_integration.py::test_no_gap_in_management PASSED                   [  1%]
-tests/test_auto_manage_integration.py::test_integrated_functionality PASSED               [  2%]
-tests/test_auto_manage_integration.py::test_config_values PASSED                          [  2%]
-tests/test_backtest_routing.py::test_backtest_functions_are_importable PASSED             [  2%]
-tests/test_backtest_routing.py::test_backtest_function_signatures PASSED                  [  3%]
-tests/test_backtest_routing.py::test_backtest_routing_logic PASSED                        [  3%]
-tests/test_backtester_helpers_unit.py::TestValidateBacktestParams::test_valid_params PASSED [  3%]
-tests/test_backtester_helpers_unit.py::TestValidateBacktestParams::test_missing_params PASSED [  4%]
-tests/test_backtester_helpers_unit.py::TestValidateBacktestParams::test_invalid_start_row PASSED [  4%]
-tests/test_backtester_helpers_unit.py::TestValidateBacktestParams::test_start_greater_than_end PASSED [  4%]
-tests/test_backtester_helpers_unit.py::TestValidateBacktestParams::test_non_numeric_params PASSED [  5%]
-tests/test_backtester_helpers_unit.py::TestValidateBacktestParams::test_end_exceeds_data_length PASSED [  5%]
-tests/test_backtester_helpers_unit.py::TestValidateBacktestParams::test_insufficient_data PASSED [  5%]
-tests/test_backtester_helpers_unit.py::TestParseK2NResults::test_empty_results PASSED     [  6%]
-tests/test_backtester_helpers_unit.py::TestParseK2NResults::test_minimal_results PASSED   [  6%]
-tests/test_backtester_helpers_unit.py::TestParseK2NResults::test_full_results_structure PASSED [  6%]
-tests/test_backtester_helpers_unit.py::TestParseK2NResults::test_results_with_n2_status PASSED [  7%]
-tests/test_backtester_helpers_unit.py::TestParseK2NResults::test_results_missing_rows PASSED [  7%]
-tests/test_backtester_helpers_unit.py::TestParseK2NResults::test_results_with_malformed_data PASSED [  7%]
-tests/test_backtester_helpers_unit.py::TestParseK2NResults::test_bridge_name_extraction PASSED [  8%]
-tests/test_basic.py::test_import_main_app PASSED                                          [  8%]
-tests/test_basic.py::test_placeholder PASSED                                              [  8%]
-tests/test_bridges_classic_unit.py::TestBongDuongV30::test_bong_duong_mapping PASSED      [  9%]
-tests/test_bridges_classic_unit.py::TestBongDuongV30::test_get_bong_duong_v30_valid_digit PASSED [  9%]
-tests/test_bridges_classic_unit.py::TestBongDuongV30::test_get_bong_duong_v30_string_input PASSED [  9%]
-tests/test_bridges_classic_unit.py::TestBongDuongV30::test_get_bong_duong_v30_invalid_digit PASSED [ 10%]
-tests/test_bridges_classic_unit.py::TestTaoSTLV30Bong::test_tao_stl_same_digits PASSED    [ 10%]
-tests/test_bridges_classic_unit.py::TestTaoSTLV30Bong::test_tao_stl_different_digits PASSED [ 10%]
-tests/test_bridges_classic_unit.py::TestTaoSTLV30Bong::test_tao_stl_string_input PASSED   [ 11%]
-tests/test_bridges_classic_unit.py::TestTaoSTLV30Bong::test_tao_stl_zero_padding PASSED   [ 11%]
-tests/test_bridges_classic_unit.py::TestGetAllLotoV30::test_get_all_loto_basic PASSED     [ 11%]
-tests/test_bridges_classic_unit.py::TestGetAllLotoV30::test_get_all_loto_empty_values PASSED [ 12%]
-tests/test_bridges_classic_unit.py::TestGetAllLotoV30::test_get_all_loto_single_digit PASSED [ 12%]
-tests/test_bridges_classic_unit.py::TestGetAllLotoV30::test_get_all_loto_invalid_data PASSED [ 12%]
-tests/test_bridges_classic_unit.py::TestCheckHitSetV30K2N::test_check_hit_both_match PASSED [ 13%]
-tests/test_bridges_classic_unit.py::TestCheckHitSetV30K2N::test_check_hit_one_match PASSED [ 13%]
-tests/test_bridges_classic_unit.py::TestCheckHitSetV30K2N::test_check_hit_no_match PASSED [ 13%]
-tests/test_bridges_classic_unit.py::TestCheckHitSetV30K2N::test_check_hit_empty_set PASSED [ 14%]
-tests/test_bridges_classic_unit.py::TestCheckHitSetV30K2N::test_check_hit_invalid_input PASSED [ 14%]
-tests/test_bridges_classic_unit.py::TestBridgeFunctions::test_get_cau1_stl_p5_v30_v5 PASSED [ 15%]
-tests/test_bridges_classic_unit.py::TestBridgeFunctions::test_get_cau1_stl_p5_v30_v5_empty PASSED [ 15%]
-tests/test_bridges_classic_unit.py::TestBridgeFunctions::test_get_cau2_vt1_v30_v5 PASSED  [ 15%]
-tests/test_bridges_classic_unit.py::TestBridgeFunctions::test_get_cau3_vt2_v30_v5 PASSED  [ 16%]
-tests/test_bridges_classic_unit.py::TestBridgeFunctions::test_all_15_bridge_functions_exist PASSED [ 16%]
-tests/test_bridges_classic_unit.py::TestBridgeFunctions::test_all_15_bridge_functions_return_list PASSED [ 16%]
-tests/test_bridges_classic_unit.py::TestBridgeFunctions::test_all_15_bridge_functions_error_handling PASSED [ 17%]
-tests/test_bridges_classic_unit.py::TestCalculateLotoStats::test_calculate_loto_stats_basic PASSED [ 17%]
-tests/test_bridges_classic_unit.py::TestCalculateLotoStats::test_calculate_loto_stats_empty PASSED [ 17%]
-tests/test_bridges_classic_unit.py::TestCalculateLotoStats::test_calculate_loto_stats_invalid PASSED [ 18%]
-tests/test_bridges_classic_unit.py::TestCalculateLotoStats::test_calculate_loto_stats_single_digit PASSED [ 18%]
-tests/test_bridges_v16_unit.py::TestGetDigitsV16::test_get_digits_v16_basic PASSED        [ 18%]
-tests/test_bridges_v16_unit.py::TestGetDigitsV16::test_get_digits_v16_with_non_digits PASSED [ 19%]
-tests/test_bridges_v16_unit.py::TestGetDigitsV16::test_get_digits_v16_empty_string PASSED [ 19%]
-tests/test_bridges_v16_unit.py::TestGetDigitsV16::test_get_digits_v16_none PASSED         [ 19%]
-tests/test_bridges_v16_unit.py::TestGetDigitsV16::test_get_digits_v16_no_digits PASSED    [ 20%]
-tests/test_bridges_v16_unit.py::TestGetDigitsV16::test_get_digits_v16_integer_input PASSED [ 20%]
-tests/test_bridges_v16_unit.py::TestGetAllPositionsV16::test_get_all_positions_v16_basic PASSED [ 20%]
-tests/test_bridges_v16_unit.py::TestGetAllPositionsV16::test_get_all_positions_v16_empty_values PASSED [ 21%]
-tests/test_bridges_v16_unit.py::TestGetAllPositionsV16::test_get_all_positions_v16_partial_data PASSED [ 21%]
-tests/test_bridges_v16_unit.py::TestGetAllPositionsV16::test_get_all_positions_v16_error_handling PASSED [ 21%]
-tests/test_bridges_v16_unit.py::TestGetPositionNameV16::test_get_position_name_v16_gdb PASSED [ 22%]
-tests/test_bridges_v16_unit.py::TestGetPositionNameV16::test_get_position_name_v16_g1 PASSED [ 22%]
-tests/test_bridges_v16_unit.py::TestGetPositionNameV16::test_get_position_name_v16_g2 PASSED [ 22%]
-tests/test_bridges_v16_unit.py::TestGetPositionNameV16::test_get_position_name_v16_g3 PASSED [ 23%]
-tests/test_bridges_v16_unit.py::TestGetPositionNameV16::test_get_position_name_v16_g4 PASSED [ 23%]
-tests/test_bridges_v16_unit.py::TestGetPositionNameV16::test_get_position_name_v16_g5 PASSED [ 23%]
-tests/test_bridges_v16_unit.py::TestGetPositionNameV16::test_get_position_name_v16_g6 PASSED [ 24%]
-tests/test_bridges_v16_unit.py::TestGetPositionNameV16::test_get_position_name_v16_g7 PASSED [ 24%]
-tests/test_bridges_v16_unit.py::TestGetPositionNameV16::test_get_position_name_v16_invalid_index PASSED [ 24%]
-tests/test_bridges_v16_unit.py::TestGetIndexFromNameV16::test_get_index_from_name_v16_gdb PASSED [ 25%]
-tests/test_bridges_v16_unit.py::TestGetIndexFromNameV16::test_get_index_from_name_v16_g1 PASSED [ 25%]
-tests/test_bridges_v16_unit.py::TestGetIndexFromNameV16::test_get_index_from_name_v16_g2 PASSED [ 25%]
-tests/test_bridges_v16_unit.py::TestGetIndexFromNameV16::test_get_index_from_name_v16_g3 PASSED [ 26%]
-tests/test_bridges_v16_unit.py::TestGetIndexFromNameV16::test_get_index_from_name_v16_g4 PASSED [ 26%]
-tests/test_bridges_v16_unit.py::TestGetIndexFromNameV16::test_get_index_from_name_v16_g5 PASSED [ 26%]
-tests/test_bridges_v16_unit.py::TestGetIndexFromNameV16::test_get_index_from_name_v16_g6 PASSED [ 27%]
-tests/test_bridges_v16_unit.py::TestGetIndexFromNameV16::test_get_index_from_name_v16_g7 PASSED [ 27%]
-tests/test_bridges_v16_unit.py::TestGetIndexFromNameV16::test_get_index_from_name_v16_bong PASSED [ 27%]
-tests/test_bridges_v16_unit.py::TestGetIndexFromNameV16::test_get_index_from_name_v16_invalid PASSED [ 28%]
-tests/test_bridges_v16_unit.py::TestGetIndexFromNameV16::test_get_index_from_name_v16_whitespace PASSED [ 28%]
-tests/test_bridges_v16_unit.py::TestGetAllPositionsV17Shadow::test_get_all_positions_v17_shadow_basic PASSED [ 29%]
-tests/test_bridges_v16_unit.py::TestGetAllPositionsV17Shadow::test_get_all_positions_v17_shadow_bong_mapping PASSED [ 29%]
-tests/test_bridges_v16_unit.py::TestGetAllPositionsV17Shadow::test_get_all_positions_v17_shadow_none_handling PASSED [ 29%]
-tests/test_bridges_v16_unit.py::TestGetPositionNameV17Shadow::test_get_position_name_v17_shadow_original PASSED [ 30%]
-tests/test_bridges_v16_unit.py::TestGetPositionNameV17Shadow::test_get_position_name_v17_shadow_bong PASSED [ 30%]
-tests/test_bridges_v16_unit.py::TestGetPositionNameV17Shadow::test_get_position_name_v17_shadow_invalid PASSED [ 30%]
-tests/test_config_manager.py::test_settings_loads_from_config_json PASSED                 [ 31%]
-tests/test_config_manager.py::test_settings_has_ai_parameters PASSED                      [ 31%]
-tests/test_config_manager.py::test_settings_get_method_with_default PASSED                [ 31%]
-tests/test_config_manager.py::test_config_has_k2n_risk_parameters PASSED                  [ 32%]
-tests/test_config_manager.py::TestConfigManagerMethods::test_load_settings_with_existing_file PASSED [ 32%]
-tests/test_config_manager.py::TestConfigManagerMethods::test_load_settings_with_missing_file PASSED [ 32%]
-tests/test_config_manager.py::TestConfigManagerMethods::test_load_settings_with_invalid_json PASSED [ 33%]
-tests/test_config_manager.py::TestConfigManagerMethods::test_save_settings_success PASSED [ 33%]
-tests/test_config_manager.py::TestConfigManagerMethods::test_save_settings_error_handling PASSED [ 33%]
-tests/test_config_manager.py::TestConfigManagerMethods::test_update_setting_success PASSED [ 34%]
-tests/test_config_manager.py::TestConfigManagerMethods::test_update_setting_invalid_key PASSED [ 34%]
-tests/test_config_manager.py::TestConfigManagerMethods::test_update_setting_invalid_value PASSED [ 34%]
-tests/test_config_manager.py::TestConfigManagerMethods::test_get_all_settings PASSED      [ 35%]
-tests/test_config_manager.py::TestConfigManagerMethods::test_update_setting_type_conversion_int PASSED [ 35%]
-tests/test_config_manager.py::TestConfigManagerMethods::test_update_setting_type_conversion_float PASSED [ 35%]
-tests/test_config_manager.py::TestConfigManagerMethods::test_update_setting_type_conversion_string PASSED [ 36%]
-tests/test_constants.py::test_default_settings_exist PASSED                               [ 36%]
-tests/test_constants.py::test_default_settings_has_required_keys PASSED                   [ 36%]
-tests/test_constants.py::test_default_settings_values_are_reasonable PASSED               [ 37%]
-tests/test_constants.py::test_file_upload_constants_defined PASSED                        [ 37%]
-tests/test_db_manager.py::test_setup_database_creates_all_tables PASSED                   [ 37%]
-tests/test_db_manager.py::test_setup_database_creates_indexes PASSED                      [ 38%]
-tests/test_db_manager.py::test_get_results_by_ky_returns_none_for_missing_ky PASSED       [ 38%]
-tests/test_db_manager.py::test_add_managed_bridge_creates_new_record PASSED               [ 38%]
-tests/test_db_manager.py::test_add_duplicate_bridge_fails PASSED                          [ 39%]
-tests/test_db_manager.py::test_managed_bridges_table_has_max_lose_streak_column PASSED    [ 39%]
-tests/test_db_manager.py::test_database_indexes_improve_query_performance PASSED          [ 39%]
-tests/test_db_manager_unit.py::TestSetupDatabase::test_setup_database_creates_tables PASSED [ 40%]
-tests/test_db_manager_unit.py::TestSetupDatabase::test_setup_database_schema PASSED       [ 40%]
-tests/test_db_manager_unit.py::TestManagedBridges::test_add_managed_bridge PASSED         [ 40%]
-tests/test_db_manager_unit.py::TestManagedBridges::test_add_managed_bridge_duplicate PASSED [ 41%]
-tests/test_db_manager_unit.py::TestManagedBridges::test_get_all_managed_bridges PASSED    [ 41%]
-tests/test_db_manager_unit.py::TestManagedBridges::test_update_managed_bridge PASSED      [ 41%]
-tests/test_db_manager_unit.py::TestManagedBridges::test_update_nonexistent_bridge PASSED  [ 42%]
-tests/test_db_manager_unit.py::TestManagedBridges::test_delete_managed_bridge PASSED      [ 42%]
-tests/test_db_manager_unit.py::TestManagedBridges::test_delete_nonexistent_bridge PASSED  [ 43%]
-tests/test_db_manager_unit.py::TestDatabaseQueries::test_get_db_connection PASSED         [ 43%]
-tests/test_db_manager_unit.py::TestDatabaseQueries::test_get_results_by_ky PASSED         [ 43%]
-tests/test_db_manager_unit.py::TestDatabaseQueries::test_get_results_by_ky_not_found PASSED [ 44%]
-tests/test_db_manager_unit.py::TestDatabaseQueries::test_get_all_kys_from_db PASSED       [ 44%]
-tests/test_db_manager_unit.py::TestDatabaseQueries::test_get_all_kys_from_db_empty PASSED [ 44%]
-tests/test_db_manager_unit.py::TestDatabaseQueries::test_delete_ky_from_db PASSED         [ 45%]
-tests/test_db_manager_unit.py::TestDatabaseQueries::test_delete_ky_from_db_not_found PASSED [ 45%]
-tests/test_db_manager_unit.py::TestManagedBridgesAdvanced::test_delete_all_managed_bridges PASSED [ 45%]
-tests/test_db_manager_unit.py::TestManagedBridgesAdvanced::test_upsert_managed_bridge_insert PASSED [ 46%]
-tests/test_db_manager_unit.py::TestManagedBridgesAdvanced::test_upsert_managed_bridge_update PASSED [ 46%]
-tests/test_db_manager_unit.py::TestManagedBridgesAdvanced::test_upsert_managed_bridge_with_pos_indices PASSED [ 46%]
-tests/test_db_manager_unit.py::TestManagedBridgesAdvanced::test_update_bridge_k2n_cache_batch PASSED [ 47%]
-tests/test_db_manager_unit.py::TestManagedBridgesAdvanced::test_update_bridge_k2n_cache_batch_empty PASSED [ 47%]
-tests/test_db_manager_unit.py::TestManagedBridgesAdvanced::test_update_bridge_win_rate_batch PASSED [ 47%]
-tests/test_db_manager_unit.py::TestManagedBridgesAdvanced::test_update_bridge_win_rate_batch_empty PASSED [ 48%]
-tests/test_db_manager_unit.py::TestManagedBridgesAdvanced::test_add_managed_bridge_with_v17_name PASSED [ 48%]
-tests/test_db_manager_unit.py::TestManagedBridgesAdvanced::test_add_managed_bridge_with_memory_name PASSED [ 48%]
-tests/test_delete_ky.py::test_delete_ky_function_exists PASSED                            [ 49%]
-tests/test_delete_ky.py::test_delete_ky_from_database PASSED                              [ 49%]
-tests/test_delete_ky.py::test_delete_nonexistent_ky PASSED                                [ 49%]
-tests/test_delete_ky.py::test_compact_star_display PASSED                                 [ 50%]
-tests/test_memory_bridges.py::test_init_all_756_memory_bridges_creates_correct_count PASSED [ 50%]
-tests/test_memory_bridges.py::test_init_all_756_memory_bridges_creates_correct_format FAILED [ 50%]
-tests/test_memory_bridges.py::test_init_all_756_memory_bridges_default_disabled FAILED    [ 51%]
-tests/test_memory_bridges.py::test_init_all_756_memory_bridges_skips_duplicates FAILED    [ 51%]
-tests/test_memory_bridges.py::test_memory_bridge_parser_tong PASSED                       [ 51%]
-tests/test_memory_bridges.py::test_memory_bridge_parser_hieu PASSED                       [ 52%]
-tests/test_memory_bridges.py::test_calculate_bridge_stl_imported PASSED                   [ 52%]
-tests/test_memory_bridges.py::test_memory_bridge_detection_logic PASSED                   [ 52%]
-tests/test_memory_bridges.py::test_full_integration_memory_bridge_in_database FAILED      [ 53%]
-tests/test_memory_bridges.py::test_progress_callback_is_called FAILED                     [ 53%]
-tests/test_memory_bridges.py::test_init_all_756_memory_bridges_with_enable_all FAILED     [ 53%]
-tests/test_phase2_features.py::test_calculate_win_rate_stddev_basic PASSED                [ 54%]
-tests/test_phase2_features.py::test_calculate_win_rate_stddev_empty_data PASSED           [ 54%]
-tests/test_phase2_features.py::test_calculate_win_rate_stddev_with_periods PASSED         [ 54%]
-tests/test_phase2_features.py::test_current_lose_streak_feature_extraction PASSED         [ 55%]
-tests/test_phase2_features.py::test_is_k2n_risk_close_logic PASSED                        [ 55%]
-tests/test_phase2_features.py::test_phase2_features_integration_with_config PASSED        [ 55%]
-tests/test_phase2_features.py::test_stddev_calculation_precision PASSED                   [ 56%]
-tests/test_phase2_features.py::test_multiple_features_coexist PASSED                      [ 56%]
-tests/test_phase2_features.py::test_feature_default_values PASSED                         [ 56%]
-tests/test_phase3_model_optimization.py::test_feature_count_in_training PASSED            [ 57%]
-tests/test_phase3_model_optimization.py::test_phase2_features_included_in_prediction PASSED [ 57%]
-tests/test_phase3_model_optimization.py::test_feature_names_defined PASSED                [ 58%]
-tests/test_phase3_model_optimization.py::test_hyperparameter_tuning_parameter PASSED      [ 58%]
-tests/test_phase3_model_optimization.py::test_config_integration_for_hyperparameters PASSED [ 58%]
-tests/test_phase3_model_optimization.py::test_feature_importance_structure PASSED         [ 59%]
-tests/test_phase3_model_optimization.py::test_model_paths_defined PASSED                  [ 59%]
-tests/test_phase3_model_optimization.py::test_phase3_feature_defaults PASSED              [ 59%]
-tests/test_phase3_model_optimization.py::test_cross_validation_imports PASSED             [ 60%]
-tests/test_recent_appearance_bonus.py::test_vote_weight_reduced FAILED                    [ 60%]
-tests/test_recent_appearance_bonus.py::test_filter_thresholds_increased PASSED            [ 60%]
-tests/test_recent_appearance_bonus.py::test_recent_appearance_bonus_logic PASSED          [ 61%]
-tests/test_recent_appearance_bonus.py::test_get_top_scored_pairs_accepts_recent_data PASSED [ 61%]
-tests/test_recent_appearance_bonus.py::test_recent_appearance_bonus_integration PASSED    [ 61%]
-tests/test_recent_appearance_bonus.py::test_improvements_documented PASSED                [ 62%]
-tests/test_recent_appearance_bonus.py::test_enhanced_filtering_explanation PASSED         [ 62%]
-tests/test_recent_appearance_bonus.py::test_recent_bonus_priority PASSED                  [ 62%]
-tests/test_recent_appearance_bonus.py::test_vote_weight_impact PASSED                     [ 63%]
-tests/test_recent_form_integration.py::test_recent_form_params_in_config_manager PASSED   [ 63%]
-tests/test_recent_form_integration.py::test_tuner_has_recent_form_params PASSED           [ 63%]
-tests/test_recent_form_integration.py::test_optimizer_has_recent_form_params PASSED       [ 64%]
-tests/test_recent_form_integration.py::test_recent_form_params_have_correct_defaults PASSED [ 64%]
-tests/test_recommendation_system.py::test_recommendation_choi_high_score_high_confidence PASSED [ 64%]
-tests/test_recommendation_system.py::test_recommendation_choi_boundary_conditions PASSED  [ 65%]
-tests/test_recommendation_system.py::test_recommendation_xem_xet_high_score_only PASSED   [ 65%]
-tests/test_recommendation_system.py::test_recommendation_xem_xet_high_confidence_only PASSED [ 65%]
-tests/test_recommendation_system.py::test_recommendation_xem_xet_boundary_conditions PASSED [ 66%]
-tests/test_recommendation_system.py::test_recommendation_bo_qua_low_values PASSED         [ 66%]
-tests/test_recommendation_system.py::test_recommendation_bo_qua_boundary_conditions PASSED [ 66%]
-tests/test_recommendation_system.py::test_recommendation_edge_case_high_score_low_confidence PASSED [ 67%]
-tests/test_recommendation_system.py::test_recommendation_edge_case_low_score_high_confidence PASSED [ 67%]
-tests/test_recommendation_system.py::test_recommendation_integration_with_dashboard_analytics PASSED [ 67%]
-tests/test_recommendation_system.py::test_recommendation_zero_values PASSED               [ 68%]
-tests/test_recommendation_system.py::test_recommendation_all_categories_are_mutually_exclusive PASSED [ 68%]
-tests/test_scoring_functions.py::test_k2n_penalty_calculation_single_bridge PASSED        [ 68%]
-tests/test_scoring_functions.py::test_k2n_penalty_not_applied_below_threshold PASSED      [ 69%]
-tests/test_scoring_functions.py::test_k2n_penalty_multiple_bridges_same_pair PASSED       [ 69%]
-tests/test_scoring_functions.py::test_recent_form_bonus_high_tier PASSED                  [ 69%]
-tests/test_scoring_functions.py::test_recent_form_bonus_medium_tier PASSED                [ 70%]
-tests/test_scoring_functions.py::test_recent_form_bonus_low_tier PASSED                   [ 70%]
-tests/test_scoring_functions.py::test_recent_form_no_bonus_below_threshold PASSED         [ 70%]
-tests/test_scoring_functions.py::test_recent_form_bonus_multiple_bridges_aggregation PASSED [ 71%]
-tests/test_scoring_functions.py::test_config_parameters_loaded_correctly PASSED           [ 71%]
-tests/test_scoring_functions.py::test_config_parameters_phase0_values PASSED              [ 72%]
-tests/test_scoring_functions.py::test_recent_form_threshold_ordering PASSED               [ 72%]
-tests/test_scoring_functions.py::test_recent_form_bonus_ordering PASSED                   [ 72%]
-tests/test_scoring_functions.py::test_backtester_scoring_functions PASSED                 [ 73%]
-tests/test_scoring_functions.py::test_ai_score_weight_impact PASSED                       [ 73%]
-tests/test_smart_filtering.py::test_filter_settings_defaults PASSED                       [ 73%]
-tests/test_smart_filtering.py::test_filter_settings_in_get_all_settings PASSED            [ 74%]
-tests/test_smart_filtering.py::test_filter_disabled_returns_all PASSED                    [ 74%]
-tests/test_smart_filtering.py::test_filter_by_confidence_only PASSED                      [ 74%]
-tests/test_smart_filtering.py::test_filter_by_ai_probability_only PASSED                  [ 75%]
-tests/test_smart_filtering.py::test_filter_by_both_confidence_and_ai PASSED               [ 75%]
-tests/test_smart_filtering.py::test_filter_boundary_confidence PASSED                     [ 75%]
-tests/test_smart_filtering.py::test_filter_boundary_ai_probability PASSED                 [ 76%]
-tests/test_smart_filtering.py::test_filter_empty_list PASSED                              [ 76%]
-tests/test_smart_filtering.py::test_filter_missing_fields PASSED                          [ 76%]
-tests/test_smart_filtering.py::test_filter_high_thresholds_filters_most PASSED            [ 77%]
-tests/test_smart_filtering.py::test_config_manager_update_filter_settings PASSED          [ 77%]
-tests/test_ui_main_window.py::test_update_output_method_exists PASSED                     [ 77%]
-tests/test_ui_main_window.py::test_update_output_calls_logger PASSED                      [ 78%]
-tests/test_utils_unit.py::TestBongDuongV30Utils::test_bong_duong_mapping PASSED           [ 78%]
-tests/test_utils_unit.py::TestBongDuongV30Utils::test_get_bong_duong_v30 PASSED           [ 78%]
-tests/test_utils_unit.py::TestTaoSTLV30BongUtils::test_tao_stl_same_digits PASSED         [ 79%]
-tests/test_utils_unit.py::TestTaoSTLV30BongUtils::test_tao_stl_different_digits PASSED    [ 79%]
-tests/test_utils_unit.py::TestTaoSTLV30BongUtils::test_tao_stl_format PASSED              [ 79%]
-tests/test_utils_unit.py::TestGetAllLotoV30Utils::test_get_all_loto_v30_basic PASSED      [ 80%]
-tests/test_utils_unit.py::TestGetAllLotoV30Utils::test_get_all_loto_v30_empty_row PASSED  [ 80%]
-tests/test_utils_unit.py::TestGetAllLotoV30Utils::test_get_all_loto_v30_filters_invalid PASSED [ 80%]
-tests/test_utils_unit.py::TestGetAllLotoV30Utils::test_get_all_loto_v30_comma_separated PASSED [ 81%]
-tests/test_utils_unit.py::TestGetAllLotoV30Utils::test_get_all_loto_v30_error_handling PASSED [ 81%]
-tests/test_utils_unit.py::TestCheckHitSetV30K2NUtils::test_check_hit_both_match PASSED    [ 81%]
-tests/test_utils_unit.py::TestCheckHitSetV30K2NUtils::test_check_hit_one_match PASSED     [ 82%]
-tests/test_utils_unit.py::TestCheckHitSetV30K2NUtils::test_check_hit_no_match PASSED      [ 82%]
-tests/test_utils_unit.py::TestCheckHitSetV30K2NUtils::test_check_hit_empty_set PASSED     [ 82%]
-tests/test_utils_unit.py::TestCheckHitSetV30K2NUtils::test_check_hit_list_input PASSED    [ 83%]
-tests/test_utils_unit.py::TestCheckHitSetV30K2NUtils::test_check_hit_error_handling PASSED [ 83%]
-tests/test_utils_unit.py::TestCheckHitSetV30K2NUtils::test_check_hit_invalid_stl_pair PASSED [ 83%]
-tests/test_v77_phase2_features.py::test_f13_hit_in_last_3_days_feature_exists PASSED      [ 84%]
-tests/test_v77_phase2_features.py::test_f13_logic_binary_values PASSED                    [ 84%]
-tests/test_v77_phase2_features.py::test_f14_change_in_gan_calculation PASSED              [ 84%]
-tests/test_v77_phase2_features.py::test_f14_change_logic PASSED                           [ 85%]
-tests/test_v77_phase2_features.py::test_feature_count_is_14 PASSED                        [ 85%]
-tests/test_v77_phase2_features.py::test_feature_names_list_has_14_items PASSED            [ 86%]
-tests/test_v77_phase2_features.py::test_f13_default_value PASSED                          [ 86%]
-tests/test_v77_phase2_features.py::test_f14_integration_in_training PASSED                [ 86%]
-tests/test_validators.py::test_validation_error_is_exception PASSED                       [ 87%]
-tests/test_validators.py::test_validate_file_upload_accepts_valid_txt PASSED              [ 87%]
-tests/test_validators.py::test_validate_file_upload_accepts_valid_json PASSED             [ 87%]
-tests/test_validators.py::test_validate_file_upload_rejects_invalid_extension PASSED      [ 88%]
-tests/test_validators.py::test_validate_file_upload_checks_content_size PASSED            [ 88%]
-tests/test_validators.py::test_validate_file_upload_checks_line_count PASSED              [ 88%]
-tests/test_validators.py::test_validate_config_value_accepts_valid_stats_days PASSED      [ 89%]
-tests/test_validators.py::test_validate_config_value_converts_string_to_int PASSED        [ 89%]
-tests/test_validators.py::test_validate_config_value_rejects_out_of_range PASSED          [ 89%]
-tests/test_validators.py::test_validate_config_value_rejects_invalid_type PASSED          [ 90%]
-tests/test_validators.py::test_validate_config_value_rejects_unknown_key PASSED           [ 90%]
-tests/test_validators.py::test_validate_config_dict_validates_all_keys PASSED             [ 90%]
-tests/test_validators.py::test_validate_config_dict_rejects_invalid_values PASSED         [ 91%]
-tests/test_validators_unit.py::TestValidateFileUpload::test_valid_txt_file PASSED         [ 91%]
-tests/test_validators_unit.py::TestValidateFileUpload::test_valid_json_file PASSED        [ 91%]
-tests/test_validators_unit.py::TestValidateFileUpload::test_invalid_extension PASSED      [ 92%]
-tests/test_validators_unit.py::TestValidateFileUpload::test_file_too_large PASSED         [ 92%]
-tests/test_validators_unit.py::TestValidateFileUpload::test_content_too_large PASSED      [ 92%]
-tests/test_validators_unit.py::TestValidateFileUpload::test_too_many_lines PASSED         [ 93%]
-tests/test_validators_unit.py::TestValidateConfigValue::test_valid_stats_days PASSED      [ 93%]
-tests/test_validators_unit.py::TestValidateConfigValue::test_stats_days_too_low PASSED    [ 93%]
-tests/test_validators_unit.py::TestValidateConfigValue::test_stats_days_too_high PASSED   [ 94%]
-tests/test_validators_unit.py::TestValidateConfigValue::test_valid_gan_days PASSED        [ 94%]
-tests/test_validators_unit.py::TestValidateConfigValue::test_gan_days_out_of_range PASSED [ 94%]
-tests/test_validators_unit.py::TestValidateConfigValue::test_valid_high_win_threshold PASSED [ 95%]
-tests/test_validators_unit.py::TestValidateConfigValue::test_high_win_threshold_out_of_range PASSED [ 95%]
-tests/test_validators_unit.py::TestValidateConfigValue::test_type_conversion_int PASSED   [ 95%]
-tests/test_validators_unit.py::TestValidateConfigValue::test_type_conversion_float PASSED [ 96%]
-tests/test_validators_unit.py::TestValidateConfigValue::test_invalid_type PASSED          [ 96%]
-tests/test_validators_unit.py::TestValidateConfigValue::test_unknown_key PASSED           [ 96%]
-tests/test_validators_unit.py::TestValidateConfigValue::test_ai_learning_rate_valid PASSED [ 97%]
-tests/test_validators_unit.py::TestValidateConfigValue::test_ai_learning_rate_too_low PASSED [ 97%]
-tests/test_validators_unit.py::TestValidateConfigValue::test_ai_learning_rate_too_high PASSED [ 97%]
-tests/test_validators_unit.py::TestValidateConfigValue::test_k2n_risk_start_threshold_valid PASSED [ 98%]
-tests/test_validators_unit.py::TestValidateConfigValue::test_k2n_risk_start_threshold_out_of_range PASSED [ 98%]
-tests/test_validators_unit.py::TestValidateConfigDict::test_valid_config_dict PASSED      [ 98%]
-tests/test_validators_unit.py::TestValidateConfigDict::test_config_dict_with_invalid_value PASSED [ 99%]
-tests/test_validators_unit.py::TestValidateConfigDict::test_config_dict_with_type_conversion PASSED [ 99%]
-tests/test_validators_unit.py::TestValidateConfigDict::test_empty_config_dict PASSED      [100%]
+================================================================================
+🚑 CHẨN ĐOÁN ĐỒNG BỘ DỮ LIỆU CẦU (DB SYNC DIAGNOSTIC)
+================================================================================
+⏳ Đang tải dữ liệu thực tế...
+✅ Đang kiểm tra 306 cầu Đề đang hoạt động...
+----------------------------------------------------------------------------------------------------
+TÊN CẦU                   | DB STREAK  | REAL STREAK  | TRẠNG THÁI      | NGUYÊN NHÂN
+----------------------------------------------------------------------------------------------------
+Lỗi regex: Không thể phân tích 'DE_SET_G3.2.2_G5.5.3'
+DE_SET_G3.2.2_G5.5.3      | 2          | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 2, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_SET_G3.2.4_G3.3.4'
+DE_SET_G3.2.4_G3.3.4      | 2          | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 2, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_SET_G3.2.4_G5.2.3'
+DE_SET_G3.2.4_G5.2.3      | 2          | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 2, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_SET_G3.3.4_G3.4.4'
+DE_SET_G3.3.4_G3.4.4      | 2          | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 2, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_SET_G3.3.4_G5.5.3'
+DE_SET_G3.3.4_G5.5.3      | 2          | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 2, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_SET_G5.1.1_G5.5.3'
+DE_SET_G5.1.1_G5.5.3      | 2          | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 2, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_KILLER_GDB.4_G3.3.3'
+DE_KILLER_GDB.4_G3.3.3    | 30         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 30, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_KILLER_GDB.4_G5.1.3'
+DE_KILLER_GDB.4_G5.1.3    | 30         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 30, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_KILLER_G2.2.3_G4.1.3'
+DE_KILLER_G2.2.3_G4.1.3   | 30         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 30, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_KILLER_G2.2.4_G5.3.0'
+DE_KILLER_G2.2.4_G5.3.0   | 30         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 30, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_KILLER_G3.1.2_G4.4.0'
+DE_KILLER_G3.1.2_G4.4.0   | 30         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 30, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_KILLER_G3.3.4_G5.1.0'
+DE_KILLER_G3.3.4_G5.1.0   | 30         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 30, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_KILLER_G3.5.3_G6.3.1'
+DE_KILLER_G3.5.3_G6.3.1   | 30         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 30, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_KILLER_G4.2.0_G5.2.2'
+DE_KILLER_G4.2.0_G5.2.2   | 30         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 30, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_KILLER_G4.2.1_G6.1.1'
+DE_KILLER_G4.2.1_G6.1.1   | 30         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 30, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_KILLER_G5.5.3_Bong(GDB.3)'
+DE_KILLER_G5.5.3_Bong(GDB.3) | 30         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 30, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_KILLER_G5.6.2_G7.1.0'
+DE_KILLER_G5.6.2_G7.1.0   | 30         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 30, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_KILLER_G1.0_G1.4'
+DE_KILLER_G1.0_G1.4       | 29         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 29, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_KILLER_G1.2_G5.3.3'
+DE_KILLER_G1.2_G5.3.3     | 29         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 29, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_KILLER_G3.4.0_G5.6.0'
+DE_KILLER_G3.4.0_G5.6.0   | 29         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 29, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_KILLER_G3.5.4_G6.1.1'
+DE_KILLER_G3.5.4_G6.1.1   | 29         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 29, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_GDB.0_G4.2.0_K1'
+DE_DYN_GDB.0_G4.2.0_K1    | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_GDB.0_G4.2.0_K6'
+DE_DYN_GDB.0_G4.2.0_K6    | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_GDB.0_G5.1.2_K2'
+DE_DYN_GDB.0_G5.1.2_K2    | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_GDB.0_G5.1.2_K7'
+DE_DYN_GDB.0_G5.1.2_K7    | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_GDB.0_G5.5.1_K4'
+DE_DYN_GDB.0_G5.5.1_K4    | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_GDB.0_G5.5.1_K9'
+DE_DYN_GDB.0_G5.5.1_K9    | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_GDB.0_G5.6.1_K1'
+DE_DYN_GDB.0_G5.6.1_K1    | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_GDB.0_G5.6.1_K6'
+DE_DYN_GDB.0_G5.6.1_K6    | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_GDB.1_G4.2.1_K2'
+DE_DYN_GDB.1_G4.2.1_K2    | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_GDB.1_G4.2.1_K7'
+DE_DYN_GDB.1_G4.2.1_K7    | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_GDB.1_G7.3.0_K3'
+DE_DYN_GDB.1_G7.3.0_K3    | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_GDB.1_G7.3.0_K8'
+DE_DYN_GDB.1_G7.3.0_K8    | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_GDB.2_G3.2.3_K0'
+DE_DYN_GDB.2_G3.2.3_K0    | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_GDB.2_G3.2.3_K5'
+DE_DYN_GDB.2_G3.2.3_K5    | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_GDB.2_G4.1.0_K2'
+DE_DYN_GDB.2_G4.1.0_K2    | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_GDB.2_G4.1.0_K7'
+DE_DYN_GDB.2_G4.1.0_K7    | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_GDB.2_G5.5.2_K4'
+DE_DYN_GDB.2_G5.5.2_K4    | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_GDB.2_G5.5.2_K9'
+DE_DYN_GDB.2_G5.5.2_K9    | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_GDB.3_G1.4_K3'
+DE_DYN_GDB.3_G1.4_K3      | 10         | 3            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 3)
+Lỗi regex: Không thể phân tích 'DE_DYN_GDB.3_G1.4_K8'
+DE_DYN_GDB.3_G1.4_K8      | 10         | 3            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 3)
+Lỗi regex: Không thể phân tích 'DE_DYN_GDB.3_G3.6.0_K0'
+DE_DYN_GDB.3_G3.6.0_K0    | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_GDB.3_G3.6.0_K5'
+DE_DYN_GDB.3_G3.6.0_K5    | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_GDB.3_G4.1.3_K1'
+DE_DYN_GDB.3_G4.1.3_K1    | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_GDB.3_G4.1.3_K6'
+DE_DYN_GDB.3_G4.1.3_K6    | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_GDB.3_G4.2.1_K0'
+DE_DYN_GDB.3_G4.2.1_K0    | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_GDB.3_G4.2.1_K5'
+DE_DYN_GDB.3_G4.2.1_K5    | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_GDB.3_Bong(G1.4)_K3'
+DE_DYN_GDB.3_Bong(G1.4)_K3 | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_GDB.3_Bong(G1.4)_K8'
+DE_DYN_GDB.3_Bong(G1.4)_K8 | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_GDB.4_G2.1.1_K0'
+DE_DYN_GDB.4_G2.1.1_K0    | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_GDB.4_G2.1.1_K5'
+DE_DYN_GDB.4_G2.1.1_K5    | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_GDB.4_G4.2.1_K4'
+DE_DYN_GDB.4_G4.2.1_K4    | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_GDB.4_G4.2.1_K9'
+DE_DYN_GDB.4_G4.2.1_K9    | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_GDB.4_G5.1.3_K1'
+DE_DYN_GDB.4_G5.1.3_K1    | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_GDB.4_G5.1.3_K6'
+DE_DYN_GDB.4_G5.1.3_K6    | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G1.0_G2.1.0_K0'
+DE_DYN_G1.0_G2.1.0_K0     | 10         | 3            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 3)
+Lỗi regex: Không thể phân tích 'DE_DYN_G1.0_G2.1.0_K5'
+DE_DYN_G1.0_G2.1.0_K5     | 10         | 3            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 3)
+Lỗi regex: Không thể phân tích 'DE_DYN_G1.0_G3.3.1_K1'
+DE_DYN_G1.0_G3.3.1_K1     | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G1.0_G3.3.1_K6'
+DE_DYN_G1.0_G3.3.1_K6     | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G1.0_G5.4.3_K3'
+DE_DYN_G1.0_G5.4.3_K3     | 10         | 3            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 3)
+Lỗi regex: Không thể phân tích 'DE_DYN_G1.0_G5.4.3_K8'
+DE_DYN_G1.0_G5.4.3_K8     | 10         | 3            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 3)
+Lỗi regex: Không thể phân tích 'DE_DYN_G1.0_G6.1.2_K1'
+DE_DYN_G1.0_G6.1.2_K1     | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G1.0_G6.1.2_K6'
+DE_DYN_G1.0_G6.1.2_K6     | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G1.2_G4.1.2_K4'
+DE_DYN_G1.2_G4.1.2_K4     | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G1.2_G4.1.2_K9'
+DE_DYN_G1.2_G4.1.2_K9     | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G1.2_G5.1.1_K4'
+DE_DYN_G1.2_G5.1.1_K4     | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G1.2_G5.1.1_K9'
+DE_DYN_G1.2_G5.1.1_K9     | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G1.2_G5.3.3_K2'
+DE_DYN_G1.2_G5.3.3_K2     | 10         | 3            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 3)
+Lỗi regex: Không thể phân tích 'DE_DYN_G1.2_G5.3.3_K7'
+DE_DYN_G1.2_G5.3.3_K7     | 10         | 3            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 3)
+Lỗi regex: Không thể phân tích 'DE_DYN_G1.2_G6.2.1_K4'
+DE_DYN_G1.2_G6.2.1_K4     | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G1.2_G6.2.1_K9'
+DE_DYN_G1.2_G6.2.1_K9     | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G1.2_G7.2.0_K4'
+DE_DYN_G1.2_G7.2.0_K4     | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G1.2_G7.2.0_K9'
+DE_DYN_G1.2_G7.2.0_K9     | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G1.3_G3.5.4_K0'
+DE_DYN_G1.3_G3.5.4_K0     | 10         | 3            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 3)
+Lỗi regex: Không thể phân tích 'DE_DYN_G1.3_G3.5.4_K5'
+DE_DYN_G1.3_G3.5.4_K5     | 10         | 3            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 3)
+Lỗi regex: Không thể phân tích 'DE_DYN_G1.3_G4.3.3_K2'
+DE_DYN_G1.3_G4.3.3_K2     | 10         | 3            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 3)
+Lỗi regex: Không thể phân tích 'DE_DYN_G1.3_G4.3.3_K7'
+DE_DYN_G1.3_G4.3.3_K7     | 10         | 3            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 3)
+Lỗi regex: Không thể phân tích 'DE_DYN_G1.3_G6.2.2_K2'
+DE_DYN_G1.3_G6.2.2_K2     | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G1.3_G6.2.2_K7'
+DE_DYN_G1.3_G6.2.2_K7     | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G1.4_G6.3.2_K3'
+DE_DYN_G1.4_G6.3.2_K3     | 10         | 10           | ❌ LỖI TÊN       | Sai định dạng (Thiếu ngoặc/Format lạ)
+Lỗi regex: Không thể phân tích 'DE_DYN_G1.4_G6.3.2_K8'
+DE_DYN_G1.4_G6.3.2_K8     | 10         | 10           | ❌ LỖI TÊN       | Sai định dạng (Thiếu ngoặc/Format lạ)
+Lỗi regex: Không thể phân tích 'DE_DYN_G1.4_Bong(GDB.3)_K3'
+DE_DYN_G1.4_Bong(GDB.3)_K3 | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G1.4_Bong(GDB.3)_K8'
+DE_DYN_G1.4_Bong(GDB.3)_K8 | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.1.0_G5.3.0_K2'
+DE_DYN_G2.1.0_G5.3.0_K2   | 10         | 3            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 3)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.1.0_G5.3.0_K7'
+DE_DYN_G2.1.0_G5.3.0_K7   | 10         | 3            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 3)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.1.0_Bong(G1.0)_K0'
+DE_DYN_G2.1.0_Bong(G1.0)_K0 | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.1.0_Bong(G1.0)_K5'
+DE_DYN_G2.1.0_Bong(G1.0)_K5 | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.1.1_G3.3.1_K4'
+DE_DYN_G2.1.1_G3.3.1_K4   | 10         | 3            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 3)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.1.1_G3.3.1_K9'
+DE_DYN_G2.1.1_G3.3.1_K9   | 10         | 3            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 3)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.1.1_Bong(GDB.4)_K0'
+DE_DYN_G2.1.1_Bong(GDB.4)_K0 | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.1.1_Bong(GDB.4)_K5'
+DE_DYN_G2.1.1_Bong(GDB.4)_K5 | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.1.2_G3.3.0_K4'
+DE_DYN_G2.1.2_G3.3.0_K4   | 10         | 3            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 3)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.1.2_G3.3.0_K9'
+DE_DYN_G2.1.2_G3.3.0_K9   | 10         | 3            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 3)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.1.3_G5.2.2_K4'
+DE_DYN_G2.1.3_G5.2.2_K4   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.1.3_G5.2.2_K9'
+DE_DYN_G2.1.3_G5.2.2_K9   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.1.4_G2.2.3_K1'
+DE_DYN_G2.1.4_G2.2.3_K1   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.1.4_G2.2.3_K6'
+DE_DYN_G2.1.4_G2.2.3_K6   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.1.4_G5.1.0_K3'
+DE_DYN_G2.1.4_G5.1.0_K3   | 10         | 3            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 3)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.1.4_G5.1.0_K8'
+DE_DYN_G2.1.4_G5.1.0_K8   | 10         | 3            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 3)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.1.4_G6.1.1_K3'
+DE_DYN_G2.1.4_G6.1.1_K3   | 10         | 3            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 3)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.1.4_G6.1.1_K8'
+DE_DYN_G2.1.4_G6.1.1_K8   | 10         | 3            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 3)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.2.0_G4.4.3_K3'
+DE_DYN_G2.2.0_G4.4.3_K3   | 10         | 4            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 4)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.2.0_G4.4.3_K8'
+DE_DYN_G2.2.0_G4.4.3_K8   | 10         | 4            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 4)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.2.1_G3.2.0_K3'
+DE_DYN_G2.2.1_G3.2.0_K3   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.2.1_G3.2.0_K4'
+DE_DYN_G2.2.1_G3.2.0_K4   | 10         | 3            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 3)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.2.1_G3.2.0_K8'
+DE_DYN_G2.2.1_G3.2.0_K8   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.2.1_G3.2.0_K9'
+DE_DYN_G2.2.1_G3.2.0_K9   | 10         | 3            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 3)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.2.1_G5.5.2_K0'
+DE_DYN_G2.2.1_G5.5.2_K0   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.2.1_G5.5.2_K5'
+DE_DYN_G2.2.1_G5.5.2_K5   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.2.2_G3.2.3_K1'
+DE_DYN_G2.2.2_G3.2.3_K1   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.2.2_G3.2.3_K6'
+DE_DYN_G2.2.2_G3.2.3_K6   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.2.2_G5.4.2_K3'
+DE_DYN_G2.2.2_G5.4.2_K3   | 10         | 3            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 3)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.2.2_G5.4.2_K8'
+DE_DYN_G2.2.2_G5.4.2_K8   | 10         | 3            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 3)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.2.4_G5.2.0_K1'
+DE_DYN_G2.2.4_G5.2.0_K1   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.2.4_G5.2.0_K6'
+DE_DYN_G2.2.4_G5.2.0_K6   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.2.4_G5.5.3_K4'
+DE_DYN_G2.2.4_G5.5.3_K4   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.2.4_G5.5.3_K9'
+DE_DYN_G2.2.4_G5.5.3_K9   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.2.4_G7.3.0_K2'
+DE_DYN_G2.2.4_G7.3.0_K2   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G2.2.4_G7.3.0_K7'
+DE_DYN_G2.2.4_G7.3.0_K7   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.1.0_G4.1.3_K0'
+DE_DYN_G3.1.0_G4.1.3_K0   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.1.0_G4.1.3_K5'
+DE_DYN_G3.1.0_G4.1.3_K5   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.1.0_G4.2.1_K4'
+DE_DYN_G3.1.0_G4.2.1_K4   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.1.0_G4.2.1_K9'
+DE_DYN_G3.1.0_G4.2.1_K9   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.1.1_G3.6.2_K0'
+DE_DYN_G3.1.1_G3.6.2_K0   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.1.1_G3.6.2_K5'
+DE_DYN_G3.1.1_G3.6.2_K5   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.1.1_G5.4.3_K2'
+DE_DYN_G3.1.1_G5.4.3_K2   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.1.1_G5.4.3_K7'
+DE_DYN_G3.1.1_G5.4.3_K7   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.1.2_G3.5.3_K0'
+DE_DYN_G3.1.2_G3.5.3_K0   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.1.2_G3.5.3_K5'
+DE_DYN_G3.1.2_G3.5.3_K5   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.1.2_G6.1.2_K0'
+DE_DYN_G3.1.2_G6.1.2_K0   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.1.2_G6.1.2_K5'
+DE_DYN_G3.1.2_G6.1.2_K5   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.1.3_G3.6.1_K4'
+DE_DYN_G3.1.3_G3.6.1_K4   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.1.3_G3.6.1_K9'
+DE_DYN_G3.1.3_G3.6.1_K9   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.1.3_G4.1.3_K0'
+DE_DYN_G3.1.3_G4.1.3_K0   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.1.3_G4.1.3_K5'
+DE_DYN_G3.1.3_G4.1.3_K5   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.1.3_G5.3.0_K3'
+DE_DYN_G3.1.3_G5.3.0_K3   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.1.3_G5.3.0_K8'
+DE_DYN_G3.1.3_G5.3.0_K8   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.1.3_G7.4.1_K4'
+DE_DYN_G3.1.3_G7.4.1_K4   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.1.3_G7.4.1_K9'
+DE_DYN_G3.1.3_G7.4.1_K9   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.1.4_G3.2.2_K2'
+DE_DYN_G3.1.4_G3.2.2_K2   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.1.4_G3.2.2_K7'
+DE_DYN_G3.1.4_G3.2.2_K7   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.1.4_G5.1.0_K0'
+DE_DYN_G3.1.4_G5.1.0_K0   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.1.4_G5.1.0_K5'
+DE_DYN_G3.1.4_G5.1.0_K5   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.1.4_G6.3.2_K1'
+DE_DYN_G3.1.4_G6.3.2_K1   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.1.4_G6.3.2_K6'
+DE_DYN_G3.1.4_G6.3.2_K6   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.2.0_G3.5.0_K4'
+DE_DYN_G3.2.0_G3.5.0_K4   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.2.0_G3.5.0_K9'
+DE_DYN_G3.2.0_G3.5.0_K9   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.2.0_G5.2.2_K0'
+DE_DYN_G3.2.0_G5.2.2_K0   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.2.0_G5.2.2_K5'
+DE_DYN_G3.2.0_G5.2.2_K5   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.2.1_G5.3.1_K1'
+DE_DYN_G3.2.1_G5.3.1_K1   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.2.1_G5.3.1_K6'
+DE_DYN_G3.2.1_G5.3.1_K6   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.2.1_G5.3.3_K3'
+DE_DYN_G3.2.1_G5.3.3_K3   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.2.1_G5.3.3_K8'
+DE_DYN_G3.2.1_G5.3.3_K8   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.2.1_G6.2.1_K0'
+DE_DYN_G3.2.1_G6.2.1_K0   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.2.1_G6.2.1_K5'
+DE_DYN_G3.2.1_G6.2.1_K5   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.2.2_G5.4.1_K0'
+DE_DYN_G3.2.2_G5.4.1_K0   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.2.2_G5.4.1_K5'
+DE_DYN_G3.2.2_G5.4.1_K5   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.2.2_G6.1.0_K1'
+DE_DYN_G3.2.2_G6.1.0_K1   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.2.2_G6.1.0_K6'
+DE_DYN_G3.2.2_G6.1.0_K6   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.2.3_G4.4.3_K4'
+DE_DYN_G3.2.3_G4.4.3_K4   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.2.3_G4.4.3_K9'
+DE_DYN_G3.2.3_G4.4.3_K9   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.2.3_G5.4.2_K0'
+DE_DYN_G3.2.3_G5.4.2_K0   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.2.3_G5.4.2_K5'
+DE_DYN_G3.2.3_G5.4.2_K5   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.2.3_G5.4.3_K1'
+DE_DYN_G3.2.3_G5.4.3_K1   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.2.3_G5.4.3_K6'
+DE_DYN_G3.2.3_G5.4.3_K6   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.2.3_Bong(GDB.2)_K0'
+DE_DYN_G3.2.3_Bong(GDB.2)_K0 | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.2.3_Bong(GDB.2)_K5'
+DE_DYN_G3.2.3_Bong(GDB.2)_K5 | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.2.4_G4.4.0_K3'
+DE_DYN_G3.2.4_G4.4.0_K3   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.2.4_G4.4.0_K8'
+DE_DYN_G3.2.4_G4.4.0_K8   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.3.0_G3.6.4_K0'
+DE_DYN_G3.3.0_G3.6.4_K0   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.3.0_G3.6.4_K5'
+DE_DYN_G3.3.0_G3.6.4_K5   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.3.0_G4.2.0_K2'
+DE_DYN_G3.3.0_G4.2.0_K2   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.3.0_G4.2.0_K7'
+DE_DYN_G3.3.0_G4.2.0_K7   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.3.0_G5.1.2_K3'
+DE_DYN_G3.3.0_G5.1.2_K3   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.3.0_G5.1.2_K8'
+DE_DYN_G3.3.0_G5.1.2_K8   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.3.0_G6.2.0_K4'
+DE_DYN_G3.3.0_G6.2.0_K4   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.3.0_G6.2.0_K9'
+DE_DYN_G3.3.0_G6.2.0_K9   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.3.1_G3.4.4_K1'
+DE_DYN_G3.3.1_G3.4.4_K1   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.3.1_G3.4.4_K6'
+DE_DYN_G3.3.1_G3.4.4_K6   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.3.1_Bong(G1.0)_K1'
+DE_DYN_G3.3.1_Bong(G1.0)_K1 | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.3.1_Bong(G1.0)_K6'
+DE_DYN_G3.3.1_Bong(G1.0)_K6 | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.3.2_G4.1.2_K2'
+DE_DYN_G3.3.2_G4.1.2_K2   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.3.2_G4.1.2_K7'
+DE_DYN_G3.3.2_G4.1.2_K7   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.3.2_G4.3.1_K1'
+DE_DYN_G3.3.2_G4.3.1_K1   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.3.2_G4.3.1_K6'
+DE_DYN_G3.3.2_G4.3.1_K6   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.3.2_G6.1.0_K4'
+DE_DYN_G3.3.2_G6.1.0_K4   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.3.2_G6.1.0_K9'
+DE_DYN_G3.3.2_G6.1.0_K9   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.3.2_G6.2.0_K2'
+DE_DYN_G3.3.2_G6.2.0_K2   | 10         | 3            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 3)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.3.2_G6.2.0_K7'
+DE_DYN_G3.3.2_G6.2.0_K7   | 10         | 3            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 3)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.3.3_G4.2.3_K3'
+DE_DYN_G3.3.3_G4.2.3_K3   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.3.3_G4.2.3_K8'
+DE_DYN_G3.3.3_G4.2.3_K8   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.3.4_G4.2.1_K0'
+DE_DYN_G3.3.4_G4.2.1_K0   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.3.4_G4.2.1_K5'
+DE_DYN_G3.3.4_G4.2.1_K5   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.3.4_G5.5.2_K1'
+DE_DYN_G3.3.4_G5.5.2_K1   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.3.4_G5.5.2_K6'
+DE_DYN_G3.3.4_G5.5.2_K6   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.3.4_G6.2.0_K4'
+DE_DYN_G3.3.4_G6.2.0_K4   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.3.4_G6.2.0_K9'
+DE_DYN_G3.3.4_G6.2.0_K9   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.4.1_G4.2.0_K2'
+DE_DYN_G3.4.1_G4.2.0_K2   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.4.1_G4.2.0_K7'
+DE_DYN_G3.4.1_G4.2.0_K7   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.4.1_G4.3.0_K2'
+DE_DYN_G3.4.1_G4.3.0_K2   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.4.1_G4.3.0_K7'
+DE_DYN_G3.4.1_G4.3.0_K7   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.4.1_G5.1.2_K4'
+DE_DYN_G3.4.1_G5.1.2_K4   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.4.1_G5.1.2_K9'
+DE_DYN_G3.4.1_G5.1.2_K9   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.4.2_G5.2.1_K4'
+DE_DYN_G3.4.2_G5.2.1_K4   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.4.2_G5.2.1_K9'
+DE_DYN_G3.4.2_G5.2.1_K9   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.4.3_G6.3.1_K0'
+DE_DYN_G3.4.3_G6.3.1_K0   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.4.3_G6.3.1_K5'
+DE_DYN_G3.4.3_G6.3.1_K5   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.5.1_G5.6.3_K4'
+DE_DYN_G3.5.1_G5.6.3_K4   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.5.1_G5.6.3_K9'
+DE_DYN_G3.5.1_G5.6.3_K9   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.5.1_G6.3.1_K3'
+DE_DYN_G3.5.1_G6.3.1_K3   | 10         | 3            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 3)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.5.1_G6.3.1_K8'
+DE_DYN_G3.5.1_G6.3.1_K8   | 10         | 3            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 3)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.5.2_G5.1.3_K2'
+DE_DYN_G3.5.2_G5.1.3_K2   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.5.2_G5.1.3_K7'
+DE_DYN_G3.5.2_G5.1.3_K7   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.5.3_G4.1.2_K2'
+DE_DYN_G3.5.3_G4.1.2_K2   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.5.3_G4.1.2_K7'
+DE_DYN_G3.5.3_G4.1.2_K7   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.5.4_G3.6.4_K0'
+DE_DYN_G3.5.4_G3.6.4_K0   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.5.4_G3.6.4_K5'
+DE_DYN_G3.5.4_G3.6.4_K5   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.5.4_Bong(G1.3)_K0'
+DE_DYN_G3.5.4_Bong(G1.3)_K0 | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.5.4_Bong(G1.3)_K5'
+DE_DYN_G3.5.4_Bong(G1.3)_K5 | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.6.0_G5.2.1_K4'
+DE_DYN_G3.6.0_G5.2.1_K4   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.6.0_G5.2.1_K9'
+DE_DYN_G3.6.0_G5.2.1_K9   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.6.0_G7.2.1_K0'
+DE_DYN_G3.6.0_G7.2.1_K0   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.6.0_G7.2.1_K5'
+DE_DYN_G3.6.0_G7.2.1_K5   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.6.0_Bong(GDB.3)_K0'
+DE_DYN_G3.6.0_Bong(GDB.3)_K0 | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.6.0_Bong(GDB.3)_K5'
+DE_DYN_G3.6.0_Bong(GDB.3)_K5 | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.6.1_G4.2.0_K3'
+DE_DYN_G3.6.1_G4.2.0_K3   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.6.1_G4.2.0_K8'
+DE_DYN_G3.6.1_G4.2.0_K8   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.6.2_G4.3.2_K3'
+DE_DYN_G3.6.2_G4.3.2_K3   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.6.2_G4.3.2_K8'
+DE_DYN_G3.6.2_G4.3.2_K8   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.6.2_G5.6.0_K4'
+DE_DYN_G3.6.2_G5.6.0_K4   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.6.2_G5.6.0_K9'
+DE_DYN_G3.6.2_G5.6.0_K9   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.6.2_G6.3.2_K3'
+DE_DYN_G3.6.2_G6.3.2_K3   | 10         | 3            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 3)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.6.2_G6.3.2_K8'
+DE_DYN_G3.6.2_G6.3.2_K8   | 10         | 3            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 3)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.6.3_G4.2.3_K3'
+DE_DYN_G3.6.3_G4.2.3_K3   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.6.3_G4.2.3_K8'
+DE_DYN_G3.6.3_G4.2.3_K8   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.6.3_G4.3.2_K3'
+DE_DYN_G3.6.3_G4.3.2_K3   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.6.3_G4.3.2_K8'
+DE_DYN_G3.6.3_G4.3.2_K8   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.6.3_G5.2.1_K2'
+DE_DYN_G3.6.3_G5.2.1_K2   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.6.3_G5.2.1_K7'
+DE_DYN_G3.6.3_G5.2.1_K7   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.6.4_G4.1.1_K2'
+DE_DYN_G3.6.4_G4.1.1_K2   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.6.4_G4.1.1_K7'
+DE_DYN_G3.6.4_G4.1.1_K7   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.6.4_G5.3.0_K1'
+DE_DYN_G3.6.4_G5.3.0_K1   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G3.6.4_G5.3.0_K6'
+DE_DYN_G3.6.4_G5.3.0_K6   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.1.0_G5.1.0_K1'
+DE_DYN_G4.1.0_G5.1.0_K1   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.1.0_G5.1.0_K6'
+DE_DYN_G4.1.0_G5.1.0_K6   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.1.0_Bong(GDB.2)_K2'
+DE_DYN_G4.1.0_Bong(GDB.2)_K2 | 10         | 8            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 8)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.1.0_Bong(GDB.2)_K7'
+DE_DYN_G4.1.0_Bong(GDB.2)_K7 | 10         | 8            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 8)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.1.1_G5.1.1_K2'
+DE_DYN_G4.1.1_G5.1.1_K2   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.1.1_G5.1.1_K7'
+DE_DYN_G4.1.1_G5.1.1_K7   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.1.1_G7.1.0_K3'
+DE_DYN_G4.1.1_G7.1.0_K3   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.1.1_G7.1.0_K8'
+DE_DYN_G4.1.1_G7.1.0_K8   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.1.2_G5.1.3_K2'
+DE_DYN_G4.1.2_G5.1.3_K2   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.1.2_G5.1.3_K7'
+DE_DYN_G4.1.2_G5.1.3_K7   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.1.2_G5.4.2_K3'
+DE_DYN_G4.1.2_G5.4.2_K3   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.1.2_G5.4.2_K8'
+DE_DYN_G4.1.2_G5.4.2_K8   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.1.2_Bong(G1.2)_K4'
+DE_DYN_G4.1.2_Bong(G1.2)_K4 | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.1.2_Bong(G1.2)_K9'
+DE_DYN_G4.1.2_Bong(G1.2)_K9 | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.1.3_G5.3.2_K2'
+DE_DYN_G4.1.3_G5.3.2_K2   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.1.3_G5.3.2_K7'
+DE_DYN_G4.1.3_G5.3.2_K7   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.1.3_G5.3.3_K3'
+DE_DYN_G4.1.3_G5.3.3_K3   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.1.3_G5.3.3_K8'
+DE_DYN_G4.1.3_G5.3.3_K8   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.1.3_G6.1.1_K4'
+DE_DYN_G4.1.3_G6.1.1_K4   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.1.3_G6.1.1_K9'
+DE_DYN_G4.1.3_G6.1.1_K9   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.1.3_Bong(GDB.3)_K1'
+DE_DYN_G4.1.3_Bong(GDB.3)_K1 | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.1.3_Bong(GDB.3)_K6'
+DE_DYN_G4.1.3_Bong(GDB.3)_K6 | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.2.0_Bong(GDB.0)_K1'
+DE_DYN_G4.2.0_Bong(GDB.0)_K1 | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.2.0_Bong(GDB.0)_K6'
+DE_DYN_G4.2.0_Bong(GDB.0)_K6 | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.2.1_G4.4.2_K3'
+DE_DYN_G4.2.1_G4.4.2_K3   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.2.1_G4.4.2_K8'
+DE_DYN_G4.2.1_G4.4.2_K8   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.2.1_G5.2.2_K1'
+DE_DYN_G4.2.1_G5.2.2_K1   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.2.1_G5.2.2_K6'
+DE_DYN_G4.2.1_G5.2.2_K6   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.2.1_G5.5.0_K2'
+DE_DYN_G4.2.1_G5.5.0_K2   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.2.1_G5.5.0_K7'
+DE_DYN_G4.2.1_G5.5.0_K7   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.2.1_G6.3.2_K0'
+DE_DYN_G4.2.1_G6.3.2_K0   | 10         | 3            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 3)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.2.1_G6.3.2_K5'
+DE_DYN_G4.2.1_G6.3.2_K5   | 10         | 3            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 3)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.2.1_Bong(GDB.1)_K2'
+DE_DYN_G4.2.1_Bong(GDB.1)_K2 | 10         | 8            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 8)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.2.1_Bong(GDB.1)_K7'
+DE_DYN_G4.2.1_Bong(GDB.1)_K7 | 10         | 8            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 8)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.2.1_Bong(GDB.3)_K0'
+DE_DYN_G4.2.1_Bong(GDB.3)_K0 | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.2.1_Bong(GDB.3)_K5'
+DE_DYN_G4.2.1_Bong(GDB.3)_K5 | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.2.1_Bong(GDB.4)_K4'
+DE_DYN_G4.2.1_Bong(GDB.4)_K4 | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.2.1_Bong(GDB.4)_K9'
+DE_DYN_G4.2.1_Bong(GDB.4)_K9 | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.2.2_G5.5.3_K0'
+DE_DYN_G4.2.2_G5.5.3_K0   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.2.2_G5.5.3_K5'
+DE_DYN_G4.2.2_G5.5.3_K5   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.2.3_G4.4.1_K0'
+DE_DYN_G4.2.3_G4.4.1_K0   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.2.3_G4.4.1_K5'
+DE_DYN_G4.2.3_G4.4.1_K5   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.3.0_G5.5.2_K2'
+DE_DYN_G4.3.0_G5.5.2_K2   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.3.0_G5.5.2_K7'
+DE_DYN_G4.3.0_G5.5.2_K7   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.3.3_G4.4.0_K0'
+DE_DYN_G4.3.3_G4.4.0_K0   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.3.3_G4.4.0_K4'
+DE_DYN_G4.3.3_G4.4.0_K4   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.3.3_G4.4.0_K5'
+DE_DYN_G4.3.3_G4.4.0_K5   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.3.3_G4.4.0_K9'
+DE_DYN_G4.3.3_G4.4.0_K9   | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.3.3_G7.3.1_K3'
+DE_DYN_G4.3.3_G7.3.1_K3   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.3.3_G7.3.1_K8'
+DE_DYN_G4.3.3_G7.3.1_K8   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.3.3_Bong(G1.3)_K2'
+DE_DYN_G4.3.3_Bong(G1.3)_K2 | 10         | 8            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 8)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.3.3_Bong(G1.3)_K7'
+DE_DYN_G4.3.3_Bong(G1.3)_K7 | 10         | 8            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 8)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.4.1_G4.4.2_K3'
+DE_DYN_G4.4.1_G4.4.2_K3   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.4.1_G4.4.2_K8'
+DE_DYN_G4.4.1_G4.4.2_K8   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.4.3_G5.2.0_K3'
+DE_DYN_G4.4.3_G5.2.0_K3   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G4.4.3_G5.2.0_K8'
+DE_DYN_G4.4.3_G5.2.0_K8   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G5.1.1_Bong(G1.2)_K4'
+DE_DYN_G5.1.1_Bong(G1.2)_K4 | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G5.1.1_Bong(G1.2)_K9'
+DE_DYN_G5.1.1_Bong(G1.2)_K9 | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+Lỗi regex: Không thể phân tích 'DE_DYN_G5.1.2_G5.6.1_K4'
+DE_DYN_G5.1.2_G5.6.1_K4   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G5.1.2_G5.6.1_K9'
+DE_DYN_G5.1.2_G5.6.1_K9   | 10         | 2            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 2)
+Lỗi regex: Không thể phân tích 'DE_DYN_G5.1.2_Bong(GDB.0)_K2'
+DE_DYN_G5.1.2_Bong(GDB.0)_K2 | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G5.1.2_Bong(GDB.0)_K7'
+DE_DYN_G5.1.2_Bong(GDB.0)_K7 | 10         | 0            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 0)
+Lỗi regex: Không thể phân tích 'DE_DYN_G5.1.3_G5.4.3_K2'
+DE_DYN_G5.1.3_G5.4.3_K2   | 10         | 1            | ⚠️ LỆCH SỐ      | Sai định dạng (Thiếu ngoặc/Format lạ) (DB treo 10, Thực 1)
+----------------------------------------------------------------------------------------------------
+📊 TỔNG KẾT:
+   - Tổng số cầu kiểm tra: 306
+   - Số cầu bị lỗi tên (Unparsable): 306
+   - Số cầu bị lệch dữ liệu (Desync): 304
 
-=========================================== FAILURES ===========================================
-___________________ test_init_all_756_memory_bridges_creates_correct_format ____________________
-tests\test_memory_bridges.py:95: in test_init_all_756_memory_bridges_creates_correct_format
-    os.remove(tmp_db)
-E   PermissionError: [WinError 32] The process cannot access the file because it is being used by another process: 'C:\\Users\\KAKA\\AppData\\Local\\Temp\\tmpo5lfohbg.db'
-------------------------------------- Captured stdout call -------------------------------------
-Đang tạo database indexes...
-✅ Database indexes đã được tạo thành công
-Bắt đầu nạp 756 cầu Bạc Nhớ vào database...
-Đã tạo danh sách 756 cầu Bạc Nhớ.
-Đã nạp thành công 756 cầu Bạc Nhớ mới vào database.
-Bỏ qua 0 cầu đã tồn tại.
-______________________ test_init_all_756_memory_bridges_default_disabled _______________________
-tests\test_memory_bridges.py:122: in test_init_all_756_memory_bridges_default_disabled
-    os.remove(tmp_db)
-E   PermissionError: [WinError 32] The process cannot access the file because it is being used by another process: 'C:\\Users\\KAKA\\AppData\\Local\\Temp\\tmpqyr7wf87.db'
-------------------------------------- Captured stdout call -------------------------------------
-Đang tạo database indexes...
-✅ Database indexes đã được tạo thành công
-Bắt đầu nạp 756 cầu Bạc Nhớ vào database...
-Đã tạo danh sách 756 cầu Bạc Nhớ.
-Đã nạp thành công 756 cầu Bạc Nhớ mới vào database.
-Bỏ qua 0 cầu đã tồn tại.
-______________________ test_init_all_756_memory_bridges_skips_duplicates _______________________
-tests\test_memory_bridges.py:149: in test_init_all_756_memory_bridges_skips_duplicates
-    os.remove(tmp_db)
-E   PermissionError: [WinError 32] The process cannot access the file because it is being used by another process: 'C:\\Users\\KAKA\\AppData\\Local\\Temp\\tmpfbynifrg.db'
-------------------------------------- Captured stdout call -------------------------------------
-Đang tạo database indexes...
-✅ Database indexes đã được tạo thành công
-Bắt đầu nạp 756 cầu Bạc Nhớ vào database...
-Đã tạo danh sách 756 cầu Bạc Nhớ.
-Đã nạp thành công 756 cầu Bạc Nhớ mới vào database.
-Bỏ qua 0 cầu đã tồn tại.
-Bắt đầu nạp 756 cầu Bạc Nhớ vào database...
-Đã tạo danh sách 756 cầu Bạc Nhớ.
-Đã nạp thành công 0 cầu Bạc Nhớ mới vào database.
-Bỏ qua 756 cầu đã tồn tại.
-_______________________ test_full_integration_memory_bridge_in_database ________________________
-tests\test_memory_bridges.py:268: in test_full_integration_memory_bridge_in_database
-    os.remove(tmp_db)
-E   PermissionError: [WinError 32] The process cannot access the file because it is being used by another process: 'C:\\Users\\KAKA\\AppData\\Local\\Temp\\tmpg6tmvk56.db'
-------------------------------------- Captured stdout call -------------------------------------
-Đang tạo database indexes...
-✅ Database indexes đã được tạo thành công
-Bắt đầu nạp 756 cầu Bạc Nhớ vào database...
-Đã tạo danh sách 756 cầu Bạc Nhớ.
-Đã nạp thành công 756 cầu Bạc Nhớ mới vào database.
-Bỏ qua 0 cầu đã tồn tại.
-_______________________________ test_progress_callback_is_called _______________________________
-tests\test_memory_bridges.py:301: in test_progress_callback_is_called
-    os.remove(tmp_db)
-E   PermissionError: [WinError 32] The process cannot access the file because it is being used by another process: 'C:\\Users\\KAKA\\AppData\\Local\\Temp\\tmpwtoh8_vy.db'
-------------------------------------- Captured stdout call -------------------------------------
-Đang tạo database indexes...
-✅ Database indexes đã được tạo thành công
-Bắt đầu nạp 756 cầu Bạc Nhớ vào database...
-Đã tạo danh sách 756 cầu Bạc Nhớ.
-Đã nạp thành công 756 cầu Bạc Nhớ mới vào database.
-Bỏ qua 0 cầu đã tồn tại.
-_______________________ test_init_all_756_memory_bridges_with_enable_all _______________________
-tests\test_memory_bridges.py:334: in test_init_all_756_memory_bridges_with_enable_all
-    os.remove(tmp_db)
-E   PermissionError: [WinError 32] The process cannot access the file because it is being used by another process: 'C:\\Users\\KAKA\\AppData\\Local\\Temp\\tmpej2288xv.db'
-------------------------------------- Captured stdout call -------------------------------------
-Đang tạo database indexes...
-✅ Database indexes đã được tạo thành công
-Bắt đầu nạp 756 cầu Bạc Nhớ vào database...
-Đã tạo danh sách 756 cầu Bạc Nhớ.
-Đã nạp thành công 756 cầu Bạc Nhớ mới vào database.
-Bỏ qua 0 cầu đã tồn tại.
-___________________________________ test_vote_weight_reduced ___________________________________
-tests\test_recent_appearance_bonus.py:15: in test_vote_weight_reduced
-    assert settings.VOTE_SCORE_WEIGHT == 0.3
-E   assert 0.5 == 0.3
-E    +  where 0.5 = <logic.config_manager.AppSettings object at 0x000002662213DBE0>.VOTE_SCORE_WEIGHT
-------------------------------------- Captured stdout call -------------------------------------
-Đã tải cài đặt từ config.json
-=================================== short test summary info ====================================
-FAILED tests/test_memory_bridges.py::test_init_all_756_memory_bridges_creates_correct_format - PermissionError: [WinError 32] The process cannot access the file because it is being used by another process: 'C:\\Users\\KAKA\\AppData\\Local\\Temp\\tmpo5lfohbg.db'
-FAILED tests/test_memory_bridges.py::test_init_all_756_memory_bridges_default_disabled - PermissionError: [WinError 32] The process cannot access the file because it is being used by another process: 'C:\\Users\\KAKA\\AppData\\Local\\Temp\\tmpqyr7wf87.db'
-FAILED tests/test_memory_bridges.py::test_init_all_756_memory_bridges_skips_duplicates - PermissionError: [WinError 32] The process cannot access the file because it is being used by another process: 'C:\\Users\\KAKA\\AppData\\Local\\Temp\\tmpfbynifrg.db'
-FAILED tests/test_memory_bridges.py::test_full_integration_memory_bridge_in_database - PermissionError: [WinError 32] The process cannot access the file because it is being used by another process: 'C:\\Users\\KAKA\\AppData\\Local\\Temp\\tmpg6tmvk56.db'
-FAILED tests/test_memory_bridges.py::test_progress_callback_is_called - PermissionError: [WinError 32] The process cannot access the file because it is being used by another process: 'C:\\Users\\KAKA\\AppData\\Local\\Temp\\tmpwtoh8_vy.db'
-FAILED tests/test_memory_bridges.py::test_init_all_756_memory_bridges_with_enable_all - PermissionError: [WinError 32] The process cannot access the file because it is being used by another process: 'C:\\Users\\KAKA\\AppData\\Local\\Temp\\tmpej2288xv.db'
-FAILED tests/test_recent_appearance_bonus.py::test_vote_weight_reduced - assert 0.5 == 0.3
- +  where 0.5 = <logic.config_manager.AppSettings object at 0x000002662213DBE0>.VOTE_SCORE_WEIGHT
-================================ 7 failed, 286 passed in 29.92s ================================
+👉 KẾT LUẬN: Hệ thống không thể đọc tên các cầu bị lỗi,
+   dẫn đến việc không thể cập nhật Streak mới (DB vẫn giữ số cũ).
+   -> Cần xóa các cầu này và quét lại sau khi đã fix Scanner.
+[Finished in 303ms]

@@ -1,0 +1,126 @@
+BÁO CÁO KIỂM TOÁN HIỆU QUẢ SCORING V3 (FAIRNESS)
+Thời gian test: 15 kỳ gần nhất
+================================================================================
+
+>>> KỲ 2512070936 | KQ: 77 | Hạng: #79 | Điểm: 33.0
+    [PHÂN TÍCH KQ 77]: Được 77 cầu ủng hộ.
+    - Cơ cấu cầu: {'DE_DYNAMIC_K': 77}
+    - Cầu to nhất: DE_DYN_GDB[0_G3.1[2_K3 (DE_DYNAMIC_K) -> +0.62đ (Streak 10.0)
+    [SO SÁNH TOP 1 46]: Cao hơn KQ 16.7 điểm.
+    - Top 1 được 160 cầu ủng hộ. Cơ cấu: {'DE_DYNAMIC_K': 160}
+    - Cầu to nhất của Top 1: DE_DYN_GDB[0_G3.1[2_K3 -> +0.62đ
+    => NHẬN XÉT: Top 1 thắng nhờ SỐ LƯỢNG cầu áp đảo (Spam cầu).
+
+>>> KỲ 2512070937 | KQ: 27 | Hạng: #86 | Điểm: 32.0
+    [PHÂN TÍCH KQ 27]: Được 74 cầu ủng hộ.
+    - Cơ cấu cầu: {'DE_DYNAMIC_K': 74}
+    - Cầu to nhất: DE_DYN_GDB[0_G4.2[2_K2 (DE_DYNAMIC_K) -> +0.62đ (Streak 10.0)
+    [SO SÁNH TOP 1 46]: Cao hơn KQ 15.6 điểm.
+    - Top 1 được 149 cầu ủng hộ. Cơ cấu: {'DE_DYNAMIC_K': 149}
+    - Cầu to nhất của Top 1: DE_DYN_GDB[0_G3.1[2_K3 -> +0.62đ
+    => NHẬN XÉT: Top 1 thắng nhờ SỐ LƯỢNG cầu áp đảo (Spam cầu).
+
+>>> KỲ 2512070938 | KQ: 70 | Hạng: #4 | Điểm: 48.3
+    [PHÂN TÍCH KQ 70]: Được 155 cầu ủng hộ.
+    - Cơ cấu cầu: {'DE_DYNAMIC_K': 155}
+    - Cầu to nhất: DE_DYN_GDB[0_G4.2[2_K2 (DE_DYNAMIC_K) -> +0.62đ (Streak 10.0)
+    [SO SÁNH TOP 1 46]: Cao hơn KQ 0.2 điểm.
+    - Top 1 được 156 cầu ủng hộ. Cơ cấu: {'DE_DYNAMIC_K': 156}
+    - Cầu to nhất của Top 1: DE_DYN_GDB[0_G4.2[2_K2 -> +0.62đ
+
+>>> KỲ 2512070939 | KQ: 50 | Hạng: #78 | Điểm: 33.1
+    [PHÂN TÍCH KQ 50]: Được 90 cầu ủng hộ.
+    - Cơ cấu cầu: {'DE_DYNAMIC_K': 90}
+    - Cầu to nhất: DE_DYN_GDB[0_G7.3[1_K2 (DE_DYNAMIC_K) -> +0.62đ (Streak 10.0)
+    [SO SÁNH TOP 1 46]: Cao hơn KQ 15.5 điểm.
+    - Top 1 được 159 cầu ủng hộ. Cơ cấu: {'DE_DYNAMIC_K': 159}
+    - Cầu to nhất của Top 1: DE_DYN_GDB[0_G4.2[2_K2 -> +0.62đ
+
+>>> KỲ 2512070940 | KQ: 45 | Hạng: #74 | Điểm: 35.7
+    [PHÂN TÍCH KQ 45]: Được 101 cầu ủng hộ.
+    - Cơ cấu cầu: {'DE_DYNAMIC_K': 101}
+    - Cầu to nhất: DE_DYN_GDB[0_G5.1[2_K2 (DE_DYNAMIC_K) -> +0.62đ (Streak 10.0)
+    [SO SÁNH TOP 1 24]: Cao hơn KQ 13.1 điểm.
+    - Top 1 được 158 cầu ủng hộ. Cơ cấu: {'DE_DYNAMIC_K': 158}
+    - Cầu to nhất của Top 1: DE_DYN_GDB[0_G1[2_K2 -> +0.62đ
+
+>>> KỲ 2512070941 | KQ: 59 | Hạng: #53 | Điểm: 38.9
+    [PHÂN TÍCH KQ 59]: Được 130 cầu ủng hộ.
+    - Cơ cấu cầu: {'DE_DYNAMIC_K': 130}
+    - Cầu to nhất: DE_DYN_GDB[0_G7.3[1_K2 (DE_DYNAMIC_K) -> +0.62đ (Streak 10.0)
+    [SO SÁNH TOP 1 46]: Cao hơn KQ 10.1 điểm.
+    - Top 1 được 161 cầu ủng hộ. Cơ cấu: {'DE_DYNAMIC_K': 161}
+    - Cầu to nhất của Top 1: DE_DYN_GDB[0_G7.3[1_K2 -> +0.62đ
+
+>>> KỲ 2512070942 | KQ: 60 | Hạng: #48 | Điểm: 39.1
+    [PHÂN TÍCH KQ 60]: Được 113 cầu ủng hộ.
+    - Cơ cấu cầu: {'DE_DYNAMIC_K': 113}
+    - Cầu to nhất: DE_DYN_GDB[0_G1[3_K3 (DE_DYNAMIC_K) -> +0.62đ (Streak 10.0)
+    [SO SÁNH TOP 1 24]: Cao hơn KQ 9.3 điểm.
+    - Top 1 được 153 cầu ủng hộ. Cơ cấu: {'DE_DYNAMIC_K': 153}
+    - Cầu to nhất của Top 1: DE_DYN_GDB[0_G1[3_K3 -> +0.62đ
+
+>>> KỲ 2512070943 | KQ: 76 | Hạng: #58 | Điểm: 37.4
+    [PHÂN TÍCH KQ 76]: Được 102 cầu ủng hộ.
+    - Cơ cấu cầu: {'DE_DYNAMIC_K': 102}
+    - Cầu to nhất: DE_DYN_GDB[0_G3.2[3_K3 (DE_DYNAMIC_K) -> +0.62đ (Streak 10.0)
+    [SO SÁNH TOP 1 08]: Cao hơn KQ 10.1 điểm.
+    - Top 1 được 159 cầu ủng hộ. Cơ cấu: {'DE_DYNAMIC_K': 159}
+    - Cầu to nhất của Top 1: DE_DYN_GDB[0_G1[3_K3 -> +0.62đ
+
+>>> KỲ 2512070944 | KQ: 54 | Hạng: #63 | Điểm: 36.5
+    [PHÂN TÍCH KQ 54]: Được 100 cầu ủng hộ.
+    - Cơ cấu cầu: {'DE_DYNAMIC_K': 100}
+    - Cầu to nhất: DE_DYN_GDB[0_G3.2[3_K3 (DE_DYNAMIC_K) -> +0.62đ (Streak 10.0)
+    [SO SÁNH TOP 1 46]: Cao hơn KQ 12.4 điểm.
+    - Top 1 được 156 cầu ủng hộ. Cơ cấu: {'DE_DYNAMIC_K': 156}
+    - Cầu to nhất của Top 1: DE_DYN_GDB[0_G3.2[3_K3 -> +0.62đ
+
+>>> KỲ 2512070945 | KQ: 31 | Hạng: #46 | Điểm: 40.4
+    [PHÂN TÍCH KQ 31]: Được 155 cầu ủng hộ.
+    - Cơ cấu cầu: {'DE_DYNAMIC_K': 155}
+    - Cầu to nhất: DE_DYN_GDB[0_G3.2[3_K3 (DE_DYNAMIC_K) -> +0.62đ (Streak 10.0)
+    [SO SÁNH TOP 1 47]: Cao hơn KQ 10.3 điểm.
+    - Top 1 được 162 cầu ủng hộ. Cơ cấu: {'DE_DYNAMIC_K': 162}
+    - Cầu to nhất của Top 1: DE_DYN_GDB[0_G3.2[3_K3 -> +0.62đ
+
+>>> KỲ 2512070946 | KQ: 04 | Hạng: #35 | Điểm: 43.2
+    [PHÂN TÍCH KQ 04]: Được 124 cầu ủng hộ.
+    - Cơ cấu cầu: {'DE_DYNAMIC_K': 124}
+    - Cầu to nhất: DE_DYN_GDB[0_G3.3[0_K0 (DE_DYNAMIC_K) -> +0.62đ (Streak 10.0)
+    [SO SÁNH TOP 1 08]: Cao hơn KQ 4.1 điểm.
+    - Top 1 được 163 cầu ủng hộ. Cơ cấu: {'DE_DYNAMIC_K': 163}
+    - Cầu to nhất của Top 1: DE_DYN_GDB[0_G3.2[3_K3 -> +0.62đ
+
+>>> KỲ 2512070947 | KQ: 89 | Hạng: #55 | Điểm: 37.6
+    [PHÂN TÍCH KQ 89]: Được 126 cầu ủng hộ.
+    - Cơ cấu cầu: {'DE_DYNAMIC_K': 126}
+    - Cầu to nhất: DE_DYN_GDB[0_G3.1[0_K4 (DE_DYNAMIC_K) -> +0.62đ (Streak 10.0)
+    [SO SÁNH TOP 1 47]: Cao hơn KQ 13.3 điểm.
+    - Top 1 được 161 cầu ủng hộ. Cơ cấu: {'DE_DYNAMIC_K': 161}
+    - Cầu to nhất của Top 1: DE_DYN_GDB[0_G3.1[0_K4 -> +0.62đ
+
+>>> KỲ 2512070948 | KQ: 83 | Hạng: #98 | Điểm: 27.7
+    [PHÂN TÍCH KQ 83]: Được 78 cầu ủng hộ.
+    - Cơ cấu cầu: {'DE_DYNAMIC_K': 78}
+    - Cầu to nhất: DE_DYN_GDB[0_G1[2_K1 (DE_DYNAMIC_K) -> +0.62đ (Streak 10.0)
+    [SO SÁNH TOP 1 46]: Cao hơn KQ 19.5 điểm.
+    - Top 1 được 147 cầu ủng hộ. Cơ cấu: {'DE_DYNAMIC_K': 147}
+    - Cầu to nhất của Top 1: DE_DYN_GDB[0_G3.1[0_K4 -> +0.62đ
+
+>>> KỲ 2512070949 | KQ: 02 | Hạng: #11 | Điểm: 47.0
+    [PHÂN TÍCH KQ 02]: Được 156 cầu ủng hộ.
+    - Cơ cấu cầu: {'DE_DYNAMIC_K': 156}
+    - Cầu to nhất: DE_DYN_GDB[0_G1[2_K1 (DE_DYNAMIC_K) -> +0.62đ (Streak 10.0)
+    [SO SÁNH TOP 1 46]: Cao hơn KQ 1.0 điểm.
+    - Top 1 được 151 cầu ủng hộ. Cơ cấu: {'DE_DYNAMIC_K': 151}
+    - Cầu to nhất của Top 1: DE_DYN_GDB[0_G1[2_K1 -> +0.62đ
+
+>>> KỲ 2512070950 | KQ: 55 | Hạng: #93 | Điểm: 29.1
+    [PHÂN TÍCH KQ 55]: Được 72 cầu ủng hộ.
+    - Cơ cấu cầu: {'DE_DYNAMIC_K': 72}
+    - Cầu to nhất: DE_DYN_GDB[0_G1[2_K1 (DE_DYNAMIC_K) -> +0.62đ (Streak 10.0)
+    [SO SÁNH TOP 1 02]: Cao hơn KQ 18.8 điểm.
+    - Top 1 được 158 cầu ủng hộ. Cơ cấu: {'DE_DYNAMIC_K': 158}
+    - Cầu to nhất của Top 1: DE_DYN_GDB[0_G1[2_K1 -> +0.62đ
+    => NHẬN XÉT: Top 1 thắng nhờ SỐ LƯỢNG cầu áp đảo (Spam cầu).

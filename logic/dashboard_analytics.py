@@ -250,6 +250,7 @@ def _determine_de_dyn_visibility(bridge, enable_threshold_raw, disable_threshold
 #     print(f"  - Final result: {len(filtered_bridges)}")
     
 #     return filtered_bridges
+
 def get_cau_dong_for_tab_soi_cau_de(db_name=None, threshold_thong=None):
     """
     Simplified visibility: only apply DE_KILLER exclusion. All other bridges

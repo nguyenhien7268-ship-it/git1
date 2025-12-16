@@ -4,6 +4,18 @@ pip install pandas matplotlib seaborn scikit-learn joblib xgboost
 
   git config --global user.name "Jason"
 
+del /s /q *.pyc
+rmdir /s /q __pycache__
+for /d /r . %d in (__pycache__) do @if exist "%d" rd /s /q "%d"
+
+generate_digest.py
+Khi bắt đầu một phiên chat mới với Gemini.
+
+Bạn chỉ cần upload duy nhất file PROJECT_FULL_CONTEXT.txt này.
+
+Đây là toàn bộ source code dự án. Hãy đọc hiểu cấu trúc và logic để hỗ trợ tôi.
+
+
 Sau khi đã cài đặt Git và Git LFS, bạn cần thực hiện 2 bước sau để Git nhận diện được LFS và tải file lớn về:
 
 Khởi tạo Git LFS: Bạn cần chạy lệnh này trong terminal (chỉ cần chạy một lần cho hệ thống):
@@ -31,9 +43,16 @@ Bước	Lệnh	Mục đích
 
 	git add .
 
-	git commit -m "update thu vien"
+	git commit -m "update tai cau truc"
 
 	git push origin main	
+----------------
+----------------
+
+model AI
+python scripts/v77_phase2_finalize.py
+
+python scripts/v77_phase3_check_progress.py
 
 ----------------sql
 BEGIN TRANSACTION;
@@ -53,29 +72,29 @@ COMMIT;
 -- HOẶC, nếu có lỗi, hãy dùng lệnh này để hoàn tác mọi thứ:
 -- ROLLBACK;
 
-------------------------------------------------------
+3. Đánh Giá Mô Hình Xây Dựng Hệ Thống (Có phải do lỗi mô hình?)
+Câu trả lời là: CÓ MỘT PHẦN.
 
+Hệ thống hiện tại đang gặp vấn đề về Thiết kế Kiến trúc (Architectural Debt), cụ thể:
 
+Phụ thuộc quá nhiều vào "State" (Trạng thái lưu trữ):
 
+Hệ thống dựa hoàn toàn vào việc lưu kết quả tính toán vào Database rồi mới đọc ra hiển thị.
 
-xem qua hệ thống, kiểm tra và xác nhận rằng bạn đã nắm được toàn bộ hệ thống chương trình và nhận được đủ các file như mô tả 
+Nhược điểm: Nếu quy trình cập nhật (Update Cycle) bị lỗi hoặc chưa chạy, dữ liệu hiển thị sẽ sai/cũ ngay lập tức.
 
-thống nhất quy trình làm việc như sau:
+Mô hình tốt hơn: Nên là Hybrid. Database chỉ lưu cấu hình cầu (vị trí A ghép vị trí B). Khi mở Dashboard, hệ thống nên tự tính toán lại dự đoán theo thời gian thực (Real-time Calculation) dựa trên dữ liệu kỳ mới nhất, thay vì chờ đọc từ cột next_prediction_stl tĩnh trong DB.
 
-Quy trình xem xét file: Trước khi thực hiện bất kỳ thay đổi phức tạp nào, tôi sẽ luôn đọc và phân tích toàn bộ nội dung của các file gốc liên quan mà bạn chỉ định. Việc này để đảm bảo tôi hiểu rõ logic và bối cảnh của code, giúp cho việc chỉnh sửa được chính xác.
+Logic phân tán (Scattered Logic):
 
-Quy trình sửa file: Khi bạn yêu cầu sửa đổi một file, tôi sẽ cung cấp toàn bộ nội dung mới của file đó sau khi đã chỉnh sửa.
+Logic tính cầu nằm rải rác ở bridges_classic.py (cầu tĩnh), bridge_manager_core.py (cầu động), và dashboard_scorer.py (chấm điểm).
 
-Cách thực hiện: Bạn chỉ cần sao chép (copy) toàn bộ nội dung mới mà tôi cung cấp và dán (paste) đè lên, thay thế hoàn toàn nội dung trong file gốc tương ứng của bạn.
+Khi sửa một logic (ví dụ cách tính STL), phải sửa đồng bộ ở nhiều nơi, dễ gây sót lỗi (như vụ lệch key prediction vs next_prediction_stl).
 
------------------------------------------------------II. Chiến Lược Ủy Quyền Kép (Dual Delegation) 🚀
+Cơ chế cập nhật "cứng nhắc":
 
-Tài liệu này đề xuất một quy trình làm việc kết hợp hai mô hình ngôn ngữ lớn (LLM) để tối ưu hóa việc phát triển dự án Python (phân tích xổ số), tập trung vào hiệu quả chi phí và chất lượng code.
+Việc đặt ngưỡng cứng (50%) để quyết định có cập nhật cầu hay không là dao hai lưỡi. Nó giúp tối ưu tốc độ nhưng lại khiến người dùng bị "mù thông tin" với các cầu đang nuôi mà bị tụt phong độ.
 
-Mô hìnhVai trò Tối ưuLoại Tác vụLợi íchGemini ProPLANNER (Lên kế hoạch)Thiết kế kiến trúc, lập kế hoạch chi tiết (ví dụ: 5 bước), tạo Docstrings/Comments, giải thích logic phức tạp.Rẻ, tốc độ nhanh, phù hợp cho tư duy và sáng tạo.Claude Code (Sonnet)AGENT (Thực thi)Thực hiện thay đổi đa file (Agent), tái cấu trúc logic phức tạp, sửa lỗi sâu, đảm bảo tuân thủ định dạng và nhất quán giữa các file.Hiệu quả chi phí cho tác vụ thực thi code (Agent), suy luận code sâu.Quy trình làm việc đề xuất:
+Tóm lại: Hệ thống của bạn có nền tảng thuật toán tốt (V17, Bạc Nhớ) nhưng cơ chế vận hành dữ liệu (Data Pipeline) đang hơi phức tạp và dễ gãy.
 
-Giai đoạn PLANNING (Gemini Pro): Bắt đầu với Gemini Pro để tạo ra một kế hoạch chi tiết và rõ ràng cho tính năng hoặc sửa lỗi.
-
-Giai đoạn EXECUTION (Claude Code Agent): Sử dụng kế hoạch của Gemini Pro làm đầu vào cho Claude Code Agent để thực thi các thay đổi code thực tế trên nhiều file.
-
-Giai đoạn REVIEW (Cả hai): Kiểm tra tính nhất quán (Claude) và tính dễ đọc (Gemini) của code đã thay đổi.
+Đề xuất dài hạn: Trong tương lai, nên chuyển sang cơ chế: Lưu cấu trúc cầu -> Tính toán Real-time khi hiển thị. Khi đó, dù bạn có update Database hay không, miễn là có kết quả xổ số mới, phần mềm sẽ tự tính ra số dự đoán ngay lập tức mà không bao giờ bị lỗi N/A do quên cập nhật.

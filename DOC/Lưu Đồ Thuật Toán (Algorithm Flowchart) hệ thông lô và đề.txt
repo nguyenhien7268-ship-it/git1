@@ -1,0 +1,175 @@
+ Lưu Đồ Thuật Toán (Algorithm Flowchart) cho cả hai phân hệ: Soi Cầu Lô và Soi Cầu Đề.
+
+Hệ thống của bạn vận hành theo kiến trúc MVP (Model-View-Presenter) với luồng xử lý dữ liệu tách biệt như sau:
+
+1. LƯU ĐỒ THUẬT TOÁN SOI CẦU LÔ (CORE SYSTEM)
+
+Đây là hệ thống phức tạp nhất, kết hợp giữa Cầu Cổ Điển, Backtest và AI.
+
+Đoạn mã
+
+
+
+graph TD
+
+    A[Dữ Liệu Đầu Vào (All Data)] --> B(Bộ Xử Lý Trung Tâm Controller)
+
+    
+
+    subgraph "Giai Đoạn 1: Khởi Tạo & Quét"
+
+    B --> C1[15 Cầu Cổ Điển]
+
+    B --> C2[Cầu Bạc Nhớ]
+
+    B --> C3[Cầu V17 Đã Lưu]
+
+    end
+
+    
+
+    subgraph "Giai Đoạn 2: Kiểm Thử (Backtester)"
+
+    C1 & C2 & C3 --> D{Chạy Backtest K2N}
+
+    D --> E1[Tính Win Rate %]
+
+    D --> E2[Tính Streak (Chuỗi Thông)]
+
+    D --> E3[Tính Max Lose (Gan Cực Đại)]
+
+    end
+
+    
+
+    subgraph "Giai Đoạn 3: Phân Tích Đa Chiều"
+
+    B --> F1[Thống Kê Tần Suất (Lô Hot)]
+
+    B --> F2[Thống Kê Lô Gan]
+
+    B --> F3[AI Model (XGBoost) Dự Đoán]
+
+    end
+
+    
+
+    subgraph "Giai Đoạn 4: Chấm Điểm Hội Tụ (Scoring)"
+
+    E1 & E2 & E3 & F1 & F2 & F3 --> G[Ma Trận Chấm Điểm]
+
+    G --> H{Tính Điểm Từng Cặp Số}
+
+    H -- "+ Điểm" --> I1(Vote Cầu, Tỷ Lệ Cao, AI, Lô Hot)
+
+    H -- "- Phạt" --> I2(Rủi Ro K2N, Lô Gan Quá Hạn)
+
+    end
+
+    
+
+    G --> J[BẢNG QUYẾT ĐỊNH (Dashboard)]
+
+    J --> K[Top Khuyến Nghị (Xanh/Vàng/Đỏ)]
+
+2. LƯU ĐỒ THUẬT TOÁN SOI CẦU ĐỀ (NEW V7.7)
+
+Hệ thống này tập trung vào việc tìm ra các Bộ Số và Chạm đang chạy thông để lọc số.
+
+Đoạn mã
+
+
+
+graph TD
+
+    Input[Dữ Liệu Lịch Sử] --> Scanner(Bộ Quét Cầu - DeBridgeScanner)
+
+    
+
+    subgraph "Bước 1: Quét Cầu (Deep Scan)"
+
+    Scanner --> S1[Quét Cầu CHẠM (Pos1 + Pos2)]
+
+    Scanner --> S2[Quét Cầu TỔNG (Pos1 + Pos2)]
+
+    Scanner --> S3[Quét Cầu BỘ (Ghép Pos1 & Pos2)]
+
+    S1 & S2 & S3 --> Filter{Lọc Cầu}
+
+    Filter -- "Streak > 3" --> ActiveBridges[Danh Sách Cầu Đang Thông]
+
+    end
+
+    
+
+    subgraph "Bước 2: Phân Tích & Chấm Điểm"
+
+    Input --> Market[Thống Kê Thị Trường]
+
+    Market --> M1(Gan Chạm/Tổng/Bộ)
+
+    Market --> M2(Tần Suất)
+
+    
+
+    ActiveBridges --> Scoring[Ma Trận Hội Tụ Điểm 00-99]
+
+    ActiveBridges --> StrongSets[Tìm Top Bộ Số Mạnh Nhất]
+
+    
+
+    Scoring --> ScoreList[Bảng Xếp Hạng Điểm Số]
+
+    end
+
+    
+
+    subgraph "Bước 3: Phễu Lọc (Filtering)"
+
+    ScoreList --> D65[Dàn 65 Số (Top Score)]
+
+    
+
+    D65 & StrongSets --> D10{Lọc Top 10}
+
+    D10 -- "Ưu tiên 1" --> P1[Số thuộc Top 65 VÀ thuộc Bộ Mạnh]
+
+    D10 -- "Ưu tiên 2" --> P2[Số điểm cao còn lại]
+
+    
+
+    P1 & P2 --> D4{Lọc Top 4}
+
+    D4 --> Final[TỨ THỦ ĐỀ]
+
+    end
+
+3. GIẢI THÍCH CHI TIẾT CÁC KHỐI LOGIC
+
+A. Hệ thống Soi Lô (logic/dashboard_analytics.py)
+
+Backtest K2N: Không chỉ xem cầu hôm qua trúng không, mà xem lịch sử cầu đó nuôi 2 ngày có hay bị gãy khung không. Nếu cầu hay gãy khung 5-6 ngày -> Phạt điểm nặng.
+
+AI XGBoost: Đóng vai trò là một "giám khảo" độc lập. Nó nhìn vào dữ liệu quá khứ để dự báo xác suất nổ, không phụ thuộc vào cầu kèo.
+
+Cơ chế Phạt (Penalty): Đây là điểm hay nhất. Một cầu đang thông nhưng có lịch sử "gãy 10 ngày liên tiếp" sẽ bị trừ điểm, giúp người chơi tránh bẫy.
+
+B. Hệ thống Soi Đề (logic/de_bridge_scanner.py & de_analytics.py)
+
+Quét Đa Chiều:
+
+Cầu Chạm: Dự báo 19 số.
+
+Cầu Tổng: Dự báo 10 số.
+
+Cầu Bộ: Dự báo 4 hoặc 8 số (Quan trọng nhất).
+
+Ma Trận Điểm (Scoring):
+
+Số điểm của con số $X$ = Tổng độ dài chuỗi (Streak) của tất cả các cầu báo về số $X$.
+
+Ví dụ: Số 88 được Cầu Chạm 8 (thông 5 ngày) và Cầu Tổng 6 (thông 4 ngày) báo về $\rightarrow$ Điểm = $5+4=9$.
+
+Bộ Lọc Giao Thoa (Intersection Filter):
+
+Top 10 không chỉ lấy điểm cao nhất, mà ưu tiên những số vừa điểm cao, vừa nằm trong Bộ Số đang có cầu chạy. Điều này loại bỏ những con số điểm cao "ảo" (chỉ ăn theo chạm/tổng mà không có cấu trúc bộ).

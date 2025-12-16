@@ -1,7 +1,6 @@
-# Tên file: git3/ui/ui_dashboard.py
-#
-# (NỘI DUNG THAY THẾ TOÀN BỘ - THÊM POPUP CHI TIẾT KHI CLICK BẢNG ĐIỂM)
-#
+# Tên file: code6/ui/ui_dashboard.py
+# (PHIÊN BẢN ĐÃ FIX: Lọc Cầu Đề khỏi bảng Thông 10 Kỳ)
+
 import datetime
 import tkinter as tk
 import traceback
@@ -36,12 +35,14 @@ FILTER_AI_PROB_THRESHOLD = 60  # Minimum AI probability % (tăng từ 50 → 60)
 # Import DB Logic để lấy dữ liệu cầu
 try:
     from logic.db_manager import DB_NAME
-    from logic.data_repository import get_all_managed_bridges
+    from logic.data_repository import get_managed_bridges_with_prediction
+    # [QUAN TRỌNG: THÊM DÒNG NÀY ĐỂ GỌI LOGIC TÍNH TOÁN]
+    from logic.analytics import dashboard_scorer
 except ImportError:
-    print("LỖI: ui_dashboard.py không thể import DB logic...")
+    print("LỖI: ui_dashboard.py không thể import logic...")
     DB_NAME = "data/xo_so_prizes_all_logic.db"
 
-    def get_all_managed_bridges(db, only_enabled=True):
+    def get_managed_bridges_with_prediction(db_name, current_data=None, only_enabled=True):
         return []
 
 
@@ -117,7 +118,21 @@ class DashboardWindow(ttk.Frame):
         # 6. Vote Statistics (5/24 cột) - REPLACED Lô Gan
         self._create_vote_statistics_ui(self.main_analysis_frame)
         self.vote_statistics_frame.grid(row=1, column=19, columnspan=5, sticky="nsew", padx=5, pady=5)
-
+        
+        # --- [MỚI] HÀNG 2: VÙNG KẾT QUẢ SCORING & CẢNH BÁO ---
+        self.main_analysis_frame.rowconfigure(2, weight=1) # Cấp quyền giãn dòng cho hàng 2
+        
+        self.result_log_frame = ttk.Labelframe(self.main_analysis_frame, text="📝 Kết Quả Phân Tích & Cảnh Báo (V3.8)")
+        self.result_log_frame.grid(row=2, column=0, columnspan=24, sticky="nsew", padx=5, pady=8)
+        
+        # Tạo Widget Text để hiển thị
+        self.txt_result_log = tk.Text(self.result_log_frame, height=5, font=("Arial", 10))
+        self.txt_result_log.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        # Scrollbar cho text
+        scrollbar_log = ttk.Scrollbar(self.result_log_frame, orient=tk.VERTICAL, command=self.txt_result_log.yview)
+        scrollbar_log.pack(side=tk.RIGHT, fill=tk.Y)
+        self.txt_result_log.configure(yscrollcommand=scrollbar_log.set)
     # ===================================================================================
     # CÁC HÀM TẠO UI
     # ===================================================================================
@@ -276,7 +291,7 @@ class DashboardWindow(ttk.Frame):
 
     def _create_recent_form_ui(self, parent_frame):
         self.recent_form_frame = ttk.Labelframe(
-            parent_frame, text="🔥 Thông 10 Kỳ (>= 5/10)"
+            parent_frame, text="🔥 Phong Độ 10 Kỳ (Cầu ≥ 9/10 Thắng, Đang Bật)"
         )
         tree_frame = ttk.Frame(self.recent_form_frame)
         tree_frame.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
@@ -442,7 +457,6 @@ class DashboardWindow(ttk.Frame):
         top_memory_bridges,
         ai_predictions,
     ):
-
         try:
             self.clear_data()
 
@@ -465,16 +479,40 @@ class DashboardWindow(ttk.Frame):
 
             # Nạp Bảng 4: Phong Độ 10 Kỳ
             try:
-                all_bridges = get_all_managed_bridges(DB_NAME, only_enabled=True)
+                # Sử dụng hàm mới với tính toán dự đoán tự động
+                all_bridges = get_managed_bridges_with_prediction(
+                    DB_NAME, 
+                    current_data=self.app.all_data_ai if hasattr(self.app, 'all_data_ai') else None,
+                    only_enabled=True
+                )
                 good_bridges = []
+                # Get configurable threshold (default: 9 wins out of 10)
+                min_recent_wins = SETTINGS.get("DASHBOARD_MIN_RECENT_WINS", 9)
+                
                 for b in all_bridges:
+                    # [CLEAN CODE FIX] Filter out DE bridges to avoid pollution in Loto table
+                    bridge_type = str(b.get("type", "")).upper()
+                    if bridge_type.startswith("DE"):
+                        continue 
+
+                    # Parse recent_win_count_10
                     recent_wins = b.get("recent_win_count_10", 0)
                     if isinstance(recent_wins, str):
                         try:
                             recent_wins = int(recent_wins)
                         except ValueError:
                             recent_wins = 0
-                    if recent_wins >= 5:
+                    
+                    # Parse is_enabled status
+                    is_enabled = b.get("is_enabled", 0)
+                    if isinstance(is_enabled, str):
+                        try:
+                            is_enabled = int(is_enabled)
+                        except ValueError:
+                            is_enabled = 0
+                    
+                    # Filter: Must be ENABLED + High recent form (>= min_recent_wins)
+                    if is_enabled == 1 and recent_wins >= min_recent_wins:
                         good_bridges.append(b)
 
                 good_bridges.sort(key=lambda x: x.get("recent_win_count_10", 0), reverse=True)
@@ -487,8 +525,14 @@ class DashboardWindow(ttk.Frame):
             self.hot_loto_frame.config(text=f"🔥 Hot ({n_days_stats} ngày)")
             self._populate_hot_loto(stats)
 
-            # Nạp Bảng 6: Vote Statistics (REPLACED Lô Gan)
+            # Nạp Bảng 6: Vote Statistics
             self._populate_vote_statistics(consensus)
+
+            # --- GEMINI FIX: HIỂN THỊ TEXT BOX NGAY LẬP TỨC ---
+            # Gọi hàm hiển thị text ngay khi có dữ liệu đầu vào
+            if hasattr(self, '_update_ui_scoring_results'):
+                self._update_ui_scoring_results(top_scores, gan_stats)
+            # --------------------------------------------------
 
         except Exception as e:
             messagebox.showerror(
@@ -637,7 +681,7 @@ class DashboardWindow(ttk.Frame):
 
         for b in bridges:
             wins = b.get("recent_win_count_10", 0)
-            pred = b.get("next_prediction_stl", "N/A")
+            pred = b.get("prediction") or b.get("next_prediction_stl", "N/A")
             
             tags = ()
             if wins >= 8:
@@ -681,7 +725,7 @@ class DashboardWindow(ttk.Frame):
     # HÀM TƯƠNG TÁC
     # ===================================================================================
 
-    def refresh_data(self):
+    def _refresh_data_old(self):
         self.app.logger.log(
             "\n--- (Làm Mới) Bắt đầu chạy lại Bảng Quyết Định Tối Ưu ---"
         )
@@ -741,3 +785,183 @@ class DashboardWindow(ttk.Frame):
 
         except Exception as e:
             print(f"Lỗi double-click: {e}")
+    
+    # [THÊM MỚI HOẶC THAY THẾ] Hàm xử lý nút Phân Tích
+    # Lưu ý: Bạn cần tạo một nút "Phân Tích Lô Scoring" riêng hoặc tích hợp vào nút "Làm Mới Dữ Liệu"
+    # Nếu tích hợp vào nút Refresh:
+    def refresh_data(self):
+        self.app.logger.log("\n--- (Làm Mới) Bắt đầu chạy lại Bảng Quyết Định Tối Ưu ---")
+        
+        # 1. Kích hoạt luồng nạp dữ liệu cũ (Chạy ngầm)
+        self.app.run_decision_dashboard()
+        
+        # 2. [FIX] Thay vì chạy ngay, ta chuyển sang chế độ "Chờ dữ liệu"
+        self.title_label.config(text="⏳ Đang đồng bộ dữ liệu...")
+        
+        # Xóa log cũ để người dùng biết đang xử lý
+        if hasattr(self, 'txt_result_log'):
+            self.txt_result_log.delete("1.0", tk.END)
+            self.txt_result_log.insert("1.0", "⏳ Đang đợi dữ liệu nạp từ Database...")
+            
+        # Bắt đầu chờ (Check mỗi 500ms)
+        self._wait_for_data_and_run_scoring()
+
+    # [THÊM HÀM MỚI NÀY VÀO DƯỚI refresh_data]
+    def _wait_for_data_and_run_scoring(self, attempt=0):
+        """
+        Cơ chế 'Polling': Kiểm tra liên tục xem dữ liệu đã về chưa.
+        Timeout: 10 giây (20 lần x 500ms).
+        """
+        # Kiểm tra: App đã có dữ liệu chưa?
+        if hasattr(self.app, 'all_data_ai') and self.app.all_data_ai:
+            # ✅ Dữ liệu đã về -> Kích hoạt Scoring Engine ngay!
+            self.run_lo_scoring_analysis()
+        else:
+            # ❌ Chưa có dữ liệu
+            if attempt < 60: # [ĐÃ SỬA] Tăng lên 30 giây (60 * 0.5s) để chờ nạp DB lớn
+                # Đợi 0.5 giây rồi kiểm tra lại (đệ quy)
+                self.after(500, lambda: self._wait_for_data_and_run_scoring(attempt + 1))
+            else:
+                # Quá hạn 10 giây mà vẫn chưa có dữ liệu -> Báo lỗi thật
+                self.title_label.config(text="⚠️ Lỗi nạp dữ liệu")
+                if hasattr(self, 'txt_result_log'):
+                    self.txt_result_log.delete("1.0", tk.END)
+                    self.txt_result_log.insert("1.0", "⚠️ Quá thời gian chờ (Timeout). Dữ liệu chưa được nạp.\n👉 Vui lòng kiểm tra lại File dữ liệu gốc hoặc Database.")
+
+    def run_lo_scoring_analysis(self):
+        """Chạy Scoring Engine Lô V3.8 (GEMINI FIX 2 - Correct Data Path)"""
+
+        
+        # --- 1. TÌM DỮ LIỆU (QUAN TRỌNG: Quét cả App và Controller) ---
+        all_data = None
+        
+        # Cách 1: Tìm trong App (Cũ)
+        if hasattr(self.app, 'all_data_ai') and self.app.all_data_ai:
+            all_data = self.app.all_data_ai
+            
+        # Cách 2: Tìm trong Controller (Chuẩn MVC)
+        if not all_data and hasattr(self.app, 'controller'):
+            if hasattr(self.app.controller, 'all_data_ai') and self.app.controller.all_data_ai:
+                all_data = self.app.controller.all_data_ai
+            
+        # Nếu quét cả 2 nơi vẫn không thấy -> Báo lỗi cho người dùng biết
+        if not all_data:
+            if hasattr(self, 'txt_result_log'):
+                self.txt_result_log.delete("1.0", tk.END)
+                self.txt_result_log.insert("1.0", "⚠️ KHÔNG TÌM THẤY DỮ LIỆU.\n👉 Vui lòng bấm nút 'Làm Mới Dữ Liệu' (Góc trên phải) để nạp lại từ Database.")
+                self.txt_result_log.update_idletasks()
+            return
+
+
+
+        # --- 2. CẬP NHẬT GIAO DIỆN ---
+        if hasattr(self, 'txt_result_log'):
+            self.txt_result_log.delete("1.0", tk.END)
+            msg = f"⏳ Đang phân tích {len(all_data)} kỳ dữ liệu (Scoring V3.8)...\n"
+            self.txt_result_log.insert("1.0", msg)
+            self.txt_result_log.update_idletasks()
+
+        self.title_label.config(text="Đang chạy Scoring Lô...")
+        
+        # --- 3. LUỒNG XỬ LÝ (THREAD) ---
+        def run_thread():
+            try:
+                # Lấy ngày mới nhất
+                day_index = len(all_data) - 1
+                
+                # GỌI TRỰC TIẾP LOGIC (Bỏ qua Service để tránh lỗi)
+                features = dashboard_scorer.prepare_daily_features(all_data, day_index)
+                
+                if not features:
+                    self.after(0, lambda: self.txt_result_log.insert(tk.END, "\n❌ Lỗi: Không tạo được features (Dữ liệu quá ngắn?)."))
+                    return
+
+
+
+                scores = dashboard_scorer.get_top_scored_pairs(
+                    features["stats_n_day"],
+                    features["consensus"],
+                    features["high_win"],
+                    features["pending_k2n"],
+                    features["gan_stats"],
+                    features["top_memory"],
+                    features.get("ai_predictions"),
+                    features.get("recent_data")
+                )
+                
+                gan_stats = features["gan_stats"]
+                
+                # Update UI (Chuyển về luồng chính)
+                self.after(0, lambda: self._update_ui_scoring_results(scores, gan_stats))
+                
+            except Exception as e:
+                print(f"Lỗi Scoring Thread: {e}")
+                import traceback
+                traceback.print_exc()
+                self.after(0, lambda: self.txt_result_log.insert(tk.END, f"\n❌ Exception: {str(e)}"))
+
+
+
+        import threading
+        threading.Thread(target=run_thread, daemon=True).start()
+
+    def _update_ui_scoring_results(self, scores, gan_stats):
+        """Hiển thị kết quả vào Text Box (Đã sửa lỗi Tuple vs Dict)"""
+        if not hasattr(self, 'txt_result_log'): return
+
+
+
+        self.txt_result_log.delete("1.0", tk.END)
+        
+        # 1. Hiển thị Top 10
+        if scores:
+            msg = "🏆 TOP 10 LÔ ĐIỂM CAO (SCORING V3.8):\n"
+            # scores là list of dicts -> dùng key access OK
+            top_10 = scores[:10]
+            
+            # Format: "Số (Điểm)"
+            row1_items = []
+            for item in top_10[:5]:
+                pair = item.get('pair', '??')
+                score = item.get('score', 0)
+                row1_items.append(f"{pair} ({score:.1f}đ)")
+                
+            row2_items = []
+            for item in top_10[5:]:
+                pair = item.get('pair', '??')
+                score = item.get('score', 0)
+                row2_items.append(f"{pair} ({score:.1f}đ)")
+            
+            msg += "   " + " | ".join(row1_items) + "\n"
+            msg += "   " + " | ".join(row2_items) + "\n"
+            
+            self.txt_result_log.insert(tk.END, msg)
+            
+            # Tô màu tiêu đề
+            self.txt_result_log.tag_add("title", "1.0", "2.0")
+            self.txt_result_log.tag_config("title", foreground="blue", font=("Arial", 10, "bold"))
+        else:
+            self.txt_result_log.insert(tk.END, "⚠️ Không đủ dữ liệu để tính điểm.\n")
+
+
+
+        # 2. Cảnh báo Lô Gan (FIX QUAN TRỌNG TẠI ĐÂY)
+        if gan_stats:
+            # gan_stats là list of tuples: [('99', 20), ('00', 5)]
+            # item[0] là số, item[1] là số ngày gan
+            dangerous_gan = [item for item in gan_stats if item[1] > 15]
+            
+            if dangerous_gan:
+                gan_msg = "\n⛔ CẢNH BÁO LÔ GAN (>15 ngày - NÊN TRÁNH):\n"
+                # Sửa item.get(...) thành item[index] vì item là Tuple
+                gan_nums = [f"{item[0]} ({item[1]}d)" for item in dangerous_gan]
+                gan_msg += "   " + ", ".join(gan_nums)
+                
+                # Chèn vào cuối
+                self.txt_result_log.insert(tk.END, gan_msg)
+                
+                # Tô màu đỏ cảnh báo
+                idx = self.txt_result_log.search("⛔", "1.0", tk.END)
+                if idx:
+                    self.txt_result_log.tag_add("warning", idx, tk.END)
+                    self.txt_result_log.tag_config("warning", foreground="red", font=("Arial", 10, "bold"))

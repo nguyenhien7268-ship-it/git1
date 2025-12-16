@@ -1,6 +1,6 @@
-# Tên file: git3/logic/ml_model.py
+# Tên file: git1/logic/ml_model.py
 #
-# (NỘI DUNG THAY THẾ TOÀN BỘ - SỬA W503)
+# (PHIÊN BẢN V7.9 - FIX PATH TUYỆT ĐỐI CHO MODEL FILES)
 #
 import os
 import traceback
@@ -11,9 +11,23 @@ import xgboost as xgb
 from sklearn.model_selection import train_test_split, GridSearchCV, cross_val_score
 from sklearn.preprocessing import StandardScaler
 
-# ĐÃ SỬA: Cập nhật đường dẫn mới cho file mô hình và scaler
-MODEL_FILE_PATH = "logic/ml_model_files/loto_model.joblib"
-SCALER_FILE_PATH = "logic/ml_model_files/ai_scaler.joblib"
+# --- CẤU HÌNH ĐƯỜNG DẪN TUYỆT ĐỐI ---
+# Lấy thư mục hiện tại của file này (thư mục logic)
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+# Đường dẫn tới thư mục lưu model (logic/ml_model_files)
+MODEL_DIR = os.path.join(CURRENT_DIR, "ml_model_files")
+
+# Đảm bảo thư mục tồn tại ngay khi import
+if not os.path.exists(MODEL_DIR):
+    try:
+        os.makedirs(MODEL_DIR)
+    except OSError:
+        pass
+
+# Cập nhật đường dẫn file
+MODEL_FILE_PATH = os.path.join(MODEL_DIR, "loto_model.joblib")
+SCALER_FILE_PATH = os.path.join(MODEL_DIR, "ai_scaler.joblib")
+# -------------------------------------
 
 ALL_LOTOS = [str(i).zfill(2) for i in range(100)]
 MIN_DATA_TO_TRAIN = 50
@@ -114,7 +128,7 @@ def _create_ai_dataset(all_data_ai, daily_bridge_predictions_map):
 
         # Lấy features từ các nguồn đã tính toán trước
         gan_features_for_prev_ky = gan_history_map.get(prev_ky_str, {})
-        gan_change_for_actual_ky = gan_change_map.get(actual_ky_str, {})
+        gan_change_for_prev_ky = gan_change_map.get(prev_ky_str, {})
         bridge_features_for_actual_ky = daily_bridge_predictions_map.get(
             actual_ky_str, {}
         )
@@ -189,7 +203,7 @@ def _create_ai_dataset(all_data_ai, daily_bridge_predictions_map):
             features.append(loto_features.get("q_hit_in_last_3_days", 0))
 
             # F14: Thay đổi giá trị Gan (Change_in_Gan)
-            features.append(gan_change_for_actual_ky.get(loto, 0))
+            features.append(gan_change_for_prev_ky.get(loto, 0))
 
             # Thêm hàng features này vào X
             X.append(features)
@@ -352,12 +366,13 @@ def train_ai_model(all_data_ai, daily_bridge_predictions_map, use_hyperparameter
         for i, (feature, importance) in enumerate(sorted_features[:5], 1):
             print(f"    {i}. {feature}: {importance:.4f}")
         
-        # Save feature importance metadata
-        feature_importance_file = "logic/ml_model_files/feature_importance.joblib"
+        # [FIX] Đảm bảo thư mục tồn tại trước khi lưu
+        os.makedirs(MODEL_DIR, exist_ok=True)
+        feature_importance_file = os.path.join(MODEL_DIR, "feature_importance.joblib")
         joblib.dump(feature_importance, feature_importance_file)
         
         # 6. Lưu mô hình và Scaler
-        os.makedirs(os.path.dirname(MODEL_FILE_PATH), exist_ok=True)
+        # os.makedirs(os.path.dirname(MODEL_FILE_PATH), exist_ok=True) # Đã làm ở trên
         joblib.dump(model, MODEL_FILE_PATH)
         joblib.dump(scaler, SCALER_FILE_PATH)
         print(f"... (AI Train) Đã lưu mô hình vào '{MODEL_FILE_PATH}'")
@@ -395,10 +410,12 @@ def get_ai_predictions(all_data_ai, bridge_predictions_for_today):
 
         # 2. Lấy dữ liệu Gan mới nhất (F1) and Gan Change (F14)
         # Chỉ cần tính cho ngày cuối cùng
+        # Lưu ý: Dự đoán cho ngày mai dựa trên dữ liệu ngày hôm nay (last_ky_str)
+        # Logic đồng nhất với training: lấy gan_change của ngày trước đó để dự đoán
         gan_history_map, gan_change_map = _get_loto_gan_history(all_data_ai)
-        last_ky_str = str(all_data_ai[-1][0])
+        last_ky_str = str(all_data_ai[-1][0])  # Ngày hôm nay (tương đương prev_ky trong training)
         gan_features_today = gan_history_map.get(last_ky_str)
-        gan_change_today = gan_change_map.get(last_ky_str, {})
+        gan_change_for_last_ky = gan_change_map.get(last_ky_str, {})  # gan_change của ngày hôm nay
 
         if not gan_features_today:
             return None, "Lỗi AI: Không thể tính Lô Gan cho ngày dự đoán."
@@ -455,7 +472,7 @@ def get_ai_predictions(all_data_ai, bridge_predictions_for_today):
             features.append(loto_features.get("q_hit_in_last_3_days", 0))
 
             # F14: Thay đổi giá trị Gan (Change_in_Gan)
-            features.append(gan_change_today.get(loto, 0))
+            features.append(gan_change_for_last_ky.get(loto, 0))
 
             # Thêm hàng features này vào X_new
             X_new.append(features)

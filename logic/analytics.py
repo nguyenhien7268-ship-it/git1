@@ -59,6 +59,22 @@ except ImportError:
         def taoSTL_V30_Bong(a, b):
             return ["00", "00"]
 
+# Import các hàm Memory Bridge (Bạc Nhớ)
+try:
+    from .bridges_memory import calculate_bridge_stl, get_27_loto_positions
+except ImportError:
+    try:
+        from bridges_memory import calculate_bridge_stl, get_27_loto_positions
+    except ImportError:
+        print("Lỗi: Không thể import bridges_memory trong analytics.py")
+        def calculate_bridge_stl(loto1, loto2, algorithm_type):
+            return ["00", "00"]
+        def get_27_loto_positions(row):
+            return ["00"] * 27
+
+# Import re cho parsing bridge name
+import re
+
 
 # ===================================================================================
 # (MỚI) CÁC HÀM CHO BẢNG TỔNG HỢP QUYẾT ĐỊNH
@@ -158,9 +174,50 @@ def get_prediction_consensus(last_row, db_name=DB_NAME):
         managed_bridges = get_all_managed_bridges(db_name, only_enabled=True)
         if managed_bridges:
             last_positions = getAllPositions_V16(last_row)
+            last_lotos = get_27_loto_positions(last_row)
+            
             for bridge in managed_bridges:
                 try:
-                    idx1, idx2 = bridge["pos1_idx"], bridge["pos2_idx"]
+                    idx1, idx2 = bridge.get("pos1_idx"), bridge.get("pos2_idx")
+                    
+                    # Kiểm tra Memory Bridge (Bạc Nhớ)
+                    if idx1 == -1 and idx2 == -1:
+                        bridge_name = bridge.get("name", "")
+                        stl = None
+                        
+                        # Parse và tính toán cho Memory Bridge
+                        if "Tổng(" in bridge_name:
+                            match = re.search(r'Tổng\((\d+)\+(\d+)\)', bridge_name)
+                            if match:
+                                pos1, pos2 = int(match.group(1)), int(match.group(2))
+                                if pos1 < len(last_lotos) and pos2 < len(last_lotos):
+                                    loto1, loto2 = last_lotos[pos1], last_lotos[pos2]
+                                    stl = calculate_bridge_stl(loto1, loto2, "sum")
+                        elif "Hiệu(" in bridge_name:
+                            match = re.search(r'Hiệu\((\d+)-(\d+)\)', bridge_name)
+                            if match:
+                                pos1, pos2 = int(match.group(1)), int(match.group(2))
+                                if pos1 < len(last_lotos) and pos2 < len(last_lotos):
+                                    loto1, loto2 = last_lotos[pos1], last_lotos[pos2]
+                                    stl = calculate_bridge_stl(loto1, loto2, "diff")
+                        
+                        if stl:
+                            pair_key = get_pair_key(stl)
+                            if pair_key:
+                                source_name = bridge["name"]
+                                if pair_key not in prediction_sources:
+                                    prediction_sources[pair_key] = []
+                                if source_name not in prediction_sources[pair_key]:
+                                    prediction_sources[pair_key].append(source_name)
+                        continue
+                    
+                    # V17 Bridge (original logic)
+                    if idx1 is None or idx2 is None:
+                        continue
+                    
+                    if idx1 >= len(last_positions) or idx2 >= len(last_positions):
+                        continue
+                    
                     a, b = last_positions[idx1], last_positions[idx2]
                     if a is None or b is None:
                         continue
