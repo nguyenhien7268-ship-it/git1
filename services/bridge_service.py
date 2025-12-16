@@ -589,12 +589,15 @@ class BridgeService:
             idx2 = bridge.get('pos2_idx')
 
             # Skip DE bridges for now (Phase 1 focuses on LO bridges)
+            # TODO(Phase 2): Add support for DE bridge activation
             if bridge_type.startswith('DE_') or bridge_name.startswith('DE_'):
                 self._log(f"  ⚠️ Bỏ qua cầu Đề: {bridge_name}")
                 return None
 
-            # Calculate over last 30 periods or all available data
-            test_periods = min(30, len(all_data) - 1)
+            # Calculate over last N periods or all available data
+            # TODO: Make this configurable via SETTINGS
+            MAX_BACKTEST_PERIODS = 30
+            test_periods = min(MAX_BACKTEST_PERIODS, len(all_data) - 1)
             if test_periods < 1:
                 return None
 

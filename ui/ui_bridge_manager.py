@@ -299,12 +299,13 @@ class BridgeManagerWindow:
             return
 
         # For single selection, update description and status first
+        # Note: Multi-selection only updates activation status via controller
         if len(selected_items) == 1:
             bridge_id = self.tree.item(selected_items[0], "values")[0]
             desc = self.desc_entry.get().strip()
             status = 1 if self.enabled_var.get() else 0
 
-            # Update description and basic status
+            # Update description and basic status immediately
             try:
                 success, msg = update_managed_bridge(bridge_id, desc, status)
                 if not success:
