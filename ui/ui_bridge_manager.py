@@ -12,16 +12,17 @@ from logic.config_manager import SETTINGS
 try:
     # [FIX IMPORT] Thêm get_managed_bridges_with_prediction để tính toán nóng
     from logic.data_repository import get_managed_bridges_with_prediction
+    from logic.db_manager import update_managed_bridge
     from lottery_service import (
         add_managed_bridge,
         delete_managed_bridge,
         # get_all_managed_bridges, # Không dùng hàm thô này nữa
-        # update_managed_bridge removed - now imported locally where needed
     )
 except ImportError as e:
     print(f"LỖI IMPORT NGHIÊM TRỌNG tại ui_bridge_manager: {e}")
     def get_managed_bridges_with_prediction(db, current_data=None, only_enabled=False): return []
     def add_managed_bridge(n, d, w): return False, "Lỗi Import"
+    def update_managed_bridge(i, d, s): return False, "Lỗi Import"
     def delete_managed_bridge(i): return False, "Lỗi Import"
 
 
@@ -305,7 +306,6 @@ class BridgeManagerWindow:
 
             # Update description and basic status
             try:
-                from logic.db_manager import update_managed_bridge
                 success, msg = update_managed_bridge(bridge_id, desc, status)
                 if not success:
                     messagebox.showerror("Lỗi", msg, parent=self.window)

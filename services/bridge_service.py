@@ -2,6 +2,7 @@
 # Service layer: Logic quản lý cầu
 
 import traceback
+import sqlite3
 
 # Import các hàm Data Repository với alias để hỗ trợ testing và mocking
 try:
@@ -443,7 +444,6 @@ class BridgeService:
             updated_bridges = []
             failed_bridges = []
 
-            import sqlite3
             conn = None
             try:
                 conn = sqlite3.connect(self.db_name)
