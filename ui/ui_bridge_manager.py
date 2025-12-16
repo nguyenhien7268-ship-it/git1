@@ -11,12 +11,12 @@ from logic.config_manager import SETTINGS
 # Import Logic
 try:
     # [FIX IMPORT] Thêm get_managed_bridges_with_prediction để tính toán nóng
-    from logic.data_repository import get_managed_bridges_with_prediction 
+    from logic.data_repository import get_managed_bridges_with_prediction
+    from logic.db_manager import update_managed_bridge
     from lottery_service import (
         add_managed_bridge,
         delete_managed_bridge,
         # get_all_managed_bridges, # Không dùng hàm thô này nữa
-        update_managed_bridge,
     )
 except ImportError as e:
     print(f"LỖI IMPORT NGHIÊM TRỌNG tại ui_bridge_manager: {e}")
@@ -33,7 +33,7 @@ class BridgeManagerWindow:
         self.app = app
         self.root = app.root
         self.all_bridges_cache = []
-        
+
         if (
             hasattr(self.app, "bridge_manager_window")
             and self.app.bridge_manager_window
@@ -44,8 +44,8 @@ class BridgeManagerWindow:
 
         self.window = tk.Toplevel(self.root)
         self.window.title("Quản Lý Cầu (Bridge Manager) - K1N & Scan Check")
-        self.window.geometry("1150x650") 
-        
+        self.window.geometry("1150x650")
+
         self.app.bridge_manager_window = self.window
         self.app.bridge_manager_window_instance = self
 
@@ -77,25 +77,25 @@ class BridgeManagerWindow:
     def _setup_treeview_columns(self):
         self.tree.heading("id", text="ID")
         self.tree.column("id", width=40, anchor="center")
-        
+
         self.tree.heading("name", text="Tên Cầu")
         self.tree.column("name", width=140, anchor=tk.W)
-        
+
         self.tree.heading("desc", text="Mô Tả")
         self.tree.column("desc", width=180, anchor=tk.W)
-        
+
         self.tree.heading("win_rate_k1n", text="K1N (Thực Tế)")
         self.tree.column("win_rate_k1n", width=100, anchor="center")
-        
+
         self.tree.heading("win_rate_scan", text="K2N (Lúc Dò)")
         self.tree.column("win_rate_scan", width=100, anchor="center")
-        
+
         self.tree.heading("status", text="Trạng Thái")
         self.tree.column("status", width=80, anchor="center")
-        
+
         self.tree.heading("pinned", text="📌 Ghim")
         self.tree.column("pinned", width=60, anchor="center")
-        
+
         self.tree.heading("created_at", text="Ngày Tạo")
         self.tree.column("created_at", width=100, anchor="center")
 
@@ -111,19 +111,19 @@ class BridgeManagerWindow:
 
         scrollbar = ttk.Scrollbar(frame, orient=tk.VERTICAL, command=self.tree.yview)
         self.tree.configure(yscrollcommand=scrollbar.set)
-        
+
         self.tree.grid(row=0, column=0, sticky="nsew")
         scrollbar.grid(row=0, column=1, sticky="ns")
 
         self.tree.bind("<<TreeviewSelect>>", self.on_bridge_select)
-        
+
         # Add controls frame for bulk operations
         controls_frame = ttk.Frame(frame)
         controls_frame.grid(row=1, column=0, sticky="ew", pady=(5, 0))
         self.delete_selected_btn = ttk.Button(controls_frame, text="Delete selected", command=self._on_delete_selected)
         self.delete_selected_btn.pack(side=tk.LEFT, padx=(0, 5))
         self.delete_selected_btn.state(['disabled'])
-        
+
         self.context_menu = tk.Menu(self.window, tearoff=0)
         self.context_menu.add_command(label="📌 Ghim/Bỏ Ghim", command=self.toggle_pin_selected_bridge)
         self.context_menu.add_separator()
@@ -133,7 +133,7 @@ class BridgeManagerWindow:
     def create_toolbar(self):
         frame = ttk.Frame(self.window, padding="10")
         frame.grid(row=2, column=0, sticky="ew")
-        
+
         style = ttk.Style()
         style.configure("Smart.TButton", foreground="blue", font=("Helvetica", 10, "bold"))
 
@@ -144,15 +144,15 @@ class BridgeManagerWindow:
         ttk.Button(frame, text="Làm Mới List", command=self.refresh_bridge_list).pack(side=tk.LEFT, padx=2)
 
         ttk.Separator(frame, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=10)
-        
+
         self.btn_smart_opt = ttk.Button(
-            frame, 
-            text="⚡ Tối Ưu Cầu Thông Minh", 
+            frame,
+            text="⚡ Tối Ưu Cầu Thông Minh",
             style="Smart.TButton",
             command=self.run_smart_optimization
         )
         self.btn_smart_opt.pack(side=tk.LEFT, padx=2)
-        
+
         ttk.Button(frame, text="Test Cầu Này", command=self.run_quick_backtest).pack(side=tk.RIGHT, padx=2)
 
     # --- LOGIC HANDLERS ---
@@ -164,15 +164,15 @@ class BridgeManagerWindow:
         """
         try:
             if not hasattr(self, 'window') or not self.window.winfo_exists(): return
-            
+
             # Xóa cũ
             for item in self.tree.get_children(): self.tree.delete(item)
-            
+
             # 1. Lấy dữ liệu xổ số: Thử nhiều nguồn khác nhau để chắc chắn có dữ liệu
             current_data = getattr(self.app, 'all_data_ai', [])
             if not current_data and hasattr(self.app, 'controller'):
                 current_data = getattr(self.app.controller, 'all_data_ai', [])
-            
+
             # [FALLBACK] Nếu vẫn không có, thử load trực tiếp từ DB (Chậm hơn chút nhưng chắc chắn có)
             if not current_data:
                 try:
@@ -183,35 +183,35 @@ class BridgeManagerWindow:
 
             # 2. Gọi hàm tính toán
             self.all_bridges_cache = get_managed_bridges_with_prediction(
-                self.app.db_name, 
-                current_data=current_data, 
+                self.app.db_name,
+                current_data=current_data,
                 only_enabled=False
             )
-            
+
             for b in self.all_bridges_cache:
                 status_text = "Đang Bật" if b['is_enabled'] else "Đã Tắt"
                 is_pinned = b.get('is_pinned', 0)
                 pinned_text = "📌 Có" if is_pinned else "❌ Không"
-                
+
                 tags = []
                 if not b['is_enabled']: tags.append("disabled")
                 if is_pinned: tags.append("pinned")
-                
+
                 created_date = b.get('created_at') or b.get('date_added', 'N/A')
-                
+
                 # --- [FIX LOGIC HIỂN THỊ] ---
                 k1n_rate = str(b.get('win_rate_text', ''))
-                
+
                 # Điều kiện lỏng hơn: Chấp nhận 'N/A', 'N/A ', None, rỗng
                 if not k1n_rate or 'N/A' in k1n_rate:
                     pred = str(b.get('next_prediction_stl', ''))
-                    
+
                     if not pred or 'N/A' in pred:
                         # Nếu không có cả dự đoán -> Có thể do chưa có dữ liệu xổ số
                         k1n_rate = "Chờ dữ liệu..." if not current_data else "Không xác định"
                     else:
                         k1n_rate = f"Dự: {pred}"
-                
+
                 # --- SCAN RATE ---
                 search_rate = b.get("search_rate_text", "")
                 search_period = b.get("search_period", 0)
@@ -220,45 +220,45 @@ class BridgeManagerWindow:
                     if search_period > 0: k2n_display += f" ({search_period}kỳ)"
                 else:
                     k2n_display = "-"
-                
+
                 self.tree.insert(
-                    "", tk.END, 
+                    "", tk.END,
                     values=(
-                        b['id'], b['name'], b['description'], 
-                        k1n_rate,      
-                        k2n_display,   
+                        b['id'], b['name'], b['description'],
+                        k1n_rate,
+                        k2n_display,
                         status_text, pinned_text, created_date
                     ),
                     tags=tuple(tags) if tags else ()
                 )
-            
+
             self.tree.tag_configure("disabled", foreground="gray")
             self.tree.tag_configure("pinned", background="#fff9c4")
-            
+
         except Exception as e:
             print(f"Lỗi refresh_bridge_list (Ignored): {e}")
 
     def on_bridge_select(self, event):
         selected_items = self.tree.selection()
-        
+
         # Enable/disable bulk delete button based on selection
         if hasattr(self, 'delete_selected_btn'):
             if selected_items:
                 self.delete_selected_btn.state(['!disabled'])
             else:
                 self.delete_selected_btn.state(['disabled'])
-        
+
         # For single selection, populate the form fields
         selected = self.tree.focus()
         if not selected: return
         values = self.tree.item(selected, "values")
         if not values: return
-        
+
         self.name_entry.delete(0, tk.END)
         self.name_entry.insert(0, values[1])
         self.desc_entry.delete(0, tk.END)
         self.desc_entry.insert(0, values[2])
-        
+
         # Status là cột index 5
         is_enabled = (values[5] == "Đang Bật")
         self.enabled_var.set(is_enabled)
@@ -268,7 +268,7 @@ class BridgeManagerWindow:
         desc = self.desc_entry.get().strip()
         if not name:
             messagebox.showwarning("Lỗi", "Tên cầu không được để trống!", parent=self.window)
-            return 
+            return
         success, msg = add_managed_bridge(name, desc)
         if success:
             self.app.logger.log(f"Thêm cầu thành công: {name}")
@@ -278,17 +278,64 @@ class BridgeManagerWindow:
             messagebox.showerror("Lỗi", msg, parent=self.window)
 
     def update_selected_bridge(self):
-        selected = self.tree.focus()
-        if not selected: return
-        bridge_id = self.tree.item(selected, "values")[0]
-        desc = self.desc_entry.get().strip()
-        status = 1 if self.enabled_var.get() else 0
-        success, msg = update_managed_bridge(bridge_id, desc, status)
-        if success:
-            self.app.logger.log(f"Cập nhật cầu {bridge_id}: {msg}")
-            self.refresh_bridge_list()
+        """
+        Phase 1: Update selected bridge(s) with activation and recalculation.
+        """
+        selected_items = self.tree.selection()
+
+        if not selected_items:
+            messagebox.showwarning("Chưa chọn", "Vui lòng chọn ít nhất một cầu để cập nhật.", parent=self.window)
+            return
+
+        # Get bridge names from selected items
+        bridge_names = []
+        for item in selected_items:
+            values = self.tree.item(item, "values")
+            if values and len(values) > 1:
+                bridge_names.append(values[1])  # Column 1 is bridge name
+
+        if not bridge_names:
+            messagebox.showerror("Lỗi", "Không thể lấy tên cầu từ các mục đã chọn.", parent=self.window)
+            return
+
+        # For single selection, update description and status first
+        # Note: Multi-selection only updates activation status via controller
+        if len(selected_items) == 1:
+            bridge_id = self.tree.item(selected_items[0], "values")[0]
+            desc = self.desc_entry.get().strip()
+            status = 1 if self.enabled_var.get() else 0
+
+            # Update description and basic status immediately
+            try:
+                success, msg = update_managed_bridge(bridge_id, desc, status)
+                if not success:
+                    messagebox.showerror("Lỗi", msg, parent=self.window)
+                    return
+            except Exception as e:
+                messagebox.showerror("Lỗi", f"Không thể cập nhật thông tin cơ bản: {e}", parent=self.window)
+                return
+
+        # Use controller to activate and recalculate bridges in background
+        if hasattr(self.app, 'controller') and self.app.controller:
+            self.app.controller.execute_batch_bridge_activation(bridge_names)
+
+            # Show feedback to user
+            if len(bridge_names) == 1:
+                messagebox.showinfo(
+                    "Đang xử lý",
+                    f"Đang kích hoạt và tính toán lại cầu '{bridge_names[0]}' trong nền.\n"
+                    "Vui lòng đợi kết quả trong log.",
+                    parent=self.window
+                )
+            else:
+                messagebox.showinfo(
+                    "Đang xử lý",
+                    f"Đang kích hoạt và tính toán lại {len(bridge_names)} cầu trong nền.\n"
+                    "Vui lòng đợi kết quả trong log.",
+                    parent=self.window
+                )
         else:
-            messagebox.showerror("Lỗi", msg, parent=self.window)
+            messagebox.showerror("Lỗi", "Controller không khả dụng.", parent=self.window)
 
     def delete_selected_bridge(self):
         """
@@ -297,17 +344,17 @@ class BridgeManagerWindow:
         """
         # 1. Lấy tất cả ID của các dòng đang chọn
         selected_items = self.tree.selection()
-        
+
         if not selected_items:
             messagebox.showwarning("Chưa chọn", "Vui lòng chọn ít nhất một cầu để xóa.", parent=self.window)
             return
 
         num_selected = len(selected_items)
-        
+
         # Tạo thông báo xác nhận dựa trên số lượng dòng được chọn
         try:
             # Bridge name nằm ở cột thứ 2 (index 1)
-            first_bridge_name = self.tree.item(selected_items[0], "values")[1] 
+            first_bridge_name = self.tree.item(selected_items[0], "values")[1]
         except IndexError:
             first_bridge_name = "đã chọn"
 
@@ -318,10 +365,10 @@ class BridgeManagerWindow:
 
         if not messagebox.askyesno("Xác nhận Xóa", confirm_msg, parent=self.window):
             return
-        
+
         deleted_count = 0
         failed_names = []
-        
+
         # 2. LẶP QUA TẤT CẢ CÁC DÒNG ĐƯỢC CHỌN VÀ THỰC HIỆN XÓA
         for selected_item_id in selected_items:
             try:
@@ -332,28 +379,28 @@ class BridgeManagerWindow:
 
                 # Gọi hàm xóa từ service
                 success, msg = delete_managed_bridge(bridge_id)
-                
+
                 if success:
                     deleted_count += 1
                 else:
                     failed_names.append((bridge_name, msg))
-                    
+
             except Exception as e:
                 # Ghi lại lỗi nếu không đọc được dữ liệu dòng
                 failed_names.append((f"Lỗi đọc dữ liệu dòng {selected_item_id}", str(e)))
-                
+
         # 3. Cập nhật giao diện và thông báo kết quả
         if deleted_count > 0:
             self.refresh_bridge_list()
             self.reset_form()
-            
+
         if deleted_count == num_selected:
             messagebox.showinfo("Thành công", f"Đã xóa thành công {deleted_count} cầu.", parent=self.window)
         elif deleted_count > 0:
             error_details = "\n".join([f"- {name}: {msg}" for name, msg in failed_names])
-            messagebox.showwarning("Hoàn thành có lỗi", 
+            messagebox.showwarning("Hoàn thành có lỗi",
                                   f"Đã xóa thành công {deleted_count}/{num_selected} cầu. "
-                                  f"Có {len(failed_names)} cầu không thể xóa:\n{error_details}", 
+                                  f"Có {len(failed_names)} cầu không thể xóa:\n{error_details}",
                                   parent=self.window)
         elif num_selected > 0:
              error_details = "\n".join([f"- {name}: {msg}" for name, msg in failed_names])
@@ -364,7 +411,7 @@ class BridgeManagerWindow:
         selected_items = self.tree.selection()
         if not selected_items:
             return
-        
+
         # Collect names - name is in column index 1
         names = []
         for iid in selected_items:
@@ -443,7 +490,7 @@ class BridgeManagerWindow:
 
     def run_quick_backtest(self):
         selected = self.tree.focus()
-        if not selected: 
+        if not selected:
             messagebox.showwarning("Chưa chọn cầu", "Vui lòng chọn một cầu từ danh sách.", parent=self.window)
             return
         bridge_name = self.tree.item(selected, "values")[1]
@@ -452,7 +499,7 @@ class BridgeManagerWindow:
             self.app.controller.trigger_bridge_backtest(bridge_name, is_de=is_de)
         else:
             messagebox.showerror("Lỗi", "Controller không khả dụng.", parent=self.window)
-    
+
     def toggle_pin_selected_bridge(self):
         selected = self.tree.focus()
         if not selected:
@@ -473,7 +520,7 @@ class BridgeManagerWindow:
                 thread.start()
             else:
                 messagebox.showerror("Lỗi", "Controller không khả dụng.", parent=self.window)
-    
+
     def show_context_menu(self, event):
         item = self.tree.identify_row(event.y)
         if item:

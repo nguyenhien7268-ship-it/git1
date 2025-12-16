@@ -308,6 +308,47 @@ def get_cau_dong_for_tab_soi_cau_de(db_name=None, threshold_thong=None):
 
     return filtered_bridges
 
+def get_safe_prediction_bridges(db_name=None):
+    """
+    Phase 3: Get bridges safe for prediction (enabled and not syncing).
+    
+    This function replaces direct DB queries for prediction purposes.
+    It ensures only bridges with complete, up-to-date data are used.
+    
+    Args:
+        db_name: Database name (optional)
+    
+    Returns:
+        list: List of bridge dictionaries safe for prediction
+    """
+    try:
+        # Import the Phase 3 function
+        from services.bridge_service import get_safe_active_bridges
+        
+        # Get safe bridge names
+        safe_names = get_safe_active_bridges(db_name)
+        
+        # Get full bridge data
+        if db_name is None:
+            from logic.db_manager import DB_NAME
+            db_name = DB_NAME
+        
+        all_bridges = get_all_managed_bridges(db_name, only_enabled=True)
+        
+        # Filter to only safe bridges
+        safe_bridges = [b for b in all_bridges if b.get('name', '') in safe_names]
+        
+        return safe_bridges
+    
+    except Exception as e:
+        print(f"[Phase 3] Error in get_safe_prediction_bridges: {e}")
+        # Fallback to all enabled bridges if Phase 3 fails
+        if db_name is None:
+            from logic.db_manager import DB_NAME
+            db_name = DB_NAME
+        return get_all_managed_bridges(db_name, only_enabled=True)
+
+
 __all__ = [
     'get_loto_stats_last_n_days',
     'get_loto_gan_stats',
@@ -323,4 +364,5 @@ __all__ = [
     'calculate_score_from_features',
     'get_historical_dashboard_data',
     'get_cau_dong_for_tab_soi_cau_de',
+    'get_safe_prediction_bridges',
 ]
