@@ -14,7 +14,6 @@ try:
     from logic.data_repository import get_all_managed_bridges, load_data_ai_from_db, delete_managed_bridges_batch
     from logic.db_manager import (
         DB_NAME,
-        add_managed_bridge,
         delete_managed_bridge,
         delete_ky_from_db,
         get_all_kys_from_db,
@@ -29,9 +28,12 @@ try:
     print(">>> (V7.3) Tải logic.db_manager & data_repository thành công.")
 except ImportError as e_db:
     print(f"LỖI NGHIÊM TRỌNG: Không thể import logic DB/Repo: {e_db}")
-    # Fallback for delete_managed_bridges_batch if import fails
+    # Fallback for DB_NAME and functions if import fails
+    DB_NAME = "data/xo_so_prizes_all_logic.db"
     def delete_managed_bridges_batch(names, db_name=None, transactional=False, chunk_size=500):
         return {"requested": len(names or []), "deleted": [], "missing": list(names or []), "failed": [{"error": "delete_managed_bridges_batch not available"}]}
+    def upsert_managed_bridge(*args, **kwargs):
+        return False, "Logic DB manager not available"
 
 # 2. LOGIC PARSING (XỬ LÝ DỮ LIỆU)
 try:
@@ -146,11 +148,11 @@ except ImportError as e_ai:
 
 # Thêm __all__ để đánh dấu các hàm này là 'được sử dụng' (để export)
 __all__ = [
-    # DB & Repo (12)
+    # DB & Repo (13)
     "get_all_managed_bridges",
     "load_data_ai_from_db",
     "DB_NAME",
-    "add_managed_bridge",
+    "add_managed_bridge",  # Service adapter (V11.4)
     "delete_managed_bridge",
     "delete_managed_bridges_batch",
     "get_all_kys_from_db",
@@ -275,7 +277,21 @@ def add_managed_bridge(
         from logic.constants import BRIDGE_TYPES
     except ImportError:
         logger.warning("Could not import BRIDGE_TYPES from constants, using defaults")
-        BRIDGE_TYPES = {}
+        # Define minimal type mapping as fallback
+        BRIDGE_TYPES = {
+            "LO_V17": "LO_POS",
+            "LO_BN": "LO_MEM",
+            "LO_POS": "LO_POS",
+            "LO_MEM": "LO_MEM",
+            "LO_STL_FIXED": "LO_STL_FIXED",
+            "DE_SET": "DE_SET",
+            "DE_MEMORY": "DE_MEMORY",
+            "DE_PASCAL": "DE_PASCAL",
+            "DE_KILLER": "DE_KILLER",
+            "DE_DYNAMIC_K": "DE_DYNAMIC_K",
+            "DE_POS_SUM": "DE_POS_SUM",
+            "DE_ALGO": "DE_ALGO",
+        }
     
     # Normalize bridge name
     if not bridge_name or not str(bridge_name).strip():
