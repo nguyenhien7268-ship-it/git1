@@ -99,7 +99,7 @@ class BridgeScannerTab(ttk.Frame):
             style="Accent.TButton"
         ).pack(side=tk.LEFT, padx=5)
         
-        # Dòng 2: Quét Đề
+        # Dòng 2: Quét Đề với nút
         ttk.Label(frame, text="Quét Cầu Đề:", font=("Helvetica", 10, "bold")).grid(
             row=1, column=0, sticky="w", pady=5
         )
@@ -113,13 +113,56 @@ class BridgeScannerTab(ttk.Frame):
             command=self._scan_de
         ).pack(side=tk.LEFT, padx=5)
         
-        # Dòng 3: Thông tin
+        # Dòng 3: Cấu hình Quét Đề (V11.4 - Multi-Strategy)
+        ttk.Label(frame, text="Cấu hình Đề:", font=("Helvetica", 10, "bold")).grid(
+            row=2, column=0, sticky="w", pady=5
+        )
+        
+        config_frame = ttk.Frame(frame)
+        config_frame.grid(row=2, column=1, sticky="ew", pady=5)
+        
+        # Checkboxes for DE bridge types (V11.4)
+        self.de_scan_options = {}
+        
+        # DE_SET (Bộ) - Enabled by default
+        self.de_scan_options['DE_SET'] = tk.BooleanVar(value=True)
+        ttk.Checkbutton(
+            config_frame,
+            text="📦 Cầu Bộ",
+            variable=self.de_scan_options['DE_SET']
+        ).pack(side=tk.LEFT, padx=5)
+        
+        # DE_PASCAL - Enabled by default
+        self.de_scan_options['DE_PASCAL'] = tk.BooleanVar(value=True)
+        ttk.Checkbutton(
+            config_frame,
+            text="🔺 Pascal",
+            variable=self.de_scan_options['DE_PASCAL']
+        ).pack(side=tk.LEFT, padx=5)
+        
+        # DE_MEMORY (Bạc Nhớ) - Enabled by default
+        self.de_scan_options['DE_MEMORY'] = tk.BooleanVar(value=True)
+        ttk.Checkbutton(
+            config_frame,
+            text="🧠 Bạc Nhớ",
+            variable=self.de_scan_options['DE_MEMORY']
+        ).pack(side=tk.LEFT, padx=5)
+        
+        # DE_DYNAMIC_K (Chạm) - Disabled by default (too many)
+        self.de_scan_options['DE_DYNAMIC_K'] = tk.BooleanVar(value=False)
+        ttk.Checkbutton(
+            config_frame,
+            text="👆 Chạm",
+            variable=self.de_scan_options['DE_DYNAMIC_K']
+        ).pack(side=tk.LEFT, padx=5)
+        
+        # Dòng 4: Thông tin
         self.scan_status_label = ttk.Label(
             frame, 
             text="📌 Sẵn sàng quét. Chọn loại quét và bấm nút để bắt đầu.", 
             foreground="blue"
         )
-        self.scan_status_label.grid(row=2, column=0, columnspan=2, sticky="w", pady=10)
+        self.scan_status_label.grid(row=3, column=0, columnspan=2, sticky="w", pady=10)
     
     def _create_results_table(self):
         """Tạo bảng hiển thị kết quả quét."""
@@ -262,130 +305,103 @@ class BridgeScannerTab(ttk.Frame):
     
     def _do_scan_de(self):
         """
-        Thực hiện quét Đề với xử lý robust cho nhiều dạng kết quả.
+        Thực hiện quét Đề với multi-strategy pattern (V11.4).
         
-        V8.3: Enhanced with normalization for diverse scanner return formats:
-        - Handles (list, int), (int, list), list, or single objects
-        - Normalizes bridge attributes from dict/object
-        - Handles win_rate as fraction/percentage/list
-        - Captures all variables in lambda closures properly
+        V11.4: Enhanced with scan_options from UI checkboxes:
+        - Collects user-selected bridge types from checkboxes
+        - Passes scan_options to DeBridgeScanner.scan_all()
+        - Displays results with type prefixes for clarity
+        - Handles Candidate objects with normalized attributes
         """
         all_data, _ = load_data_ai_from_db(self.db_name)
         if not all_data:
             raise Exception("Không có dữ liệu xổ số")
         
-        # Import DE scanner directly to get full results
+        # [V11.4] Collect scan options from UI checkboxes
+        scan_options = {
+            'DE_SET': self.de_scan_options.get('DE_SET', tk.BooleanVar(value=True)).get(),
+            'DE_PASCAL': self.de_scan_options.get('DE_PASCAL', tk.BooleanVar(value=True)).get(),
+            'DE_MEMORY': self.de_scan_options.get('DE_MEMORY', tk.BooleanVar(value=True)).get(),
+            'DE_DYNAMIC_K': self.de_scan_options.get('DE_DYNAMIC_K', tk.BooleanVar(value=False)).get(),
+        }
+        
+        # Import DE scanner directly
         try:
-            from logic.bridges.de_bridge_scanner import run_de_scanner
-            scanner_result = run_de_scanner(all_data)
+            from logic.bridges.de_bridge_scanner import DeBridgeScanner
+            scanner = DeBridgeScanner()
             
-            # ROBUST NORMALIZATION: Handle various return formats
-            count = 0
-            found_bridges = []
+            # [V11.4] Call scanner with options
+            candidates, meta = scanner.scan_all(all_data, self.db_name, scan_options)
             
-            if scanner_result is None:
-                count = 0
-                found_bridges = []
-            elif isinstance(scanner_result, tuple) and len(scanner_result) == 2:
-                # Could be (list, int) or (int, list)
-                if isinstance(scanner_result[0], (list, tuple)) and isinstance(scanner_result[1], int):
-                    found_bridges, count = scanner_result[0], scanner_result[1]
-                elif isinstance(scanner_result[0], int) and isinstance(scanner_result[1], (list, tuple)):
-                    count, found_bridges = scanner_result[0], scanner_result[1]
-                else:
-                    # Fallback: treat first as bridges
-                    found_bridges = scanner_result[0] if isinstance(scanner_result[0], (list, tuple)) else [scanner_result[0]]
-                    count = len(found_bridges)
-            elif isinstance(scanner_result, (list, tuple)):
-                found_bridges = scanner_result
-                count = len(found_bridges)
-            else:
-                # Single object
-                found_bridges = [scanner_result]
-                count = 1
+            # Process Candidate objects and display results
+            count = meta.get('returned_count', len(candidates))
             
-            # Process and display results
-            if found_bridges and count > 0:
-                for bridge in found_bridges:
-                    # NORMALIZE BRIDGE: Handle dict or object with attributes
-                    bridge_dict = bridge if isinstance(bridge, dict) else {}
+            if candidates and count > 0:
+                for candidate in candidates:
+                    # Extract from Candidate object
+                    name = candidate.name
+                    desc = candidate.description or "N/A"
                     
-                    # Try various attribute names for name
-                    if isinstance(bridge, dict):
-                        name = bridge.get('name') or bridge.get('normalized_name') or bridge.get('description', 'N/A')
-                    else:
-                        name = getattr(bridge, 'name', None) or getattr(bridge, 'normalized_name', None) or getattr(bridge, 'description', 'N/A')
+                    # Get win rate from metadata or calculate from win_count_10
+                    win_rate = candidate.metadata.get('win_rate', 0.0) if hasattr(candidate, 'metadata') and candidate.metadata else 0.0
+                    if win_rate == 0.0 and candidate.win_count_10 > 0:
+                        win_rate = (candidate.win_count_10 / 10.0) * 100.0
+                    rate_str = f"{win_rate:.1f}%"
                     
-                    # Description
-                    if isinstance(bridge, dict):
-                        desc = bridge.get('description', bridge.get('name', 'N/A'))
-                    else:
-                        desc = getattr(bridge, 'description', getattr(bridge, 'name', 'N/A'))
+                    # Streak
+                    streak = candidate.streak
+                    streak_str = str(streak)
                     
-                    # Win rate - handle fraction (0-1), percentage, or list
-                    if isinstance(bridge, dict):
-                        win_rate = bridge.get('win_rate', 0)
-                    else:
-                        win_rate = getattr(bridge, 'win_rate', 0)
+                    # Bridge type from reason field
+                    bridge_type = candidate.reason or 'UNKNOWN'
                     
-                    if isinstance(win_rate, (list, tuple)):
-                        # Join list of rates
-                        rate_str = ', '.join([f"{r:.1f}%" if isinstance(r, (int, float)) else str(r) for r in win_rate])
-                    elif isinstance(win_rate, (int, float)):
-                        # Convert fraction to percentage if needed
-                        if 0 < win_rate <= 1:
-                            rate_str = f"{win_rate * 100:.1f}%"
-                        else:
-                            rate_str = f"{win_rate:.1f}%"
-                    else:
-                        rate_str = str(win_rate)
-                    
-                    # Streak - handle int, list, or string
-                    if isinstance(bridge, dict):
-                        streak = bridge.get('streak', 0)
-                    else:
-                        streak = getattr(bridge, 'streak', 0)
-                    
-                    if isinstance(streak, (list, tuple)):
-                        streak_str = ', '.join([str(s) for s in streak])
-                    else:
-                        streak_str = str(streak)
-                    
-                    # Bridge type
-                    if isinstance(bridge, dict):
-                        bridge_type = bridge.get('type', 'UNKNOWN')
-                    else:
-                        bridge_type = getattr(bridge, 'type', 'UNKNOWN')
-                    
-                    # Add type indicator to name for clarity
+                    # [V11.4] Add type prefix/indicator for clarity
                     type_display = ""
-                    if 'DE_MEMORY' in bridge_type or bridge_type == 'DE_MEMORY':
-                        type_display = " [BẠC NHỚ]"
-                    elif 'DE_SET' in bridge_type:
-                        type_display = " [BỘ]"
-                    elif 'DE_PASCAL' in bridge_type:
-                        type_display = " [PASCAL]"
-                    elif 'DE_KILLER' in bridge_type:
-                        type_display = " [LOẠI TRỪ]"
-                    elif 'DE_DYNAMIC' in bridge_type:
-                        type_display = " [ĐỘNG]"
+                    if bridge_type == 'DE_MEMORY':
+                        type_display = " [🧠 BẠC NHỚ]"
+                    elif bridge_type == 'DE_SET':
+                        type_display = " [📦 BỘ]"
+                    elif bridge_type == 'DE_PASCAL':
+                        type_display = " [🔺 PASCAL]"
+                    elif bridge_type == 'DE_KILLER':
+                        type_display = " [⛔ LOẠI TRỪ]"
+                    elif bridge_type == 'DE_DYNAMIC_K':
+                        type_display = " [👆 CHẠM]"
+                    elif bridge_type == 'DE_POS_SUM':
+                        type_display = " [➕ TỔNG]"
                     
                     name_with_type = str(name) + type_display
                     
-                    # FIX: Add to results table with ALL variables captured in default params
+                    # Add to results table
                     self.after(0, lambda n=name_with_type, d=desc, r=rate_str, s=streak_str, bt=bridge_type: 
                         self._add_de_result_to_table(n, d, r, s, bt))
                 
-                # FIX: Capture count in default parameter
-                self.after(0, lambda c=count: messagebox.showinfo(
+                # Show summary with per-strategy breakdown
+                by_strategy = meta.get('by_strategy', {})
+                summary_parts = [f"Đã tìm thấy {count} cầu Đề."]
+                if by_strategy:
+                    summary_parts.append("\n\nPhân loại:")
+                    type_names = {
+                        'DE_SET': '📦 Bộ',
+                        'DE_PASCAL': '🔺 Pascal',
+                        'DE_MEMORY': '🧠 Bạc Nhớ',
+                        'DE_DYNAMIC_K': '👆 Chạm',
+                        'DE_POS_SUM': '➕ Tổng',
+                        'DE_KILLER': '⛔ Loại'
+                    }
+                    for strategy_type, strategy_count in by_strategy.items():
+                        display_name = type_names.get(strategy_type, strategy_type)
+                        summary_parts.append(f"  • {display_name}: {strategy_count}")
+                
+                summary_msg = "\n".join(summary_parts)
+                self.after(0, lambda msg=summary_msg: messagebox.showinfo(
                     "Quét Cầu Đề", 
-                    f"Đã tìm thấy {c} cầu Đề. Xem kết quả bên dưới."
+                    msg
                 ))
             else:
-                # FIX: No closure issue here (no variables), but keep consistent style
                 self.after(0, lambda: messagebox.showinfo(
                     "Quét Cầu Đề", 
-                    "Không tìm thấy cầu Đề mới."
+                    "Không tìm thấy cầu Đề mới với cấu hình đã chọn."
                 ))
         except Exception as e:
             # FIX: Capture error message in default parameter
