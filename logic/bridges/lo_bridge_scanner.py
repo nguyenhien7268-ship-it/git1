@@ -599,6 +599,7 @@ def _convert_lo_bridges_to_candidates(
 ) -> List[Candidate]:
     """
     Convert LO bridge dicts to Candidate objects with K1N/K2N rates attached.
+    [Phase 2] Revives disabled bridges instead of skipping them.
     
     Args:
         bridge_dicts: List of bridge dictionaries from scan
@@ -610,6 +611,10 @@ def _convert_lo_bridges_to_candidates(
     """
     candidates = []
     
+    # [Phase 2] Import bridge service for revival (module-level import to avoid repeated imports)
+    bridge_service_initialized = False
+    bridge_service = None
+    
     for b in bridge_dicts:
         name = b.get('name', '')
         if not name:
@@ -618,8 +623,51 @@ def _convert_lo_bridges_to_candidates(
         # Normalize name for duplicate checking
         norm_name = normalize_bridge_name(name)
         
-        # Skip if already exists
+        # [Phase 2] Check if bridge exists and handle revival
         if norm_name in existing_names:
+            # Bridge exists - check if it's disabled and needs revival
+            # Initialize bridge service on first use
+            if not bridge_service_initialized:
+                try:
+                    from services.bridge_service import BridgeService
+                    # Get db_name from bridge dict or use default
+                    db_name = b.get('db_name', DB_NAME)
+                    bridge_service = BridgeService(db_name, logger=None)
+                    bridge_service_initialized = True
+                except ImportError:
+                    print("[Phase 2] Warning: Could not import BridgeService - revival disabled")
+                    bridge_service_initialized = True  # Don't try again
+            
+            if bridge_service:
+                try:
+                    # Get bridge status from DB
+                    from logic.data_repository import get_bridge_by_name
+                    db_name = b.get('db_name', DB_NAME)
+                    bridge_info = get_bridge_by_name(name, db_name)
+                    
+                    if bridge_info and bridge_info.get('is_enabled', 1) == 0:
+                        # Bridge is DISABLED - revive it!
+                        print(f"[Phase 2] Reviving disabled bridge: {name}")
+                        
+                        # Load lottery data for recalculation
+                        from logic.data_repository import load_data_ai_from_db
+                        all_data, _ = load_data_ai_from_db(db_name)
+                        
+                        if all_data and len(all_data) >= 2:
+                            # Activate and recalculate
+                            result = bridge_service.activate_and_recalc_bridges([name], all_data)
+                            
+                            if result.get('success'):
+                                print(f"[Phase 2] ✅ Revived Bridge: {name}")
+                            else:
+                                print(f"[Phase 2] ⚠️ Failed to revive {name}: {result.get('message')}")
+                        else:
+                            print(f"[Phase 2] ⚠️ Insufficient data to revive {name}")
+                    
+                except Exception as e:
+                    print(f"[Phase 2] Error checking bridge status for {name}: {e}")
+            
+            # Skip adding to candidates since bridge already exists
             continue
         
         # Get rates from cache

@@ -247,7 +247,7 @@ class DeBridgeScanner:
         rates_cache = load_rates_cache(db_name)
         
         # 6. Convert to candidates with rates and exclude existing
-        candidates = self._convert_to_candidates(found_bridges, existing_names, rates_cache)
+        candidates = self._convert_to_candidates(found_bridges, existing_names, rates_cache, db_name)
         excluded_count = found_total - len(candidates)
         
         meta = {
@@ -373,10 +373,18 @@ class DeBridgeScanner:
         self, 
         bridges: List[Dict[str, Any]], 
         existing_names: Set[str],
-        rates_cache: Dict[str, Dict[str, float]]
+        rates_cache: Dict[str, Dict[str, float]],
+        db_name: str = DB_NAME
     ) -> List[Candidate]:
-        """Convert bridge dicts to Candidate objects with K1N/K2N rates attached."""
+        """
+        Convert bridge dicts to Candidate objects with K1N/K2N rates attached.
+        [Phase 2] Revives disabled bridges instead of skipping them.
+        """
         candidates = []
+        
+        # [Phase 2] Initialize bridge service for revival (once per call)
+        bridge_service_initialized = False
+        bridge_service = None
         
         for b in bridges:
             name = b.get('name', '')
@@ -386,8 +394,49 @@ class DeBridgeScanner:
             # Normalize name for duplicate checking
             norm_name = normalize_bridge_name(name)
             
-            # Skip if already exists
+            # [Phase 2] Check if bridge exists and handle revival
             if norm_name in existing_names:
+                # Bridge exists - check if it's disabled and needs revival
+                # Initialize bridge service on first use
+                if not bridge_service_initialized:
+                    try:
+                        from services.bridge_service import BridgeService
+                        bridge_service = BridgeService(db_name, logger=None)
+                        bridge_service_initialized = True
+                        logger.info("[Phase 2] BridgeService initialized for DE bridge revival")
+                    except ImportError:
+                        logger.warning("[Phase 2] Could not import BridgeService - revival disabled")
+                        bridge_service_initialized = True  # Don't try again
+                
+                if bridge_service:
+                    try:
+                        # Get bridge status from DB
+                        from logic.data_repository import get_bridge_by_name
+                        bridge_info = get_bridge_by_name(name, db_name)
+                        
+                        if bridge_info and bridge_info.get('is_enabled', 1) == 0:
+                            # Bridge is DISABLED - revive it!
+                            logger.info(f"[Phase 2] Reviving disabled DE bridge: {name}")
+                            
+                            # Load lottery data for recalculation
+                            from logic.data_repository import load_data_ai_from_db
+                            all_data, _ = load_data_ai_from_db(db_name)
+                            
+                            if all_data and len(all_data) >= 2:
+                                # Activate and recalculate
+                                result = bridge_service.activate_and_recalc_bridges([name], all_data)
+                                
+                                if result.get('success'):
+                                    logger.info(f"[Phase 2] ✅ Revived DE Bridge: {name}")
+                                else:
+                                    logger.warning(f"[Phase 2] ⚠️ Failed to revive {name}: {result.get('message')}")
+                            else:
+                                logger.warning(f"[Phase 2] ⚠️ Insufficient data to revive {name}")
+                        
+                    except Exception as e:
+                        logger.error(f"[Phase 2] Error checking bridge status for {name}: {e}")
+                
+                # Skip adding to candidates since bridge already exists
                 continue
             
             # Get rates from cache
