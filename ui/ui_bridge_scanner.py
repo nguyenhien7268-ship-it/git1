@@ -17,7 +17,7 @@ try:
     )
     from logic.bridges.bridge_manager_de import find_and_auto_manage_bridges_de
     from logic.data_repository import load_data_ai_from_db
-    from lottery_service import DB_NAME, upsert_managed_bridge
+    from lottery_service import DB_NAME, add_managed_bridge, upsert_managed_bridge
 except ImportError as e:
     print(f"LỖI IMPORT tại ui_bridge_scanner: {e}")
     def TIM_CAU_TOT_NHAT_V16(*args, **kwargs): return []
@@ -25,6 +25,7 @@ except ImportError as e:
     def update_fixed_lo_bridges(*args, **kwargs): return 0
     def find_and_auto_manage_bridges_de(*args, **kwargs): return []
     def load_data_ai_from_db(*args, **kwargs): return [], 0
+    def add_managed_bridge(*args, **kwargs): return False, "Lỗi Import"
     def upsert_managed_bridge(*args, **kwargs): return False, "Lỗi Import"
     DB_NAME = "data/xo_so_prizes_all_logic.db"
 
@@ -98,7 +99,7 @@ class BridgeScannerTab(ttk.Frame):
             style="Accent.TButton"
         ).pack(side=tk.LEFT, padx=5)
         
-        # Dòng 2: Quét Đề
+        # Dòng 2: Quét Đề với nút
         ttk.Label(frame, text="Quét Cầu Đề:", font=("Helvetica", 10, "bold")).grid(
             row=1, column=0, sticky="w", pady=5
         )
@@ -112,13 +113,56 @@ class BridgeScannerTab(ttk.Frame):
             command=self._scan_de
         ).pack(side=tk.LEFT, padx=5)
         
-        # Dòng 3: Thông tin
+        # Dòng 3: Cấu hình Quét Đề (V11.4 - Multi-Strategy)
+        ttk.Label(frame, text="Cấu hình Đề:", font=("Helvetica", 10, "bold")).grid(
+            row=2, column=0, sticky="w", pady=5
+        )
+        
+        config_frame = ttk.Frame(frame)
+        config_frame.grid(row=2, column=1, sticky="ew", pady=5)
+        
+        # Checkboxes for DE bridge types (V11.4)
+        self.de_scan_options = {}
+        
+        # DE_SET (Bộ) - Enabled by default
+        self.de_scan_options['DE_SET'] = tk.BooleanVar(value=True)
+        ttk.Checkbutton(
+            config_frame,
+            text="📦 Cầu Bộ",
+            variable=self.de_scan_options['DE_SET']
+        ).pack(side=tk.LEFT, padx=5)
+        
+        # DE_PASCAL - Enabled by default
+        self.de_scan_options['DE_PASCAL'] = tk.BooleanVar(value=True)
+        ttk.Checkbutton(
+            config_frame,
+            text="🔺 Pascal",
+            variable=self.de_scan_options['DE_PASCAL']
+        ).pack(side=tk.LEFT, padx=5)
+        
+        # DE_MEMORY (Bạc Nhớ) - Enabled by default
+        self.de_scan_options['DE_MEMORY'] = tk.BooleanVar(value=True)
+        ttk.Checkbutton(
+            config_frame,
+            text="🧠 Bạc Nhớ",
+            variable=self.de_scan_options['DE_MEMORY']
+        ).pack(side=tk.LEFT, padx=5)
+        
+        # DE_DYNAMIC_K (Chạm) - Disabled by default (too many)
+        self.de_scan_options['DE_DYNAMIC_K'] = tk.BooleanVar(value=False)
+        ttk.Checkbutton(
+            config_frame,
+            text="👆 Chạm",
+            variable=self.de_scan_options['DE_DYNAMIC_K']
+        ).pack(side=tk.LEFT, padx=5)
+        
+        # Dòng 4: Thông tin
         self.scan_status_label = ttk.Label(
             frame, 
             text="📌 Sẵn sàng quét. Chọn loại quét và bấm nút để bắt đầu.", 
             foreground="blue"
         )
-        self.scan_status_label.grid(row=2, column=0, columnspan=2, sticky="w", pady=10)
+        self.scan_status_label.grid(row=3, column=0, columnspan=2, sticky="w", pady=10)
     
     def _create_results_table(self):
         """Tạo bảng hiển thị kết quả quét."""
@@ -261,130 +305,103 @@ class BridgeScannerTab(ttk.Frame):
     
     def _do_scan_de(self):
         """
-        Thực hiện quét Đề với xử lý robust cho nhiều dạng kết quả.
+        Thực hiện quét Đề với multi-strategy pattern (V11.4).
         
-        V8.3: Enhanced with normalization for diverse scanner return formats:
-        - Handles (list, int), (int, list), list, or single objects
-        - Normalizes bridge attributes from dict/object
-        - Handles win_rate as fraction/percentage/list
-        - Captures all variables in lambda closures properly
+        V11.4: Enhanced with scan_options from UI checkboxes:
+        - Collects user-selected bridge types from checkboxes
+        - Passes scan_options to DeBridgeScanner.scan_all()
+        - Displays results with type prefixes for clarity
+        - Handles Candidate objects with normalized attributes
         """
         all_data, _ = load_data_ai_from_db(self.db_name)
         if not all_data:
             raise Exception("Không có dữ liệu xổ số")
         
-        # Import DE scanner directly to get full results
+        # [V11.4] Collect scan options from UI checkboxes
+        scan_options = {
+            'DE_SET': self.de_scan_options.get('DE_SET', tk.BooleanVar(value=True)).get(),
+            'DE_PASCAL': self.de_scan_options.get('DE_PASCAL', tk.BooleanVar(value=True)).get(),
+            'DE_MEMORY': self.de_scan_options.get('DE_MEMORY', tk.BooleanVar(value=True)).get(),
+            'DE_DYNAMIC_K': self.de_scan_options.get('DE_DYNAMIC_K', tk.BooleanVar(value=False)).get(),
+        }
+        
+        # Import DE scanner directly
         try:
-            from logic.bridges.de_bridge_scanner import run_de_scanner
-            scanner_result = run_de_scanner(all_data)
+            from logic.bridges.de_bridge_scanner import DeBridgeScanner
+            scanner = DeBridgeScanner()
             
-            # ROBUST NORMALIZATION: Handle various return formats
-            count = 0
-            found_bridges = []
+            # [V11.4] Call scanner with options
+            candidates, meta = scanner.scan_all(all_data, self.db_name, scan_options)
             
-            if scanner_result is None:
-                count = 0
-                found_bridges = []
-            elif isinstance(scanner_result, tuple) and len(scanner_result) == 2:
-                # Could be (list, int) or (int, list)
-                if isinstance(scanner_result[0], (list, tuple)) and isinstance(scanner_result[1], int):
-                    found_bridges, count = scanner_result[0], scanner_result[1]
-                elif isinstance(scanner_result[0], int) and isinstance(scanner_result[1], (list, tuple)):
-                    count, found_bridges = scanner_result[0], scanner_result[1]
-                else:
-                    # Fallback: treat first as bridges
-                    found_bridges = scanner_result[0] if isinstance(scanner_result[0], (list, tuple)) else [scanner_result[0]]
-                    count = len(found_bridges)
-            elif isinstance(scanner_result, (list, tuple)):
-                found_bridges = scanner_result
-                count = len(found_bridges)
-            else:
-                # Single object
-                found_bridges = [scanner_result]
-                count = 1
+            # Process Candidate objects and display results
+            count = meta.get('returned_count', len(candidates))
             
-            # Process and display results
-            if found_bridges and count > 0:
-                for bridge in found_bridges:
-                    # NORMALIZE BRIDGE: Handle dict or object with attributes
-                    bridge_dict = bridge if isinstance(bridge, dict) else {}
+            if candidates and count > 0:
+                for candidate in candidates:
+                    # Extract from Candidate object
+                    name = candidate.name
+                    desc = candidate.description or "N/A"
                     
-                    # Try various attribute names for name
-                    if isinstance(bridge, dict):
-                        name = bridge.get('name') or bridge.get('normalized_name') or bridge.get('description', 'N/A')
-                    else:
-                        name = getattr(bridge, 'name', None) or getattr(bridge, 'normalized_name', None) or getattr(bridge, 'description', 'N/A')
+                    # Get win rate from metadata or calculate from win_count_10
+                    win_rate = candidate.metadata.get('win_rate', 0.0) if hasattr(candidate, 'metadata') and candidate.metadata else 0.0
+                    if win_rate == 0.0 and candidate.win_count_10 > 0:
+                        win_rate = (candidate.win_count_10 / 10.0) * 100.0
+                    rate_str = f"{win_rate:.1f}%"
                     
-                    # Description
-                    if isinstance(bridge, dict):
-                        desc = bridge.get('description', bridge.get('name', 'N/A'))
-                    else:
-                        desc = getattr(bridge, 'description', getattr(bridge, 'name', 'N/A'))
+                    # Streak
+                    streak = candidate.streak
+                    streak_str = str(streak)
                     
-                    # Win rate - handle fraction (0-1), percentage, or list
-                    if isinstance(bridge, dict):
-                        win_rate = bridge.get('win_rate', 0)
-                    else:
-                        win_rate = getattr(bridge, 'win_rate', 0)
+                    # Bridge type from reason field
+                    bridge_type = candidate.reason or 'UNKNOWN'
                     
-                    if isinstance(win_rate, (list, tuple)):
-                        # Join list of rates
-                        rate_str = ', '.join([f"{r:.1f}%" if isinstance(r, (int, float)) else str(r) for r in win_rate])
-                    elif isinstance(win_rate, (int, float)):
-                        # Convert fraction to percentage if needed
-                        if 0 < win_rate <= 1:
-                            rate_str = f"{win_rate * 100:.1f}%"
-                        else:
-                            rate_str = f"{win_rate:.1f}%"
-                    else:
-                        rate_str = str(win_rate)
-                    
-                    # Streak - handle int, list, or string
-                    if isinstance(bridge, dict):
-                        streak = bridge.get('streak', 0)
-                    else:
-                        streak = getattr(bridge, 'streak', 0)
-                    
-                    if isinstance(streak, (list, tuple)):
-                        streak_str = ', '.join([str(s) for s in streak])
-                    else:
-                        streak_str = str(streak)
-                    
-                    # Bridge type
-                    if isinstance(bridge, dict):
-                        bridge_type = bridge.get('type', 'UNKNOWN')
-                    else:
-                        bridge_type = getattr(bridge, 'type', 'UNKNOWN')
-                    
-                    # Add type indicator to name for clarity
+                    # [V11.4] Add type prefix/indicator for clarity
                     type_display = ""
-                    if 'DE_MEMORY' in bridge_type or bridge_type == 'DE_MEMORY':
-                        type_display = " [BẠC NHỚ]"
-                    elif 'DE_SET' in bridge_type:
-                        type_display = " [BỘ]"
-                    elif 'DE_PASCAL' in bridge_type:
-                        type_display = " [PASCAL]"
-                    elif 'DE_KILLER' in bridge_type:
-                        type_display = " [LOẠI TRỪ]"
-                    elif 'DE_DYNAMIC' in bridge_type:
-                        type_display = " [ĐỘNG]"
+                    if bridge_type == 'DE_MEMORY':
+                        type_display = " [🧠 BẠC NHỚ]"
+                    elif bridge_type == 'DE_SET':
+                        type_display = " [📦 BỘ]"
+                    elif bridge_type == 'DE_PASCAL':
+                        type_display = " [🔺 PASCAL]"
+                    elif bridge_type == 'DE_KILLER':
+                        type_display = " [⛔ LOẠI TRỪ]"
+                    elif bridge_type == 'DE_DYNAMIC_K':
+                        type_display = " [👆 CHẠM]"
+                    elif bridge_type == 'DE_POS_SUM':
+                        type_display = " [➕ TỔNG]"
                     
                     name_with_type = str(name) + type_display
                     
-                    # FIX: Add to results table with ALL variables captured in default params
+                    # Add to results table
                     self.after(0, lambda n=name_with_type, d=desc, r=rate_str, s=streak_str, bt=bridge_type: 
                         self._add_de_result_to_table(n, d, r, s, bt))
                 
-                # FIX: Capture count in default parameter
-                self.after(0, lambda c=count: messagebox.showinfo(
+                # Show summary with per-strategy breakdown
+                by_strategy = meta.get('by_strategy', {})
+                summary_parts = [f"Đã tìm thấy {count} cầu Đề."]
+                if by_strategy:
+                    summary_parts.append("\n\nPhân loại:")
+                    type_names = {
+                        'DE_SET': '📦 Bộ',
+                        'DE_PASCAL': '🔺 Pascal',
+                        'DE_MEMORY': '🧠 Bạc Nhớ',
+                        'DE_DYNAMIC_K': '👆 Chạm',
+                        'DE_POS_SUM': '➕ Tổng',
+                        'DE_KILLER': '⛔ Loại'
+                    }
+                    for strategy_type, strategy_count in by_strategy.items():
+                        display_name = type_names.get(strategy_type, strategy_type)
+                        summary_parts.append(f"  • {display_name}: {strategy_count}")
+                
+                summary_msg = "\n".join(summary_parts)
+                self.after(0, lambda msg=summary_msg: messagebox.showinfo(
                     "Quét Cầu Đề", 
-                    f"Đã tìm thấy {c} cầu Đề. Xem kết quả bên dưới."
+                    msg
                 ))
             else:
-                # FIX: No closure issue here (no variables), but keep consistent style
                 self.after(0, lambda: messagebox.showinfo(
                     "Quét Cầu Đề", 
-                    "Không tìm thấy cầu Đề mới."
+                    "Không tìm thấy cầu Đề mới với cấu hình đã chọn."
                 ))
         except Exception as e:
             # FIX: Capture error message in default parameter
@@ -441,16 +458,130 @@ class BridgeScannerTab(ttk.Frame):
         )
         self.results_tree.tag_configure("new", background="#e3f2fd")
     
+    # ==================== NORMALIZATION HELPERS ====================
+    
+    def _normalize_selection_rows(self, selected_items):
+        """
+        Normalize bridge data from tree selection for DB insertion.
+        
+        This helper extracts and normalizes bridge attributes from tree view rows,
+        handling various data formats and ensuring required fields are present.
+        
+        Args:
+            selected_items: List of tree item IDs
+            
+        Yields:
+            Dict with normalized bridge attributes:
+                - name: str (required, stripped)
+                - description: str
+                - display_type: str (e.g., "LÔ_V17", "ĐỀ")
+                - db_type: str (mapped type for DB, e.g., "LO_POS", "DE_SET")
+                - win_rate_text: str
+                - is_already_added: bool
+                - tree_item: item ID for UI update
+                
+        Example:
+            >>> for normalized in self._normalize_selection_rows(selected):
+            ...     if not normalized["is_already_added"]:
+            ...         add_managed_bridge(**normalized)
+        """
+        for item in selected_items:
+            values = self.results_tree.item(item, "values")
+            
+            # Check if already added
+            if len(values) > 5 and values[5] == "✅ Rồi":
+                yield {
+                    "is_already_added": True,
+                    "name": values[1] if len(values) > 1 else None,
+                    "tree_item": item
+                }
+                continue
+            
+            # Extract bridge info from tree columns
+            # Columns: (type, name, description, scan_rate, streak, added)
+            display_type = values[0] if len(values) > 0 else "UNKNOWN"
+            name = values[1] if len(values) > 1 else None
+            desc = values[2] if len(values) > 2 else ""
+            rate = values[3] if len(values) > 3 else "N/A"
+            
+            # Validate and normalize name
+            if not name or name == "N/A" or not str(name).strip():
+                yield {
+                    "is_already_added": False,
+                    "name": None,
+                    "error": "Invalid or missing name",
+                    "tree_item": item,
+                    "description": desc[:30] if desc else "N/A"
+                }
+                continue
+            
+            normalized_name = str(name).strip()
+            
+            # Get actual bridge type from tags (for DE bridges with specific subtypes)
+            tags = self.results_tree.item(item, "tags")
+            actual_bridge_type = None
+            for tag in tags:
+                if tag.startswith('DE_') or tag in ['DE_MEMORY', 'DE_SET', 'DE_PASCAL', 
+                                                      'DE_KILLER', 'DE_DYNAMIC_K', 'DE_POS_SUM']:
+                    actual_bridge_type = tag
+                    break
+            
+            # Validate and normalize display type
+            if not display_type or display_type not in ["LÔ_V17", "LÔ_BN", "LÔ_STL_FIXED", "ĐỀ"]:
+                yield {
+                    "is_already_added": False,
+                    "name": normalized_name,
+                    "error": f"Unknown type: {display_type}",
+                    "tree_item": item,
+                    "description": desc
+                }
+                continue
+            
+            # Map display type to DB type
+            if display_type == "LÔ_V17":
+                db_type = "LO_POS"
+            elif display_type == "LÔ_BN":
+                db_type = "LO_MEM"
+            elif display_type == "LÔ_STL_FIXED":
+                db_type = "LO_STL_FIXED"
+            elif display_type == "ĐỀ":
+                # Use actual bridge type if available, otherwise default
+                db_type = actual_bridge_type if actual_bridge_type else "DE_ALGO"
+            else:
+                db_type = "UNKNOWN"
+            
+            # Yield normalized data
+            yield {
+                "is_already_added": False,
+                "name": normalized_name,
+                "description": desc,
+                "display_type": display_type,
+                "db_type": db_type,
+                "win_rate_text": rate,
+                "error": None,
+                "tree_item": item,
+                "tags": tags
+            }
+    
     # ==================== ACTION FUNCTIONS ====================
     
     def _add_selected_to_management(self):
         """
         Thêm các cầu đã chọn vào hệ thống quản lý.
-        V11.1: Enhanced with detailed logging to logs/batch_add.log
+        V11.4: Refactored to use normalization helper and service layer adapter.
+        
+        Improvements:
+        - Uses _normalize_selection_rows() for consistent data extraction
+        - Calls add_managed_bridge() service adapter instead of direct DB call
+        - Enhanced error handling and logging
+        - Maintains backward compatibility with existing UI behavior
         """
         import os
         import json
         from datetime import datetime
+        import logging
+        
+        logger = logging.getLogger(__name__)
         
         selected = self.results_tree.selection()
         if not selected:
@@ -468,80 +599,56 @@ class BridgeScannerTab(ttk.Frame):
         error_list = []
         log_entries = []
         
-        for item in selected:
-            values = self.results_tree.item(item, "values")
-            if values[5] == "✅ Rồi":  # Đã thêm rồi
+        # Use normalization helper to extract and validate bridge data
+        for normalized in self._normalize_selection_rows(selected):
+            # Handle already added bridges
+            if normalized.get("is_already_added"):
                 skipped_count += 1
                 continue
             
-            # Extract bridge info
-            display_type = values[0]  # "LÔ_V17" / "LÔ_BN" / "ĐỀ"
-            name = values[1]
-            desc = values[2]
-            rate = values[3]
-            
-            # Get actual bridge type from tags (for DE bridges)
-            tags = self.results_tree.item(item, "tags")
-            actual_bridge_type = None
-            for tag in tags:
-                if tag.startswith('DE_') or tag in ['DE_MEMORY', 'DE_SET', 'DE_PASCAL', 'DE_KILLER', 'DE_DYNAMIC_K', 'DE_POS_SUM']:
-                    actual_bridge_type = tag
-                    break
-            
-            # Validate bridge name
-            if not name or name == "N/A" or not name.strip():
-                error_msg = f"- Cầu '{desc[:30]}': Tên không hợp lệ"
+            # Handle validation errors from normalization
+            if normalized.get("error"):
+                error_msg = f"- Cầu '{normalized.get('name') or normalized.get('description', 'N/A')[:30]}': {normalized['error']}"
                 error_list.append(error_msg)
                 log_entries.append({
                     "timestamp": datetime.now().isoformat(),
-                    "bridge_name": desc[:30],
+                    "bridge_name": normalized.get("name") or normalized.get("description", "N/A")[:30],
                     "action": "add",
                     "status": "failed",
-                    "reason": "Invalid name"
+                    "reason": normalized["error"]
                 })
                 continue
             
-            # Validate bridge type
-            if not display_type or display_type not in ["LÔ_V17", "LÔ_BN", "LÔ_STL_FIXED", "ĐỀ"]:
-                error_msg = f"- Cầu '{name}': Loại không xác định ({display_type})"
-                error_list.append(error_msg)
-                log_entries.append({
-                    "timestamp": datetime.now().isoformat(),
-                    "bridge_name": name,
-                    "action": "add",
-                    "status": "failed",
-                    "reason": f"Unknown type: {display_type}"
-                })
-                continue
-            
-            # Determine proper type for DB
-            if display_type == "LÔ_V17":
-                db_type = "LO_POS"
-            elif display_type == "LÔ_BN":
-                db_type = "LO_MEM"
-            elif display_type == "LÔ_STL_FIXED":
-                db_type = "LO_STL_FIXED"
-            elif display_type == "ĐỀ":
-                # Use actual bridge type if available, otherwise default
-                db_type = actual_bridge_type if actual_bridge_type else "DE_ALGO"
-            else:
-                db_type = "UNKNOWN"
+            # Extract normalized values
+            name = normalized["name"]
+            desc = normalized.get("description", "")
+            db_type = normalized["db_type"]
+            rate = normalized.get("win_rate_text", "N/A")
+            item = normalized["tree_item"]
             
             try:
-                success, msg = upsert_managed_bridge(
-                    name=name,
+                # Call service layer adapter (V11.4 - NEW)
+                success, msg = add_managed_bridge(
+                    bridge_name=name,
                     description=desc,
+                    bridge_type=db_type,
                     win_rate_text=rate,
                     db_name=self.db_name,
                     pos1_idx=-2,  # Special marker for scanner-added bridges
                     pos2_idx=-2,
-                    bridge_data={"search_rate_text": rate, "is_enabled": 1, "type": db_type}
+                    search_rate_text=rate,
+                    is_enabled=1
                 )
+                
+                logger.info(f"add_managed_bridge returned: success={success}, msg={msg}")
                 
                 if success:
                     # Update table to mark as added
+                    # Need to get current values again
+                    current_values = self.results_tree.item(item, "values")
                     self.results_tree.item(item, values=(
-                        values[0], values[1], values[2], values[3], values[4], "✅ Rồi"
+                        current_values[0], current_values[1], current_values[2], 
+                        current_values[3], current_values[4], "✅ Rồi"
                     ))
                     self.results_tree.item(item, tags=("added",))
                     added_count += 1
@@ -557,8 +664,10 @@ class BridgeScannerTab(ttk.Frame):
                     # Bridge already exists or other error
                     if "đã tồn tại" in msg.lower() or "already exists" in msg.lower():
                         # Mark as added anyway
+                        current_values = self.results_tree.item(item, "values")
                         self.results_tree.item(item, values=(
-                            values[0], values[1], values[2], values[3], values[4], "✅ Rồi"
+                            current_values[0], current_values[1], current_values[2], 
+                            current_values[3], current_values[4], "✅ Rồi"
                         ))
                         self.results_tree.item(item, tags=("added",))
                         skipped_count += 1
@@ -583,6 +692,7 @@ class BridgeScannerTab(ttk.Frame):
             except Exception as e:
                 error_msg = f"- Cầu '{name}': Lỗi thêm - {str(e)}"
                 error_list.append(error_msg)
+                logger.exception(f"Exception adding bridge {name}: {e}")
                 log_entries.append({
                     "timestamp": datetime.now().isoformat(),
                     "bridge_name": name,

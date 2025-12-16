@@ -1,9 +1,10 @@
 # Tên file: logic/bridges/de_bridge_scanner.py
-# (PHIÊN BẢN V11.3 - CLEAN CODE REFACTOR)
-# Update: Tách logic tính toán Streak/Rate ra method riêng (DRY Principle).
-# Fix: Logic tính streak dừng ngay khi gặp gãy (Strict Mode).
+# (PHIÊN BẢN V11.4 - MULTI-STRATEGY WITH QUOTAS)
+# Update: Strategy Pattern với quota và UI controls ngăn "ngập lụt" dữ liệu.
+# Feature: Ưu tiên DE_SET, cấu hình filter/quota từng loại, MVC pattern.
 
 import sqlite3
+import logging
 from collections import Counter
 from typing import List, Dict, Any, Optional, Tuple, Set
 
@@ -11,7 +12,7 @@ from typing import List, Dict, Any, Optional, Tuple, Set
 try:
     from logic.db_manager import DB_NAME, get_all_managed_bridge_names, load_rates_cache
     from logic.bridges.bridges_v16 import getAllPositions_V17_Shadow, getPositionName_V17_Shadow
-    from logic.common_utils import normalize_bridge_name, calculate_strict_performance # <--- Thêm hàm này
+    from logic.common_utils import normalize_bridge_name, calculate_strict_performance
     from logic.de_utils import (
         get_gdb_last_2, check_cham, get_touches_by_offset, 
         generate_dan_de_from_touches, get_set_name_of_number, BO_SO_DE
@@ -22,11 +23,66 @@ except ImportError:
     DB_NAME = "lottery.db"
     pass 
 
+# Configure logging
+logger = logging.getLogger(__name__)
+
+# [V11.4] STRATEGY CONFIGURATION - Per-type thresholds and quotas
+STRATEGY_CONFIG = {
+    "DE_SET": {
+        "min_win_rate": 10.0,          # Low threshold - priority type
+        "min_streak": 1,                # Relaxed streak requirement
+        "quota": 40,                    # Top 40 bridges
+        "streak_weight": 3.0,           # 3x weight in sorting
+        "enabled_by_default": True,
+        "display_name": "Cầu Bộ"
+    },
+    "DE_PASCAL": {
+        "min_win_rate": 20.0,
+        "min_streak": 2,
+        "quota": 30,
+        "streak_weight": 1.5,
+        "enabled_by_default": True,
+        "display_name": "Pascal"
+    },
+    "DE_MEMORY": {
+        "min_win_rate": 60.0,           # Confidence-based
+        "min_streak": 0,                # Not streak-based
+        "quota": 25,
+        "streak_weight": 1.0,
+        "enabled_by_default": True,
+        "display_name": "Bạc Nhớ"
+    },
+    "DE_DYNAMIC_K": {
+        "min_win_rate": 35.0,           # Stricter - prevents flood
+        "min_streak": 3,
+        "quota": 60,
+        "streak_weight": 1.0,
+        "enabled_by_default": False,    # Off by default (too many)
+        "display_name": "Cầu Chạm"
+    },
+    "DE_POS_SUM": {
+        "min_win_rate": 35.0,
+        "min_streak": 3,
+        "quota": 60,
+        "streak_weight": 1.0,
+        "enabled_by_default": False,
+        "display_name": "Cầu Tổng"
+    },
+    "DE_KILLER": {
+        "min_win_rate": 50.0,
+        "min_streak": 12,
+        "quota": 10,                    # Very few
+        "streak_weight": 2.0,
+        "enabled_by_default": False,
+        "display_name": "Cầu Loại"
+    }
+}
+
 class DeBridgeScanner:
     """
     Bộ quét cầu Đề tự động (Automated DE Bridge Scanner)
-    Phiên bản: V11.3 (Clean Code Refactor)
-    Chiến thuật: Sử dụng Ma trận số nguyên (Integer Matrix) để loại bỏ chi phí xử lý chuỗi.
+    Phiên bản: V11.4 (Multi-Strategy with Quotas)
+    Chiến thuật: Strategy Pattern với quota riêng từng loại, ngăn ngập lụt dữ liệu.
     """
 
     def __init__(self):
@@ -47,7 +103,10 @@ class DeBridgeScanner:
 
         # Cứu Cầu
         self.rescue_wins_10 = 7    
-        self.min_wins_bo_10 = 2    
+        self.min_wins_bo_10 = 2
+        
+        # [V11.4] Strategy configuration
+        self.strategy_config = STRATEGY_CONFIG    
 
     def _preprocess_data(self, all_data_ai: List[List[str]]) -> List[List[Optional[int]]]:
         """
@@ -102,58 +161,177 @@ class DeBridgeScanner:
     def scan_all(
         self, 
         all_data_ai: List[List[str]], 
-        db_name: str = DB_NAME
+        db_name: str = DB_NAME,
+        scan_options: Optional[Dict[str, bool]] = None
     ) -> Tuple[List[Candidate], Dict[str, Any]]:
         """
-        Scan for DE bridges and return Candidate objects (READ-ONLY, no DB writes).
+        Scan for DE bridges with multi-strategy pattern and quotas (V11.4).
+        
+        Args:
+            all_data_ai: Historical lottery data
+            db_name: Database path
+            scan_options: Dict of bridge types to scan (e.g., {"DE_SET": True, "DE_DYNAMIC_K": False})
+                         If None, uses enabled_by_default from STRATEGY_CONFIG
+        
+        Returns:
+            Tuple of (candidates, metadata)
         """
         if not self._validate_input_data(all_data_ai):
             return [], {'found_total': 0, 'excluded_existing': 0, 'returned_count': 0}
 
-        print(f">>> [DE SCANNER V11.3] Bắt đầu quét (Clean Code & Strict Streak)...")
+        logger.info(f"[DE SCANNER V11.4] Starting multi-strategy scan with quotas...")
         
-        # 1. [OPTIMIZATION] Tiền xử lý dữ liệu sang dạng số
+        # 1. Determine which strategies to run
+        active_strategies = self._get_active_strategies(scan_options)
+        logger.info(f"[DE SCANNER] Active strategies: {list(active_strategies.keys())}")
+        
+        # 2. [OPTIMIZATION] Preprocess data to integer matrix
         data_matrix = self._preprocess_data(all_data_ai)
         
-        found_bridges: List[Dict[str, Any]] = []
-
-        # 2. CHIẾN THUẬT TOÁN HỌC (Sử dụng data_matrix)
-        found_bridges.extend(self._scan_dynamic_offset(all_data_ai, data_matrix))
-        found_bridges.extend(self._scan_algorithm_sum(all_data_ai, data_matrix))
-        found_bridges.extend(self._scan_set_bridges(all_data_ai, data_matrix))
-        found_bridges.extend(self._scan_pascal_topology(all_data_ai))
-
-        # 3. CHIẾN THUẬT KHAI PHÁ DỮ LIỆU (DATA MINING)
-        bridges_memory = self._scan_memory_pattern(all_data_ai)
-        print(f">>> [DE SCANNER] Bạc Nhớ tìm thấy: {len(bridges_memory)}")
-        found_bridges.extend(bridges_memory)
-
-        # 4. CHIẾN THUẬT LOẠI TRỪ (KILLER) (Sử dụng data_matrix)
-        bridges_killer = self._scan_killer_bridges(all_data_ai, data_matrix)
-        print(f">>> [DE SCANNER] Cầu Loại tìm thấy: {len(bridges_killer)}")
-        found_bridges.extend(bridges_killer)
-
-        # 5. RANK AND CONVERT TO CANDIDATES (NO DB WRITE)
-        self._rank_bridges(found_bridges)
-        found_total = len(found_bridges)
+        # 3. Scan each strategy separately and apply filters
+        strategy_results = {}
         
-        # 6. LOAD EXISTING NAMES AND RATES CACHE (SINGLE DB CALL EACH)
-        print(f">>> [DE SCANNER] Loading existing bridges and rates cache...")
+        if active_strategies.get("DE_DYNAMIC_K", False):
+            raw_bridges = self._scan_dynamic_offset(all_data_ai, data_matrix)
+            strategy_results["DE_DYNAMIC_K"] = self._process_strategy_results(
+                raw_bridges, "DE_DYNAMIC_K"
+            )
+            logger.info(f"[DE SCANNER] DE_DYNAMIC_K: {len(raw_bridges)} found, {len(strategy_results['DE_DYNAMIC_K'])} after filter")
+        
+        if active_strategies.get("DE_POS_SUM", False):
+            raw_bridges = self._scan_algorithm_sum(all_data_ai, data_matrix)
+            strategy_results["DE_POS_SUM"] = self._process_strategy_results(
+                raw_bridges, "DE_POS_SUM"
+            )
+            logger.info(f"[DE SCANNER] DE_POS_SUM: {len(raw_bridges)} found, {len(strategy_results['DE_POS_SUM'])} after filter")
+        
+        if active_strategies.get("DE_SET", False):
+            raw_bridges = self._scan_set_bridges(all_data_ai, data_matrix)
+            strategy_results["DE_SET"] = self._process_strategy_results(
+                raw_bridges, "DE_SET"
+            )
+            logger.info(f"[DE SCANNER] DE_SET: {len(raw_bridges)} found, {len(strategy_results['DE_SET'])} after filter")
+        
+        if active_strategies.get("DE_PASCAL", False):
+            raw_bridges = self._scan_pascal_topology(all_data_ai)
+            strategy_results["DE_PASCAL"] = self._process_strategy_results(
+                raw_bridges, "DE_PASCAL"
+            )
+            logger.info(f"[DE SCANNER] DE_PASCAL: {len(raw_bridges)} found, {len(strategy_results['DE_PASCAL'])} after filter")
+        
+        if active_strategies.get("DE_MEMORY", False):
+            raw_bridges = self._scan_memory_pattern(all_data_ai)
+            strategy_results["DE_MEMORY"] = self._process_strategy_results(
+                raw_bridges, "DE_MEMORY"
+            )
+            logger.info(f"[DE SCANNER] DE_MEMORY: {len(raw_bridges)} found, {len(strategy_results['DE_MEMORY'])} after filter")
+        
+        if active_strategies.get("DE_KILLER", False):
+            raw_bridges = self._scan_killer_bridges(all_data_ai, data_matrix)
+            strategy_results["DE_KILLER"] = self._process_strategy_results(
+                raw_bridges, "DE_KILLER"
+            )
+            logger.info(f"[DE SCANNER] DE_KILLER: {len(raw_bridges)} found, {len(strategy_results['DE_KILLER'])} after filter")
+        
+        # 4. Merge results (DE_SET first for priority)
+        found_bridges = []
+        for strategy_type in ["DE_SET", "DE_PASCAL", "DE_MEMORY", "DE_DYNAMIC_K", "DE_POS_SUM", "DE_KILLER"]:
+            if strategy_type in strategy_results:
+                found_bridges.extend(strategy_results[strategy_type])
+        
+        found_total = len(found_bridges)
+        logger.info(f"[DE SCANNER] Total bridges after strategy filtering: {found_total}")
+        
+        # 5. Load existing names and rates cache (SINGLE DB CALL EACH)
         existing_names = get_all_managed_bridge_names(db_name)
         rates_cache = load_rates_cache(db_name)
         
-        # 7. CONVERT TO CANDIDATES WITH RATES AND EXCLUDE EXISTING
+        # 6. Convert to candidates with rates and exclude existing
         candidates = self._convert_to_candidates(found_bridges, existing_names, rates_cache)
         excluded_count = found_total - len(candidates)
         
         meta = {
             'found_total': found_total,
             'excluded_existing': excluded_count,
-            'returned_count': len(candidates)
+            'returned_count': len(candidates),
+            'by_strategy': {k: len(v) for k, v in strategy_results.items()}
         }
         
-        print(f">>> [DE SCANNER] Kết quả: {found_total} tìm thấy, {excluded_count} đã tồn tại, {len(candidates)} trả về.")
+        logger.info(f"[DE SCANNER] Final: {found_total} found, {excluded_count} existing, {len(candidates)} returned")
         return candidates, meta
+    
+    def _get_active_strategies(self, scan_options: Optional[Dict[str, bool]]) -> Dict[str, bool]:
+        """
+        Determine which strategies to run based on scan_options or defaults.
+        
+        Args:
+            scan_options: User-provided strategy toggles
+            
+        Returns:
+            Dict mapping strategy type to enabled status
+        """
+        if scan_options is not None:
+            return scan_options
+        
+        # Use defaults from STRATEGY_CONFIG
+        return {
+            strategy_type: config["enabled_by_default"]
+            for strategy_type, config in self.strategy_config.items()
+        }
+    
+    def _process_strategy_results(
+        self, 
+        bridges: List[Dict[str, Any]], 
+        strategy_type: str
+    ) -> List[Dict[str, Any]]:
+        """
+        Filter, sort, and limit bridges for a specific strategy.
+        
+        Args:
+            bridges: Raw bridge results from scanner
+            strategy_type: Type of strategy (e.g., "DE_SET")
+            
+        Returns:
+            Filtered and limited list of bridges
+        """
+        if strategy_type not in self.strategy_config:
+            logger.warning(f"Unknown strategy type: {strategy_type}")
+            return bridges
+        
+        config = self.strategy_config[strategy_type]
+        
+        # 1. Filter by thresholds
+        filtered = []
+        for bridge in bridges:
+            win_rate = bridge.get('win_rate', 0.0)
+            streak = bridge.get('streak', 0)
+            
+            # Apply min thresholds
+            if win_rate >= config["min_win_rate"] and streak >= config["min_streak"]:
+                filtered.append(bridge)
+        
+        # 2. Sort with strategy-specific weighting
+        streak_weight = config["streak_weight"]
+        for bridge in filtered:
+            streak = bridge.get('streak', 0)
+            try:
+                wr = float(bridge.get('win_rate', 0))
+                wins_10 = int((wr / 100.0) * 10)
+            except (ValueError, TypeError):
+                wins_10 = 0
+            
+            # Apply strategy-specific streak weight
+            bridge['strategy_score'] = (streak * streak_weight) + (wins_10 * 1.0)
+        
+        filtered.sort(key=lambda x: x.get('strategy_score', 0), reverse=True)
+        
+        # 3. Apply quota limit
+        quota = config["quota"]
+        limited = filtered[:quota]
+        
+        logger.info(f"[{strategy_type}] Filter: {len(bridges)} -> {len(filtered)} -> {len(limited)} (quota={quota})")
+        
+        return limited
 
     # --- CORE HELPERS ---
 
