@@ -203,6 +203,8 @@ __all__ = [
     # Optimizer functions
     "prepare_daily_features",
     "calculate_score_from_features",
+    # Service Layer Adapter (V11.4)
+    "db_upsert_managed_bridge",  # Alias for backward compatibility
 ]
 
 
@@ -218,6 +220,141 @@ def get_all_managed_bridges_wrapper(db_name=DB_NAME, only_enabled=False):
     """
     # Gọi hàm mới từ data_repository.py đã được import
     return get_all_managed_bridges(db_name, only_enabled)
+
+
+# ==========================================================================
+# SERVICE LAYER ADAPTER (V11.4 - Fix "Bridge name is required" error)
+# ==========================================================================
+
+def add_managed_bridge(
+    bridge_name: str = None,
+    description: str = None,
+    bridge_type: str = None,
+    win_rate_text: str = None,
+    db_name: str = DB_NAME,
+    **kwargs
+) -> tuple:
+    """
+    Service-layer adapter for adding managed bridges with data normalization.
+    
+    This function sits between the UI and DB layers, ensuring proper data
+    normalization before calling the database layer. It preserves backward
+    compatibility by attempting kwargs first, then falling back to positional
+    arguments.
+    
+    Args:
+        bridge_name: Name of the bridge (required)
+        description: Human-readable description
+        bridge_type: Bridge type constant from logic.constants.BRIDGE_TYPES
+        win_rate_text: Win rate as formatted string (e.g., "45.2%")
+        db_name: Database path
+        **kwargs: Additional bridge attributes (pos1_idx, pos2_idx, etc.)
+    
+    Returns:
+        Tuple[bool, str]: (success, message)
+        
+    Example:
+        >>> success, msg = add_managed_bridge(
+        ...     bridge_name="DE_SET_01",
+        ...     description="Test Bridge",
+        ...     bridge_type="DE_SET",
+        ...     win_rate_text="85.0%"
+        ... )
+    
+    Notes:
+        - Normalizes bridge name (strips whitespace, handles None)
+        - Maps display types to DB types (e.g., "LÔ_V17" -> "LO_POS")
+        - Falls back to positional upsert_managed_bridge signature if needed
+        - Logs all operations for debugging
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    # Import constants for type mapping
+    try:
+        from logic.constants import BRIDGE_TYPES
+    except ImportError:
+        logger.warning("Could not import BRIDGE_TYPES from constants, using defaults")
+        BRIDGE_TYPES = {}
+    
+    # Normalize bridge name
+    if not bridge_name or not str(bridge_name).strip():
+        error_msg = "Bridge name is required and cannot be empty"
+        logger.error(f"add_managed_bridge failed: {error_msg}")
+        return False, error_msg
+    
+    normalized_name = str(bridge_name).strip()
+    
+    # Normalize description
+    normalized_desc = str(description).strip() if description else ""
+    
+    # Normalize bridge type (map display types to DB types)
+    if bridge_type:
+        # Try to map display type to DB type
+        normalized_type = BRIDGE_TYPES.get(bridge_type, bridge_type)
+    else:
+        normalized_type = "UNKNOWN"
+    
+    # Normalize win_rate_text
+    normalized_win_rate = str(win_rate_text) if win_rate_text else "N/A"
+    
+    # Build bridge_data dict with all normalized values
+    bridge_data = kwargs.copy() if kwargs else {}
+    bridge_data.update({
+        "name": normalized_name,
+        "description": normalized_desc,
+        "type": normalized_type,
+        "win_rate_text": normalized_win_rate,
+        "is_enabled": bridge_data.get("is_enabled", 1),
+        "search_rate_text": bridge_data.get("search_rate_text", normalized_win_rate),
+    })
+    
+    # Extract pos indices if provided
+    pos1_idx = bridge_data.pop("pos1_idx", kwargs.get("pos1_idx"))
+    pos2_idx = bridge_data.pop("pos2_idx", kwargs.get("pos2_idx"))
+    
+    logger.info(
+        f"add_managed_bridge: name={normalized_name}, "
+        f"type={normalized_type}, win_rate={normalized_win_rate}"
+    )
+    
+    # Call upsert_managed_bridge with compatibility layer
+    try:
+        # Try with kwargs first (new signature)
+        success, msg = upsert_managed_bridge(
+            bridge_name=normalized_name,
+            description=normalized_desc,
+            win_rate=normalized_win_rate,
+            db_name=db_name,
+            pos1_idx=pos1_idx,
+            pos2_idx=pos2_idx,
+            bridge_data=bridge_data
+        )
+        logger.info(f"add_managed_bridge result: success={success}, msg={msg}")
+        return success, msg
+    except Exception as e:
+        # Fallback to positional args if kwargs fail
+        logger.warning(f"Kwargs approach failed, trying positional: {e}")
+        try:
+            success, msg = upsert_managed_bridge(
+                normalized_name,
+                normalized_desc,
+                normalized_win_rate,
+                db_name,
+                pos1_idx,
+                pos2_idx,
+                bridge_data
+            )
+            logger.info(f"add_managed_bridge (fallback) result: success={success}, msg={msg}")
+            return success, msg
+        except Exception as e2:
+            error_msg = f"Failed to add bridge: {str(e2)}"
+            logger.error(f"add_managed_bridge failed completely: {error_msg}")
+            return False, error_msg
+
+
+# Keep db_upsert_managed_bridge as alias for compatibility
+db_upsert_managed_bridge = upsert_managed_bridge
 
 
 print("Lottery Service API (lottery_service.py) đã tải thành công (V7.4).")

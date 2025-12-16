@@ -17,7 +17,7 @@ try:
     )
     from logic.bridges.bridge_manager_de import find_and_auto_manage_bridges_de
     from logic.data_repository import load_data_ai_from_db
-    from lottery_service import DB_NAME, upsert_managed_bridge
+    from lottery_service import DB_NAME, add_managed_bridge, upsert_managed_bridge
 except ImportError as e:
     print(f"LỖI IMPORT tại ui_bridge_scanner: {e}")
     def TIM_CAU_TOT_NHAT_V16(*args, **kwargs): return []
@@ -25,6 +25,7 @@ except ImportError as e:
     def update_fixed_lo_bridges(*args, **kwargs): return 0
     def find_and_auto_manage_bridges_de(*args, **kwargs): return []
     def load_data_ai_from_db(*args, **kwargs): return [], 0
+    def add_managed_bridge(*args, **kwargs): return False, "Lỗi Import"
     def upsert_managed_bridge(*args, **kwargs): return False, "Lỗi Import"
     DB_NAME = "data/xo_so_prizes_all_logic.db"
 
@@ -441,16 +442,130 @@ class BridgeScannerTab(ttk.Frame):
         )
         self.results_tree.tag_configure("new", background="#e3f2fd")
     
+    # ==================== NORMALIZATION HELPERS ====================
+    
+    def _normalize_selection_rows(self, selected_items):
+        """
+        Normalize bridge data from tree selection for DB insertion.
+        
+        This helper extracts and normalizes bridge attributes from tree view rows,
+        handling various data formats and ensuring required fields are present.
+        
+        Args:
+            selected_items: List of tree item IDs
+            
+        Yields:
+            Dict with normalized bridge attributes:
+                - name: str (required, stripped)
+                - description: str
+                - display_type: str (e.g., "LÔ_V17", "ĐỀ")
+                - db_type: str (mapped type for DB, e.g., "LO_POS", "DE_SET")
+                - win_rate_text: str
+                - is_already_added: bool
+                - tree_item: item ID for UI update
+                
+        Example:
+            >>> for normalized in self._normalize_selection_rows(selected):
+            ...     if not normalized["is_already_added"]:
+            ...         add_managed_bridge(**normalized)
+        """
+        for item in selected_items:
+            values = self.results_tree.item(item, "values")
+            
+            # Check if already added
+            if len(values) > 5 and values[5] == "✅ Rồi":
+                yield {
+                    "is_already_added": True,
+                    "name": values[1] if len(values) > 1 else None,
+                    "tree_item": item
+                }
+                continue
+            
+            # Extract bridge info from tree columns
+            # Columns: (type, name, description, scan_rate, streak, added)
+            display_type = values[0] if len(values) > 0 else "UNKNOWN"
+            name = values[1] if len(values) > 1 else None
+            desc = values[2] if len(values) > 2 else ""
+            rate = values[3] if len(values) > 3 else "N/A"
+            
+            # Validate and normalize name
+            if not name or name == "N/A" or not str(name).strip():
+                yield {
+                    "is_already_added": False,
+                    "name": None,
+                    "error": "Invalid or missing name",
+                    "tree_item": item,
+                    "description": desc[:30] if desc else "N/A"
+                }
+                continue
+            
+            normalized_name = str(name).strip()
+            
+            # Get actual bridge type from tags (for DE bridges with specific subtypes)
+            tags = self.results_tree.item(item, "tags")
+            actual_bridge_type = None
+            for tag in tags:
+                if tag.startswith('DE_') or tag in ['DE_MEMORY', 'DE_SET', 'DE_PASCAL', 
+                                                      'DE_KILLER', 'DE_DYNAMIC_K', 'DE_POS_SUM']:
+                    actual_bridge_type = tag
+                    break
+            
+            # Validate and normalize display type
+            if not display_type or display_type not in ["LÔ_V17", "LÔ_BN", "LÔ_STL_FIXED", "ĐỀ"]:
+                yield {
+                    "is_already_added": False,
+                    "name": normalized_name,
+                    "error": f"Unknown type: {display_type}",
+                    "tree_item": item,
+                    "description": desc
+                }
+                continue
+            
+            # Map display type to DB type
+            if display_type == "LÔ_V17":
+                db_type = "LO_POS"
+            elif display_type == "LÔ_BN":
+                db_type = "LO_MEM"
+            elif display_type == "LÔ_STL_FIXED":
+                db_type = "LO_STL_FIXED"
+            elif display_type == "ĐỀ":
+                # Use actual bridge type if available, otherwise default
+                db_type = actual_bridge_type if actual_bridge_type else "DE_ALGO"
+            else:
+                db_type = "UNKNOWN"
+            
+            # Yield normalized data
+            yield {
+                "is_already_added": False,
+                "name": normalized_name,
+                "description": desc,
+                "display_type": display_type,
+                "db_type": db_type,
+                "win_rate_text": rate,
+                "error": None,
+                "tree_item": item,
+                "tags": tags
+            }
+    
     # ==================== ACTION FUNCTIONS ====================
     
     def _add_selected_to_management(self):
         """
         Thêm các cầu đã chọn vào hệ thống quản lý.
-        V11.1: Enhanced with detailed logging to logs/batch_add.log
+        V11.4: Refactored to use normalization helper and service layer adapter.
+        
+        Improvements:
+        - Uses _normalize_selection_rows() for consistent data extraction
+        - Calls add_managed_bridge() service adapter instead of direct DB call
+        - Enhanced error handling and logging
+        - Maintains backward compatibility with existing UI behavior
         """
         import os
         import json
         from datetime import datetime
+        import logging
+        
+        logger = logging.getLogger(__name__)
         
         selected = self.results_tree.selection()
         if not selected:
@@ -468,80 +583,56 @@ class BridgeScannerTab(ttk.Frame):
         error_list = []
         log_entries = []
         
-        for item in selected:
-            values = self.results_tree.item(item, "values")
-            if values[5] == "✅ Rồi":  # Đã thêm rồi
+        # Use normalization helper to extract and validate bridge data
+        for normalized in self._normalize_selection_rows(selected):
+            # Handle already added bridges
+            if normalized.get("is_already_added"):
                 skipped_count += 1
                 continue
             
-            # Extract bridge info
-            display_type = values[0]  # "LÔ_V17" / "LÔ_BN" / "ĐỀ"
-            name = values[1]
-            desc = values[2]
-            rate = values[3]
-            
-            # Get actual bridge type from tags (for DE bridges)
-            tags = self.results_tree.item(item, "tags")
-            actual_bridge_type = None
-            for tag in tags:
-                if tag.startswith('DE_') or tag in ['DE_MEMORY', 'DE_SET', 'DE_PASCAL', 'DE_KILLER', 'DE_DYNAMIC_K', 'DE_POS_SUM']:
-                    actual_bridge_type = tag
-                    break
-            
-            # Validate bridge name
-            if not name or name == "N/A" or not name.strip():
-                error_msg = f"- Cầu '{desc[:30]}': Tên không hợp lệ"
+            # Handle validation errors from normalization
+            if normalized.get("error"):
+                error_msg = f"- Cầu '{normalized.get('name') or normalized.get('description', 'N/A')[:30]}': {normalized['error']}"
                 error_list.append(error_msg)
                 log_entries.append({
                     "timestamp": datetime.now().isoformat(),
-                    "bridge_name": desc[:30],
+                    "bridge_name": normalized.get("name") or normalized.get("description", "N/A")[:30],
                     "action": "add",
                     "status": "failed",
-                    "reason": "Invalid name"
+                    "reason": normalized["error"]
                 })
                 continue
             
-            # Validate bridge type
-            if not display_type or display_type not in ["LÔ_V17", "LÔ_BN", "LÔ_STL_FIXED", "ĐỀ"]:
-                error_msg = f"- Cầu '{name}': Loại không xác định ({display_type})"
-                error_list.append(error_msg)
-                log_entries.append({
-                    "timestamp": datetime.now().isoformat(),
-                    "bridge_name": name,
-                    "action": "add",
-                    "status": "failed",
-                    "reason": f"Unknown type: {display_type}"
-                })
-                continue
-            
-            # Determine proper type for DB
-            if display_type == "LÔ_V17":
-                db_type = "LO_POS"
-            elif display_type == "LÔ_BN":
-                db_type = "LO_MEM"
-            elif display_type == "LÔ_STL_FIXED":
-                db_type = "LO_STL_FIXED"
-            elif display_type == "ĐỀ":
-                # Use actual bridge type if available, otherwise default
-                db_type = actual_bridge_type if actual_bridge_type else "DE_ALGO"
-            else:
-                db_type = "UNKNOWN"
+            # Extract normalized values
+            name = normalized["name"]
+            desc = normalized.get("description", "")
+            db_type = normalized["db_type"]
+            rate = normalized.get("win_rate_text", "N/A")
+            item = normalized["tree_item"]
             
             try:
-                success, msg = upsert_managed_bridge(
-                    name=name,
+                # Call service layer adapter (V11.4 - NEW)
+                success, msg = add_managed_bridge(
+                    bridge_name=name,
                     description=desc,
+                    bridge_type=db_type,
                     win_rate_text=rate,
                     db_name=self.db_name,
                     pos1_idx=-2,  # Special marker for scanner-added bridges
                     pos2_idx=-2,
-                    bridge_data={"search_rate_text": rate, "is_enabled": 1, "type": db_type}
+                    search_rate_text=rate,
+                    is_enabled=1
                 )
+                
+                logger.info(f"add_managed_bridge returned: success={success}, msg={msg}")
                 
                 if success:
                     # Update table to mark as added
+                    # Need to get current values again
+                    current_values = self.results_tree.item(item, "values")
                     self.results_tree.item(item, values=(
-                        values[0], values[1], values[2], values[3], values[4], "✅ Rồi"
+                        current_values[0], current_values[1], current_values[2], 
+                        current_values[3], current_values[4], "✅ Rồi"
                     ))
                     self.results_tree.item(item, tags=("added",))
                     added_count += 1
@@ -557,8 +648,10 @@ class BridgeScannerTab(ttk.Frame):
                     # Bridge already exists or other error
                     if "đã tồn tại" in msg.lower() or "already exists" in msg.lower():
                         # Mark as added anyway
+                        current_values = self.results_tree.item(item, "values")
                         self.results_tree.item(item, values=(
-                            values[0], values[1], values[2], values[3], values[4], "✅ Rồi"
+                            current_values[0], current_values[1], current_values[2], 
+                            current_values[3], current_values[4], "✅ Rồi"
                         ))
                         self.results_tree.item(item, tags=("added",))
                         skipped_count += 1
@@ -583,6 +676,7 @@ class BridgeScannerTab(ttk.Frame):
             except Exception as e:
                 error_msg = f"- Cầu '{name}': Lỗi thêm - {str(e)}"
                 error_list.append(error_msg)
+                logger.exception(f"Exception adding bridge {name}: {e}")
                 log_entries.append({
                     "timestamp": datetime.now().isoformat(),
                     "bridge_name": name,
