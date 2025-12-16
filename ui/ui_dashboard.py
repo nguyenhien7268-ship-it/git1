@@ -64,6 +64,15 @@ class DashboardWindow(ttk.Frame):
         )
         self.title_label.pack(side=tk.LEFT, padx=(0, 20))
 
+        # [Phase 3] Syncing warning label
+        self.syncing_warning_label = ttk.Label(
+            self.header_frame, 
+            text="", 
+            font=("Arial", 10, "bold"),
+            foreground="orange"
+        )
+        self.syncing_warning_label.pack(side=tk.LEFT, padx=(10, 20))
+
         # Enhancement 4: Smart Filtering controls
         self._create_filter_controls()
 
@@ -792,6 +801,9 @@ class DashboardWindow(ttk.Frame):
     def refresh_data(self):
         self.app.logger.log("\n--- (Làm Mới) Bắt đầu chạy lại Bảng Quyết Định Tối Ưu ---")
         
+        # [Phase 3] Update syncing warning
+        self._update_syncing_warning()
+        
         # 1. Kích hoạt luồng nạp dữ liệu cũ (Chạy ngầm)
         self.app.run_decision_dashboard()
         
@@ -805,6 +817,24 @@ class DashboardWindow(ttk.Frame):
             
         # Bắt đầu chờ (Check mỗi 500ms)
         self._wait_for_data_and_run_scoring()
+    
+    def _update_syncing_warning(self):
+        """
+        Phase 3: Update the syncing warning label based on SYNCING_BRIDGES status.
+        """
+        try:
+            from services.bridge_service import get_syncing_bridges_count
+            
+            syncing_count = get_syncing_bridges_count()
+            
+            if syncing_count > 0:
+                warning_text = f"⚠️ Hệ thống đang cập nhật dữ liệu cho {syncing_count} cầu. Kết quả dự đoán có thể thay đổi."
+                self.syncing_warning_label.config(text=warning_text)
+            else:
+                self.syncing_warning_label.config(text="")
+        except Exception as e:
+            # Silently fail if Phase 3 is not available
+            pass
 
     # [THÊM HÀM MỚI NÀY VÀO DƯỚI refresh_data]
     def _wait_for_data_and_run_scoring(self, attempt=0):

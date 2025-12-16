@@ -3,6 +3,11 @@
 
 import traceback
 import sqlite3
+import threading
+
+# [Phase 3] Global set to track bridges currently being synchronized
+SYNCING_BRIDGES = set()
+SYNCING_LOCK = threading.Lock()
 
 # Import các hàm Data Repository với alias để hỗ trợ testing và mocking
 try:
@@ -402,7 +407,8 @@ class BridgeService:
 
     def activate_and_recalc_bridges(self, bridge_names, all_data=None):
         """
-        Phase 1: Activate bridges and recalculate their metrics in real-time.
+        Phase 1 & 3: Activate bridges and recalculate their metrics in real-time.
+        Phase 3: Manages SYNCING_BRIDGES to protect dashboard predictions.
 
         Args:
             bridge_names: List of bridge names to activate
@@ -411,6 +417,13 @@ class BridgeService:
         Returns:
             dict: Results with 'success', 'message', and 'updated_bridges' keys
         """
+        # [Phase 3] Add bridges to SYNCING_BRIDGES at start
+        global SYNCING_BRIDGES, SYNCING_LOCK
+        with SYNCING_LOCK:
+            for name in bridge_names:
+                SYNCING_BRIDGES.add(name)
+                self._log(f"[Phase 3] Adding to SYNCING_BRIDGES: {name}")
+        
         try:
             self._log(f">>> [ACTIVATE] Bắt đầu kích hoạt và tính toán {len(bridge_names)} cầu...")
 
@@ -557,6 +570,12 @@ class BridgeService:
                 'message': error_msg,
                 'updated_bridges': []
             }
+        finally:
+            # [Phase 3] Remove bridges from SYNCING_BRIDGES at end (success or failure)
+            with SYNCING_LOCK:
+                for name in bridge_names:
+                    SYNCING_BRIDGES.discard(name)
+                    self._log(f"[Phase 3] Removing from SYNCING_BRIDGES: {name}")
 
     def _calculate_bridge_metrics(self, bridge, all_data):
         """
@@ -771,3 +790,72 @@ class BridgeService:
         except Exception as e:
             self._log(f"  ⚠️ Lỗi lấy prediction: {e}")
             return []
+
+
+# [Phase 3] Module-level function to get safe active bridges
+def get_safe_active_bridges(db_name=None):
+    """
+    Phase 3: Get list of active bridges that are NOT currently being synchronized.
+    
+    This ensures dashboard predictions only use bridges with complete, up-to-date data.
+    
+    Args:
+        db_name: Database name (optional, uses default if not provided)
+    
+    Returns:
+        list: List of bridge names that are safe to use (is_enabled=1 and not in SYNCING_BRIDGES)
+    """
+    global SYNCING_BRIDGES, SYNCING_LOCK
+    
+    try:
+        # Import DB functions
+        if db_name is None:
+            from logic.db_manager import DB_NAME
+            db_name = DB_NAME
+        
+        # Get all enabled bridges from DB
+        if data_repo_get_all_managed_bridges is None:
+            from logic.data_repository import get_all_managed_bridges
+            all_bridges = get_all_managed_bridges(db_name, only_enabled=True)
+        else:
+            all_bridges = data_repo_get_all_managed_bridges(db_name, only_enabled=True)
+        
+        # Filter out bridges that are currently syncing
+        safe_bridges = []
+        with SYNCING_LOCK:
+            syncing_copy = SYNCING_BRIDGES.copy()
+        
+        for bridge in all_bridges:
+            bridge_name = bridge.get('name', '')
+            if bridge_name and bridge_name not in syncing_copy:
+                safe_bridges.append(bridge_name)
+        
+        return safe_bridges
+    
+    except Exception as e:
+        print(f"[Phase 3] Error in get_safe_active_bridges: {e}")
+        return []
+
+
+def get_syncing_bridges_count():
+    """
+    Phase 3: Get the count of bridges currently being synchronized.
+    
+    Returns:
+        int: Number of bridges in SYNCING_BRIDGES
+    """
+    global SYNCING_BRIDGES, SYNCING_LOCK
+    with SYNCING_LOCK:
+        return len(SYNCING_BRIDGES)
+
+
+def get_syncing_bridges_list():
+    """
+    Phase 3: Get a copy of the current list of syncing bridges.
+    
+    Returns:
+        list: List of bridge names currently being synchronized
+    """
+    global SYNCING_BRIDGES, SYNCING_LOCK
+    with SYNCING_LOCK:
+        return list(SYNCING_BRIDGES)
