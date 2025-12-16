@@ -1,457 +1,305 @@
-# Tên file: git3/logic/bridges/bridge_manager_core.py
+# Tên file: logic/bridges/bridge_manager_core.py
+# (PHIÊN BẢN V10.0 - REFACTORED: SEPARATED SCANNING FROM MANAGEMENT)
 #
-# (NỘI DUNG THAY THẾ TOÀN BỘ - SỬA W503)
-#
+# Mục đích: Chỉ giữ logic QUẢN LÝ (Management) cầu Lô.
+#           Logic DÒ TÌM (Scanning) đã được tách sang lo_bridge_scanner.py.
 
 import os
+import sqlite3
+import sys
+from typing import List, Optional, Dict
 
 # =========================================================================
-# PATH FIX: Tự động thêm thư mục gốc (git1 - Sao chép/) vào sys.path
-import sys
-
+# PATH FIX
+# =========================================================================
 try:
-    # Lấy đường dẫn thư mục hiện tại (logic/bridges)
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    # Đi lên 2 cấp để lấy thư mục gốc (git1 - Sao chép/)
     project_root = os.path.dirname(os.path.dirname(current_dir))
-
-    # Thêm thư mục gốc vào sys.path NẾU nó chưa có
     if project_root not in sys.path:
         sys.path.insert(0, project_root)
-        print(f"[PATH FIX] Đã thêm {project_root} vào sys.path")
-    else:
-        print(f"[PATH FIX] {project_root} đã có trong sys.path")
-except Exception as e_path:
-    print(f"[PATH FIX] LỖI: Không thể thêm đường dẫn gốc: {e_path}")
+except Exception:
+    pass
+
 # =========================================================================
-
-
-# Import SETTINGS
+# IMPORTS
+# =========================================================================
 try:
-    # Dùng import tuyệt đối (từ gốc logic)
     from logic.config_manager import SETTINGS
+except ImportError:
+    SETTINGS = type("obj", (object,), {"AUTO_ADD_MIN_RATE": 50.0, "AUTO_PRUNE_MIN_RATE": 40.0})
 
-    print("[IMPORT V4] Đã import thành công: SETTINGS")
-except ImportError as e:
-    print(f"[IMPORT V4] LỖI IMPORT SETTINGS: {e}")
-    try:
-        from config_manager import SETTINGS
-    except ImportError:
-        print(
-            "LỖI: bridge_manager_core.py không thể import SETTINGS. Sử dụng fallback."
-        )
-        SETTINGS = type(
-            "obj", (object,), {"AUTO_ADD_MIN_RATE": 50.0, "AUTO_PRUNE_MIN_RATE": 40.0}
-        )
-
-# Import DB functions (CRUD và Management)
 try:
-    # Dùng import tuyệt đối (từ gốc logic)
     from logic.data_repository import get_all_managed_bridges
-    from logic.db_manager import DB_NAME, update_managed_bridge, upsert_managed_bridge
-
-    print("[IMPORT V4] Đã import thành công: data_repository, db_manager")
-except ImportError as e:
-    # Fallback cho DB/Repo
-    print(f"[IMPORT V4] LỖI IMPORT DB/REPO: {e}")
+    from logic.db_manager import (
+        DB_NAME, update_managed_bridge
+    )
+except ImportError:
     DB_NAME = "data/xo_so_prizes_all_logic.db"
+    def update_managed_bridge(*args, **kwargs): return False, "Lỗi Import"
+    def get_all_managed_bridges(*args, **kwargs): return []
 
-    def upsert_managed_bridge(n, d, r, db, i1=None, i2=None):
-        return False, "Lỗi Import"
-
-    def update_managed_bridge(id, d, e, db):
-        return False, "Lỗi Import"
-
-    def get_all_managed_bridges(db, o):
-        return {}
-
-
-# Import các hàm cầu (V17 và Bạc Nhớ)
 try:
-    # Dùng import tuyệt đối (từ gốc logic.bridges)
-    from logic.bridges.bridges_classic import checkHitSet_V30_K2N, getAllLoto_V30
-    from logic.bridges.bridges_memory import (
-        calculate_bridge_stl,
-        get_27_loto_names,
-        get_27_loto_positions,
+    from logic.bridges.bridges_memory import get_27_loto_names
+except ImportError:
+    pass
+
+# Import scanning functions from lo_bridge_scanner
+try:
+    from logic.bridges.lo_bridge_scanner import (
+        TIM_CAU_TOT_NHAT_V16,
+        TIM_CAU_BAC_NHO_TOT_NHAT,
+        update_fixed_lo_bridges,
+        _ensure_core_db_columns
     )
-    from logic.bridges.bridges_v16 import (
-        getAllPositions_V17_Shadow,
-        getPositionName_V17_Shadow,
-        taoSTL_V30_Bong,
-    )
-
-    print(
-        "[IMPORT V4] Đã import thành công: các hàm cầu (bridges_v16, memory, classic)"
-    )
-except ImportError as e:
-    print(f"[IMPORT V4] LỖI IMPORT HÀM CẦU: {e}")
-
-    def getAllPositions_V17_Shadow(r):
-        return []
-
-    def getPositionName_V17_Shadow(i):
-        return "Lỗi"
-
-    def taoSTL_V30_Bong(a, b):
-        return ["00", "00"]
-
-    def calculate_bridge_stl(l1, l2, t):
-        return ["00", "00"]
-
-    def get_27_loto_names():
-        return []
-
-    def get_27_loto_positions(r):
-        return []
-
-    def checkHitSet_V30_K2N(p, loto_set):
-        return "Lỗi"
-
-    def getAllLoto_V30(r):
-        return []
-
+except ImportError:
+    print("WARNING: Could not import scanning functions from lo_bridge_scanner")
+    def TIM_CAU_TOT_NHAT_V16(*args, **kwargs): return []
+    def TIM_CAU_BAC_NHO_TOT_NHAT(*args, **kwargs): return []
+    def update_fixed_lo_bridges(*args, **kwargs): return 0
+    def _ensure_core_db_columns(*args, **kwargs): pass
 
 # ===================================================================================
-# I. HÀM DÒ CẦU (ĐÃ DI CHUYỂN TỪ BACKTESTER V7.0)
+# HELPER FUNCTIONS
 # ===================================================================================
 
-
-def TIM_CAU_TOT_NHAT_V16(
-    toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra, db_name=DB_NAME
-):
+def is_de_bridge(bridge):
     """
-    (V7.0) Hàm dò cầu V17 (Shadow)
+    Determine if a bridge is a De (Đề) bridge based on its name or type.
+    
+    Args:
+        bridge: Bridge dict with 'name' and optional 'type' keys
+        
+    Returns:
+        bool: True if it's a De bridge, False if it's a Lo bridge
     """
-    print("Bắt đầu Dò Cầu Tốt Nhất V17 (Shadow)...")
-
-    allData, finalEndRow, startCheckRow, offset = (
-        toan_bo_A_I,
-        ky_ket_thuc_kiem_tra,
-        ky_bat_dau_kiem_tra + 1,
-        ky_bat_dau_kiem_tra,
-    )
-
-    headers = ["STT", "Cầu (V17 Shadow)", "Vị Trí", "Tỷ Lệ %", "Chuỗi"]
-    results = [headers]
-
-    positions_shadow = getAllPositions_V17_Shadow(allData[0])
-    num_positions_shadow = len(positions_shadow)
-
-    if num_positions_shadow == 0:
-        return [["LỖI:", "Không thể lấy Vị Trí V17 Shadow."]]
-
-    algorithms = []
-    for i in range(num_positions_shadow):
-        for j in range(i, num_positions_shadow):
-            algorithms.append((i, j))
-
-    num_algorithms = len(algorithms)
-    print(
-        f"Đã tạo {num_algorithms} thuật toán V17. Bắt đầu tiền xử lý {len(allData)} hàng..."
-    )
-
-    processedData = []
-    for k in range(startCheckRow, finalEndRow + 1):
-        prevRow_idx, actualRow_idx = k - 1 - offset, k - offset
-        if actualRow_idx >= len(allData) or prevRow_idx < 0:
-            continue
-        prevRow, actualRow = allData[prevRow_idx], allData[actualRow_idx]
-        if (
-            not prevRow
-            or not actualRow
-            or not actualRow[0]
-            or str(actualRow[0]).strip() == ""
-            or len(actualRow) < 10
-            or not actualRow[9]
-        ):
-            continue
-
-        processedData.append(
-            {
-                "prevPositions": getAllPositions_V17_Shadow(prevRow),
-                "actualLotoSet": set(getAllLoto_V30(actualRow)),
-            }
-        )
-
-    print("Tiền xử lý hoàn tất. Bắt đầu dò cầu...")
-
-    totalTestDays = len(processedData)
-    if totalTestDays == 0:
-        return [["LỖI:", "Không có dữ liệu hợp lệ để backtest."]]
-
-    AUTO_ADD_MIN_RATE = SETTINGS.AUTO_ADD_MIN_RATE
-    bridges_to_add = []
-
-    for j in range(num_algorithms):
-        alg = algorithms[j]
-        idx1, idx2 = alg[0], alg[1]
-        win_count, current_streak, max_streak = 0, 0, 0
-
-        for dayData in processedData:
-            prevPositions = dayData["prevPositions"]
-            actualLotoSet = dayData["actualLotoSet"]
-            a, b = prevPositions[idx1], prevPositions[idx2]
-            if a is None or b is None:
-                current_streak = 0
-                continue
-
-            pred_stl = taoSTL_V30_Bong(a, b)
-            check_result = checkHitSet_V30_K2N(pred_stl, actualLotoSet)
-
-            if "✅" in check_result:
-                win_count += 1
-                current_streak += 1
-            else:
-                current_streak = 0
-            max_streak = max(max_streak, current_streak)
-
-        if totalTestDays > 0:
-            rate = (win_count / totalTestDays) * 100
-            if rate >= AUTO_ADD_MIN_RATE:
-                pos1_name = getPositionName_V17_Shadow(idx1)
-                pos2_name = getPositionName_V17_Shadow(idx2)
-                bridge_name = f"{pos1_name}+{pos2_name}"
-                rate_str = f"{rate:.2f}%"
-
-                results.append(
-                    [
-                        len(results),
-                        bridge_name,
-                        f"{pos1_name} + {pos2_name}",
-                        rate_str,
-                        f"{current_streak} (Max {max_streak})",
-                    ]
-                )
-                bridges_to_add.append(
-                    (bridge_name, bridge_name, rate_str, db_name, idx1, idx2)
-                )
-
-    if bridges_to_add:
-        print(f"Dò cầu V17: Tự động thêm/cập nhật {len(bridges_to_add)} cầu...")
-        try:
-            # Dùng list comprehension
-            [
-                upsert_managed_bridge(n, d, r, db, i1, i2)
-                for n, d, r, db, i1, i2 in bridges_to_add
-            ]
-        except Exception as e_db:
-            print(f"Lỗi khi batch update cầu V17: {e_db}")
-
-    print("Hoàn tất Dò Cầu Tốt Nhất V17.")
-    return results
-
+    bridge_name = bridge.get('name', '') or ''
+    bridge_type = bridge.get('type', '') or ''
+    
+    # Ensure strings (handle None, int, list, etc.)
+    if not isinstance(bridge_name, str):
+        bridge_name = str(bridge_name) if bridge_name else ''
+    if not isinstance(bridge_type, str):
+        bridge_type = str(bridge_type) if bridge_type else ''
+    
+    # Get De indicators from constants (with fallback)
+    try:
+        from logic.constants import DEFAULT_SETTINGS
+        de_indicators = DEFAULT_SETTINGS.get('DE_BRIDGE_INDICATORS', ['DE_', 'Đề', 'de_', 'đề'])
+    except:
+        de_indicators = ['DE_', 'Đề', 'de_', 'đề']
+    
+    # Check if bridge name or type indicates it's a De bridge
+    for indicator in de_indicators:
+        if indicator in bridge_name or indicator in bridge_type:
+            return True
+    
+    return False
 
 # ===================================================================================
-# II. HÀM DÒ CẦU BẠC NHỚ (ĐÃ DI CHUYỂN TỪ BACKTESTER V7.0)
+# MANAGEMENT FUNCTIONS (Các hàm quản lý cầu)
 # ===================================================================================
-
-
-def TIM_CAU_BAC_NHO_TOT_NHAT(
-    toan_bo_A_I, ky_bat_dau_kiem_tra, ky_ket_thuc_kiem_tra, db_name=DB_NAME
-):
-    """
-    (V7.0) Hàm dò cầu Bạc Nhớ
-    """
-    print("Bắt đầu Dò Cầu Bạc Nhớ Tốt Nhất (756 cầu)...")
-
-    allData, finalEndRow, startCheckRow, offset = (
-        toan_bo_A_I,
-        ky_ket_thuc_kiem_tra,
-        ky_bat_dau_kiem_tra + 1,
-        ky_bat_dau_kiem_tra,
-    )
-
-    loto_names = get_27_loto_names()
-    num_positions = len(loto_names)
-
-    algorithms = []
-    headers = ["STT", "Cầu (Bạc Nhớ)", "Vị Trí", "Tỷ Lệ %", "Chuỗi"]
-
-    for i in range(num_positions):
-        for j in range(i, num_positions):
-            name_sum = f"Tổng({loto_names[i]} + {loto_names[j]})"
-            algorithms.append((i, j, "sum", name_sum))
-            name_diff = f"Hiệu(|{loto_names[i]} - {loto_names[j]}|)"
-            algorithms.append((i, j, "diff", name_diff))
-
-    num_algorithms = len(algorithms)
-    results = [headers]
-    print(
-        f"Đã tạo {num_algorithms} thuật toán Bạc Nhớ. Bắt đầu tiền xử lý {len(allData)} hàng..."
-    )
-
-    processedData = []
-    for k in range(startCheckRow, finalEndRow + 1):
-        prevRow_idx, actualRow_idx = k - 1 - offset, k - offset
-        if actualRow_idx >= len(allData) or prevRow_idx < 0:
-            continue
-        prevRow, actualRow = allData[prevRow_idx], allData[actualRow_idx]
-        if (
-            not prevRow
-            or not actualRow
-            or not actualRow[0]
-            or str(actualRow[0]).strip() == ""
-            or len(actualRow) < 10
-            or not actualRow[9]
-        ):
-            continue
-
-        processedData.append(
-            {
-                "prevLotos": get_27_loto_positions(prevRow),
-                "actualLotoSet": set(getAllLoto_V30(actualRow)),
-            }
-        )
-
-    print("Tiền xử lý hoàn tất. Bắt đầu dò cầu...")
-
-    totalTestDays = len(processedData)
-    if totalTestDays == 0:
-        return [["LỖI:", "Không có dữ liệu hợp lệ để backtest."]]
-
-    AUTO_ADD_MIN_RATE = SETTINGS.AUTO_ADD_MIN_RATE
-    bridges_to_add = []
-
-    for j in range(num_algorithms):
-        alg = algorithms[j]
-        idx1, idx2, alg_type, alg_name = alg[0], alg[1], alg[2], alg[3]
-        win_count, current_streak, max_streak = 0, 0, 0
-
-        for dayData in processedData:
-            prevLotos = dayData["prevLotos"]
-            actualLotoSet = dayData["actualLotoSet"]
-            loto1, loto2 = prevLotos[idx1], prevLotos[idx2]
-            pred_stl = calculate_bridge_stl(loto1, loto2, alg_type)
-            check_result = checkHitSet_V30_K2N(pred_stl, actualLotoSet)
-
-            if "✅" in check_result:
-                win_count += 1
-                current_streak += 1
-            else:
-                current_streak = 0
-            max_streak = max(max_streak, current_streak)
-
-        if totalTestDays > 0:
-            rate = (win_count / totalTestDays) * 100
-            if rate >= AUTO_ADD_MIN_RATE:
-                rate_str = f"{rate:.2f}%"
-                results.append(
-                    [
-                        len(results),
-                        alg_name,
-                        f"{loto_names[idx1]} + {loto_names[idx2]}",
-                        rate_str,
-                        f"{current_streak} (Max {max_streak})",
-                    ]
-                )
-                # Bạc nhớ (V17) có pos1_idx = -1
-                bridges_to_add.append((alg_name, alg_name, rate_str, db_name, -1, -1))
-
-    if bridges_to_add:
-        print(f"Dò cầu Bạc Nhớ: Tự động thêm/cập nhật {len(bridges_to_add)} cầu...")
-        try:
-            # Dùng list comprehension
-            [
-                upsert_managed_bridge(n, d, r, db, i1, i2)
-                for n, d, r, db, i1, i2 in bridges_to_add
-            ]
-        except Exception as e_db:
-            print(f"Lỗi khi batch update cầu Bạc Nhớ: {e_db}")
-
-    print("Hoàn tất Dò Cầu Bạc Nhớ.")
-    return results
-
-
-# ===================================================================================
-# III. HÀM QUẢN LÝ TỰ ĐỘNG (ĐÃ DI CHUYỂN TỪ BACKTESTER V7.0)
-# ===================================================================================
-
+# Note: Scanning functions (TIM_CAU_TOT_NHAT_V16, TIM_CAU_BAC_NHO_TOT_NHAT, 
+#       update_fixed_lo_bridges) have been moved to lo_bridge_scanner.py
 
 def find_and_auto_manage_bridges(all_data_ai, db_name=DB_NAME):
     """
-    (V7.0) Wrapper: Chạy cả 2 hàm dò cầu (V17 + Bạc Nhớ) và cập nhật DB.
+    Tự động dò tìm và quản lý cầu Lô.
+    
+    Calls scanning functions from lo_bridge_scanner module.
+    
+    Args:
+        all_data_ai: Dữ liệu toàn bộ kỳ quay
+        db_name: Đường dẫn database
+        
+    Returns:
+        String message about bridges found/updated
     """
     try:
         if not all_data_ai:
-            return "Lỗi: Không có dữ liệu A:I để dò cầu."
-
-        ky_bat_dau = 2
-        ky_ket_thuc = len(all_data_ai) + (ky_bat_dau - 1)
-
-        print("... (Auto Find) Bắt đầu dò Cầu V17 (Shadow)...")
-        results_v17 = TIM_CAU_TOT_NHAT_V16(
-            all_data_ai, ky_bat_dau, ky_ket_thuc, db_name
-        )
-        count_v17 = len(results_v17) - 1 if results_v17 and len(results_v17) > 1 else 0
-
-        print("... (Auto Find) Bắt đầu dò Cầu Bạc Nhớ...")
-        results_memory = TIM_CAU_BAC_NHO_TOT_NHAT(
-            all_data_ai, ky_bat_dau, ky_ket_thuc, db_name
-        )
-        count_memory = (
-            len(results_memory) - 1 if results_memory and len(results_memory) > 1 else 0
-        )
-
-        return f"Dò cầu hoàn tất. Tự động thêm/cập nhật {count_v17} cầu V17 và {count_memory} cầu Bạc Nhớ."
-
+            return "Lỗi: Không có dữ liệu."
+        msg = []
+        
+        print("... [Auto] Dò V17 Shadow (K2N Scan) ...")
+        res_v17 = TIM_CAU_TOT_NHAT_V16(all_data_ai, 2, len(all_data_ai)+1, db_name)
+        msg.append(f"V17 (Scan): {len(res_v17)-1 if res_v17 else 0} cầu")
+        
+        print("... [Auto] Dò Bạc Nhớ (K2N Scan) ...")
+        res_bn = TIM_CAU_BAC_NHO_TOT_NHAT(all_data_ai, 2, len(all_data_ai)+1, db_name)
+        msg.append(f"Bạc Nhớ (Scan): {len(res_bn)-1 if res_bn else 0} cầu")
+        
+        print("... [Auto] Cập nhật Fixed (K1N Real) ...")
+        c_fix = update_fixed_lo_bridges(all_data_ai, db_name)
+        msg.append(f"Fixed (K1N): {c_fix} cầu")
+        
+        return " | ".join(msg)
     except Exception as e:
-        return f"Lỗi nghiêm trọng trong find_and_auto_manage_bridges: {e}"
-
+        return f"Lỗi: {e}"
 
 def prune_bad_bridges(all_data_ai, db_name=DB_NAME):
     """
-    (V7.0) Tự động TẮT (disable) các cầu có tỷ lệ K2N thấp (đã cache).
+    Lọc và tắt các cầu yếu (Low performance bridges).
+    Sử dụng dual-config để áp dụng ngưỡng khác nhau cho cầu Lô và Đề.
+    
+    Args:
+        all_data_ai: Dữ liệu toàn bộ kỳ quay (unused but kept for API compatibility)
+        db_name: Đường dẫn database
+        
+    Returns:
+        String message about pruning results
     """
+    # Get thresholds from dual-config (with fallback)
     try:
-        # (V7.1) Đã chuyển sang .config_manager
-        AUTO_PRUNE_MIN_RATE = SETTINGS.AUTO_PRUNE_MIN_RATE
-    except Exception as e_cfg:
-        print(f"Lỗi đọc config: {e_cfg}. Dùng AUTO_PRUNE_MIN_RATE=40.0")
-        AUTO_PRUNE_MIN_RATE = 40.0
+        lo_config = SETTINGS.get('lo_config', {})
+        de_config = SETTINGS.get('de_config', {})
+        
+        lo_remove_threshold = lo_config.get('remove_threshold', 43.0)
+        de_remove_threshold = de_config.get('remove_threshold', 80.0)
+    except:
+        # Fallback to old settings if dual-config not available
+        lo_remove_threshold = getattr(SETTINGS, 'AUTO_PRUNE_MIN_RATE', 43.0)
+        de_remove_threshold = 80.0
 
     disabled_count = 0
-
-    # Bước 1: Lấy danh sách các cầu đang Bật (enabled)
+    disabled_lo_count = 0
+    disabled_de_count = 0
+    skipped_pinned = 0
+    
     try:
-        # (V7.1) Đã chuyển sang .data_repository
-        managed_bridges_list = get_all_managed_bridges(db_name, only_enabled=True)
-        if not managed_bridges_list:
-            return "Lỗi: Không có cầu nào được Bật để lọc."
+        bridges = get_all_managed_bridges(db_name, only_enabled=True)
+        if not bridges:
+            return "Không có cầu để lọc."
+        
+        for b in bridges:
+            try:
+                is_pinned = b.get("is_pinned", 0)
+                if is_pinned:
+                    skipped_pinned += 1
+                    continue
+                
+                # Determine if this is a De bridge
+                is_de = is_de_bridge(b)
+                remove_threshold = de_remove_threshold if is_de else lo_remove_threshold
+                
+                # Get K1N rate (primary metric)
+                k1n_str = str(b.get("win_rate_text", "0")).replace("%", "")
+                try:
+                    k1n_val = float(k1n_str)
+                except:
+                    k1n_val = 0.0
+                
+                # Get K2N rate (secondary metric)
+                k2n_str = str(b.get("search_rate_text", "0")).replace("%", "")
+                try:
+                    k2n_val = float(k2n_str)
+                except:
+                    k2n_val = 0.0
+                
+                # Logic: Disable if BOTH K1N and K2N are below threshold
+                is_k1n_ok = (k1n_val >= remove_threshold)
+                is_k2n_ok = (k2n_val >= remove_threshold)
+                should_disable = (not is_k1n_ok and not is_k2n_ok)
 
-        # Chuyển sang map/dict để dễ tra cứu
-        managed_bridges_map = {b["name"]: b for b in managed_bridges_list}
+                if should_disable:
+                    update_managed_bridge(b["id"], b["description"], 0, db_name)
+                    disabled_count += 1
+                    if is_de:
+                        disabled_de_count += 1
+                    else:
+                        disabled_lo_count += 1
+                    
+            except Exception as e_inner:
+                print(f"Lỗi check cầu {b.get('name')}: {e_inner}")
+                pass
+                
+    except Exception as e:
+        return f"Lỗi lọc cầu: {e}"
 
-    except Exception as e_db:
-        return f"Lỗi DB khi tải Cầu Đã Lưu: {e_db}"
+    msg = f"Lọc cầu hoàn tất. Đã TẮT {disabled_count} cầu yếu "
+    msg += f"(Lô: {disabled_lo_count} < {lo_remove_threshold}%, Đề: {disabled_de_count} < {de_remove_threshold}%)."
+    if skipped_pinned > 0:
+        msg += f" Bỏ qua {skipped_pinned} cầu đã ghim."
+    return msg
 
-    if not managed_bridges_map:
-        return "Lỗi: Không có cầu nào được Bật để lọc."
 
-    print(f"... (Lọc Cầu Yếu) Đang kiểm tra {len(managed_bridges_map)} cầu đã bật...")
-
-    # Bước 2: Duyệt các cầu đã cache và lọc
-    for bridge_name, bridge_data in managed_bridges_map.items():
-        try:
-            # Đọc tỷ lệ từ cache K2N
-            win_rate_str = str(bridge_data.get("win_rate_text", "0%")).replace("%", "")
-
-            if not win_rate_str or win_rate_str == "N/A":
-                continue
-
-            win_rate = float(win_rate_str)
-
-            # Nếu cầu còn được bật (enabled) VÀ tỷ lệ thấp
-            if win_rate < AUTO_PRUNE_MIN_RATE:
-
-                bridge_id = bridge_data["id"]
-                old_desc = bridge_data["description"]
-
-                # Gọi hàm update, set is_enabled = 0
-                update_managed_bridge(bridge_id, old_desc, 0, db_name)
-                disabled_count += 1
-
-        except Exception as e_row:
-            print(f"Lỗi xử lý lọc cầu: {bridge_name}, Lỗi: {e_row}")
-
-    return f"Lọc cầu hoàn tất. Đã TẮT {disabled_count} cầu yếu (Tỷ lệ K2N < {AUTO_PRUNE_MIN_RATE}%)."
+def auto_manage_bridges(all_data_ai, db_name=DB_NAME):
+    """
+    Tự động quản lý cầu: Bật lại các cầu có hiệu suất tốt.
+    Sử dụng dual-config để áp dụng ngưỡng khác nhau cho cầu Lô và Đề.
+    
+    Args:
+        all_data_ai: Dữ liệu toàn bộ kỳ quay
+        db_name: Đường dẫn database
+        
+    Returns:
+        String message about management results
+    """
+    # Get thresholds from dual-config (with fallback)
+    try:
+        lo_config = SETTINGS.get('lo_config', {})
+        de_config = SETTINGS.get('de_config', {})
+        
+        lo_add_threshold = lo_config.get('add_threshold', 45.0)
+        de_add_threshold = de_config.get('add_threshold', 88.0)
+    except:
+        # Fallback to old settings if dual-config not available
+        lo_add_threshold = getattr(SETTINGS, 'AUTO_ADD_MIN_RATE', 45.0)
+        de_add_threshold = 88.0
+    
+    enabled_count = 0
+    enabled_lo_count = 0
+    enabled_de_count = 0
+    skipped_pinned = 0
+    
+    try:
+        # Get all disabled bridges (is_enabled=0)
+        bridges = get_all_managed_bridges(db_name, only_enabled=False)
+        if not bridges:
+            return "Không có cầu để quản lý."
+        
+        # Filter to only disabled bridges
+        disabled_bridges = [b for b in bridges if b.get('is_enabled', 1) == 0]
+        
+        if not disabled_bridges:
+            return "Không có cầu bị tắt để kiểm tra."
+        
+        for b in disabled_bridges:
+            try:
+                is_pinned = b.get("is_pinned", 0)
+                if is_pinned:
+                    skipped_pinned += 1
+                    continue
+                
+                # Determine if this is a De bridge
+                is_de = is_de_bridge(b)
+                add_threshold = de_add_threshold if is_de else lo_add_threshold
+                
+                # Get K1N rate (primary metric)
+                k1n_str = str(b.get("win_rate_text", "0")).replace("%", "")
+                try:
+                    k1n_val = float(k1n_str)
+                except:
+                    k1n_val = 0.0
+                
+                # Logic: Re-enable if K1N is above add_threshold
+                should_enable = (k1n_val >= add_threshold)
+                
+                if should_enable:
+                    update_managed_bridge(b["id"], b["description"], 1, db_name)
+                    enabled_count += 1
+                    if is_de:
+                        enabled_de_count += 1
+                    else:
+                        enabled_lo_count += 1
+                    
+            except Exception as e_inner:
+                print(f"Lỗi check cầu {b.get('name')}: {e_inner}")
+                pass
+                
+    except Exception as e:
+        return f"Lỗi quản lý cầu: {e}"
+    
+    msg = f"Quản lý cầu hoàn tất. Đã BẬT LẠI {enabled_count} cầu tiềm năng "
+    msg += f"(Lô: {enabled_lo_count} >= {lo_add_threshold}%, Đề: {enabled_de_count} >= {de_add_threshold}%)."
+    if skipped_pinned > 0:
+        msg += f" Bỏ qua {skipped_pinned} cầu đã ghim."
+    return msg

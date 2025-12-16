@@ -1,8 +1,20 @@
-pip install pandas matplotlib seaborn scikit-learn joblib
+pip install pandas matplotlib seaborn scikit-learn joblib xgboost
 
  git config --global user.email "nguyenhien7268@gmail.com"
 
   git config --global user.name "Jason"
+
+del /s /q *.pyc
+rmdir /s /q __pycache__
+for /d /r . %d in (__pycache__) do @if exist "%d" rd /s /q "%d"
+
+generate_digest.py
+Khi bắt đầu một phiên chat mới với Gemini.
+
+Bạn chỉ cần upload duy nhất file PROJECT_FULL_CONTEXT.txt này.
+
+Đây là toàn bộ source code dự án. Hãy đọc hiểu cấu trúc và logic để hỗ trợ tôi.
+
 
 Sau khi đã cài đặt Git và Git LFS, bạn cần thực hiện 2 bước sau để Git nhận diện được LFS và tải file lớn về:
 
@@ -14,7 +26,8 @@ git lfs install
 Clone code: Khi bạn clone dự án của mình về, Git LFS sẽ tự động nhận diện file .gitattributes trong kho chứa và tải các file lớn (.joblib, .db) về đúng cách.
 
 Bash
-
+pip install -r requirements.txt
+git clone -b copilot/fix-logic-errors-in-app https://github.com/nguyenhien7268-ship-it/git1 code1
 git clone -b ten-nhanh-backup https://github.com/nguyenhien7268-ship-it/git1 du-an-backup
 git clone [URL_GitHub_của_bạn]
 https://github.com/nguyenhien7268-ship-it/git1
@@ -30,9 +43,16 @@ Bước	Lệnh	Mục đích
 
 	git add .
 
-	git commit -m "update thu vien"
+	git commit -m "update tai cau truc"
 
 	git push origin main	
+----------------
+----------------
+
+model AI
+python scripts/v77_phase2_finalize.py
+
+python scripts/v77_phase3_check_progress.py
 
 ----------------sql
 BEGIN TRANSACTION;
@@ -52,23 +72,29 @@ COMMIT;
 -- HOẶC, nếu có lỗi, hãy dùng lệnh này để hoàn tác mọi thứ:
 -- ROLLBACK;
 
-------------------------------------------------------
+3. Đánh Giá Mô Hình Xây Dựng Hệ Thống (Có phải do lỗi mô hình?)
+Câu trả lời là: CÓ MỘT PHẦN.
 
+Hệ thống hiện tại đang gặp vấn đề về Thiết kế Kiến trúc (Architectural Debt), cụ thể:
 
+Phụ thuộc quá nhiều vào "State" (Trạng thái lưu trữ):
 
+Hệ thống dựa hoàn toàn vào việc lưu kết quả tính toán vào Database rồi mới đọc ra hiển thị.
 
-xem qua hệ thống, kiểm tra và xác nhận rằng bạn đã nắm được toàn bộ hệ thống chương trình và nhận được đủ các file như mô tả 
+Nhược điểm: Nếu quy trình cập nhật (Update Cycle) bị lỗi hoặc chưa chạy, dữ liệu hiển thị sẽ sai/cũ ngay lập tức.
 
-thống nhất quy trình làm việc như sau:
+Mô hình tốt hơn: Nên là Hybrid. Database chỉ lưu cấu hình cầu (vị trí A ghép vị trí B). Khi mở Dashboard, hệ thống nên tự tính toán lại dự đoán theo thời gian thực (Real-time Calculation) dựa trên dữ liệu kỳ mới nhất, thay vì chờ đọc từ cột next_prediction_stl tĩnh trong DB.
 
-Quy trình xem xét file: Trước khi thực hiện bất kỳ thay đổi phức tạp nào, tôi sẽ luôn đọc và phân tích toàn bộ nội dung của các file gốc liên quan mà bạn chỉ định. Việc này để đảm bảo tôi hiểu rõ logic và bối cảnh của code, giúp cho việc chỉnh sửa được chính xác.
+Logic phân tán (Scattered Logic):
 
-Quy trình sửa file: Khi bạn yêu cầu sửa đổi một file, tôi sẽ cung cấp toàn bộ nội dung mới của file đó sau khi đã chỉnh sửa.
+Logic tính cầu nằm rải rác ở bridges_classic.py (cầu tĩnh), bridge_manager_core.py (cầu động), và dashboard_scorer.py (chấm điểm).
 
-Cách thực hiện: Bạn chỉ cần sao chép (copy) toàn bộ nội dung mới mà tôi cung cấp và dán (paste) đè lên, thay thế hoàn toàn nội dung trong file gốc tương ứng của bạn.
+Khi sửa một logic (ví dụ cách tính STL), phải sửa đồng bộ ở nhiều nơi, dễ gây sót lỗi (như vụ lệch key prediction vs next_prediction_stl).
 
-------------------------------------------------------
-flake8 .
-TIẾP TỤC sửa lỗi khi chạy flake8 .
+Cơ chế cập nhật "cứng nhắc":
 
-chia giai đoạn để sửa và có bước kiểm tra kết quả để tránh lỗi phát sinh
+Việc đặt ngưỡng cứng (50%) để quyết định có cập nhật cầu hay không là dao hai lưỡi. Nó giúp tối ưu tốc độ nhưng lại khiến người dùng bị "mù thông tin" với các cầu đang nuôi mà bị tụt phong độ.
+
+Tóm lại: Hệ thống của bạn có nền tảng thuật toán tốt (V17, Bạc Nhớ) nhưng cơ chế vận hành dữ liệu (Data Pipeline) đang hơi phức tạp và dễ gãy.
+
+Đề xuất dài hạn: Trong tương lai, nên chuyển sang cơ chế: Lưu cấu trúc cầu -> Tính toán Real-time khi hiển thị. Khi đó, dù bạn có update Database hay không, miễn là có kết quả xổ số mới, phần mềm sẽ tự tính ra số dự đoán ngay lập tức mà không bao giờ bị lỗi N/A do quên cập nhật.

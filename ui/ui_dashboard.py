@@ -1,30 +1,49 @@
-# Tên file: git3/ui/ui_dashboard.py
-#
-# (NỘI DUNG THAY THẾ TOÀN BỘ - SỬA F541)
-#
+# Tên file: code6/ui/ui_dashboard.py
+# (PHIÊN BẢN ĐÃ FIX: Lọc Cầu Đề khỏi bảng Thông 10 Kỳ)
+
 import datetime
 import tkinter as tk
 import traceback
 from tkinter import messagebox, ttk
 
-import matplotlib.pyplot as plt
-
-# (MỚI GĐ 4) Import thư viện biểu đồ và pandas
-import pandas as pd
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-
-# Tinh chỉnh matplotlib cho giao diện tối (hoặc sáng)
-plt.style.use("ggplot")
-
 try:
     from logic.config_manager import SETTINGS
 except ImportError:
     print("LỖI: ui_dashboard.py không thể import logic.config_manager...")
-    SETTINGS = type(
-        "obj",
-        (object,),
-        {"GAN_DAYS": 15, "HIGH_WIN_THRESHOLD": 47.0, "K2N_RISK_START_THRESHOLD": 4},
-    )
+    
+    class FallbackSettings:
+        """Fallback settings when config_manager import fails"""
+        GAN_DAYS = 15
+        HIGH_WIN_THRESHOLD = 47.0
+        K2N_RISK_START_THRESHOLD = 4
+        FILTER_ENABLED = False
+        FILTER_MIN_CONFIDENCE = 0
+        FILTER_MIN_AI_PROB = 0
+        
+        def save_settings(self):
+            """Dummy save method for fallback"""
+            print("WARNING: Cannot save settings - config_manager not available")
+            return True, "Fallback mode"
+    
+    SETTINGS = FallbackSettings()
+
+# Enhancement 4: Filter threshold constants
+# V7.6 IMPROVED: Tăng ngưỡng để cải thiện hiệu quả (giảm tỉ lệ gãy)
+FILTER_CONFIDENCE_THRESHOLD = 5  # Minimum confidence stars (tăng từ 4 → 5)
+FILTER_AI_PROB_THRESHOLD = 60  # Minimum AI probability % (tăng từ 50 → 60)
+
+# Import DB Logic để lấy dữ liệu cầu
+try:
+    from logic.db_manager import DB_NAME
+    from logic.data_repository import get_managed_bridges_with_prediction
+    # [QUAN TRỌNG: THÊM DÒNG NÀY ĐỂ GỌI LOGIC TÍNH TOÁN]
+    from logic.analytics import dashboard_scorer
+except ImportError:
+    print("LỖI: ui_dashboard.py không thể import logic...")
+    DB_NAME = "data/xo_so_prizes_all_logic.db"
+
+    def get_managed_bridges_with_prediction(db_name, current_data=None, only_enabled=True):
+        return []
 
 
 class DashboardWindow(ttk.Frame):
@@ -33,11 +52,6 @@ class DashboardWindow(ttk.Frame):
 
         self.app = app_instance
         self.root = app_instance.root
-
-        # (MỚI GĐ 4) Biến giữ đối tượng biểu đồ
-        self.fig = None
-        self.ax = None
-        self.canvas = None
 
         self.columnconfigure(0, weight=1)
         self.rowconfigure(1, weight=1)
@@ -50,6 +64,9 @@ class DashboardWindow(ttk.Frame):
         )
         self.title_label.pack(side=tk.LEFT, padx=(0, 20))
 
+        # Enhancement 4: Smart Filtering controls
+        self._create_filter_controls()
+
         self.refresh_button = ttk.Button(
             self.header_frame, text="Làm Mới Dữ Liệu", command=self.refresh_data
         )
@@ -58,94 +75,210 @@ class DashboardWindow(ttk.Frame):
         self.main_analysis_frame = ttk.Frame(self, padding=10)
         self.main_analysis_frame.grid(row=1, column=0, sticky="nsew", padx=10, pady=10)
 
-        # (SỬA GĐ 4) Cấu hình lưới 2 Cột, 4 Hàng
-        self.main_analysis_frame.columnconfigure(0, weight=1)  # Cột trái
-        self.main_analysis_frame.columnconfigure(1, weight=1)  # Cột phải
-        self.main_analysis_frame.rowconfigure(0, weight=2)  # Hàng 0: Bảng Điểm / AI
-        self.main_analysis_frame.rowconfigure(1, weight=2)  # Hàng 1: (MỚI) Biểu đồ
-        self.main_analysis_frame.rowconfigure(2, weight=1)  # Hàng 2: Hot / Gan
-        self.main_analysis_frame.rowconfigure(3, weight=1)  # Hàng 3: K2N
+        # ===================================================================
+        # CẤU HÌNH LAYOUT (LƯỚI 24 CỘT)
+        # ===================================================================
+        
+        for i in range(24):
+            self.main_analysis_frame.columnconfigure(i, weight=1)
+
+        # Hàng 0: Các bảng chính (Cao hơn)
+        self.main_analysis_frame.rowconfigure(0, weight=3)
+        # Hàng 1: Các bảng tham khảo (Thấp hơn chút)
+        self.main_analysis_frame.rowconfigure(1, weight=2)
 
         # ===================================================================
-        # TẠO CÁC BẢNG (Sửa đổi vị trí)
+        # TẠO CÁC BẢNG
         # ===================================================================
 
-        # 1. Bảng Chấm Điểm (Hàng 0, Cột 0)
+        # --- HÀNG 0: KHU VỰC QUYẾT ĐỊNH ---
+
+        # 1. Bảng Chấm Điểm (Chiếm 16/24 cột = 2/3)
         self._create_top_scores_ui(self.main_analysis_frame)
-        self.top_scores_frame.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
+        self.top_scores_frame.grid(row=0, column=0, columnspan=16, sticky="nsew", padx=5, pady=5)
 
-        # 2. Dự đoán AI (Hàng 0, Cột 1)
-        self._create_ai_predictions_ui(self.main_analysis_frame)
-        self.ai_predictions_frame.grid(row=0, column=1, sticky="nsew", padx=5, pady=5)
-
-        # 3. (MỚI) Biểu đồ Bảng Chấm Điểm (Hàng 1, Cột 0, Mở rộng 2 cột)
-        self._create_scores_chart_ui(self.main_analysis_frame)
-        self.scores_chart_frame.grid(
-            row=1, column=0, columnspan=2, sticky="nsew", padx=5, pady=5
-        )
-
-        # 4. Loto Về Nhiều (SỬA) (Hàng 2, Cột 0)
-        self._create_hot_loto_ui(self.main_analysis_frame)
-        self.hot_loto_frame.grid(row=2, column=0, sticky="nsew", padx=5, pady=5)
-
-        # 5. Lô Gan (SỬA) (Hàng 2, Cột 1)
-        self._create_gan_loto_ui(self.main_analysis_frame)
-        self.gan_loto_frame.grid(row=2, column=1, sticky="nsew", padx=5, pady=5)
-
-        # 6. Cầu K2N Đang Chờ (SỬA) (Hàng 3, Cột 0, Mở rộng 2 cột)
+        # 2. Cầu K2N Đang Chờ (Chiếm 8/24 cột = 1/3)
         self._create_pending_k2n_ui(self.main_analysis_frame)
-        self.pending_k2n_frame.grid(
-            row=3, column=0, columnspan=2, sticky="nsew", padx=5, pady=5
-        )
+        self.pending_k2n_frame.grid(row=0, column=16, columnspan=8, sticky="nsew", padx=5, pady=5)
 
+        # --- HÀNG 1: KHU VỰC THAM KHẢO ---
+
+        # 3. Dự đoán AI (5/24 cột)
+        self._create_ai_predictions_ui(self.main_analysis_frame)
+        self.ai_predictions_frame.grid(row=1, column=0, columnspan=5, sticky="nsew", padx=5, pady=5)
+
+        # 4. Cầu Thông 10 Kỳ (9/24 cột - Rộng nhất)
+        self._create_recent_form_ui(self.main_analysis_frame)
+        self.recent_form_frame.grid(row=1, column=5, columnspan=9, sticky="nsew", padx=5, pady=5)
+
+        # 5. Loto Về Nhiều (5/24 cột)
+        self._create_hot_loto_ui(self.main_analysis_frame)
+        self.hot_loto_frame.grid(row=1, column=14, columnspan=5, sticky="nsew", padx=5, pady=5)
+
+        # 6. Vote Statistics (5/24 cột) - REPLACED Lô Gan
+        self._create_vote_statistics_ui(self.main_analysis_frame)
+        self.vote_statistics_frame.grid(row=1, column=19, columnspan=5, sticky="nsew", padx=5, pady=5)
+        
+        # --- [MỚI] HÀNG 2: VÙNG KẾT QUẢ SCORING & CẢNH BÁO ---
+        self.main_analysis_frame.rowconfigure(2, weight=1) # Cấp quyền giãn dòng cho hàng 2
+        
+        self.result_log_frame = ttk.Labelframe(self.main_analysis_frame, text="📝 Kết Quả Phân Tích & Cảnh Báo (V3.8)")
+        self.result_log_frame.grid(row=2, column=0, columnspan=24, sticky="nsew", padx=5, pady=8)
+        
+        # Tạo Widget Text để hiển thị
+        self.txt_result_log = tk.Text(self.result_log_frame, height=5, font=("Arial", 10))
+        self.txt_result_log.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        # Scrollbar cho text
+        scrollbar_log = ttk.Scrollbar(self.result_log_frame, orient=tk.VERTICAL, command=self.txt_result_log.yview)
+        scrollbar_log.pack(side=tk.RIGHT, fill=tk.Y)
+        self.txt_result_log.configure(yscrollcommand=scrollbar_log.set)
     # ===================================================================================
-    # CÁC HÀM TẠO UI (Giữ nguyên 5 hàm cũ, thêm 1 hàm mới)
+    # CÁC HÀM TẠO UI
     # ===================================================================================
+
+    def _create_filter_controls(self):
+        """Enhancement 4: Create smart filtering controls"""
+        filter_frame = ttk.Frame(self.header_frame)
+        filter_frame.pack(side=tk.RIGHT, padx=(10, 10))
+
+        # Filter enabled checkbox
+        self.filter_enabled_var = tk.BooleanVar(value=SETTINGS.FILTER_ENABLED)
+        filter_check = ttk.Checkbutton(
+            filter_frame,
+            text="Lọc thông minh",
+            variable=self.filter_enabled_var,
+            command=self._on_filter_changed
+        )
+        filter_check.pack(side=tk.LEFT, padx=5)
+
+        # Min confidence filter
+        conf_frame = ttk.Frame(filter_frame)
+        conf_frame.pack(side=tk.LEFT, padx=5)
+        
+        self.filter_confidence_var = tk.BooleanVar(
+            value=SETTINGS.FILTER_MIN_CONFIDENCE >= FILTER_CONFIDENCE_THRESHOLD
+        )
+        conf_check = ttk.Checkbutton(
+            conf_frame,
+            text=f"Chỉ hiện ≥{FILTER_CONFIDENCE_THRESHOLD}⭐",
+            variable=self.filter_confidence_var,
+            command=self._on_filter_changed
+        )
+        conf_check.pack()
+
+        # Min AI probability filter
+        ai_frame = ttk.Frame(filter_frame)
+        ai_frame.pack(side=tk.LEFT, padx=5)
+        
+        self.filter_ai_var = tk.BooleanVar(
+            value=SETTINGS.FILTER_MIN_AI_PROB >= FILTER_AI_PROB_THRESHOLD
+        )
+        ai_check = ttk.Checkbutton(
+            ai_frame,
+            text=f"Chỉ hiện AI ≥{FILTER_AI_PROB_THRESHOLD}%",
+            variable=self.filter_ai_var,
+            command=self._on_filter_changed
+        )
+        ai_check.pack()
+
+    def _on_filter_changed(self):
+        """Handle filter checkbox changes"""
+        # Update SETTINGS
+        SETTINGS.FILTER_ENABLED = self.filter_enabled_var.get()
+        SETTINGS.FILTER_MIN_CONFIDENCE = (
+            FILTER_CONFIDENCE_THRESHOLD if self.filter_confidence_var.get() else 0
+        )
+        SETTINGS.FILTER_MIN_AI_PROB = (
+            FILTER_AI_PROB_THRESHOLD if self.filter_ai_var.get() else 0
+        )
+        
+        # Save preferences
+        SETTINGS.save_settings()
+        
+        # Refresh data to apply filters
+        if hasattr(self.app, 'refresh_dashboard'):
+            self.app.refresh_dashboard()
 
     def _create_top_scores_ui(self, parent_frame):
         self.top_scores_frame = ttk.Labelframe(
-            parent_frame, text="🏆 Bảng Chấm Điểm Tổng Lực (V6.2 + AI)"
+            parent_frame, text="🏆 Bảng Chấm Điểm Tổng Lực (Double-click để xem chi tiết)"
         )
         tree_frame = ttk.Frame(self.top_scores_frame)
         tree_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
-        cols = ("score", "pair", "gan", "reasons")
+        
+        cols = ("score", "ai", "confidence", "recommendation", "pair", "gan", "reasons")
         self.scores_tree = ttk.Treeview(
             tree_frame, columns=cols, show="headings", height=10
-        )  # (SỬA) Giảm chiều cao
+        )
         self.scores_tree.heading("score", text="Điểm")
+        self.scores_tree.heading("ai", text="AI")
+        self.scores_tree.heading("confidence", text="⭐")
+        self.scores_tree.heading("recommendation", text="Khuyến Nghị")
         self.scores_tree.heading("pair", text="Cặp số")
         self.scores_tree.heading("gan", text="Gan")
         self.scores_tree.heading("reasons", text="Lý do (Tích hợp AI)")
-        self.scores_tree.column("score", width=50, anchor=tk.E)
-        self.scores_tree.column("pair", width=60, anchor=tk.CENTER)
-        self.scores_tree.column("gan", width=50, anchor=tk.CENTER)
-        self.scores_tree.column("reasons", width=300)
-        scrollbar = ttk.Scrollbar(
+        
+        self.scores_tree.column("score", width=50, minwidth=50, anchor=tk.E)
+        self.scores_tree.column("ai", width=60, minwidth=60, anchor=tk.CENTER)
+        self.scores_tree.column("confidence", width=50, minwidth=50, anchor=tk.CENTER)
+        self.scores_tree.column("recommendation", width=80, minwidth=80, anchor=tk.CENTER)
+        self.scores_tree.column("pair", width=60, minwidth=60, anchor=tk.CENTER)
+        self.scores_tree.column("gan", width=50, minwidth=50, anchor=tk.CENTER)
+        self.scores_tree.column("reasons", width=380, minwidth=280)
+        
+        # Thanh cuộn Dọc
+        v_scrollbar = ttk.Scrollbar(
             tree_frame, orient=tk.VERTICAL, command=self.scores_tree.yview
         )
-        self.scores_tree.configure(yscrollcommand=scrollbar.set)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        v_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        # Thanh cuộn Ngang
+        h_scrollbar = ttk.Scrollbar(
+            tree_frame, orient=tk.HORIZONTAL, command=self.scores_tree.xview
+        )
+        h_scrollbar.pack(side=tk.BOTTOM, fill=tk.X)
+
+        self.scores_tree.configure(
+            yscrollcommand=v_scrollbar.set, 
+            xscrollcommand=h_scrollbar.set
+        )
         self.scores_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
         self.scores_tree.tag_configure("gan", foreground="red")
         self.scores_tree.tag_configure(
             "top1", background="#D5E8D4", font=("Arial", 10, "bold")
         )
         self.scores_tree.tag_configure("top3", background="#FFF2CC")
+        
+        # AI color tags
+        self.scores_tree.tag_configure("ai_very_high", foreground="#006400", font=("Arial", 9, "bold"))  # Dark green >=70%
+        self.scores_tree.tag_configure("ai_high", foreground="#228B22")  # Green >=50%
+        self.scores_tree.tag_configure("ai_med", foreground="#DAA520")  # Goldenrod >=30%
+        self.scores_tree.tag_configure("ai_low", foreground="#A9A9A9")  # Gray <30%
+        
+        # NEW: Enhancement 3 - Recommendation color tags
+        self.scores_tree.tag_configure("rec_choi", foreground="green", font=("Arial", 9, "bold"))
+        self.scores_tree.tag_configure("rec_xem_xet", foreground="#DAA520", font=("Arial", 9))
+        self.scores_tree.tag_configure("rec_bo_qua", foreground="gray", font=("Arial", 9))
+        
+        # (MỚI) Bind sự kiện click
+        self.scores_tree.bind("<Double-1>", self.on_tree_double_click)
 
     def _create_ai_predictions_ui(self, parent_frame):
         self.ai_predictions_frame = ttk.Labelframe(
-            parent_frame, text="🧠 Dự đoán AI (Loto Đơn)"
+            parent_frame, text="🧠 AI (Đơn)"
         )
         tree_frame = ttk.Frame(self.ai_predictions_frame)
-        tree_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        tree_frame.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
         cols = ("loto", "probability")
         self.ai_tree = ttk.Treeview(
-            tree_frame, columns=cols, show="headings", height=10
-        )  # (SỬA) Giảm chiều cao
-        self.ai_tree.heading("loto", text="Loto")
-        self.ai_tree.heading("probability", text="Xác suất (%)")
-        self.ai_tree.column("loto", width=80, anchor=tk.CENTER)
-        self.ai_tree.column("probability", width=120, anchor=tk.E)
+            tree_frame, columns=cols, show="headings", height=8
+        )
+        self.ai_tree.heading("loto", text="Số")
+        self.ai_tree.heading("probability", text="%")
+        self.ai_tree.column("loto", width=40, anchor=tk.CENTER)
+        self.ai_tree.column("probability", width=50, anchor=tk.E)
         scrollbar = ttk.Scrollbar(
             tree_frame, orient=tk.VERTICAL, command=self.ai_tree.yview
         )
@@ -153,46 +286,57 @@ class DashboardWindow(ttk.Frame):
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         self.ai_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         self.ai_tree.tag_configure(
-            "top1", background="#D5E8D4", font=("Arial", 10, "bold")
-        )
-        self.ai_tree.tag_configure("top5", background="#FFF2CC")
-
-    # (MỚI GĐ 4) Hàm tạo khu vực biểu đồ
-    def _create_scores_chart_ui(self, parent_frame):
-        self.scores_chart_frame = ttk.Labelframe(
-            parent_frame, text="📊 Biểu đồ Phân bổ Điểm (Top 5)"
+            "top1", background="#D5E8D4", font=("Arial", 9, "bold")
         )
 
-        # Cấu hình kích thước (figsize) và DPI
-        self.fig = plt.Figure(figsize=(10, 2.5), dpi=100)  # Rộng, thấp
-        self.ax = self.fig.add_subplot(111)
+    def _create_recent_form_ui(self, parent_frame):
+        self.recent_form_frame = ttk.Labelframe(
+            parent_frame, text="🔥 Phong Độ 10 Kỳ (Cầu ≥ 9/10 Thắng, Đang Bật)"
+        )
+        tree_frame = ttk.Frame(self.recent_form_frame)
+        tree_frame.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
 
-        # Nhúng Matplotlib vào Tkinter
-        self.canvas = FigureCanvasTkAgg(self.fig, master=self.scores_chart_frame)
-        self.canvas.get_tk_widget().pack(
-            side=tk.TOP, fill=tk.BOTH, expand=True, padx=5, pady=5
+        cols = ("name", "wins", "prediction")
+        self.recent_form_tree = ttk.Treeview(
+            tree_frame, columns=cols, show="headings", height=8
         )
 
-        # Giảm khoảng cách lề
-        self.fig.tight_layout(pad=0.5)
+        self.recent_form_tree.heading("name", text="Tên Cầu")
+        self.recent_form_tree.heading("wins", text="Thắng")
+        self.recent_form_tree.heading("prediction", text="Dự Đoán")
+
+        self.recent_form_tree.column("name", width=150, anchor=tk.W)
+        self.recent_form_tree.column("wins", width=60, anchor=tk.CENTER)
+        self.recent_form_tree.column("prediction", width=60, anchor=tk.CENTER)
+
+        scrollbar = ttk.Scrollbar(
+            tree_frame, orient=tk.VERTICAL, command=self.recent_form_tree.yview
+        )
+        self.recent_form_tree.configure(yscrollcommand=scrollbar.set)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.recent_form_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        self.recent_form_tree.tag_configure(
+            "excellent", background="#D5E8D4", font=("Arial", 9, "bold")
+        )
+        self.recent_form_tree.tag_configure("good", background="#FFF2CC")
+        
+        self.recent_form_tree.bind("<Double-1>", self.on_tree_double_click)
 
     def _create_hot_loto_ui(self, parent_frame):
-        # (SỬA F541) Xóa tiền tố 'f'
         self.hot_loto_frame = ttk.Labelframe(
-            parent_frame, text="🔥 Loto Về Nhiều (7 ngày)"
+            parent_frame, text="🔥 Hot (7 ngày)"
         )
         tree_frame = ttk.Frame(self.hot_loto_frame)
-        tree_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
-        cols = ("loto", "hits", "days")
+        tree_frame.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
+        cols = ("loto", "hits")
         self.hot_loto_tree = ttk.Treeview(
             tree_frame, columns=cols, show="headings", height=8
         )
-        self.hot_loto_tree.heading("loto", text="Loto")
-        self.hot_loto_tree.heading("hits", text="Số nháy")
-        self.hot_loto_tree.heading("days", text="Số kỳ")
-        self.hot_loto_tree.column("loto", width=50, anchor=tk.CENTER)
-        self.hot_loto_tree.column("hits", width=60, anchor=tk.E)
-        self.hot_loto_tree.column("days", width=50, anchor=tk.E)
+        self.hot_loto_tree.heading("loto", text="Số")
+        self.hot_loto_tree.heading("hits", text="Nháy")
+        self.hot_loto_tree.column("loto", width=40, anchor=tk.CENTER)
+        self.hot_loto_tree.column("hits", width=40, anchor=tk.CENTER)
         scrollbar = ttk.Scrollbar(
             tree_frame, orient=tk.VERTICAL, command=self.hot_loto_tree.yview
         )
@@ -200,46 +344,50 @@ class DashboardWindow(ttk.Frame):
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         self.hot_loto_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
-    def _create_gan_loto_ui(self, parent_frame):
-        # (SỬA F541) Xóa tiền tố 'f'
-        self.gan_loto_frame = ttk.Labelframe(
-            parent_frame, text="🧊 Lô Gan (Trên 15 ngày)"
+    def _create_vote_statistics_ui(self, parent_frame):
+        """NEW: Vote Statistics table (replaces Lô Gan)"""
+        self.vote_statistics_frame = ttk.Labelframe(
+            parent_frame, text="📊 Vote (Top)"
         )
-        tree_frame = ttk.Frame(self.gan_loto_frame)
-        tree_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
-        cols = ("loto", "days")
-        self.gan_tree = ttk.Treeview(
+        tree_frame = ttk.Frame(self.vote_statistics_frame)
+        tree_frame.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
+        cols = ("pair", "votes")
+        self.vote_tree = ttk.Treeview(
             tree_frame, columns=cols, show="headings", height=8
         )
-        self.gan_tree.heading("loto", text="Loto")
-        self.gan_tree.heading("days", text="Số ngày Gan")
-        self.gan_tree.column("loto", width=50, anchor=tk.CENTER)
-        self.gan_tree.column("days", width=100, anchor=tk.E)
+        self.vote_tree.heading("pair", text="Cặp")
+        self.vote_tree.heading("votes", text="Vote")
+        self.vote_tree.column("pair", width=50, anchor=tk.CENTER)
+        self.vote_tree.column("votes", width=40, anchor=tk.CENTER)
         scrollbar = ttk.Scrollbar(
-            tree_frame, orient=tk.VERTICAL, command=self.gan_tree.yview
+            tree_frame, orient=tk.VERTICAL, command=self.vote_tree.yview
         )
-        self.gan_tree.configure(yscrollcommand=scrollbar.set)
+        self.vote_tree.configure(yscrollcommand=scrollbar.set)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        self.gan_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self.vote_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        
+        # Color coding
+        self.vote_tree.tag_configure("high", background="#D5E8D4", font=("Arial", 9, "bold"))
+        self.vote_tree.tag_configure("medium", background="#FFF2CC")
 
     def _create_pending_k2n_ui(self, parent_frame):
         self.pending_k2n_frame = ttk.Labelframe(
-            parent_frame, text="⏳ Cầu K2N Đang Chờ (Chờ N2) - [Bổ Sung]"
+            parent_frame, text="⏳ Cầu K2N Đang Chờ (Chờ N2)"
         )
         tree_frame = ttk.Frame(self.pending_k2n_frame)
         tree_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         cols = ("stl", "streak", "max_lose", "name")
         self.k2n_tree = ttk.Treeview(
-            tree_frame, columns=cols, show="headings", height=8
+            tree_frame, columns=cols, show="headings", height=10
         )
         self.k2n_tree.heading("stl", text="Cặp số")
         self.k2n_tree.heading("streak", text="Chuỗi")
         self.k2n_tree.heading("max_lose", text="Gãy Max")
         self.k2n_tree.heading("name", text="Tên cầu")
-        self.k2n_tree.column("stl", width=60, anchor=tk.CENTER)
-        self.k2n_tree.column("streak", width=60, anchor=tk.CENTER)
-        self.k2n_tree.column("max_lose", width=60, anchor=tk.CENTER)
-        self.k2n_tree.column("name", width=300)
+        self.k2n_tree.column("stl", width=50, anchor=tk.CENTER)
+        self.k2n_tree.column("streak", width=50, anchor=tk.CENTER)
+        self.k2n_tree.column("max_lose", width=50, anchor=tk.CENTER)
+        self.k2n_tree.column("name", width=200)
         scrollbar = ttk.Scrollbar(
             tree_frame, orient=tk.VERTICAL, command=self.k2n_tree.yview
         )
@@ -252,29 +400,49 @@ class DashboardWindow(ttk.Frame):
 
     # --- HÀM NẠP DỮ LIỆU ---
 
+    def _apply_filters(self, top_scores):
+        """Enhancement 4: Apply smart filters to top scores"""
+        if not top_scores:
+            return top_scores
+        
+        # If filtering is not enabled, return all scores
+        if not SETTINGS.FILTER_ENABLED:
+            return top_scores
+        
+        filtered = []
+        min_confidence = SETTINGS.FILTER_MIN_CONFIDENCE
+        min_ai_prob = SETTINGS.FILTER_MIN_AI_PROB / 100.0  # Convert to 0-1 range
+        
+        for item in top_scores:
+            # Check confidence filter (number of sources)
+            sources = item.get("sources", 0)
+            if min_confidence > 0 and sources < min_confidence:
+                continue
+            
+            # Check AI probability filter
+            ai_prob = item.get("ai_probability", 0.0)
+            if min_ai_prob > 0 and ai_prob < min_ai_prob:
+                continue
+            
+            filtered.append(item)
+        
+        return filtered
+
     def clear_data(self):
         self.title_label.config(text="Đang tải...")
         for tree in [
             self.scores_tree,
             self.hot_loto_tree,
-            self.gan_tree,
+            self.vote_tree,  # CHANGED: vote_tree instead of gan_tree
             self.k2n_tree,
             self.ai_tree,
+            self.recent_form_tree,
         ]:
             try:
                 for item in tree.get_children():
                     tree.delete(item)
             except Exception as e:
                 print(f"Lỗi khi xóa tree {tree.winfo_name()}: {e}")
-
-        # (MỚI GĐ 4) Xóa biểu đồ
-        try:
-            if self.ax:
-                self.ax.clear()
-                self.ax.set_title("Đang tải dữ liệu biểu đồ...")
-                self.canvas.draw()
-        except Exception as e:
-            print(f"Lỗi xóa biểu đồ: {e}")
 
     def populate_data(
         self,
@@ -289,7 +457,6 @@ class DashboardWindow(ttk.Frame):
         top_memory_bridges,
         ai_predictions,
     ):
-
         try:
             self.clear_data()
 
@@ -298,26 +465,74 @@ class DashboardWindow(ttk.Frame):
                 text=f"Bảng Quyết Định Tối Ưu - {next_ky} (Cập nhật: {today})"
             )
 
+            # Enhancement 4: Apply smart filters if enabled
+            filtered_top_scores = self._apply_filters(top_scores)
+
             # Nạp Bảng 1: Chấm Điểm
-            self._populate_top_scores(top_scores)
+            self._populate_top_scores(filtered_top_scores)
 
-            # (MỚI GĐ 4) Nạp Biểu đồ
-            self._populate_top_scores_chart(top_scores)
-
-            # Nạp Bảng 2: Loto Về Nhiều
-            self.hot_loto_frame.config(text=f"🔥 Loto Về Nhiều ({n_days_stats} ngày)")
-            self._populate_hot_loto(stats)
-
-            # Nạp Bảng 3: Lô Gan
-            gan_threshold = SETTINGS.GAN_DAYS
-            self.gan_loto_frame.config(text=f"🧊 Lô Gan (Trên {gan_threshold} ngày)")
-            self._populate_gan_loto(gan_stats)
-
-            # Nạp Bảng 4: Cầu K2N
+            # Nạp Bảng 2: Cầu K2N Đang Chờ
             self._populate_pending_k2n(pending_k2n)
 
-            # Nạp Bảng 5: Dự đoán AI
+            # Nạp Bảng 3: Dự đoán AI
             self._populate_ai_predictions(ai_predictions)
+
+            # Nạp Bảng 4: Phong Độ 10 Kỳ
+            try:
+                # Sử dụng hàm mới với tính toán dự đoán tự động
+                all_bridges = get_managed_bridges_with_prediction(
+                    DB_NAME, 
+                    current_data=self.app.all_data_ai if hasattr(self.app, 'all_data_ai') else None,
+                    only_enabled=True
+                )
+                good_bridges = []
+                # Get configurable threshold (default: 9 wins out of 10)
+                min_recent_wins = SETTINGS.get("DASHBOARD_MIN_RECENT_WINS", 9)
+                
+                for b in all_bridges:
+                    # [CLEAN CODE FIX] Filter out DE bridges to avoid pollution in Loto table
+                    bridge_type = str(b.get("type", "")).upper()
+                    if bridge_type.startswith("DE"):
+                        continue 
+
+                    # Parse recent_win_count_10
+                    recent_wins = b.get("recent_win_count_10", 0)
+                    if isinstance(recent_wins, str):
+                        try:
+                            recent_wins = int(recent_wins)
+                        except ValueError:
+                            recent_wins = 0
+                    
+                    # Parse is_enabled status
+                    is_enabled = b.get("is_enabled", 0)
+                    if isinstance(is_enabled, str):
+                        try:
+                            is_enabled = int(is_enabled)
+                        except ValueError:
+                            is_enabled = 0
+                    
+                    # Filter: Must be ENABLED + High recent form (>= min_recent_wins)
+                    if is_enabled == 1 and recent_wins >= min_recent_wins:
+                        good_bridges.append(b)
+
+                good_bridges.sort(key=lambda x: x.get("recent_win_count_10", 0), reverse=True)
+                self._populate_recent_form(good_bridges)
+
+            except Exception as e:
+                print(f"Lỗi khi lấy/lọc cầu phong độ: {e}")
+
+            # Nạp Bảng 5: Loto Về Nhiều
+            self.hot_loto_frame.config(text=f"🔥 Hot ({n_days_stats} ngày)")
+            self._populate_hot_loto(stats)
+
+            # Nạp Bảng 6: Vote Statistics
+            self._populate_vote_statistics(consensus)
+
+            # --- GEMINI FIX: HIỂN THỊ TEXT BOX NGAY LẬP TỨC ---
+            # Gọi hàm hiển thị text ngay khi có dữ liệu đầu vào
+            if hasattr(self, '_update_ui_scoring_results'):
+                self._update_ui_scoring_results(top_scores, gan_stats)
+            # --------------------------------------------------
 
         except Exception as e:
             messagebox.showerror(
@@ -333,7 +548,7 @@ class DashboardWindow(ttk.Frame):
     def _populate_top_scores(self, top_scores):
         if not top_scores:
             self.scores_tree.insert(
-                "", tk.END, values=("N/A", "N/A", "", "Không có cặp nào")
+                "", tk.END, values=("N/A", "", "", "", "N/A", "", "Không có cặp nào")
             )
             return
         for i, item in enumerate(top_scores[:40]):
@@ -344,84 +559,59 @@ class DashboardWindow(ttk.Frame):
                 tags += ("top1",)
             elif i < 3:
                 tags += ("top3",)
+            
+            # IMPROVED: Show gan loto with days (e.g., "38(8N)")
+            gan_text = ""
+            if item["is_gan"]:
+                gan_loto = item.get("gan_loto", "")
+                if gan_loto:
+                    gan_text = f"{gan_loto}({item['gan_days']}N)"
+                else:
+                    gan_text = f"{item['gan_days']}N"
+            
+            # NEW: Format AI column with icon and percentage
+            ai_prob = item.get("ai_probability", 0.0)
+            ai_text = ""
+            if ai_prob > 0:
+                ai_text = f"🤖{int(ai_prob * 100)}"
+                # Add AI color tag based on probability
+                if ai_prob >= 0.70:
+                    tags += ("ai_very_high",)
+                elif ai_prob >= 0.50:
+                    tags += ("ai_high",)
+                elif ai_prob >= 0.30:
+                    tags += ("ai_med",)
+                else:
+                    tags += ("ai_low",)
+            
+            # NEW: Enhancement 3 - Confidence stars (⭐)
+            # IMPROVED: Compact display - show number instead of repeated stars
+            sources = item.get("sources", 0)
+            confidence_text = f"{sources}⭐" if sources > 0 else ""
+            
+            # NEW: Enhancement 3 - Recommendation text and color
+            recommendation = item.get("recommendation", "BỎ QUA")
+            if recommendation == "CHƠI":
+                tags += ("rec_choi",)
+            elif recommendation == "XEM XÉT":
+                tags += ("rec_xem_xet",)
+            else:
+                tags += ("rec_bo_qua",)
+            
             self.scores_tree.insert(
                 "",
                 tk.END,
                 values=(
                     item["score"],
+                    ai_text,
+                    confidence_text,
+                    recommendation,
                     item["pair"],
-                    f"{item['gan_days']} ngày" if item["is_gan"] else "",
+                    gan_text,
                     item["reasons"],
                 ),
                 tags=tags,
             )
-
-    # (MỚI GĐ 4) Hàm vẽ biểu đồ
-    def _populate_top_scores_chart(self, top_scores):
-        try:
-            self.ax.clear()  # Xóa biểu đồ cũ
-
-            if not top_scores or len(top_scores) == 0:
-                self.ax.set_title("Không có dữ liệu điểm để vẽ biểu đồ")
-                self.canvas.draw()
-                return
-
-            # 1. Trích xuất dữ liệu (Top 5)
-            # (Chúng ta cần đảo ngược lại, vì matplotlib vẽ từ dưới lên)
-            top_5_data = top_scores[:5][::-1]
-
-            pairs = [item["pair"] for item in top_5_data]
-            scores = [item["score"] for item in top_5_data]
-
-            # 2. Tạo DataFrame (Pandas)
-            df = pd.DataFrame({"Cặp số": pairs, "Điểm": scores})
-
-            # 3. Vẽ biểu đồ (vẽ ngang - 'barh' - để dễ đọc tên)
-            df.plot(
-                kind="barh",
-                x="Cặp số",
-                y="Điểm",
-                ax=self.ax,
-                legend=False,
-                color=["#60a5fa", "#3b82f6", "#2563eb", "#1d4ed8", "#1e3a8a"],
-            )  # Tông màu xanh
-
-            # 4. Tinh chỉnh biểu đồ
-            self.ax.set_title("Top 5 Cặp số có Điểm cao nhất", fontsize=10)
-            self.ax.set_ylabel("Cặp số", fontsize=8)
-            self.ax.set_xlabel("Điểm Tổng Lực", fontsize=8)
-
-            # Thêm giá trị (điểm) vào cuối mỗi cột
-            for index, value in enumerate(scores):
-                self.ax.text(
-                    value + 0.1, index, f"{value:.2f}", va="center", fontsize=8
-                )  # 0.1 là khoảng cách
-
-            self.ax.tick_params(axis="both", which="major", labelsize=8)
-            self.fig.tight_layout(pad=1.0)  # Căn chỉnh lại lề
-
-            # 5. Vẽ lên canvas
-            self.canvas.draw()
-
-        except Exception as e:
-            print(f"Lỗi vẽ biểu đồ: {e}")
-            if self.ax:
-                self.ax.set_title(f"Lỗi vẽ biểu đồ: {e}")
-                self.canvas.draw()
-
-    def _populate_hot_loto(self, stats):
-        if not stats:
-            self.hot_loto_tree.insert("", tk.END, values=("(N/A)", "", ""))
-            return
-        for loto, hits, days in stats:
-            self.hot_loto_tree.insert("", tk.END, values=(loto, hits, days))
-
-    def _populate_gan_loto(self, gan_stats):
-        if not gan_stats:
-            self.gan_tree.insert("", tk.END, values=("(N/A)", "Không có lô gan"))
-            return
-        for loto, days in gan_stats:
-            self.gan_tree.insert("", tk.END, values=(loto, f"{days} ngày"))
 
     def _populate_pending_k2n(self, pending_k2n):
         if not pending_k2n:
@@ -430,8 +620,14 @@ class DashboardWindow(ttk.Frame):
             )
             return
         try:
+            # Lọc: Chỉ lấy cầu đang thực sự chờ N2 (is_n2 = True)
+            filtered_items = [
+                (name, data) for name, data in pending_k2n.items()
+                if data.get("is_n2", True)
+            ]
+
             sorted_k2n = sorted(
-                pending_k2n.items(),
+                filtered_items,
                 key=lambda item: (
                     int(str(item[1]["streak"]).split(" ")[0]),
                     -int(item[1].get("max_lose", 99)),
@@ -440,7 +636,14 @@ class DashboardWindow(ttk.Frame):
             )
         except Exception:
             sorted_k2n = list(pending_k2n.items())
+            
         risk_threshold = SETTINGS.K2N_RISK_START_THRESHOLD
+        
+        if not sorted_k2n:
+             self.k2n_tree.insert(
+                "", tk.END, values=("Không có cầu N2", "", "", "")
+            )
+             
         for bridge_name, data in sorted_k2n:
             stl, streak, max_lose = data["stl"], data["streak"], data.get("max_lose", 0)
             tags = ()
@@ -469,11 +672,60 @@ class DashboardWindow(ttk.Frame):
                 tags = ("top5",)
             self.ai_tree.insert("", tk.END, values=(loto, f"{prob:.2f}%"), tags=tags)
 
+    def _populate_recent_form(self, bridges):
+        if not bridges:
+            self.recent_form_tree.insert(
+                "", tk.END, values=("Không có cầu nào >= 5/10", "", "")
+            )
+            return
+
+        for b in bridges:
+            wins = b.get("recent_win_count_10", 0)
+            pred = b.get("prediction") or b.get("next_prediction_stl", "N/A")
+            
+            tags = ()
+            if wins >= 8:
+                tags = ("excellent",)
+            elif wins >= 6:
+                tags = ("good",)
+                
+            self.recent_form_tree.insert(
+                "",
+                tk.END,
+                values=(
+                    b["name"],
+                    f"{wins}/10",
+                    pred
+                ),
+                tags=tags
+            )
+
+    def _populate_hot_loto(self, stats):
+        if not stats:
+            self.hot_loto_tree.insert("", tk.END, values=("(N/A)", ""))
+            return
+        for loto, hits, days in stats:
+            self.hot_loto_tree.insert("", tk.END, values=(loto, hits))
+
+    def _populate_vote_statistics(self, consensus):
+        """NEW: Populate vote statistics (replaces gan loto)"""
+        if not consensus:
+            self.vote_tree.insert("", tk.END, values=("(N/A)", ""))
+            return
+        # consensus is a list of tuples: (pair_key, count, sources_str)
+        for pair_key, count, _ in consensus[:20]:  # Show top 20
+            tags = ()
+            if count >= 10:
+                tags = ("high",)
+            elif count >= 5:
+                tags = ("medium",)
+            self.vote_tree.insert("", tk.END, values=(pair_key, f"x{count}"), tags=tags)
+
     # ===================================================================================
-    # HÀM TƯƠNG TÁC (Giữ nguyên)
+    # HÀM TƯƠNG TÁC
     # ===================================================================================
 
-    def refresh_data(self):
+    def _refresh_data_old(self):
         self.app.logger.log(
             "\n--- (Làm Mới) Bắt đầu chạy lại Bảng Quyết Định Tối Ưu ---"
         )
@@ -488,10 +740,228 @@ class DashboardWindow(ttk.Frame):
             values = item["values"]
             bridge_name = ""
 
+            # 1. Click vào Cầu K2N
             if event.widget == self.k2n_tree:
                 bridge_name = values[3]
+                if bridge_name:
+                    self.app.trigger_bridge_backtest(bridge_name)
 
-            if bridge_name:
-                self.app.trigger_bridge_backtest(bridge_name)
+            # 2. Click vào Phong Độ Cầu
+            elif event.widget == self.recent_form_tree:
+                bridge_name = values[0]
+                if bridge_name:
+                    self.app.trigger_bridge_backtest(bridge_name)
+
+            # 3. (MỚI) Click vào Bảng Điểm -> Hiển thị Popup Chi tiết Lý do
+            elif event.widget == self.scores_tree:
+                # values = (Score, AI, Confidence, Recommendation, Pair, Gan, Reasons)
+                # After V7.7: Added AI (index 1) and Confidence (index 2) columns
+                score = values[0]
+                ai_text = values[1]  # Already formatted as "🤖75" or empty
+                confidence = values[2]
+                recommendation = values[3]
+                pair = values[4]
+                gan_text = values[5]
+                reasons_raw = values[6]
+
+                # Format lại lý do: Xuống dòng mỗi khi gặp dấu phẩy
+                reasons_formatted = reasons_raw.replace(", ", "\n- ")
+                
+                # Format AI display - ai_text is already formatted with emoji and percentage
+                ai_display = f"{ai_text}%" if ai_text else "N/A"
+                
+                info_text = (
+                    f"Cặp số: {pair}\n"
+                    f"Tổng điểm: {score}\n"
+                    f"AI: {ai_display}\n"
+                    f"⭐ Confidence: {confidence}\n"
+                    f"Khuyến nghị: {recommendation}\n"
+                    f"Tình trạng Gan: {gan_text if gan_text else 'Không gan'}\n\n"
+                    f"=== CHI TIẾT LÝ DO ===\n"
+                    f"- {reasons_formatted}"
+                )
+                
+                messagebox.showinfo("Chi Tiết Đánh Giá", info_text, parent=self)
+
         except Exception as e:
             print(f"Lỗi double-click: {e}")
+    
+    # [THÊM MỚI HOẶC THAY THẾ] Hàm xử lý nút Phân Tích
+    # Lưu ý: Bạn cần tạo một nút "Phân Tích Lô Scoring" riêng hoặc tích hợp vào nút "Làm Mới Dữ Liệu"
+    # Nếu tích hợp vào nút Refresh:
+    def refresh_data(self):
+        self.app.logger.log("\n--- (Làm Mới) Bắt đầu chạy lại Bảng Quyết Định Tối Ưu ---")
+        
+        # 1. Kích hoạt luồng nạp dữ liệu cũ (Chạy ngầm)
+        self.app.run_decision_dashboard()
+        
+        # 2. [FIX] Thay vì chạy ngay, ta chuyển sang chế độ "Chờ dữ liệu"
+        self.title_label.config(text="⏳ Đang đồng bộ dữ liệu...")
+        
+        # Xóa log cũ để người dùng biết đang xử lý
+        if hasattr(self, 'txt_result_log'):
+            self.txt_result_log.delete("1.0", tk.END)
+            self.txt_result_log.insert("1.0", "⏳ Đang đợi dữ liệu nạp từ Database...")
+            
+        # Bắt đầu chờ (Check mỗi 500ms)
+        self._wait_for_data_and_run_scoring()
+
+    # [THÊM HÀM MỚI NÀY VÀO DƯỚI refresh_data]
+    def _wait_for_data_and_run_scoring(self, attempt=0):
+        """
+        Cơ chế 'Polling': Kiểm tra liên tục xem dữ liệu đã về chưa.
+        Timeout: 10 giây (20 lần x 500ms).
+        """
+        # Kiểm tra: App đã có dữ liệu chưa?
+        if hasattr(self.app, 'all_data_ai') and self.app.all_data_ai:
+            # ✅ Dữ liệu đã về -> Kích hoạt Scoring Engine ngay!
+            self.run_lo_scoring_analysis()
+        else:
+            # ❌ Chưa có dữ liệu
+            if attempt < 60: # [ĐÃ SỬA] Tăng lên 30 giây (60 * 0.5s) để chờ nạp DB lớn
+                # Đợi 0.5 giây rồi kiểm tra lại (đệ quy)
+                self.after(500, lambda: self._wait_for_data_and_run_scoring(attempt + 1))
+            else:
+                # Quá hạn 10 giây mà vẫn chưa có dữ liệu -> Báo lỗi thật
+                self.title_label.config(text="⚠️ Lỗi nạp dữ liệu")
+                if hasattr(self, 'txt_result_log'):
+                    self.txt_result_log.delete("1.0", tk.END)
+                    self.txt_result_log.insert("1.0", "⚠️ Quá thời gian chờ (Timeout). Dữ liệu chưa được nạp.\n👉 Vui lòng kiểm tra lại File dữ liệu gốc hoặc Database.")
+
+    def run_lo_scoring_analysis(self):
+        """Chạy Scoring Engine Lô V3.8 (GEMINI FIX 2 - Correct Data Path)"""
+
+        
+        # --- 1. TÌM DỮ LIỆU (QUAN TRỌNG: Quét cả App và Controller) ---
+        all_data = None
+        
+        # Cách 1: Tìm trong App (Cũ)
+        if hasattr(self.app, 'all_data_ai') and self.app.all_data_ai:
+            all_data = self.app.all_data_ai
+            
+        # Cách 2: Tìm trong Controller (Chuẩn MVC)
+        if not all_data and hasattr(self.app, 'controller'):
+            if hasattr(self.app.controller, 'all_data_ai') and self.app.controller.all_data_ai:
+                all_data = self.app.controller.all_data_ai
+            
+        # Nếu quét cả 2 nơi vẫn không thấy -> Báo lỗi cho người dùng biết
+        if not all_data:
+            if hasattr(self, 'txt_result_log'):
+                self.txt_result_log.delete("1.0", tk.END)
+                self.txt_result_log.insert("1.0", "⚠️ KHÔNG TÌM THẤY DỮ LIỆU.\n👉 Vui lòng bấm nút 'Làm Mới Dữ Liệu' (Góc trên phải) để nạp lại từ Database.")
+                self.txt_result_log.update_idletasks()
+            return
+
+
+
+        # --- 2. CẬP NHẬT GIAO DIỆN ---
+        if hasattr(self, 'txt_result_log'):
+            self.txt_result_log.delete("1.0", tk.END)
+            msg = f"⏳ Đang phân tích {len(all_data)} kỳ dữ liệu (Scoring V3.8)...\n"
+            self.txt_result_log.insert("1.0", msg)
+            self.txt_result_log.update_idletasks()
+
+        self.title_label.config(text="Đang chạy Scoring Lô...")
+        
+        # --- 3. LUỒNG XỬ LÝ (THREAD) ---
+        def run_thread():
+            try:
+                # Lấy ngày mới nhất
+                day_index = len(all_data) - 1
+                
+                # GỌI TRỰC TIẾP LOGIC (Bỏ qua Service để tránh lỗi)
+                features = dashboard_scorer.prepare_daily_features(all_data, day_index)
+                
+                if not features:
+                    self.after(0, lambda: self.txt_result_log.insert(tk.END, "\n❌ Lỗi: Không tạo được features (Dữ liệu quá ngắn?)."))
+                    return
+
+
+
+                scores = dashboard_scorer.get_top_scored_pairs(
+                    features["stats_n_day"],
+                    features["consensus"],
+                    features["high_win"],
+                    features["pending_k2n"],
+                    features["gan_stats"],
+                    features["top_memory"],
+                    features.get("ai_predictions"),
+                    features.get("recent_data")
+                )
+                
+                gan_stats = features["gan_stats"]
+                
+                # Update UI (Chuyển về luồng chính)
+                self.after(0, lambda: self._update_ui_scoring_results(scores, gan_stats))
+                
+            except Exception as e:
+                print(f"Lỗi Scoring Thread: {e}")
+                import traceback
+                traceback.print_exc()
+                self.after(0, lambda: self.txt_result_log.insert(tk.END, f"\n❌ Exception: {str(e)}"))
+
+
+
+        import threading
+        threading.Thread(target=run_thread, daemon=True).start()
+
+    def _update_ui_scoring_results(self, scores, gan_stats):
+        """Hiển thị kết quả vào Text Box (Đã sửa lỗi Tuple vs Dict)"""
+        if not hasattr(self, 'txt_result_log'): return
+
+
+
+        self.txt_result_log.delete("1.0", tk.END)
+        
+        # 1. Hiển thị Top 10
+        if scores:
+            msg = "🏆 TOP 10 LÔ ĐIỂM CAO (SCORING V3.8):\n"
+            # scores là list of dicts -> dùng key access OK
+            top_10 = scores[:10]
+            
+            # Format: "Số (Điểm)"
+            row1_items = []
+            for item in top_10[:5]:
+                pair = item.get('pair', '??')
+                score = item.get('score', 0)
+                row1_items.append(f"{pair} ({score:.1f}đ)")
+                
+            row2_items = []
+            for item in top_10[5:]:
+                pair = item.get('pair', '??')
+                score = item.get('score', 0)
+                row2_items.append(f"{pair} ({score:.1f}đ)")
+            
+            msg += "   " + " | ".join(row1_items) + "\n"
+            msg += "   " + " | ".join(row2_items) + "\n"
+            
+            self.txt_result_log.insert(tk.END, msg)
+            
+            # Tô màu tiêu đề
+            self.txt_result_log.tag_add("title", "1.0", "2.0")
+            self.txt_result_log.tag_config("title", foreground="blue", font=("Arial", 10, "bold"))
+        else:
+            self.txt_result_log.insert(tk.END, "⚠️ Không đủ dữ liệu để tính điểm.\n")
+
+
+
+        # 2. Cảnh báo Lô Gan (FIX QUAN TRỌNG TẠI ĐÂY)
+        if gan_stats:
+            # gan_stats là list of tuples: [('99', 20), ('00', 5)]
+            # item[0] là số, item[1] là số ngày gan
+            dangerous_gan = [item for item in gan_stats if item[1] > 15]
+            
+            if dangerous_gan:
+                gan_msg = "\n⛔ CẢNH BÁO LÔ GAN (>15 ngày - NÊN TRÁNH):\n"
+                # Sửa item.get(...) thành item[index] vì item là Tuple
+                gan_nums = [f"{item[0]} ({item[1]}d)" for item in dangerous_gan]
+                gan_msg += "   " + ", ".join(gan_nums)
+                
+                # Chèn vào cuối
+                self.txt_result_log.insert(tk.END, gan_msg)
+                
+                # Tô màu đỏ cảnh báo
+                idx = self.txt_result_log.search("⛔", "1.0", tk.END)
+                if idx:
+                    self.txt_result_log.tag_add("warning", idx, tk.END)
+                    self.txt_result_log.tag_config("warning", foreground="red", font=("Arial", 10, "bold"))

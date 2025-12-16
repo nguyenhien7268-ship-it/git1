@@ -1,13 +1,17 @@
 name: Python CI
 
 on:
-  push:
-    branches:
-      - main                  # <-- Chạy khi push lên nhánh main
-      - sua-loi-tu-9ba36d2  # <-- Chạy khi push lên nhánh này
-  pull_request:
-    branches:
-      - main                  # <-- Vẫn chạy khi có pull request vào main
+  # CHỈ CÒN LẠI CHỨC NĂNG CHẠY THỦ CÔNG
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Môi trường triển khai'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
 
 jobs:
   test:

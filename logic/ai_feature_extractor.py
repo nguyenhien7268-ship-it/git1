@@ -10,7 +10,7 @@ from collections import Counter, defaultdict
 try:
     # 1. DB và Repo
     # 2. Logic Cầu (để tính toán)
-    from .bridges.bridges_classic import ALL_15_BRIDGE_FUNCTIONS_V5
+    from .bridges.bridges_classic import ALL_15_BRIDGE_FUNCTIONS_V5, getAllLoto_V30
     from .bridges.bridges_memory import (
         calculate_bridge_stl,
         get_27_loto_names,
@@ -60,6 +60,37 @@ def _standardize_pair(stl_list):
 # ==========================================================================
 
 
+def _calculate_win_rate_stddev(win_rates, periods=100):
+    """
+    (Phase 2: Feature Engineering) Calculate standard deviation of win rates
+    over specified number of periods.
+    
+    Args:
+        win_rates: List of win rate values
+        periods: Number of periods to consider (default 100)
+        
+    Returns:
+        float: Standard deviation of win rates, or 0.0 if insufficient data
+    """
+    if not win_rates or len(win_rates) < 2:
+        return 0.0
+    
+    # Take last N periods
+    recent_rates = win_rates[-periods:] if len(win_rates) > periods else win_rates
+    
+    if len(recent_rates) < 2:
+        return 0.0
+    
+    # Calculate mean
+    mean_rate = sum(recent_rates) / len(recent_rates)
+    
+    # Calculate variance
+    variance = sum((x - mean_rate) ** 2 for x in recent_rates) / len(recent_rates)
+    
+    # Return standard deviation
+    return variance ** 0.5
+
+
 def _get_daily_bridge_predictions(all_data_ai):
     print(
         "... (V7.0 G2 Feature Extraction) Bước 1: Tính toán dự đoán cầu cho toàn bộ lịch sử..."
@@ -71,10 +102,28 @@ def _get_daily_bridge_predictions(all_data_ai):
 
     managed_bridges = get_all_managed_bridges(DB_NAME, only_enabled=True)
 
+    # (Phase 2: Feature Engineering) Import SETTINGS for K2N risk threshold
+    try:
+        from .config_manager import SETTINGS
+        k2n_threshold = getattr(SETTINGS, "K2N_RISK_START_THRESHOLD", 6)
+    except ImportError:
+        k2n_threshold = 6  # Default fallback
+
+    # (Phase 2: Feature Engineering) Track historical win rates per bridge for stddev calculation
+    bridge_win_rate_history = defaultdict(list)
+    
+    # (V7.7 Phase 2: F13) Track loto appearance history for last 3 days
+    # Structure: { 'loto': [ky1, ky2, ky3, ...] } - list of recent kys where loto appeared
+    loto_appearance_history = defaultdict(list)
+
     for bridge in managed_bridges:
         bridge["win_rate_float"] = _parse_win_rate_text(bridge.get("win_rate_text"))
         bridge["k2n_risk"] = bridge.get("max_lose_streak_k2n", 999)
         bridge["current_streak_int"] = bridge.get("current_streak", -999)
+        # (Phase 2) Extract current lose streak from bridge data
+        bridge["current_lose_streak"] = bridge.get("current_lose_streak", 0)
+        # Initialize win rate history with current value
+        bridge_win_rate_history[bridge["name"]].append(bridge["win_rate_float"])
 
     memory_bridges = []
     loto_names = get_27_loto_names()
@@ -138,6 +187,19 @@ def _get_daily_bridge_predictions(all_data_ai):
             except Exception:
                 pass
 
+        # (V7.7 Phase 2: F13) Update loto appearance history
+        # Get lotos that appeared in the PREVIOUS row (k-1) since we're predicting for current_ky
+        if k > 1:  # Need at least 2 rows
+            try:
+                prev_lotos_appeared = set(getAllLoto_V30(prev_row))
+                for loto in prev_lotos_appeared:
+                    # Keep only last 3 appearances per loto
+                    loto_appearance_history[loto].append(current_ky)
+                    if len(loto_appearance_history[loto]) > 3:
+                        loto_appearance_history[loto] = loto_appearance_history[loto][-3:]
+            except Exception:
+                pass
+
         # 4. CHUYỂN ĐỔI: TỪ CẶP (PAIR) SANG LOTO (FEATURE COUNT & Q-FEATURES)
         loto_to_pairs = defaultdict(list)
         for pair_key in temp_bridge_preds.keys():
@@ -153,6 +215,10 @@ def _get_daily_bridge_predictions(all_data_ai):
             q_win_rates = []
             q_k2n_risks = []
             q_current_streaks = []
+            # (Phase 2: Feature Engineering) New Q-features
+            q_current_lose_streaks = []
+            q_is_k2n_risk_close = []
+            q_win_rate_stddevs = []
 
             pairs_for_this_loto = loto_to_pairs.get(loto, [])
 
@@ -182,6 +248,18 @@ def _get_daily_bridge_predictions(all_data_ai):
                                 q_current_streaks.append(
                                     found_bridge["current_streak_int"]
                                 )
+                                # (Phase 2: Feature Engineering) Collect new features
+                                q_current_lose_streaks.append(
+                                    found_bridge.get("current_lose_streak", 0)
+                                )
+                                # Is_K2N_Risk_Close: 1 if within 2 frames of threshold, else 0
+                                risk_distance = k2n_threshold - found_bridge["k2n_risk"]
+                                is_close = 1 if 0 <= risk_distance <= 2 else 0
+                                q_is_k2n_risk_close.append(is_close)
+                                # StdDev_Win_Rate_100: Calculate stddev from history
+                                bridge_history = bridge_win_rate_history.get(bridge_name, [])
+                                stddev = _calculate_win_rate_stddev(bridge_history, periods=100)
+                                q_win_rate_stddevs.append(stddev)
 
                 bridge_counts = Counter(all_bridges_for_loto)
                 for bridge_name, count in bridge_counts.items():
@@ -208,12 +286,32 @@ def _get_daily_bridge_predictions(all_data_ai):
                 daily_predictions_by_loto[current_ky][loto]["q_max_curr_streak"] = max(
                     q_current_streaks
                 )
+                # (Phase 2: Feature Engineering) Add new Q-features
+                daily_predictions_by_loto[current_ky][loto]["q_max_current_lose_streak"] = max(
+                    q_current_lose_streaks
+                ) if q_current_lose_streaks else 0
+                daily_predictions_by_loto[current_ky][loto]["q_is_k2n_risk_close"] = max(
+                    q_is_k2n_risk_close
+                ) if q_is_k2n_risk_close else 0
+                daily_predictions_by_loto[current_ky][loto]["q_avg_win_rate_stddev_100"] = (
+                    sum(q_win_rate_stddevs) / len(q_win_rate_stddevs)
+                ) if q_win_rate_stddevs else 0.0
             else:
                 daily_predictions_by_loto[current_ky][loto]["q_avg_win_rate"] = 0.0
                 daily_predictions_by_loto[current_ky][loto]["q_min_k2n_risk"] = 999.0
                 daily_predictions_by_loto[current_ky][loto][
                     "q_max_curr_streak"
                 ] = -999.0
+                # (Phase 2: Feature Engineering) Set defaults for new features
+                daily_predictions_by_loto[current_ky][loto]["q_max_current_lose_streak"] = 0
+                daily_predictions_by_loto[current_ky][loto]["q_is_k2n_risk_close"] = 0
+                daily_predictions_by_loto[current_ky][loto]["q_avg_win_rate_stddev_100"] = 0.0
+            
+            # (V7.7 Phase 2: F13) Calculate q_hit_in_last_3_days
+            # Check if this loto appeared in any of the last 3 recorded periods
+            recent_appearances = loto_appearance_history.get(loto, [])
+            q_hit_in_last_3_days = 1 if len(recent_appearances) > 0 else 0
+            daily_predictions_by_loto[current_ky][loto]["q_hit_in_last_3_days"] = q_hit_in_last_3_days
 
     return daily_predictions_by_loto
 

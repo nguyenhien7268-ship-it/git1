@@ -1,12 +1,13 @@
 # Tên file: git3/ui/ui_settings.py
 #
-# (NỘI DUNG THAY THẾ TOÀN BỘ - SỬA W503)
+# (PHIÊN BẢN V8.1 - UI 3 TAB: Quản lý Lô/Đề, Cấu hình AI, Hiệu năng & Phong Độ)
 #
 import tkinter as tk
 import traceback
+import threading
 from tkinter import messagebox, ttk
 
-# (MỚI GĐ 8) Import SETTINGS từ file config_manager
+# Import SETTINGS từ file config_manager
 try:
     from logic.config_manager import SETTINGS
 except ImportError:
@@ -20,10 +21,10 @@ except ImportError:
                 "STATS_DAYS": 7,
                 "GAN_DAYS": 15,
                 "HIGH_WIN_THRESHOLD": 47.0,
-                "AUTO_ADD_MIN_RATE": 50.0,
-                "AUTO_PRUNE_MIN_RATE": 40.0,
-                "K2N_RISK_START_THRESHOLD": 4,
-                "K2N_RISK_PENALTY_PER_FRAME": 0.5,
+                "lo_config": {"remove_threshold": 43.0, "add_threshold": 45.0},
+                "de_config": {"remove_threshold": 80.0, "add_threshold": 88.0},
+                "K2N_RISK_START_THRESHOLD": 6,
+                "K2N_RISK_PENALTY_PER_FRAME": 1.0,
                 "AI_PROB_THRESHOLD": 45.0,
                 "AI_MAX_DEPTH": 6,
                 "AI_N_ESTIMATORS": 200,
@@ -40,7 +41,10 @@ except ImportError:
 
 class SettingsWindow:
     """
-    (MỚI GĐ 8) Cửa sổ Toplevel để quản lý file config.json.
+    Cửa sổ Toplevel để quản lý file config.json với 3 Tab.
+    Tab 1: Quản lý Lô/Đề (lo_config, de_config)
+    Tab 2: Cấu hình AI 
+    Tab 3: Hiệu năng & Phong Độ
     """
 
     def __init__(self, app):
@@ -56,167 +60,355 @@ class SettingsWindow:
             self.app.settings_window.window.lift()
             return
 
-        # (SỬA) Thay app.update_output bằng app.logger.log
         self.app.logger.log("Đang mở cửa sổ Cài đặt...")
 
         self.window = tk.Toplevel(self.root)
         self.app.settings_window = self  # Gán lại vào app chính
-        self.window.title("Cài đặt Hệ thống")
-        self.window.geometry("550x450")  # (Cập nhật kích thước)
-
-        main_frame = ttk.Frame(self.window, padding="10")
-        main_frame.pack(expand=True, fill=tk.BOTH)
-        main_frame.columnconfigure(1, weight=1)
+        self.window.title("Cài đặt Hệ thống (V8.1 - Dual Config)")
+        self.window.geometry("650x600")  # Tăng kích thước cho tab view
 
         # Dictionary để giữ các biến Entry
         self.entries = {}
+        
+        # Tải cài đặt hiện tại
+        self.current_settings = SETTINGS.get_all_settings()
 
-        # --- Định nghĩa các cài đặt ---
-        # (Tên key trong SETTINGS, Tên hiển thị, Tooltip/Giải thích)
-        self.setting_definitions = [
-            (
-                "Bảng Tổng Hợp",
-                [
-                    (
-                        "STATS_DAYS",
-                        "Số ngày Thống kê Loto Hot",
-                        "Số ngày (ví dụ: 7) dùng để tính loto về nhiều.",
-                    ),
-                    (
-                        "GAN_DAYS",
-                        "Số ngày tính Lô Gan",
-                        "Loto không về trong số ngày này sẽ bị coi là Gan (ví dụ: 15).",
-                    ),
-                    (
-                        "HIGH_WIN_THRESHOLD",
-                        "Ngưỡng Cầu Tỷ Lệ Cao (%)",
-                        "Tỷ lệ K2N tối thiểu để một cầu được coi là 'Tỷ Lệ Cao' (ví dụ: 47.0).",
-                    ),
-                    (
-                        "AI_PROB_THRESHOLD",
-                        "Ngưỡng Kích Hoạt AI (%)",
-                        "Xác suất tối thiểu để dự đoán AI được tính điểm thưởng (ví dụ: 45.0).",
-                    ),
-                ],
-            ),
-            # --- START NEW GROUP ---
-            (
-                "Cài đặt Mô hình AI (XGBoost V7.1)",
-                [
-                    (
-                        "AI_MAX_DEPTH",
-                        "Độ Sâu Cây Max",
-                        "Độ sâu tối đa của cây (ví dụ: 6) - Cần Huấn luyện lại.",
-                    ),
-                    (
-                        "AI_N_ESTIMATORS",
-                        "Số lượng Cây (Estimators)",
-                        "Số lượng cây trong rừng (ví dụ: 200) - Cần Huấn luyện lại.",
-                    ),
-                    (
-                        "AI_LEARNING_RATE",
-                        "Tốc độ học (Learning Rate)",
-                        "Tốc độ học của mô hình GBM (ví dụ: 0.05) - Cần Huấn luyện lại.",
-                    ),
-                    (
-                        "AI_SCORE_WEIGHT",
-                        "Trọng số Điểm AI",
-                        "Mức độ ảnh hưởng của xác suất AI lên điểm tổng lực (ví dụ: 0.2).",
-                    ),
-                ],
-            ),
-            # --- END NEW GROUP ---
-            (
-                "Tự động Dò Cầu",
-                [
-                    (
-                        "AUTO_ADD_MIN_RATE",
-                        "Ngưỡng Thêm Cầu Mới (%)",
-                        "Khi dò cầu (V17+BN), tự động thêm nếu tỷ lệ N1 > X (ví dụ: 50.0).",
-                    ),
-                    (
-                        "AUTO_PRUNE_MIN_RATE",
-                        "Ngưỡng Lọc Cầu Yếu (%)",
-                        "Khi lọc cầu, tự động TẮT nếu tỷ lệ K2N < X (ví dụ: 40.0).",
-                    ),
-                ],
-            ),
-            (
-                "Quản lý Rủi ro K2N",
-                [
-                    (
-                        "K2N_RISK_START_THRESHOLD",
-                        "Ngưỡng bắt đầu phạt (khung)",
-                        "Bắt đầu trừ điểm nếu Chuỗi Thua Max > X (ví dụ: 4).",
-                    ),
-                    (
-                        "K2N_RISK_PENALTY_PER_FRAME",
-                        "Điểm phạt / khung thua",
-                        "Trừ X điểm cho mỗi khung thua vượt ngưỡng (ví dụ: 0.5).",
-                    ),
-                ],
-            ),
+        # Tạo Notebook (Tab container)
+        self.notebook = ttk.Notebook(self.window)
+        self.notebook.pack(expand=True, fill=tk.BOTH, padx=10, pady=10)
+
+        # Tạo 3 tabs
+        self.create_lo_de_tab()
+        self.create_ai_tab()
+        self.create_performance_tab()
+        
+        # Nút lưu và nạp cầu ở dưới cùng
+        self.create_bottom_buttons()
+
+    def create_lo_de_tab(self):
+        """Tab 1: Quản lý Lô/Đề - Dual Config Thresholds"""
+        tab = ttk.Frame(self.notebook)
+        self.notebook.add(tab, text="🎯 Quản lý Lô/Đề")
+        
+        # Canvas + Scrollbar for this tab
+        canvas = tk.Canvas(tab)
+        scrollbar = ttk.Scrollbar(tab, orient="vertical", command=canvas.yview)
+        scrollable_frame = ttk.Frame(canvas)
+        
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+        
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+        
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        
+        scrollable_frame.columnconfigure(1, weight=1)
+        
+        row = 0
+        
+        # === Cấu hình Cầu Lô (lo_config) ===
+        lo_frame = ttk.LabelFrame(scrollable_frame, text="⚙️ Cấu hình Cầu Lô (Lo Config)", padding="15")
+        lo_frame.grid(row=row, column=0, columnspan=3, sticky="ew", padx=10, pady=10)
+        lo_frame.columnconfigure(1, weight=1)
+        row += 1
+        
+        # Get lo_config values
+        lo_config = self.current_settings.get('lo_config', {})
+        
+        # Lo Remove Threshold
+        ttk.Label(lo_frame, text="🔴 Ngưỡng TẮT Cầu Lô (%):").grid(row=0, column=0, sticky="w", padx=5, pady=5)
+        lo_remove_var = tk.StringVar(value=str(lo_config.get('remove_threshold', 43.0)))
+        ttk.Entry(lo_frame, textvariable=lo_remove_var, width=15).grid(row=0, column=1, sticky="w", padx=5, pady=5)
+        ttk.Label(lo_frame, text="Tắt cầu khi K1N & K2N < ngưỡng này", foreground="#666", 
+                 font=("Arial", 9, "italic")).grid(row=0, column=2, sticky="w", padx=5, pady=5)
+        self.entries['lo_config_remove'] = lo_remove_var
+        
+        # Lo Add Threshold
+        ttk.Label(lo_frame, text="🟢 Ngưỡng BẬT Lại Cầu Lô (%):").grid(row=1, column=0, sticky="w", padx=5, pady=5)
+        lo_add_var = tk.StringVar(value=str(lo_config.get('add_threshold', 45.0)))
+        ttk.Entry(lo_frame, textvariable=lo_add_var, width=15).grid(row=1, column=1, sticky="w", padx=5, pady=5)
+        ttk.Label(lo_frame, text="Bật lại cầu khi K1N >= ngưỡng này", foreground="#666",
+                 font=("Arial", 9, "italic")).grid(row=1, column=2, sticky="w", padx=5, pady=5)
+        self.entries['lo_config_add'] = lo_add_var
+        
+        # Info box
+        info_frame = ttk.Frame(lo_frame)
+        info_frame.grid(row=2, column=0, columnspan=3, sticky="ew", padx=5, pady=(10, 5))
+        ttk.Label(info_frame, text="💡 Lưu ý:", foreground="blue", font=("Arial", 9, "bold")).pack(anchor="w")
+        ttk.Label(info_frame, text="• Cầu Lô thường linh hoạt hơn, ngưỡng thấp hơn (40-50%)", 
+                 foreground="#444", font=("Arial", 8)).pack(anchor="w", padx=15)
+        ttk.Label(info_frame, text="• Buffer zone (khoảng cách giữa 2 ngưỡng) giúp tránh dao động", 
+                 foreground="#444", font=("Arial", 8)).pack(anchor="w", padx=15)
+        
+        # === Cấu hình Cầu Đề (de_config) ===
+        de_frame = ttk.LabelFrame(scrollable_frame, text="⚙️ Cấu hình Cầu Đề (De Config)", padding="15")
+        de_frame.grid(row=row, column=0, columnspan=3, sticky="ew", padx=10, pady=10)
+        de_frame.columnconfigure(1, weight=1)
+        row += 1
+        
+        # Get de_config values
+        de_config = self.current_settings.get('de_config', {})
+        
+        # De Remove Threshold
+        ttk.Label(de_frame, text="🔴 Ngưỡng TẮT Cầu Đề (%):").grid(row=0, column=0, sticky="w", padx=5, pady=5)
+        de_remove_var = tk.StringVar(value=str(de_config.get('remove_threshold', 80.0)))
+        ttk.Entry(de_frame, textvariable=de_remove_var, width=15).grid(row=0, column=1, sticky="w", padx=5, pady=5)
+        ttk.Label(de_frame, text="Tắt cầu khi K1N & K2N < ngưỡng này", foreground="#666",
+                 font=("Arial", 9, "italic")).grid(row=0, column=2, sticky="w", padx=5, pady=5)
+        self.entries['de_config_remove'] = de_remove_var
+        
+        # De Add Threshold
+        ttk.Label(de_frame, text="🟢 Ngưỡng BẬT Lại Cầu Đề (%):").grid(row=1, column=0, sticky="w", padx=5, pady=5)
+        de_add_var = tk.StringVar(value=str(de_config.get('add_threshold', 88.0)))
+        ttk.Entry(de_frame, textvariable=de_add_var, width=15).grid(row=1, column=1, sticky="w", padx=5, pady=5)
+        ttk.Label(de_frame, text="Bật lại cầu khi K1N >= ngưỡng này", foreground="#666",
+                 font=("Arial", 9, "italic")).grid(row=1, column=2, sticky="w", padx=5, pady=5)
+        self.entries['de_config_add'] = de_add_var
+        
+        # Info box
+        info_frame = ttk.Frame(de_frame)
+        info_frame.grid(row=2, column=0, columnspan=3, sticky="ew", padx=5, pady=(10, 5))
+        ttk.Label(info_frame, text="💡 Lưu ý:", foreground="blue", font=("Arial", 9, "bold")).pack(anchor="w")
+        ttk.Label(info_frame, text="• Cầu Đề rủi ro cao hơn, nên dùng ngưỡng bảo thủ (75-90%)", 
+                 foreground="#444", font=("Arial", 8)).pack(anchor="w", padx=15)
+        ttk.Label(info_frame, text="• Buffer zone lớn hơn (8%) giúp chỉ giữ cầu thực sự tốt", 
+                 foreground="#444", font=("Arial", 8)).pack(anchor="w", padx=15)
+        
+        # === Legacy Settings (deprecated but kept for compatibility) ===
+        legacy_frame = ttk.LabelFrame(scrollable_frame, text="⚠️ Cài đặt Cũ (Legacy - Không khuyến nghị)", padding="15")
+        legacy_frame.grid(row=row, column=0, columnspan=3, sticky="ew", padx=10, pady=10)
+        legacy_frame.columnconfigure(1, weight=1)
+        
+        ttk.Label(legacy_frame, text="Ngưỡng Thêm Cầu Mới (AUTO_ADD):").grid(row=0, column=0, sticky="w", padx=5, pady=3)
+        auto_add_var = tk.StringVar(value=str(self.current_settings.get('AUTO_ADD_MIN_RATE', 50.0)))
+        ttk.Entry(legacy_frame, textvariable=auto_add_var, state='readonly').grid(row=0, column=1, sticky="w", padx=5, pady=3)
+        ttk.Label(legacy_frame, text="⚠️ Deprecated - Dùng lo_config thay thế", foreground="orange",
+                 font=("Arial", 8)).grid(row=0, column=2, sticky="w", padx=5, pady=3)
+        self.entries['AUTO_ADD_MIN_RATE'] = auto_add_var
+        
+        ttk.Label(legacy_frame, text="Ngưỡng Lọc Cầu Yếu (AUTO_PRUNE):").grid(row=1, column=0, sticky="w", padx=5, pady=3)
+        auto_prune_var = tk.StringVar(value=str(self.current_settings.get('AUTO_PRUNE_MIN_RATE', 40.0)))
+        ttk.Entry(legacy_frame, textvariable=auto_prune_var, state='readonly').grid(row=1, column=1, sticky="w", padx=5, pady=3)
+        ttk.Label(legacy_frame, text="⚠️ Deprecated - Dùng lo_config thay thế", foreground="orange",
+                 font=("Arial", 8)).grid(row=1, column=2, sticky="w", padx=5, pady=3)
+        self.entries['AUTO_PRUNE_MIN_RATE'] = auto_prune_var
+
+    def create_ai_tab(self):
+        """Tab 2: Cấu hình AI - Model Parameters"""
+        tab = ttk.Frame(self.notebook)
+        self.notebook.add(tab, text="🤖 Cấu hình AI")
+        
+        # Canvas + Scrollbar
+        canvas = tk.Canvas(tab)
+        scrollbar = ttk.Scrollbar(tab, orient="vertical", command=canvas.yview)
+        scrollable_frame = ttk.Frame(canvas)
+        
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+        
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+        
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        
+        scrollable_frame.columnconfigure(1, weight=1)
+        
+        row = 0
+        
+        # === AI Model Parameters ===
+        ai_frame = ttk.LabelFrame(scrollable_frame, text="🧠 Tham số Mô hình AI (XGBoost)", padding="15")
+        ai_frame.grid(row=row, column=0, columnspan=3, sticky="ew", padx=10, pady=10)
+        ai_frame.columnconfigure(1, weight=1)
+        row += 1
+        
+        ai_settings = [
+            ("AI_MAX_DEPTH", "Độ Sâu Cây (Max Depth):", "Độ sâu tối đa của cây (6-12) - Cần huấn luyện lại"),
+            ("AI_N_ESTIMATORS", "Số lượng Cây (Estimators):", "Số cây trong mô hình (100-300) - Cần huấn luyện lại"),
+            ("AI_LEARNING_RATE", "Tốc độ Học (Learning Rate):", "Tốc độ học của GBM (0.01-0.1) - Cần huấn luyện lại"),
+            ("AI_SCORE_WEIGHT", "Trọng số Điểm AI:", "Ảnh hưởng của AI lên điểm tổng (0.0-1.0)"),
+            ("AI_PROB_THRESHOLD", "Ngưỡng Kích Hoạt AI (%):", "Xác suất tối thiểu để tính điểm thưởng (40-60)"),
         ]
+        
+        for idx, (key, label, tooltip) in enumerate(ai_settings):
+            ttk.Label(ai_frame, text=label).grid(row=idx, column=0, sticky="w", padx=5, pady=5)
+            var = tk.StringVar(value=str(self.current_settings.get(key, "")))
+            ttk.Entry(ai_frame, textvariable=var, width=20).grid(row=idx, column=1, sticky="w", padx=5, pady=5)
+            ttk.Label(ai_frame, text=tooltip, foreground="#666", font=("Arial", 9, "italic")).grid(
+                row=idx, column=2, sticky="w", padx=5, pady=5)
+            self.entries[key] = var
+        
+        # Info box
+        info_frame = ttk.Frame(ai_frame)
+        info_frame.grid(row=len(ai_settings), column=0, columnspan=3, sticky="ew", padx=5, pady=(10, 5))
+        ttk.Label(info_frame, text="⚠️ Lưu ý quan trọng:", foreground="red", font=("Arial", 9, "bold")).pack(anchor="w")
+        ttk.Label(info_frame, text="• Thay đổi Max Depth, Estimators, Learning Rate cần HUẤN LUYỆN LẠI mô hình", 
+                 foreground="#444", font=("Arial", 8)).pack(anchor="w", padx=15)
+        ttk.Label(info_frame, text="• Chỉ nên thay đổi AI Score Weight và Threshold mà không cần train lại", 
+                 foreground="#444", font=("Arial", 8)).pack(anchor="w", padx=15)
 
-        # --- Tạo các ô nhập liệu ---
-        current_row = 0
-        current_settings = SETTINGS.get_all_settings()
+    def create_performance_tab(self):
+        """Tab 3: Hiệu năng & Phong Độ - Performance Settings"""
+        tab = ttk.Frame(self.notebook)
+        self.notebook.add(tab, text="⚡ Hiệu năng & Phong Độ")
+        
+        # Canvas + Scrollbar
+        canvas = tk.Canvas(tab)
+        scrollbar = ttk.Scrollbar(tab, orient="vertical", command=canvas.yview)
+        scrollable_frame = ttk.Frame(canvas)
+        
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+        
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+        
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        
+        scrollable_frame.columnconfigure(1, weight=1)
+        
+        row = 0
+        
+        # === Performance Settings ===
+        perf_frame = ttk.LabelFrame(scrollable_frame, text="⚡ Cấu hình Hiệu năng (Data Slicing)", padding="15")
+        perf_frame.grid(row=row, column=0, columnspan=3, sticky="ew", padx=10, pady=10)
+        perf_frame.columnconfigure(1, weight=1)
+        row += 1
+        
+        perf_settings = [
+            ("DATA_LIMIT_DASHBOARD", "Giới hạn Dashboard (0 = Full):", "Số kỳ hiển thị trên Dashboard"),
+            ("DATA_LIMIT_RESEARCH", "Giới hạn Tối ưu hóa (0 = Full):", "Số kỳ dùng cho tối ưu hóa"),
+            ("DATA_LIMIT_SCANNER", "Giới hạn Quét Cầu (0 = Full):", "Số kỳ dùng khi dò cầu mới"),
+        ]
+        
+        for idx, (key, label, tooltip) in enumerate(perf_settings):
+            ttk.Label(perf_frame, text=label).grid(row=idx, column=0, sticky="w", padx=5, pady=5)
+            var = tk.StringVar(value=str(self.current_settings.get(key, "0")))
+            ttk.Entry(perf_frame, textvariable=var, width=20).grid(row=idx, column=1, sticky="w", padx=5, pady=5)
+            ttk.Label(perf_frame, text=tooltip, foreground="#666", font=("Arial", 9, "italic")).grid(
+                row=idx, column=2, sticky="w", padx=5, pady=5)
+            self.entries[key] = var
+        
+        ttk.Label(perf_frame, text="💡 Giảm số kỳ giúp tăng tốc độ xử lý đáng kể", 
+                 foreground="blue", font=("Arial", 8, "italic")).grid(
+                     row=len(perf_settings), column=0, columnspan=3, sticky="w", padx=5, pady=(10, 0))
+        
+        # === Recent Form Settings ===
+        form_frame = ttk.LabelFrame(scrollable_frame, text="📊 Chấm Điểm Phong Độ (Recent Form)", padding="15")
+        form_frame.grid(row=row, column=0, columnspan=3, sticky="ew", padx=10, pady=10)
+        form_frame.columnconfigure(1, weight=1)
+        row += 1
+        
+        form_settings = [
+            ("RECENT_FORM_PERIODS", "Số kỳ xét phong độ:", "Xét phong độ trong X kỳ gần nhất (VD: 10)"),
+            ("RECENT_FORM_MIN_HIGH", "Ngưỡng phong độ cao:", "Số lần ăn tối thiểu cho phong độ cao (VD: 8)"),
+            ("RECENT_FORM_BONUS_HIGH", "Điểm thưởng phong độ cao:", "Điểm cộng cho phong độ cao (VD: 3.0)"),
+            ("RECENT_FORM_MIN_MED", "Ngưỡng phong độ trung bình:", "Số lần ăn cho phong độ TB (VD: 6)"),
+            ("RECENT_FORM_BONUS_MED", "Điểm thưởng phong độ TB:", "Điểm cộng cho phong độ TB (VD: 2.0)"),
+            ("RECENT_FORM_MIN_LOW", "Ngưỡng phong độ thấp:", "Số lần ăn cho phong độ thấp (VD: 5)"),
+            ("RECENT_FORM_BONUS_LOW", "Điểm thưởng phong độ thấp:", "Điểm cộng cho phong độ thấp (VD: 1.0)"),
+        ]
+        
+        for idx, (key, label, tooltip) in enumerate(form_settings):
+            ttk.Label(form_frame, text=label).grid(row=idx, column=0, sticky="w", padx=5, pady=3)
+            var = tk.StringVar(value=str(self.current_settings.get(key, "")))
+            ttk.Entry(form_frame, textvariable=var, width=20).grid(row=idx, column=1, sticky="w", padx=5, pady=3)
+            ttk.Label(form_frame, text=tooltip, foreground="#666", font=("Arial", 8, "italic")).grid(
+                row=idx, column=2, sticky="w", padx=5, pady=3)
+            self.entries[key] = var
+        
+        # === Other Settings ===
+        other_frame = ttk.LabelFrame(scrollable_frame, text="📋 Cài đặt Khác", padding="15")
+        other_frame.grid(row=row, column=0, columnspan=3, sticky="ew", padx=10, pady=10)
+        other_frame.columnconfigure(1, weight=1)
+        row += 1
+        
+        other_settings = [
+            ("STATS_DAYS", "Số ngày Thống kê Loto Hot:", "Số ngày tính loto về nhiều (VD: 7)"),
+            ("GAN_DAYS", "Số ngày tính Lô Gan:", "Loto không về trong X ngày = Gan (VD: 15)"),
+            ("HIGH_WIN_THRESHOLD", "Ngưỡng Cầu Tỷ Lệ Cao (%):", "Tỷ lệ K2N tối thiểu = 'Tỷ Lệ Cao' (VD: 47.0)"),
+            ("K2N_RISK_START_THRESHOLD", "Ngưỡng Bắt đầu Phạt (khung):", "Phạt điểm nếu chuỗi thua > X (VD: 6)"),
+            ("K2N_RISK_PENALTY_PER_FRAME", "Điểm Phạt Cố định:", "Trừ X điểm nếu vượt ngưỡng (VD: 1.0)"),
+        ]
+        
+        for idx, (key, label, tooltip) in enumerate(other_settings):
+            ttk.Label(other_frame, text=label).grid(row=idx, column=0, sticky="w", padx=5, pady=3)
+            var = tk.StringVar(value=str(self.current_settings.get(key, "")))
+            ttk.Entry(other_frame, textvariable=var, width=20).grid(row=idx, column=1, sticky="w", padx=5, pady=3)
+            ttk.Label(other_frame, text=tooltip, foreground="#666", font=("Arial", 8, "italic")).grid(
+                row=idx, column=2, sticky="w", padx=5, pady=3)
+            self.entries[key] = var
 
-        for group_name, settings in self.setting_definitions:
-            # Tiêu đề nhóm
-            group_label = ttk.Label(
-                main_frame, text=group_name, font=("TkDefaultFont", 11, "bold")
-            )
-            group_label.grid(
-                row=current_row,
-                column=0,
-                columnspan=3,
-                sticky="w",
-                padx=5,
-                pady=(10, 2),
-            )
-            current_row += 1
-
-            for key, label, tooltip in settings:
-                ttk.Label(main_frame, text=label + ":").grid(
-                    row=current_row, column=0, sticky="w", padx=5, pady=3
-                )
-
-                entry_var = tk.StringVar(value=current_settings.get(key, ""))
-                entry_widget = ttk.Entry(main_frame, textvariable=entry_var)
-                entry_widget.grid(
-                    row=current_row, column=1, sticky="ew", padx=5, pady=3
-                )
-
-                ttk.Label(
-                    main_frame, text=f"({tooltip})", style="TLabel", foreground="gray"
-                ).grid(row=current_row, column=2, sticky="w", padx=5, pady=3)
-
-                self.entries[key] = entry_var  # Lưu biến, không phải widget
-                current_row += 1
-
-        # --- Nút Lưu ---
+    def create_bottom_buttons(self):
+        """Tạo các nút ở dưới cùng của window"""
+        button_frame = ttk.Frame(self.window)
+        button_frame.pack(side="bottom", fill="x", padx=10, pady=10)
+        
+        # Nút Lưu Cài đặt
         save_button = ttk.Button(
-            main_frame, text="Lưu Cài đặt", command=self.save_all_settings
+            button_frame, text="💾 Lưu Tất cả Cài đặt", command=self.save_all_settings
         )
-        save_button.grid(
-            row=current_row, column=0, columnspan=3, sticky="ew", padx=5, pady=(15, 5)
-        )
+        save_button.pack(side="left", padx=5, fill="x", expand=True)
 
     def save_all_settings(self):
-        """Lặp qua tất cả các ô Entry và lưu cài đặt."""
+        """Lặp qua tất cả các ô Entry và lưu cài đặt (bao gồm dual-config)."""
         self.app.logger.log("Đang lưu cài đặt...")
         try:
             any_errors = False
+            
+            # Build lo_config and de_config from entries
+            lo_config = {}
+            de_config = {}
+            
+            # Process entries
             for key, entry_var in self.entries.items():
                 new_value = entry_var.get()
-
-                # Gọi hàm update của config_manager
+                
+                # Handle dual-config entries specially
+                if key == 'lo_config_remove':
+                    lo_config['remove_threshold'] = float(new_value)
+                    continue
+                elif key == 'lo_config_add':
+                    lo_config['add_threshold'] = float(new_value)
+                    continue
+                elif key == 'de_config_remove':
+                    de_config['remove_threshold'] = float(new_value)
+                    continue
+                elif key == 'de_config_add':
+                    de_config['add_threshold'] = float(new_value)
+                    continue
+                
+                # Regular settings
                 success, message = SETTINGS.update_setting(key, new_value)
-
                 if not success:
                     any_errors = True
                     self.app.logger.log(f"LỖI: {message}")
+            
+            # Save lo_config and de_config as nested dicts
+            if lo_config:
+                success, message = SETTINGS.update_setting('lo_config', lo_config)
+                if not success:
+                    any_errors = True
+                    self.app.logger.log(f"LỖI lo_config: {message}")
+                else:
+                    self.app.logger.log(f"✅ Đã lưu lo_config: {lo_config}")
+            
+            if de_config:
+                success, message = SETTINGS.update_setting('de_config', de_config)
+                if not success:
+                    any_errors = True
+                    self.app.logger.log(f"LỖI de_config: {message}")
+                else:
+                    self.app.logger.log(f"✅ Đã lưu de_config: {de_config}")
 
             if any_errors:
                 messagebox.showerror(
@@ -225,10 +417,13 @@ class SettingsWindow:
                     parent=self.window,
                 )
             else:
-                self.app.logger.log("Đã lưu tất cả cài đặt vào config.json.")
+                self.app.logger.log("✅ Đã lưu tất cả cài đặt vào config.json.")
                 messagebox.showinfo(
                     "Thành công",
-                    "Đã lưu tất cả cài đặt thành công!",
+                    "Đã lưu tất cả cài đặt thành công!\n\n"
+                    "📋 Cập nhật:\n"
+                    f"• Lo Config: Remove={lo_config.get('remove_threshold')}%, Add={lo_config.get('add_threshold')}%\n"
+                    f"• De Config: Remove={de_config.get('remove_threshold')}%, Add={de_config.get('add_threshold')}%",
                     parent=self.window,
                 )
                 self.window.destroy()  # Đóng cửa sổ sau khi lưu

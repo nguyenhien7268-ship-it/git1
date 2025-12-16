@@ -32,6 +32,7 @@ try:
         DB_NAME,
         update_bridge_k2n_cache_batch,
         update_bridge_win_rate_batch,
+        update_bridge_recent_win_count_batch,
     )
 except ImportError:
     print("Lỗi: Không thể import db_manager trong backtester.py")
@@ -44,6 +45,9 @@ except ImportError:
         return False, "Lỗi Import"
     
     def update_bridge_k2n_cache_batch(r, d):
+        return False, "Lỗi Import"
+    
+    def update_bridge_recent_win_count_batch(r, d):
         return False, "Lỗi Import"
 
 # Import bridge functions
@@ -92,25 +96,32 @@ except ImportError:
 try:
     from .bridges.bridges_memory import (
         calculate_bridge_stl,
-        checkHitBridge_V28,
-        getAllBridges_Memory_FAST,
+        get_27_loto_names,
+        get_27_loto_positions,
     )
 except ImportError:
     print("Lỗi: Không thể import bridges_memory trong backtester.py")
     
-    def getAllBridges_Memory_FAST(r):
+    def calculate_bridge_stl(loto_str_1, loto_str_2, algorithm_type):
+        """Fallback function for calculate_bridge_stl"""
+        return ["00", "00"]
+    
+    def get_27_loto_names():
+        """Fallback function for get_27_loto_names"""
         return []
     
-    def checkHitBridge_V28(b, loto_set):
-        return "Lỗi"
-    
-    def calculate_bridge_stl(b):
-        return "Lỗi"
+    def get_27_loto_positions(r):
+        """Fallback function for get_27_loto_positions"""
+        return []
 
-# Import refactored modules
-from .backtester_helpers import (
-    parse_k2n_results as _parse_k2n_results,
-)
+# Import De Manager for sync update
+try:
+    from .bridges.bridge_manager_de import de_manager
+except ImportError:
+    de_manager = None
+
+# Import refactored modules (parse_k2n_results moved to backtester_core)
+from .backtester_core import parse_k2n_results as _parse_k2n_results
 
 from .backtester_aggregation import (
     tonghop_top_cau_n1 as TONGHOP_TOP_CAU_N1_V5,
@@ -125,13 +136,14 @@ from .backtester_core import (
     BACKTEST_15_CAU_N1_V31_AI_V8,
     BACKTEST_CUSTOM_CAU_V16,
     BACKTEST_MANAGED_BRIDGES_N1,
+    BACKTEST_MANAGED_BRIDGES_K1N,
     BACKTEST_MANAGED_BRIDGES_K2N,
     BACKTEST_MEMORY_BRIDGES,
 )
 
 # Update functions (kept here as they're relatively small)
 def run_and_update_all_bridge_rates(all_data_ai, db_name=DB_NAME):
-    """Cập nhật Tỷ lệ (Win Rate) cho Cầu Đã Lưu"""
+    """Cập nhật Tỷ lệ (Win Rate) và Phong Độ 10 Kỳ (recent_win_count_10) cho Cầu Đã Lưu - Dùng logic K1N"""
     try:
         if not all_data_ai:
             return 0, "Không có dữ liệu A:I để chạy backtest."
@@ -139,21 +151,24 @@ def run_and_update_all_bridge_rates(all_data_ai, db_name=DB_NAME):
         ky_bat_dau = 2
         ky_ket_thuc = len(all_data_ai) + (ky_bat_dau - 1)
 
-        results_n1 = BACKTEST_MANAGED_BRIDGES_N1(
-            all_data_ai, ky_bat_dau, ky_ket_thuc, db_name
+        # Sử dụng K1N để tính toán chính xác (không có khung 2 ngày)
+        results_k1n = BACKTEST_MANAGED_BRIDGES_K1N(
+            all_data_ai, ky_bat_dau, ky_ket_thuc, db_name, history=False
         )
 
-        if not results_n1 or len(results_n1) < 2 or "LỖI" in str(results_n1[0][0]):
-            if not results_n1:
-                return 0, "Backtest N1 không trả về kết quả."
-            if "Không có cầu nào" in str(results_n1[0][1]):
+        if not results_k1n or len(results_k1n) < 4 or "LỖI" in str(results_k1n[0][0]):
+            if not results_k1n:
+                return 0, "Backtest K1N không trả về kết quả."
+            if "Không có cầu nào" in str(results_k1n[0][1] if len(results_k1n) > 0 else ""):
                 return 0, "Không có cầu nào được Bật để cập nhật."
-            return 0, f"Lỗi khi chạy Backtest N1: {results_n1[0]}"
+            return 0, f"Lỗi khi chạy Backtest K1N: {results_k1n[0] if results_k1n else 'Unknown'}"
 
-        headers = results_n1[0]
-        rates = results_n1[1]
+        headers = results_k1n[0]
+        rates = results_k1n[1] if len(results_k1n) > 1 else []
+        recent_form = results_k1n[3] if len(results_k1n) > 3 else []  # Hàng "Phong Độ 10 Kỳ"
 
         rate_data_list = []
+        recent_win_data_list = []
         num_bridges = len(headers) - 1
 
         if num_bridges == 0:
@@ -161,16 +176,39 @@ def run_and_update_all_bridge_rates(all_data_ai, db_name=DB_NAME):
 
         for i in range(1, num_bridges + 1):
             bridge_name = str(headers[i])
-            win_rate_text = str(rates[i])
+            win_rate_text = str(rates[i]) if rates and i < len(rates) else "0.00%"
             rate_data_list.append((win_rate_text, bridge_name))
+            
+            # Parse recent_win_count_10 từ hàng "Phong Độ 10 Kỳ"
+            if recent_form and i < len(recent_form):
+                recent_form_text = str(recent_form[i])
+                try:
+                    if "/" in recent_form_text:
+                        recent_win_count = int(recent_form_text.split("/")[0].strip())
+                    else:
+                        recent_win_count = int(recent_form_text.strip())
+                except (ValueError, IndexError):
+                    recent_win_count = 0
+            else:
+                recent_win_count = 0
+            
+            recent_win_data_list.append((recent_win_count, bridge_name))
 
         if not rate_data_list:
             return 0, "Không trích xuất được dữ liệu tỷ lệ."
 
+        # Cập nhật win_rate_text
         success, message = update_bridge_win_rate_batch(rate_data_list, db_name)
+        if not success:
+            return 0, message
+
+        # Cập nhật recent_win_count_10 từ kết quả K1N
+        success_recent, message_recent = update_bridge_recent_win_count_batch(recent_win_data_list, db_name)
+        if not success_recent:
+            print(f"Cảnh báo: Không thể cập nhật recent_win_count_10: {message_recent}")
 
         if success:
-            return len(rate_data_list), message
+            return len(rate_data_list), f"{message} (Đã cập nhật Phong Độ 10 Kỳ từ K1N)"
         else:
             return 0, message
 
@@ -201,7 +239,7 @@ def run_and_update_all_bridge_K2N_cache(
             all_data_ai, ky_bat_dau, ky_ket_thuc, history=False
         )
 
-        if not results_k2n_classic or len(results_k2n_classic) < 4:
+        if not results_k2n_classic or len(results_k2n_classic) < 5:
             return {}, 0, "Backtest K2N cổ điển không trả về kết quả đầy đủ."
 
         cache_classic, pending_classic = _parse_k2n_results(results_k2n_classic)
@@ -211,13 +249,22 @@ def run_and_update_all_bridge_K2N_cache(
             all_data_ai, ky_bat_dau, ky_ket_thuc, db_name, history=False
         )
 
-        if not results_k2n_managed or len(results_k2n_managed) < 4:
+        if not results_k2n_managed or len(results_k2n_managed) < 5:
             cache_managed, pending_managed = [], {}
         else:
             cache_managed, pending_managed = _parse_k2n_results(results_k2n_managed)
 
         all_cache_data = cache_classic + cache_managed
         all_pending = {**pending_classic, **pending_managed}
+
+        # [FIX CRITICAL V8.7] Gọi cập nhật Cầu Đề tại đây
+        if de_manager:
+            try:
+                # Update DE bridges (writes directly to DB)
+                count_de, _ = de_manager.update_daily_stats(all_data_ai)
+                print(f">>> [Backtester] Đã đồng bộ cập nhật {count_de} Cầu Đề.")
+            except Exception as e:
+                print(f"Lỗi cập nhật Cầu Đề trong K2N Cache: {e}")
 
         if not all_cache_data:
             return {}, 0, "Không trích xuất được dữ liệu cache K2N."
@@ -235,6 +282,194 @@ def run_and_update_all_bridge_K2N_cache(
         return {}, 0, f"Lỗi nghiêm trọng trong run_and_update_all_bridge_K2N_cache: {e}"
 
 
+def run_backtest_lo_30_days(bridge_config, all_data):
+    """
+    Chạy backtest 30 ngày gần nhất cho một cầu cụ thể.
+    
+    Args:
+        bridge_config: Dict chứa thông tin cầu từ DB (name, pos1_idx, pos2_idx, ...)
+        all_data: Toàn bộ dữ liệu A:I (list các row)
+    
+    Returns:
+        list: List các dict với format:
+            [{'date': 'DD/MM/YYYY', 'pred': 'xx-yy', 'result': 'zz', 'is_win': True/False, 'status': 'Ăn/Gãy'}]
+    """
+    import re
+    
+    if not all_data or len(all_data) < 2:
+        return []
+    
+    # Lấy 30 ngày gần nhất (hoặc tất cả nếu ít hơn 30)
+    data_slice = all_data[-30:] if len(all_data) >= 30 else all_data
+    results = []
+    
+    bridge_name = bridge_config.get("name", "")
+    pos1_idx = bridge_config.get("pos1_idx")
+    pos2_idx = bridge_config.get("pos2_idx")
+    
+    # Kiểm tra Memory Bridge (pos1_idx == -1 và pos2_idx == -1)
+    is_memory_bridge = (pos1_idx == -1 and pos2_idx == -1)
+    
+    for i in range(len(data_slice) - 1):
+        prev_row = data_slice[i]
+        actual_row = data_slice[i + 1]
+        
+        try:
+            # Lấy ngày từ actual_row (row[0] là kỳ)
+            date_str = f"Kỳ {actual_row[0]}" if actual_row[0] else f"Ngày {i+1}"
+            
+            # Tính STL dự đoán
+            pred_stl = None
+            
+            if is_memory_bridge:
+                # Memory Bridge: Parse tên và tính STL
+                try:
+                    prev_lotos = get_27_loto_positions(prev_row)
+                    
+                    if "Tổng(" in bridge_name:
+                        match = re.search(r'Tổng\((\d+)\+(\d+)\)', bridge_name)
+                        if match:
+                            pos1, pos2 = int(match.group(1)), int(match.group(2))
+                            if pos1 < len(prev_lotos) and pos2 < len(prev_lotos):
+                                loto1, loto2 = prev_lotos[pos1], prev_lotos[pos2]
+                                pred_stl = calculate_bridge_stl(loto1, loto2, "sum")
+                    elif "Hiệu(" in bridge_name:
+                        match = re.search(r'Hiệu\((\d+)-(\d+)\)', bridge_name)
+                        if match:
+                            pos1, pos2 = int(match.group(1)), int(match.group(2))
+                            if pos1 < len(prev_lotos) and pos2 < len(prev_lotos):
+                                loto1, loto2 = prev_lotos[pos1], prev_lotos[pos2]
+                                pred_stl = calculate_bridge_stl(loto1, loto2, "diff")
+                except Exception:
+                    pred_stl = None
+            else:
+                # V17 Bridge: Dùng pos1_idx và pos2_idx
+                try:
+                    positions = getAllPositions_V17_Shadow(prev_row)
+                    if (pos1_idx is not None and pos2_idx is not None and 
+                        pos1_idx < len(positions) and pos2_idx < len(positions)):
+                        p1 = positions[pos1_idx]
+                        p2 = positions[pos2_idx]
+                        if p1 is not None and p2 is not None:
+                            pred_stl = taoSTL_V30_Bong(int(p1), int(p2))
+                except Exception:
+                    pred_stl = None
+            
+            if not pred_stl:
+                continue
+            
+            # Format pred_stl thành string "xx-yy"
+            if isinstance(pred_stl, list) and len(pred_stl) >= 2:
+                pred_str = f"{pred_stl[0]}-{pred_stl[1]}"
+            else:
+                pred_str = str(pred_stl)
+            
+            # Lấy kết quả thực tế
+            actual_lotos = set(getAllLoto_V30(actual_row))
+            
+            # Kiểm tra thắng/thua
+            check_result = checkHitSet_V30_K2N(pred_stl, actual_lotos)
+            is_win = "✅" in str(check_result) or "Ăn" in str(check_result)
+            status = "Ăn" if is_win else "Gãy"
+            
+            # Lấy số loto xuất hiện (format ngắn gọn)
+            if actual_lotos:
+                sorted_lotos = sorted(list(actual_lotos))
+                if len(sorted_lotos) > 10:
+                    result_str = ",".join(sorted_lotos[:10]) + "..."
+                else:
+                    result_str = ",".join(sorted_lotos)
+            else:
+                result_str = ""
+            
+            results.append({
+                'date': date_str,
+                'pred': pred_str,
+                'result': result_str,
+                'is_win': is_win,
+                'status': status
+            })
+            
+        except Exception:
+            # Bỏ qua lỗi và tiếp tục
+            continue
+    
+    return results
+
+
+def run_backtest_de_30_days(bridge_config, all_data):
+    """
+    Chạy backtest 30 ngày cho một cầu Đề cụ thể.
+    
+    Args:
+        bridge_config: Dict chứa cấu hình cầu (từ DB)
+        all_data: Toàn bộ dữ liệu A:I
+    
+    Returns:
+        list: List các dict với format:
+            [{'date': 'DD/MM/YYYY', 'pred': 'Chạm X hoặc Bộ Y', 'result': 'GĐB', 'is_win': True/False, 'status': 'Ăn/Gãy'}]
+    """
+    from logic.de_backtester_core import DeBacktesterCore
+    from logic.de_utils import get_gdb_last_2
+    
+    if not all_data or len(all_data) < 2:
+        return []
+    
+    # Lấy 30 ngày gần nhất (hoặc tất cả nếu ít hơn 30)
+    data_slice = all_data[-30:] if len(all_data) >= 30 else all_data
+    results = []
+    
+    bridge_name = bridge_config.get("name", "")
+    
+    # Tạo DeBacktesterCore instance
+    backtester = DeBacktesterCore(data_slice)
+    
+    # Chạy backtest với config
+    stats = backtester.run_backtest(bridge_config, days_to_test=len(data_slice))
+    
+    # Kiểm tra lỗi
+    if "error" in stats:
+        return []
+    
+    # Format kết quả từ history_log
+    history_log = stats.get("history_log", [])
+    
+    for log_item in history_log:
+        try:
+            date_str = log_item.get("date", "")
+            gdb = log_item.get("gdb", "")
+            desc = log_item.get("desc", "")
+            is_win = log_item.get("is_win", False)
+            
+            # Format pred từ desc
+            # VD: "(5+3)%2 -> Chạm [0, 2]" -> "Chạm 0,2"
+            # VD: "(5) -> Chạm 5, 0" -> "Chạm 5,0"
+            pred_str = desc
+            if "-> Chạm" in desc:
+                # Lấy phần sau "-> Chạm"
+                cham_part = desc.split("-> Chạm")[-1].strip()
+                # Xử lý nếu là list format [0, 2] hoặc string "5, 0"
+                # Loại bỏ dấu ngoặc vuông và khoảng trắng
+                cham_part = cham_part.replace("[", "").replace("]", "").replace(" ", "")
+                pred_str = f"Chạm {cham_part}"
+            elif "-> Bộ" in desc:
+                pred_str = "Bộ " + desc.split("-> Bộ")[-1].strip()
+            
+            status = "Ăn" if is_win else "Gãy"
+            
+            results.append({
+                'date': date_str,
+                'pred': pred_str,
+                'result': gdb,
+                'is_win': is_win,
+                'status': status
+            })
+        except Exception:
+            continue
+    
+    return results
+
+
 # Export all functions for backward compatibility
 __all__ = [
     'SETTINGS',
@@ -250,4 +485,6 @@ __all__ = [
     'BACKTEST_MEMORY_BRIDGES',
     'run_and_update_all_bridge_rates',
     'run_and_update_all_bridge_K2N_cache',
+    'run_backtest_lo_30_days',
+    'run_backtest_de_30_days',
 ]
