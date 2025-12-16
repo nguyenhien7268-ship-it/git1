@@ -398,3 +398,373 @@ class BridgeService:
             import traceback
             self._log(traceback.format_exc())
             return error_msg
+    
+    def activate_and_recalc_bridges(self, bridge_names, all_data=None):
+        """
+        Phase 1: Activate bridges and recalculate their metrics in real-time.
+        
+        Args:
+            bridge_names: List of bridge names to activate
+            all_data: Optional lottery data (if None, will load from DB)
+        
+        Returns:
+            dict: Results with 'success', 'message', and 'updated_bridges' keys
+        """
+        try:
+            self._log(f">>> [ACTIVATE] Bắt đầu kích hoạt và tính toán {len(bridge_names)} cầu...")
+            
+            # Step 1: Load lottery data if not provided
+            if all_data is None:
+                try:
+                    from logic.data_repository import load_data_ai_from_db
+                    all_data, msg = load_data_ai_from_db(self.db_name)
+                    if not all_data:
+                        return {
+                            'success': False,
+                            'message': f"Không thể tải dữ liệu xổ số: {msg}",
+                            'updated_bridges': []
+                        }
+                    self._log(f">>> [ACTIVATE] Đã tải {len(all_data)} kỳ dữ liệu.")
+                except Exception as e:
+                    return {
+                        'success': False,
+                        'message': f"Lỗi khi tải dữ liệu: {e}",
+                        'updated_bridges': []
+                    }
+            
+            if len(all_data) < 2:
+                return {
+                    'success': False,
+                    'message': "Cần ít nhất 2 kỳ dữ liệu để tính toán.",
+                    'updated_bridges': []
+                }
+            
+            # Step 2: Process each bridge
+            updated_bridges = []
+            failed_bridges = []
+            
+            import sqlite3
+            conn = None
+            try:
+                conn = sqlite3.connect(self.db_name)
+                conn.execute("BEGIN TRANSACTION")
+                
+                for bridge_name in bridge_names:
+                    try:
+                        # Get bridge info
+                        if data_repo_get_bridge_by_name is None:
+                            from logic.data_repository import get_bridge_by_name
+                            bridge = get_bridge_by_name(bridge_name, self.db_name)
+                        else:
+                            bridge = data_repo_get_bridge_by_name(bridge_name, self.db_name)
+                        
+                        if not bridge:
+                            failed_bridges.append({
+                                'name': bridge_name,
+                                'error': 'Không tìm thấy cầu trong DB'
+                            })
+                            continue
+                        
+                        # Step 3: Calculate metrics using backtest logic
+                        metrics = self._calculate_bridge_metrics(bridge, all_data)
+                        
+                        if not metrics:
+                            failed_bridges.append({
+                                'name': bridge_name,
+                                'error': 'Không thể tính toán metrics'
+                            })
+                            continue
+                        
+                        # Step 4: Update database
+                        cursor = conn.cursor()
+                        update_fields = {
+                            'is_enabled': 1,
+                            'win_rate_text': metrics.get('win_rate_text', 'N/A'),
+                            'max_lose_streak': metrics.get('max_lose_streak', 0),
+                            'recent_win_count_10': metrics.get('recent_win_count_10', 0)
+                        }
+                        
+                        # Build SQL update
+                        set_parts = []
+                        values = []
+                        for field, value in update_fields.items():
+                            set_parts.append(f"{field}=?")
+                            values.append(value)
+                        
+                        values.append(bridge['id'])
+                        sql = f"UPDATE ManagedBridges SET {', '.join(set_parts)} WHERE id=?"
+                        cursor.execute(sql, values)
+                        
+                        updated_bridges.append({
+                            'name': bridge_name,
+                            'metrics': metrics
+                        })
+                        
+                        self._log(f"  ✅ Cầu '{bridge_name}': {metrics.get('win_rate_text', 'N/A')}, "
+                                 f"Streak: {metrics.get('current_streak', 0)}, "
+                                 f"Prediction: {metrics.get('prediction', 'N/A')}")
+                    
+                    except Exception as e:
+                        self._log(f"  ⚠️ Lỗi khi xử lý cầu '{bridge_name}': {e}")
+                        failed_bridges.append({
+                            'name': bridge_name,
+                            'error': str(e)
+                        })
+                
+                # Commit transaction
+                conn.commit()
+                
+                # Summary
+                success_count = len(updated_bridges)
+                failed_count = len(failed_bridges)
+                
+                if success_count > 0:
+                    message = f"Đã kích hoạt và cập nhật {success_count} cầu."
+                    if failed_count > 0:
+                        message += f" {failed_count} cầu gặp lỗi."
+                    
+                    self._log(f">>> [ACTIVATE] Hoàn tất: {message}")
+                    return {
+                        'success': True,
+                        'message': message,
+                        'updated_bridges': updated_bridges,
+                        'failed_bridges': failed_bridges
+                    }
+                else:
+                    message = f"Không thể kích hoạt cầu nào. {failed_count} cầu gặp lỗi."
+                    self._log(f">>> [ACTIVATE] Thất bại: {message}")
+                    return {
+                        'success': False,
+                        'message': message,
+                        'updated_bridges': [],
+                        'failed_bridges': failed_bridges
+                    }
+            
+            except Exception as e:
+                if conn:
+                    conn.rollback()
+                raise e
+            finally:
+                if conn:
+                    conn.close()
+        
+        except Exception as e:
+            error_msg = f"Lỗi nghiêm trọng khi kích hoạt cầu: {e}"
+            self._log(error_msg)
+            self._log(traceback.format_exc())
+            return {
+                'success': False,
+                'message': error_msg,
+                'updated_bridges': []
+            }
+    
+    def _calculate_bridge_metrics(self, bridge, all_data):
+        """
+        Calculate win rate, streak, and prediction for a bridge.
+        
+        Args:
+            bridge: Bridge configuration dict
+            all_data: Lottery data
+        
+        Returns:
+            dict: Calculated metrics or None on error
+        """
+        try:
+            # Import necessary functions
+            from logic.bridges.bridges_classic import getAllLoto_V30, checkHitSet_V30_K2N
+            from logic.bridges.bridges_v16 import (
+                getAllPositions_V17_Shadow,
+                taoSTL_V30_Bong
+            )
+            from logic.bridges.bridges_memory import (
+                calculate_bridge_stl,
+                get_27_loto_names,
+                get_27_loto_positions
+            )
+            import re
+            
+            bridge_name = bridge.get('name', '')
+            bridge_type = bridge.get('type', '')
+            idx1 = bridge.get('pos1_idx')
+            idx2 = bridge.get('pos2_idx')
+            
+            # Skip DE bridges for now (Phase 1 focuses on LO bridges)
+            if bridge_type.startswith('DE_') or bridge_name.startswith('DE_'):
+                self._log(f"  ⚠️ Bỏ qua cầu Đề: {bridge_name}")
+                return None
+            
+            # Calculate over last 30 periods or all available data
+            test_periods = min(30, len(all_data) - 1)
+            if test_periods < 1:
+                return None
+            
+            start_idx = len(all_data) - test_periods - 1
+            
+            win_count = 0
+            current_streak = 0
+            max_lose_streak = 0
+            lose_streak = 0
+            recent_results = []  # Last 10 results
+            
+            # Backtest through data
+            for i in range(start_idx, len(all_data) - 1):
+                prev_row = all_data[i]
+                actual_row = all_data[i + 1]
+                
+                if not prev_row or not actual_row:
+                    continue
+                
+                # Get prediction from previous row
+                pred = self._get_bridge_prediction(bridge, prev_row, bridge_name, idx1, idx2)
+                
+                if not pred:
+                    continue
+                
+                # Check if prediction hits
+                actual_loto_set = set(getAllLoto_V30(actual_row))
+                check_result = checkHitSet_V30_K2N(pred, actual_loto_set)
+                
+                is_win = "✅" in check_result or "Ăn" in check_result
+                
+                if is_win:
+                    win_count += 1
+                    current_streak += 1
+                    lose_streak = 0
+                else:
+                    current_streak = 0
+                    lose_streak += 1
+                    if lose_streak > max_lose_streak:
+                        max_lose_streak = lose_streak
+                
+                # Track last 10 for recent form
+                recent_results.append(is_win)
+                if len(recent_results) > 10:
+                    recent_results.pop(0)
+            
+            # Calculate metrics
+            win_rate = (win_count / test_periods * 100) if test_periods > 0 else 0
+            win_rate_text = f"{win_rate:.2f}%"
+            recent_win_count = sum(1 for r in recent_results if r)
+            
+            # Get prediction for tomorrow
+            last_row = all_data[-1]
+            prediction = self._get_bridge_prediction(bridge, last_row, bridge_name, idx1, idx2)
+            prediction_text = ','.join(prediction) if prediction else 'N/A'
+            
+            return {
+                'win_rate_text': win_rate_text,
+                'win_rate': win_rate,
+                'max_lose_streak': max_lose_streak,
+                'current_streak': current_streak,
+                'recent_win_count_10': recent_win_count,
+                'prediction': prediction_text,
+                'test_periods': test_periods
+            }
+        
+        except Exception as e:
+            self._log(f"  ⚠️ Lỗi tính toán metrics: {e}")
+            import traceback
+            self._log(traceback.format_exc())
+            return None
+    
+    def _get_bridge_prediction(self, bridge, row, bridge_name, idx1, idx2):
+        """
+        Get prediction for a bridge based on lottery data row.
+        
+        Args:
+            bridge: Bridge configuration
+            row: Lottery data row
+            bridge_name: Bridge name
+            idx1, idx2: Position indices
+        
+        Returns:
+            list: Prediction numbers or empty list
+        """
+        try:
+            from logic.bridges.bridges_classic import ALL_15_BRIDGE_FUNCTIONS_V5
+            from logic.bridges.bridges_v16 import (
+                getAllPositions_V17_Shadow,
+                taoSTL_V30_Bong
+            )
+            from logic.bridges.bridges_memory import (
+                calculate_bridge_stl,
+                get_27_loto_names,
+                get_27_loto_positions
+            )
+            import re
+            
+            pred = []
+            
+            # 1. LO_STL_FIXED bridges
+            if "LO_STL_FIXED" in bridge_name:
+                try:
+                    num_part = bridge_name.split("_")[-1]
+                    if num_part.isdigit():
+                        idx_func = int(num_part) - 1
+                        if 0 <= idx_func < len(ALL_15_BRIDGE_FUNCTIONS_V5):
+                            pred = ALL_15_BRIDGE_FUNCTIONS_V5[idx_func](row)
+                except:
+                    pass
+            
+            # 2. LO_MEM bridges (Memory bridges)
+            elif idx1 == -1 and idx2 == -1:
+                lotos = get_27_loto_positions(row)
+                names = get_27_loto_names()
+                
+                if "LO_MEM_SUM" in bridge_name:
+                    parts = bridge_name.split("_")
+                    try:
+                        l1, l2 = parts[-2], parts[-1]
+                        if l1 in names and l2 in names:
+                            pred = calculate_bridge_stl(
+                                lotos[names.index(l1)],
+                                lotos[names.index(l2)],
+                                "sum"
+                            )
+                    except:
+                        pass
+                
+                elif "LO_MEM_DIFF" in bridge_name:
+                    parts = bridge_name.split("_")
+                    try:
+                        l1, l2 = parts[-2], parts[-1]
+                        if l1 in names and l2 in names:
+                            pred = calculate_bridge_stl(
+                                lotos[names.index(l1)],
+                                lotos[names.index(l2)],
+                                "diff"
+                            )
+                    except:
+                        pass
+                
+                # Fallback for old naming
+                if not pred:
+                    if "Tổng(" in bridge_name:
+                        m = re.search(r'Tổng\((\d+)\+(\d+)\)', bridge_name)
+                        if m:
+                            pred = calculate_bridge_stl(
+                                lotos[int(m.group(1))],
+                                lotos[int(m.group(2))],
+                                "sum"
+                            )
+                    elif "Hiệu(" in bridge_name:
+                        m = re.search(r'Hiệu\((\d+)-(\d+)\)', bridge_name)
+                        if m:
+                            pred = calculate_bridge_stl(
+                                lotos[int(m.group(1))],
+                                lotos[int(m.group(2))],
+                                "diff"
+                            )
+            
+            # 3. V17 bridges (Position-based)
+            elif idx1 is not None and idx2 is not None:
+                positions = getAllPositions_V17_Shadow(row)
+                a, b = positions[idx1], positions[idx2]
+                if a is not None and b is not None:
+                    pred = taoSTL_V30_Bong(a, b)
+            
+            return pred
+        
+        except Exception as e:
+            self._log(f"  ⚠️ Lỗi lấy prediction: {e}")
+            return []

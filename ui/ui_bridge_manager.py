@@ -16,13 +16,12 @@ try:
         add_managed_bridge,
         delete_managed_bridge,
         # get_all_managed_bridges, # Không dùng hàm thô này nữa
-        update_managed_bridge,
+        # update_managed_bridge removed - now imported locally where needed
     )
 except ImportError as e:
     print(f"LỖI IMPORT NGHIÊM TRỌNG tại ui_bridge_manager: {e}")
     def get_managed_bridges_with_prediction(db, current_data=None, only_enabled=False): return []
     def add_managed_bridge(n, d, w): return False, "Lỗi Import"
-    def update_managed_bridge(i, d, s): return False, "Lỗi Import"
     def delete_managed_bridge(i): return False, "Lỗi Import"
 
 
@@ -278,17 +277,64 @@ class BridgeManagerWindow:
             messagebox.showerror("Lỗi", msg, parent=self.window)
 
     def update_selected_bridge(self):
-        selected = self.tree.focus()
-        if not selected: return
-        bridge_id = self.tree.item(selected, "values")[0]
-        desc = self.desc_entry.get().strip()
-        status = 1 if self.enabled_var.get() else 0
-        success, msg = update_managed_bridge(bridge_id, desc, status)
-        if success:
-            self.app.logger.log(f"Cập nhật cầu {bridge_id}: {msg}")
-            self.refresh_bridge_list()
+        """
+        Phase 1: Update selected bridge(s) with activation and recalculation.
+        """
+        selected_items = self.tree.selection()
+        
+        if not selected_items:
+            messagebox.showwarning("Chưa chọn", "Vui lòng chọn ít nhất một cầu để cập nhật.", parent=self.window)
+            return
+        
+        # Get bridge names from selected items
+        bridge_names = []
+        for item in selected_items:
+            values = self.tree.item(item, "values")
+            if values and len(values) > 1:
+                bridge_names.append(values[1])  # Column 1 is bridge name
+        
+        if not bridge_names:
+            messagebox.showerror("Lỗi", "Không thể lấy tên cầu từ các mục đã chọn.", parent=self.window)
+            return
+        
+        # For single selection, update description and status first
+        if len(selected_items) == 1:
+            bridge_id = self.tree.item(selected_items[0], "values")[0]
+            desc = self.desc_entry.get().strip()
+            status = 1 if self.enabled_var.get() else 0
+            
+            # Update description and basic status
+            try:
+                from logic.db_manager import update_managed_bridge
+                success, msg = update_managed_bridge(bridge_id, desc, status)
+                if not success:
+                    messagebox.showerror("Lỗi", msg, parent=self.window)
+                    return
+            except Exception as e:
+                messagebox.showerror("Lỗi", f"Không thể cập nhật thông tin cơ bản: {e}", parent=self.window)
+                return
+        
+        # Use controller to activate and recalculate bridges in background
+        if hasattr(self.app, 'controller') and self.app.controller:
+            self.app.controller.execute_batch_bridge_activation(bridge_names)
+            
+            # Show feedback to user
+            if len(bridge_names) == 1:
+                messagebox.showinfo(
+                    "Đang xử lý", 
+                    f"Đang kích hoạt và tính toán lại cầu '{bridge_names[0]}' trong nền.\n"
+                    "Vui lòng đợi kết quả trong log.",
+                    parent=self.window
+                )
+            else:
+                messagebox.showinfo(
+                    "Đang xử lý", 
+                    f"Đang kích hoạt và tính toán lại {len(bridge_names)} cầu trong nền.\n"
+                    "Vui lòng đợi kết quả trong log.",
+                    parent=self.window
+                )
         else:
-            messagebox.showerror("Lỗi", msg, parent=self.window)
+            messagebox.showerror("Lỗi", "Controller không khả dụng.", parent=self.window)
 
     def delete_selected_bridge(self):
         """

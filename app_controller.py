@@ -583,3 +583,81 @@ class AppController:
             if self.logger:
                 self.logger.log(error_msg)
                 self.logger.log(traceback.format_exc())
+    
+    def execute_batch_bridge_activation(self, bridge_names):
+        """
+        Phase 1: Execute batch bridge activation in background thread.
+        
+        Args:
+            bridge_names: List of bridge names to activate and recalculate
+        """
+        if not bridge_names:
+            if self.logger:
+                self.logger.log("LỖI: Danh sách cầu rỗng.")
+            return
+        
+        if not self.bridge_service:
+            if self.logger:
+                self.logger.log("LỖI: BridgeService chưa được khởi tạo.")
+            return
+        
+        # Log start
+        if self.logger:
+            self.logger.log(f">>> Bắt đầu kích hoạt và tính toán {len(bridge_names)} cầu trong nền...")
+        
+        # Create thread to run activation task
+        thread = threading.Thread(
+            target=self._run_activation_task,
+            args=(bridge_names,),
+            daemon=True
+        )
+        thread.start()
+    
+    def _run_activation_task(self, bridge_names):
+        """
+        Internal: Run bridge activation in background thread.
+        
+        Args:
+            bridge_names: List of bridge names to activate
+        """
+        try:
+            # Load data
+            all_data = self.load_data_ai_from_db_controller()
+            if not all_data:
+                if self.logger:
+                    self.logger.log("LỖI: Không thể tải dữ liệu để tính toán.")
+                return
+            
+            # Call bridge service to activate and recalculate
+            result = self.bridge_service.activate_and_recalc_bridges(bridge_names, all_data)
+            
+            # Log result
+            if result.get('success'):
+                if self.logger:
+                    self.logger.log(f"✅ {result.get('message')}")
+                    
+                    # Show details of updated bridges
+                    updated = result.get('updated_bridges', [])
+                    if updated:
+                        self.logger.log(f">>> Chi tiết {len(updated)} cầu đã cập nhật:")
+                        for bridge_info in updated[:5]:  # Show max 5
+                            metrics = bridge_info.get('metrics', {})
+                            self.logger.log(
+                                f"  • {bridge_info['name']}: "
+                                f"Tỷ lệ {metrics.get('win_rate_text', 'N/A')}, "
+                                f"Dự đoán: {metrics.get('prediction', 'N/A')}"
+                            )
+                        if len(updated) > 5:
+                            self.logger.log(f"  ... và {len(updated) - 5} cầu khác.")
+            else:
+                if self.logger:
+                    self.logger.log(f"⚠️ {result.get('message')}")
+            
+            # Refresh bridge manager if it's open
+            self._refresh_bridge_manager_if_needed()
+        
+        except Exception as e:
+            error_msg = f"LỖI trong _run_activation_task: {e}"
+            if self.logger:
+                self.logger.log(error_msg)
+                self.logger.log(traceback.format_exc())
