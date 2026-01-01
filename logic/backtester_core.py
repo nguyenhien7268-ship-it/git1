@@ -7,14 +7,8 @@ backtester_core.py - Core backtesting functions
 try:
     from .config_manager import SETTINGS
 except ImportError:
-    try:
-        from config_manager import SETTINGS
-    except ImportError:
-        try:
-            from .constants import DEFAULT_SETTINGS
-        except ImportError:
-            from constants import DEFAULT_SETTINGS
-        SETTINGS = type("obj", (object,), DEFAULT_SETTINGS)
+    # Import Config Manager (Fail Fast)
+    from config_manager import SETTINGS
 
 try:
     from .db_manager import DB_NAME

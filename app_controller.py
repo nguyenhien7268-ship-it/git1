@@ -7,38 +7,25 @@ import tkinter as tk
 import traceback
 import threading
 
-# Import chỉ các hàm cần thiết cho fallback (nếu services không khả dụng)
-try:
-    from lottery_service import load_data_ai_from_db
-except ImportError as e:
-    print(f"LỖI NGHIÊM TRỌNG: Controller không tìm thấy 'lottery_service.py': {e}")
-    exit()
+import time
+import tkinter as tk
+import traceback
+import threading
+import os
 
-# Import SETTINGS
+# Import Source of Truth Configuration (Fail Fast)
 try:
     from logic.config_manager import SETTINGS
 except ImportError as e:
-    print(f"LỖI: Controller không thể import logic.config_manager: {e}")
-    # Use centralized constants
-    from logic.constants import DEFAULT_SETTINGS
-    
-    settings_dict = DEFAULT_SETTINGS.copy()
-    settings_dict.update({
-        "get_all_settings": lambda: {},
-        "get": lambda k, d: d,
-    })
-    SETTINGS = type("obj", (object,), settings_dict)
+    raise ImportError(f"CRITICAL: Controller cannot load Settings: {e}")
 
-# Import chỉ các hàm cần thiết cho services
-
-# Import Services Layer (MVC Refactoring Phase 1 & 2)
+# Import Service Layer (Fail Fast)
+# MVC Pattern: Controller calls Services, never direct logic.
 try:
     from services import DataService, BridgeService, AnalysisService
-except ImportError:
-    print("Cảnh báo: Không thể import services. Sử dụng fallback mode.")
-    DataService = None
-    BridgeService = None
-    AnalysisService = None
+except ImportError as e:
+    raise ImportError(f"CRITICAL: Controller cannot load Services: {e}. Check 'services/' directory.")
+
 
 class AppController:
     """
@@ -57,21 +44,11 @@ class AppController:
         self.dashboard_data_cache = {} # [V10.0 NEW] Cache lưu trữ kết quả phân tích để Safe Merge
         
         # Khởi tạo Services (MVC Refactoring)
-        # Lưu ý: logger sẽ được cập nhật sau bằng set_logger()
-        if DataService:
-            self.data_service = DataService(self.db_name, logger=None)
-        else:
-            self.data_service = None
-        
-        if BridgeService:
-            self.bridge_service = BridgeService(self.db_name, logger=None)
-        else:
-            self.bridge_service = None
-        
-        if AnalysisService:
-            self.analysis_service = AnalysisService(self.db_name, logger=None)
-        else:
-            self.analysis_service = None
+        # Khởi tạo Services (MVC Refactoring)
+        # Services được khởi tạo trực tiếp vì import đã được đảm bảo ở trên
+        self.data_service = DataService(self.db_name, logger=None)
+        self.bridge_service = BridgeService(self.db_name, logger=None)
+        self.analysis_service = AnalysisService(self.db_name, logger=None)
     
     def set_logger(self, logger):
         """Cập nhật logger cho controller và các services"""
@@ -102,7 +79,7 @@ class AppController:
 
     def load_data_ai_from_db_controller(self):
         """Tải (hoặc tải lại) dữ liệu A:I từ DB."""
-        # Sử dụng DataService nếu có, fallback về hàm cũ
+        # Sử dụng DataService trực tiếp
         if self.data_service:
             rows_of_lists = self.data_service.load_data()
             if rows_of_lists is None:
@@ -111,17 +88,7 @@ class AppController:
             else:
                 self.all_data_ai = rows_of_lists
                 return rows_of_lists
-        else:
-            # Fallback: Gọi hàm từ lottery_service
-            rows_of_lists, message = load_data_ai_from_db(self.db_name)
-            if rows_of_lists is None:
-                self.logger.log(message)
-                self.all_data_ai = None
-                return None
-            else:
-                self.logger.log(message)
-                self.all_data_ai = rows_of_lists
-                return rows_of_lists
+        return None
 
     # ===================================================================
     # CÁC HÀM TÁC VỤ (Đã di chuyển từ ui_main_window.py)
@@ -158,40 +125,36 @@ class AppController:
         all_data = self.load_data_ai_from_db_controller()
         if not all_data:
             return
-        if self.analysis_service:
-            results = self.analysis_service.run_backtest(all_data, mode, title)
-            if results:
-                self.logger.log("Backtest hoàn tất. Đang mở cửa sổ kết quả...")
-                self.root_after(0, self.app.show_backtest_results, title, results)
+        results = self.analysis_service.run_backtest(all_data, mode, title)
+        if results:
+            self.logger.log("Backtest hoàn tất. Đang mở cửa sổ kết quả...")
+            self.root_after(0, self.app.show_backtest_results, title, results)
 
     def task_run_custom_backtest(self, mode, title, custom_bridge_name):
         all_data = self.load_data_ai_from_db_controller()
         if not all_data:
             return
-        if self.analysis_service:
-            results, adjusted_mode, adjusted_title = self.analysis_service.run_custom_backtest(all_data, mode, custom_bridge_name)
-            if results:
-                self.root_after(0, self.app.show_backtest_results, adjusted_title or title, results)
+        results, adjusted_mode, adjusted_title = self.analysis_service.run_custom_backtest(all_data, mode, custom_bridge_name)
+        if results:
+            self.root_after(0, self.app.show_backtest_results, adjusted_title or title, results)
 
     def task_run_backtest_managed_n1(self, title):
         all_data = self.load_data_ai_from_db_controller()
         if not all_data:
             return
-        if self.analysis_service:
-            results = self.analysis_service.run_backtest_managed_n1(all_data)
-            if results:
-                self.logger.log("Backtest Cầu Đã Lưu N1 hoàn tất. Đang mở cửa sổ kết quả...")
-                self.root_after(0, self.app.show_backtest_results, title, results)
+        results = self.analysis_service.run_backtest_managed_n1(all_data)
+        if results:
+            self.logger.log("Backtest Cầu Đã Lưu N1 hoàn tất. Đang mở cửa sổ kết quả...")
+            self.root_after(0, self.app.show_backtest_results, title, results)
 
     def task_run_backtest_managed_k2n(self, title):
         all_data = self.load_data_ai_from_db_controller()
         if not all_data:
             return
-        if self.analysis_service:
-            results = self.analysis_service.run_backtest_managed_k2n(all_data)
-            if results:
-                self.logger.log("Backtest Cầu Đã Lưu K2N hoàn tất. Đang mở cửa sổ kết quả...")
-                self.root_after(0, self.app.show_backtest_results, title, results)
+        results = self.analysis_service.run_backtest_managed_k2n(all_data)
+        if results:
+            self.logger.log("Backtest Cầu Đã Lưu K2N hoàn tất. Đang mở cửa sổ kết quả...")
+            self.root_after(0, self.app.show_backtest_results, title, results)
 
     def task_run_decision_dashboard(self, title, lo_mode=True, de_mode=True):
         """
@@ -279,34 +242,31 @@ class AppController:
         all_data = self.load_data_ai_from_db_controller()
         if not all_data:
             return
-        if self.bridge_service:
-            try:
-                SCAN_LIMIT = getattr(SETTINGS, "DATA_LIMIT_SCANNER", 500)
-            except:
-                SCAN_LIMIT = 500
-            self.bridge_service.find_and_scan_bridges(all_data, scan_limit=SCAN_LIMIT)
-            self.logger.log(">>> Tác vụ hoàn tất.")
-            self._refresh_bridge_manager_if_needed()
+        try:
+            SCAN_LIMIT = getattr(SETTINGS, "DATA_LIMIT_SCANNER", 500)
+        except:
+            SCAN_LIMIT = 500
+        self.bridge_service.find_and_scan_bridges(all_data, scan_limit=SCAN_LIMIT)
+        self.logger.log(">>> Tác vụ hoàn tất.")
+        self._refresh_bridge_manager_if_needed()
 
     def task_run_auto_prune_bridges(self, title):
         all_data = self.load_data_ai_from_db_controller()
         if not all_data:
             return
-        if self.bridge_service:
-            result = self.bridge_service.prune_bad_bridges(all_data)
-            self.logger.log(f">>> {title} HOÀN TẤT:")
-            self.logger.log(result)
-            self._refresh_bridge_manager_if_needed()
+        result = self.bridge_service.prune_bad_bridges(all_data)
+        self.logger.log(f">>> {title} HOÀN TẤT:")
+        self.logger.log(result)
+        self._refresh_bridge_manager_if_needed()
 
     def task_run_auto_manage_bridges(self, title):
         all_data = self.load_data_ai_from_db_controller()
         if not all_data:
             return
-        if self.bridge_service:
-            result = self.bridge_service.auto_manage_bridges(all_data)
-            self.logger.log(f">>> {title} HOÀN TẤT:")
-            self.logger.log(result)
-            self._refresh_bridge_manager_if_needed()
+        result = self.bridge_service.auto_manage_bridges(all_data)
+        self.logger.log(f">>> {title} HOÀN TẤT:")
+        self.logger.log(result)
+        self._refresh_bridge_manager_if_needed()
     
     def task_run_prune_bad_de_bridges(self, title):
         """
@@ -321,14 +281,8 @@ class AppController:
             
             # Tải dữ liệu
             all_data = self.load_data_ai_from_db_controller()
-            if not all_data:
-                self.logger.log("LỖI: Không có dữ liệu để kiểm tra.")
-                return
             
             # Gọi service để loại bỏ cầu Đề yếu
-            if not self.bridge_service:
-                self.logger.log("LỖI: BridgeService chưa được khởi tạo.")
-                return
             
             result_msg = self.bridge_service.prune_bad_de_bridges(all_data)
             self.logger.log(f">>> {title} HOÀN TẤT:")
@@ -351,14 +305,8 @@ class AppController:
             bridge_name: Tên cầu cần ghim/bỏ ghim
         """
         try:
-            if not bridge_name:
-                self.logger.log("LỖI: Tên cầu không được để trống.")
-                return
             
             # Gọi service để toggle pin
-            if not self.bridge_service:
-                self.logger.log("LỖI: BridgeService chưa được khởi tạo.")
-                return
             
             success, message, new_pin_state = self.bridge_service.toggle_pin_bridge(bridge_name)
             
@@ -380,30 +328,27 @@ class AppController:
         all_data = self.load_data_ai_from_db_controller()
         if not all_data:
             return
-        if self.bridge_service:
-            self.logger.log(f"\n--- ⚡ BẮT ĐẦU: {title} ---")
-            msg_prune, msg_manage = self.bridge_service.smart_optimization(all_data)
-            self.logger.log(f"✅ TỐI ƯU HÓA HOÀN TẤT!")
-            self._refresh_bridge_manager_if_needed()
+        self.logger.log(f"\n--- ⚡ BẮT ĐẦU: {title} ---")
+        msg_prune, msg_manage = self.bridge_service.smart_optimization(all_data)
+        self.logger.log(f"✅ TỐI ƯU HÓA HOÀN TẤT!")
+        self._refresh_bridge_manager_if_needed()
 
     def task_run_train_ai(self, title):
         def train_callback(success, message):
             self.logger.log(f">>> {title} HOÀN TẤT:")
             self.logger.log(message)
-        if self.analysis_service:
-            success, message = self.analysis_service.train_ai(callback=train_callback)
-            if not success:
-                self.logger.log(f"LỖI KHỞI CHẠY LUỒNG: {message}")
+        success, message = self.analysis_service.train_ai(callback=train_callback)
+        if not success:
+            self.logger.log(f"LỖI KHỞI CHẠY LUỒNG: {message}")
 
     def task_run_backtest_memory(self, title):
         all_data = self.load_data_ai_from_db_controller()
         if not all_data:
             return
-        if self.analysis_service:
-            results = self.analysis_service.run_backtest_memory(all_data)
-            if results:
-                self.logger.log("Backtest Cầu Bạc Nhớ hoàn tất. Đang mở cửa sổ kết quả...")
-                self.root_after(0, self.app.show_backtest_results, title, results)
+        results = self.analysis_service.run_backtest_memory(all_data)
+        if results:
+            self.logger.log("Backtest Cầu Bạc Nhớ hoàn tất. Đang mở cửa sổ kết quả...")
+            self.root_after(0, self.app.show_backtest_results, title, results)
 
     def task_run_parameter_tuning(self, param_key, val_from, val_to, val_step, tuner_window):
         """Wrapper: Chuyển sang AnalysisService"""
@@ -446,18 +391,11 @@ class AppController:
         try:
             log_to_optimizer("Đang tải toàn bộ dữ liệu A:I...")
             all_data_ai = self.load_data_ai_from_db_controller()
-            if not all_data_ai or len(all_data_ai) < days_to_test + 50:
-                log_to_optimizer(f"LỖI: Cần ít nhất {days_to_test + 50} kỳ dữ liệu để kiểm thử.")
-                return
             
             # Sử dụng AnalysisService
-            if self.analysis_service:
-                self.analysis_service.run_strategy_optimization(
-                    all_data_ai, days_to_test, param_ranges, log_to_optimizer, update_tree_results_threadsafe
-                )
-            else:
-                # Fallback: Giữ nguyên logic cũ (rút gọn)
-                log_to_optimizer("Cảnh báo: AnalysisService không khả dụng. Sử dụng fallback.")
+            self.analysis_service.run_strategy_optimization(
+                all_data_ai, days_to_test, param_ranges, log_to_optimizer, update_tree_results_threadsafe
+            )
         except Exception as e:
             log_to_optimizer(f"LỖI: {e}")
             log_to_optimizer(traceback.format_exc())
@@ -521,14 +459,9 @@ class AppController:
             
             print(f"[DEBUG] Đã tải {len(all_data)} dòng dữ liệu.")
             
-            # Gọi service để chạy backtest
-            if not self.analysis_service:
-                error_msg = "LỖI: AnalysisService chưa được khởi tạo."
-                print(f"[ERROR] {error_msg}")
-                if self.logger:
-                    self.logger.log(error_msg)
-                return
+            print(f"[DEBUG] Đã tải {len(all_data)} dòng dữ liệu.")
             
+            # Gọi service để chạy backtest
             print(f"[DEBUG] Đang gọi service để chạy backtest...")
             if is_de:
                 backtest_data = self.analysis_service.run_de_backtest_30_days(bridge_name, all_data)

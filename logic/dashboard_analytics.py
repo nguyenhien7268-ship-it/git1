@@ -14,12 +14,8 @@ try:
 except ImportError:
     def get_all_managed_bridges(*args, **kwargs): return []
 
-# Import constants for threshold
-try:
-    from logic.constants import DEFAULT_SETTINGS
-    DE_DYN_MIN_WINRATE = DEFAULT_SETTINGS.get("DE_DYN_MIN_WINRATE", 93.3)
-except ImportError:
-    DE_DYN_MIN_WINRATE = 93.3
+from logic.constants import DEFAULT_SETTINGS
+DE_DYN_MIN_WINRATE = DEFAULT_SETTINGS.get("DE_DYN_MIN_WINRATE", 93.3)
 
 # Import tất cả từ module mới
 try:

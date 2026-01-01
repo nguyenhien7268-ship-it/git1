@@ -25,9 +25,9 @@ try:
         upsert_managed_bridge,
     )
 
-    print(">>> (V7.3) Tải logic.db_manager & data_repository thành công.")
+    print(">>> (V7.3) Loaded logic.db_manager & data_repository successfully.")
 except ImportError as e_db:
-    print(f"LỖI NGHIÊM TRỌNG: Không thể import logic DB/Repo: {e_db}")
+    print(f"CRITICAL ERROR: Could not import logic DB/Repo: {e_db}")
     # Fallback for DB_NAME and functions if import fails
     DB_NAME = "data/xo_so_prizes_all_logic.db"
     def delete_managed_bridges_batch(names, db_name=None, transactional=False, chunk_size=500):
@@ -44,9 +44,9 @@ try:
         run_and_update_from_text,
     )
 
-    print(">>> (V7.3) Tải logic.data_parser thành công.")
+    print(">>> (V7.3) Loaded logic.data_parser successfully.")
 except ImportError as e_parser:
-    print(f"LỖI NGHIÊM TRỌNG: Không thể import logic.data_parser: {e_parser}")
+    print(f"CRITICAL ERROR: Could not import logic.data_parser: {e_parser}")
 
 # 3. LOGIC CẦU CỔ ĐIỂN & TIỆN ÍCH
 try:
@@ -56,10 +56,10 @@ try:
         getAllLoto_V30,
     )
 
-    print(">>> (V7.3) Tải logic.bridges.bridges_classic thành công.")
+    print(">>> (V7.3) Loaded logic.bridges.bridges_classic successfully.")
 except ImportError as e_classic:
     print(
-        f"LỖI NGHIÊM TRỌNG: Không thể import logic.bridges.bridges_classic: {e_classic}"
+        f"CRITICAL ERROR: Could not import logic.bridges.bridges_classic: {e_classic}"
     )
 
 # 4. LOGIC BACKTEST
@@ -77,9 +77,9 @@ try:
         run_and_update_all_bridge_rates,
     )
 
-    print(">>> (V7.3) Tải logic.backtester thành công.")
+    print(">>> (V7.3) Loaded logic.backtester successfully.")
 except ImportError as e_backtester:
-    print(f"LỖĨ NGHIÊM TRỌNG: Không thể import logic.backtester: {e_backtester}")
+    print(f"CRITICAL ERROR: Could not import logic.backtester: {e_backtester}")
 
 # 5. LOGIC QUẢN LÝ CẦU (DÒ, LỌC)
 try:
@@ -97,10 +97,10 @@ try:
     )
     from logic.bridges.bridge_manager_de import find_and_auto_manage_bridges_de
 
-    print(">>> (V7.3) Tải logic.bridges.bridge_manager_core & lo_bridge_scanner thành công.")
+    print(">>> (V7.3) Loaded logic.bridges.bridge_manager_core & lo_bridge_scanner successfully.")
 except ImportError as e_bridge_core:
     print(
-        f"LỖI NGHIÊM TRỌNG: Không thể import logic.bridges modules: {e_bridge_core}"
+        f"CRITICAL ERROR: Could not import logic.bridges modules: {e_bridge_core}"
     )
 
 # 6. LOGIC DASHBOARD (CHẤM ĐIỂM)
@@ -118,10 +118,10 @@ try:
         calculate_score_from_features
     )
 
-    print(">>> (V7.3) Tải logic.dashboard_analytics thành công.")
+    print(">>> (V7.3) Loaded logic.dashboard_analytics successfully.")
 except ImportError as e_dashboard:
     print(
-        f"LỖI NGHIÊM TRỌNG: Không thể import logic.dashboard_analytics: {e_dashboard}"
+        f"CRITICAL ERROR: Could not import logic.dashboard_analytics: {e_dashboard}"
     )
 
 
@@ -133,10 +133,10 @@ try:
         run_ai_training_threaded,
     )
 
-    print(">>> (V7.3) Tải logic.ai_feature_extractor (AI Wrappers) thành công.")
+    print(">>> (V7.3) Loaded logic.ai_feature_extractor (AI Wrappers) successfully.")
 except ImportError as e_ai:
     error_msg = str(e_ai)
-    print(f"LỖI NGHIÊM TRỌNG: Không thể import logic.ai_feature_extractor (AI): {error_msg}")
+    print(f"CRITICAL ERROR: Could not import logic.ai_feature_extractor (AI): {error_msg}")
 
     # Giả lập hàm nếu lỗi
     def run_ai_training_threaded(callback=None):
@@ -373,4 +373,4 @@ def add_managed_bridge(
 db_upsert_managed_bridge = upsert_managed_bridge
 
 
-print("Lottery Service API (lottery_service.py) đã tải thành công (V7.4).")
+print("Lottery Service API (lottery_service.py) - Loaded successfully (V7.4).")

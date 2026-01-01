@@ -4,6 +4,14 @@
 import os
 import traceback
 
+# Phase 3: Meta-Learner Data Collection
+try:
+    from logic.phase3_data_collector import get_collector
+    PHASE3_ENABLED = True
+except ImportError:
+    PHASE3_ENABLED = False
+    get_collector = None
+
 class DataService:
     """Service xử lý dữ liệu xổ số"""
     
@@ -15,6 +23,19 @@ class DataService:
         """Helper để log messages"""
         if self.logger:
             self.logger.log(message)
+    
+    def _log_outcomes_phase3(self, ky, actual_lotos):
+        """Helper to log outcomes for Phase 3"""
+        if not PHASE3_ENABLED or not get_collector:
+            return
+        
+        try:
+            collector = get_collector()
+            count = collector.log_batch_outcomes(ky, actual_lotos)
+            if count > 0:
+                self._log(f"[Phase 3] Logged {count} outcomes for period {ky}")
+        except Exception as e:
+            self._log(f"Warning: Phase 3 outcome logging failed: {e}")
     
     def load_data(self):
         """
@@ -138,11 +159,40 @@ class DataService:
         """
         try:
             from logic.data_parser import run_and_update_from_text
+            from lottery_service import getAllLoto_V30
+            
             success, message = run_and_update_from_text(raw_data)
             self._log(message)
             
-            if success and callback_on_success:
-                callback_on_success()
+            # [PHASE 3] Log outcomes if successful
+            if success:
+                try:
+                    # Extract ky and actual lotos from newly added data
+                    # Parse raw_data to get ky and lotos
+                    lines = raw_data. strip().split('\n')
+                    for line in lines:
+                        if ':' in line and any(char.isdigit() for char in line):
+                            # Extract ky number
+                            try:
+                                parts = line.split(':')
+                                ky = parts[0].strip()
+                                
+                                # Load the just-added row from DB to get lotos
+                                all_data = self.load_data()
+                                if all_data:
+                                    # Find the row matching this ky
+                                    for row in all_data:
+                                        if str(row[0]) == str(ky):
+                                            actual_lotos = getAllLoto_V30(row)
+                                            self._log_outcomes_phase3(ky, actual_lotos)
+                                            break
+                            except Exception as e_parse:
+                                self._log(f"Debug: Could not parse ky from line: {e_parse}")
+                except Exception as e_phase3:
+                    self._log(f"Warning: Phase 3 outcome logging failed: {e_phase3}")
+                
+                if callback_on_success:
+                    callback_on_success()
             
             return success, message
         except Exception as e:

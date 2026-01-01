@@ -6,6 +6,15 @@ import json
 import pandas as pd
 import traceback
 
+# Phase 3: Meta-Learner Data Collection
+try:
+    from logic.phase3_data_collector import log_prediction
+    PHASE3_ENABLED =True
+except ImportError:
+    PHASE3_ENABLED = False
+    def log_prediction(*args, **kwargs):
+        pass  # Fallback if Phase 3 not available
+
 class AnalysisService:
     """Service phân tích và backtest"""
     
@@ -386,6 +395,30 @@ class AnalysisService:
                 )
                 result["top_scores"] = top_scores or []
                 self._log(f"... (Top Scores) Đã tính được {len(result['top_scores'])} cặp có điểm")
+                
+                # [PHASE 3] Log predictions for Meta-Learner training
+                if PHASE3_ENABLED and top_scores:
+                    try:
+                        ky_for_logging = str(last_row[0]) if last_row else "unknown"
+                        logged_count = 0
+                        for score_item in top_scores[:20]:  # Log top 20 predictions
+                            pair = score_item.get('pair', '')
+                            if '-' in pair:
+                                loto1, loto2 = pair.split('-')
+                                for loto in [loto1, loto2]:
+                                    log_prediction(
+                                        ky=ky_for_logging,
+                                        loto=loto,
+                                        ai_probability=score_item.get('ai_prob', 0.0),
+                                        manual_score=score_item.get('score', 0.0),
+                                        confidence=score_item.get('confidence', 0),
+                                        vote_count=score_item.get('vote_count', 0),
+                                        recent_form_score=score_item.get('form_bonus', 0.0)
+                                    )
+                                    logged_count += 1
+                        self._log(f"[Phase 3] Logged {logged_count} predictions for period {ky_for_logging}")
+                    except Exception as e_phase3:
+                        self._log(f"Warning: Phase 3 logging failed: {e_phase3}")
             except Exception as e:
                 self._log(f"Lỗi tính Điểm Tổng Lực: {e}")
                 result["top_scores"] = []
