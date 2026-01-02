@@ -11,6 +11,11 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor, QFont
 
+try:
+    from logic.config_manager import SETTINGS
+except ImportError:
+    SETTINGS = None
+
 
 class DashboardTab(QWidget):
     """Dashboard tab for displaying analysis results"""
@@ -40,9 +45,10 @@ class DashboardTab(QWidget):
         # Table
         self.table = QTableWidget()
         self.table.setColumnCount(8)
-        self.table.setHorizontalHeaderLabels([
-            "Rank", "Cặp", "Điểm", "AI %", "Vote", "Tin Cậy", "Form", "Ghi Chú"
-        ])
+        self.header_labels = [
+             "Rank", "Cặp", "Điểm", "AI %", "Vote", "Tin Cậy", "Form", "Ghi Chú"
+        ]
+        self.table.setHorizontalHeaderLabels(self.header_labels)
         
         # Table settings
         self.table.setAlternatingRowColors(True)
@@ -76,13 +82,50 @@ class DashboardTab(QWidget):
         self.period_label.setText(f"Kỳ tiếp theo: {next_ky}")
         
         # Get top scores
-        top_scores = results.get('top_scores', [])
+        all_scores = results.get('top_scores', [])
+        
+        # === V8.2 FILTERING LOGIC ===
+        filter_threshold = 9
+        if SETTINGS:
+            # Try to get from settings, might be dict or object
+            if hasattr(SETTINGS, 'get'):
+                filter_threshold = int(SETTINGS.get("DASHBOARD_MIN_RECENT_WINS", 9))
+            elif hasattr(SETTINGS, 'get_config'):
+                filter_threshold = int(SETTINGS.get_config("DASHBOARD_MIN_RECENT_WINS", 9))
+        
+        filtered_scores = []
+        for item in all_scores:
+            # Filter condition: Enabled AND High Wins
+            # Note: In analysis results, usually only enabled bridges are returned if configured so,
+            # but we double check here to match V8.2 spec
+            
+            # Check enabled (default to 1 if not present in analysis result items)
+            # In V8.2 this check is strict, but here we depend on what analysis service returns.
+            # Assuming analysis service returns dicts with 'recent_win_count_10'
+            
+            recent_wins = int(item.get('recent_win_count_10', 0))
+            
+            # If item explicitly says disabled, skip (though analysis usually excludes them)
+            if item.get('is_enabled', 1) == 0:
+                continue
+                
+            if recent_wins >= filter_threshold:
+                filtered_scores.append(item)
+        
+        # Update Table Header to show filter status
+        new_labels = list(self.header_labels)
+        new_labels[1] = f"Cặp (≥{filter_threshold}/10)"
+        self.table.setHorizontalHeaderLabels(new_labels)
+        
+        target_scores = filtered_scores if filter_threshold > 0 else all_scores
         
         # Clear and populate table
         self.table.setRowCount(0)
         self.table.setSortingEnabled(False)  # Disable while populating
         
-        for i, item in enumerate(top_scores[:50], 1):  # Show top 50
+        self.table.setSortingEnabled(False)  # Disable while populating
+        
+        for i, item in enumerate(target_scores[:50], 1):  # Show top 50 matches
             row = self.table.rowCount()
             self.table.insertRow(row)
             
@@ -167,7 +210,9 @@ class DashboardTab(QWidget):
         self.table.setSortingEnabled(True)  # Re-enable sorting
         
         # Update stats
-        total = len(top_scores)
+        total = len(target_scores)
+        hidden = len(all_scores) - total
+        self.stats_label.setText(f"Hiển thị {min(50, total)}/{total} cặp (Đã lọc {hidden} cầu yếu < {filter_threshold}/10)")
         self.stats_label.setText(f"Hiển thị {min(50, total)}/{total} cặp có điểm cao nhất")
     
     def _refresh(self):

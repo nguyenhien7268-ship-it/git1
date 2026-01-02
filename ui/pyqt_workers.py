@@ -125,3 +125,104 @@ class TrainAIWorker(QThread):
             self.finished.emit(success, message)
         except Exception as e:
             self.finished.emit(False, str(e))
+
+
+class DeAnalysisWorker(QThread):
+    """Worker thread for De Dashboard analysis"""
+    finished = pyqtSignal(dict)  # results
+    progress = pyqtSignal(str)  # progress message
+    error = pyqtSignal(str)
+    
+    def __init__(self, data):
+        super().__init__()
+        self.data = data
+        
+    def run(self):
+        try:
+            self.progress.emit("Initializing analysis components...")
+            
+            # Late imports to avoid circular dependencies
+            from logic.de_analytics import (
+                analyze_market_trends,
+                calculate_number_scores,
+                run_intersection_matrix_analysis,
+                calculate_top_touch_combinations
+            )
+            from logic.dashboard_analytics import get_cau_dong_for_tab_soi_cau_de
+            from logic.config_manager import ConfigManager
+            
+            data = self.data
+            list_data = data
+            if hasattr(data, "values"): 
+                list_data = data.values.tolist()
+                
+            # 1. Load Bridges
+            self.progress.emit("Loading bridges from database...")
+            bridges = []
+            try:
+                min_recent_wins = 9
+                try:
+                    config_mgr = ConfigManager.get_instance()
+                    min_recent_wins = config_mgr.get_config("DE_DASHBOARD_MIN_RECENT_WINS", 9)
+                except:
+                    pass
+                    
+                all_bridges = get_cau_dong_for_tab_soi_cau_de()
+                
+                # Filter DE bridges
+                de_bridges = [
+                    b for b in all_bridges 
+                    if str(b.get('type', '')).upper().startswith(('DE_', 'CAU_DE')) 
+                    or "Đề" in str(b.get('name', ''))
+                    or "DE" in str(b.get('name', '')).upper()
+                ]
+                
+                # Filter enabled & high performance
+                for b in de_bridges:
+                    recent_wins = b.get("recent_win_count_10", 0)
+                    if isinstance(recent_wins, str):
+                        recent_wins = int(recent_wins) if recent_wins.isdigit() else 0
+                    
+                    is_enabled = b.get("is_enabled", 0)
+                    if isinstance(is_enabled, str):
+                        is_enabled = int(is_enabled) if is_enabled.isdigit() else 0
+                        
+                    if is_enabled == 1 and recent_wins >= min_recent_wins:
+                        bridges.append(b)
+                        
+            except Exception as e:
+                print(f"Bridge load error: {e}")
+                
+            # 2. Run Matrix Analysis
+            self.progress.emit("Running Matrix Analysis...")
+            matrix_res = {"ranked": [], "message": "N/A"}
+            try: 
+                matrix_res = run_intersection_matrix_analysis(data)
+            except Exception as e: 
+                matrix_res["message"] = str(e)
+                
+            # 3. Market Trends & Scores
+            self.progress.emit("Calculating Scores & Trends...")
+            stats, scores, touch_combinations = {}, [], []
+            try:
+                stats = analyze_market_trends(list_data, n_days=30)
+                scores = calculate_number_scores(bridges, stats)
+                touch_combinations = calculate_top_touch_combinations(list_data, num_touches=4, days=30)
+            except Exception as e:
+                print(f"Analytics error: {e}")
+                
+            result = {
+                "bridges": bridges,
+                "matrix_res": matrix_res,
+                "stats": stats,
+                "scores": scores,
+                "touch_combinations": touch_combinations,
+                "list_data": list_data
+            }
+            
+            self.progress.emit("Analysis complete!")
+            self.finished.emit(result)
+            
+        except Exception as e:
+            import traceback
+            self.error.emit(f"Error: {str(e)}\n{traceback.format_exc()}")

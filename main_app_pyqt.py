@@ -33,11 +33,15 @@ try:
     from ui.pyqt_workers import LoadDataWorker, UpdateFromTextWorker, AnalysisWorker, TrainAIWorker
     from ui.pyqt_progress_dialog import ProgressDialog
     from ui.pyqt_dashboard_tab import DashboardTab
+    from ui.pyqt_de_dashboard_tab import DeDashboardTab
+    from ui.pyqt_settings import PyQtSettingsDialog
     WORKERS_AVAILABLE = True
 except ImportError as e:
-    print(f"Warning: Workers not available: {e}")
+    print(f"Warning: Workers/UI not available: {e}")
     WORKERS_AVAILABLE = False
     DashboardTab = None
+    DeDashboardTab = None
+    PyQtSettingsDialog = None
 
 
 class PyQtMainWindow(QMainWindow):
@@ -75,6 +79,7 @@ class PyQtMainWindow(QMainWindow):
         # Create tabs
         self._create_home_tab()
         self._create_dashboard_tab()
+        self._create_de_dashboard_tab()
         self._create_logs_tab()
         
         # Apply styling
@@ -157,8 +162,11 @@ class PyQtMainWindow(QMainWindow):
         
         self.train_btn = QPushButton("🧠 Huấn Luyện AI")
         self.train_btn.clicked.connect(self._train_ai)
+        self.train_btn.clicked.connect(self._train_ai)
         stats_btn = QPushButton("📈 Thống Kê Vote")
+        stats_btn.clicked.connect(self._show_vote_stats)
         settings_btn = QPushButton("⚙️ Cài Đặt")
+        settings_btn.clicked.connect(self._open_settings)
         
         tools_layout.addWidget(self.train_btn)
         tools_layout.addWidget(stats_btn)
@@ -185,7 +193,15 @@ class PyQtMainWindow(QMainWindow):
             self.tabs.addTab(tab, "📊 Bảng Quyết Định")
             self.dashboard_tab = None
         
-        return  # Remove old code below
+        return
+    
+    def _create_de_dashboard_tab(self):
+        """Create De dashboard tab"""
+        if DeDashboardTab:
+            self.de_dashboard_tab = DeDashboardTab(self)
+            self.tabs.addTab(self.de_dashboard_tab, "🔮 Soi Cầu Đề")
+        else:
+            self.de_dashboard_tab = None
 
     
     def _create_logs_tab(self):
@@ -449,12 +465,18 @@ class PyQtMainWindow(QMainWindow):
         
         self.log(f"✓ Analysis complete: {result.get('next_ky', 'Unknown period')}")
         
-        # Update dashboard
-        if self.dashboard_tab:
-            self.dashboard_tab.update_results(result)
-            # Switch to dashboard tab
-            self.tabs.setCurrentWidget(self.dashboard_tab)
         
+        # Smart Navigation
+        lo = self.lo_mode.isChecked()
+        de = self.de_mode.isChecked()
+        
+        if de and not lo and self.de_dashboard_tab:
+            self.tabs.setCurrentWidget(self.de_dashboard_tab)
+            # Auto-trigger De analysis
+            self.de_dashboard_tab.run_analysis()
+        elif self.dashboard_tab:
+            self.tabs.setCurrentWidget(self.dashboard_tab)
+            
         QMessageBox.information(
             self,
             "Thành công",
@@ -513,7 +535,22 @@ class PyQtMainWindow(QMainWindow):
     
     def log(self, message):
         """Add message to logs (implements logger interface for services)"""
-        self.log_text.append(message)
+        if self.log_text:
+            self.log_text.append(message)
+
+    def _show_vote_stats(self):
+        """Show vote statistics"""
+        QMessageBox.information(self, "Thông báo", "Tính năng Thống Kê Vote đang được phát triển.")
+
+    
+    def _open_settings(self):
+        """Open settings dialog"""
+        if not PyQtSettingsDialog:
+            QMessageBox.critical(self, "Lỗi", "Settings module not available!")
+            return
+            
+        dialog = PyQtSettingsDialog(self)
+        dialog.exec()
 
 
 def main():
