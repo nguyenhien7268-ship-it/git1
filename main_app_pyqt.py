@@ -35,6 +35,11 @@ try:
     from ui.pyqt_dashboard_tab import DashboardTab
     from ui.pyqt_de_dashboard_tab import DeDashboardTab
     from ui.pyqt_settings import PyQtSettingsDialog
+    from ui.pyqt_vote_stats import VoteStatisticsDialog
+    from ui.pyqt_bridge_scanner import BridgeScannerTab
+    from ui.pyqt_bridge_management import BridgeManagementTab
+    from ui.pyqt_lookup import LookupTab
+    from ui.pyqt_optimizer import OptimizerTab
     WORKERS_AVAILABLE = True
 except ImportError as e:
     print(f"Warning: Workers/UI not available: {e}")
@@ -42,6 +47,11 @@ except ImportError as e:
     DashboardTab = None
     DeDashboardTab = None
     PyQtSettingsDialog = None
+    VoteStatisticsDialog = None
+    BridgeScannerTab = None
+    BridgeManagementTab = None
+    LookupTab = None
+    OptimizerTab = None
 
 
 class PyQtMainWindow(QMainWindow):
@@ -52,17 +62,10 @@ class PyQtMainWindow(QMainWindow):
         self.setWindowTitle("Xổ Số Data Analysis (v8.0 - PyQt6)")
         self.setGeometry(100, 100, 1300, 850)
         
-        # Initialize services
-        if SERVICES_AVAILABLE:
-            self.data_service = DataService(DB_NAME, logger=self)
-            self.analysis_service = AnalysisService(DB_NAME, logger=self)
-        else:
-            self.data_service = None
-            self.analysis_service = None
-        
         # Workers
         self.current_worker = None
         self.progress_dialog = None
+        self.log_text = None
         
         # Set up central widget
         central_widget = QWidget()
@@ -80,7 +83,19 @@ class PyQtMainWindow(QMainWindow):
         self._create_home_tab()
         self._create_dashboard_tab()
         self._create_de_dashboard_tab()
+        self._create_bridge_scanner_tab()
+        self._create_bridge_management_tab()
+        self._create_lookup_tab()
+        self._create_optimizer_tab()
         self._create_logs_tab()
+        
+        # Initialize services AFTER UI is ready (to allow logging)
+        if SERVICES_AVAILABLE:
+            self.data_service = DataService(DB_NAME, logger=self)
+            self.analysis_service = AnalysisService(DB_NAME, logger=self)
+        else:
+            self.data_service = None
+            self.analysis_service = None
         
         # Apply styling
         self._apply_styles()
@@ -162,7 +177,7 @@ class PyQtMainWindow(QMainWindow):
         
         self.train_btn = QPushButton("🧠 Huấn Luyện AI")
         self.train_btn.clicked.connect(self._train_ai)
-        self.train_btn.clicked.connect(self._train_ai)
+
         stats_btn = QPushButton("📈 Thống Kê Vote")
         stats_btn.clicked.connect(self._show_vote_stats)
         settings_btn = QPushButton("⚙️ Cài Đặt")
@@ -173,6 +188,23 @@ class PyQtMainWindow(QMainWindow):
         tools_layout.addWidget(settings_btn)
         
         layout.addWidget(tools_group)
+
+        # === Advanced Tools ===
+        adv_group = QGroupBox("4. Nâng Cao")
+        adv_layout = QHBoxLayout()
+        adv_group.setLayout(adv_layout)
+
+        tuner_btn = QPushButton("🎛️ Tinh Chỉnh Tham Số")
+        tuner_btn.clicked.connect(self._open_tuner)
+        
+        cache_btn = QPushButton("🔄 Làm Mới Cache K2N")
+        cache_btn.clicked.connect(self._refresh_cache)
+
+        adv_layout.addWidget(tuner_btn)
+        adv_layout.addWidget(cache_btn)
+        
+        layout.addWidget(adv_group)
+
         layout.addStretch()
         
         self.tabs.addTab(tab, "🏠 Trang Chủ")
@@ -202,6 +234,38 @@ class PyQtMainWindow(QMainWindow):
             self.tabs.addTab(self.de_dashboard_tab, "🔮 Soi Cầu Đề")
         else:
             self.de_dashboard_tab = None
+
+    def _create_bridge_scanner_tab(self):
+        """Create Bridge Scanner tab"""
+        if BridgeScannerTab:
+            self.bridge_scanner_tab = BridgeScannerTab(self)
+            self.tabs.addTab(self.bridge_scanner_tab, "🔍 Dò Tìm Cầu")
+        else:
+            self.bridge_scanner_tab = None
+
+    def _create_bridge_management_tab(self):
+        """Create Bridge Management tab"""
+        if BridgeManagementTab:
+            self.bridge_management_tab = BridgeManagementTab(self)
+            self.tabs.addTab(self.bridge_management_tab, "🛠️ Quản Lý Cầu")
+        else:
+            self.bridge_management_tab = None
+
+    def _create_lookup_tab(self):
+        """Create Lookup tab"""
+        if LookupTab:
+            self.lookup_tab = LookupTab(self)
+            self.tabs.addTab(self.lookup_tab, "📖 Tra Cứu")
+        else:
+            self.lookup_tab = None
+
+    def _create_optimizer_tab(self):
+        """Create Optimizer tab"""
+        if OptimizerTab:
+            self.optimizer_tab = OptimizerTab(self)
+            self.tabs.addTab(self.optimizer_tab, "🚀 Tối Ưu")
+        else:
+            self.optimizer_tab = None
 
     
     def _create_logs_tab(self):
@@ -475,6 +539,7 @@ class PyQtMainWindow(QMainWindow):
             # Auto-trigger De analysis
             self.de_dashboard_tab.run_analysis()
         elif self.dashboard_tab:
+            self.dashboard_tab.update_results(result)
             self.tabs.setCurrentWidget(self.dashboard_tab)
             
         QMessageBox.information(
@@ -540,9 +605,56 @@ class PyQtMainWindow(QMainWindow):
 
     def _show_vote_stats(self):
         """Show vote statistics"""
-        QMessageBox.information(self, "Thông báo", "Tính năng Thống Kê Vote đang được phát triển.")
+        if not VoteStatisticsDialog:
+             QMessageBox.critical(self, "Lỗi", "Vote Stats module not available!")
+             return
+             
+        dialog = VoteStatisticsDialog(self)
+        dialog.exec()
 
     
+    def _open_tuner(self):
+        """Open Tuner Window"""
+        try:
+             from ui.pyqt_tuner import TunerWindow
+             self.tuner_window = TunerWindow(self)
+             self.tuner_window.show()
+        except Exception as e:
+            QMessageBox.critical(self, "Lỗi", f"Không thể mở Tuner: {e}")
+
+    def _refresh_cache(self):
+        """Refresh K2N cache"""
+        if QMessageBox.question(self, "Xác nhận", "Tính toán lại cache K2N cho TOÀN BỘ dữ liệu?\nQuá trình này có thể mất vài phút.") != QMessageBox.StandardButton.Yes:
+            return
+            
+        if self.analysis_service:
+            # Create progress dialog
+            self.progress_dialog = ProgressDialog(self, "Làm Mới Cache K2N")
+            self.progress_dialog.set_status("Đang tính toán lại cache...")
+            
+            # Create worker
+            from ui.pyqt_workers import CacheRefreshWorker
+            self.current_worker = CacheRefreshWorker(self.data_service)
+            self.current_worker.finished.connect(self._on_cache_refresh_finished)
+            
+            # Start
+            self.current_worker.start()
+            self.progress_dialog.exec()
+        else:
+             QMessageBox.critical(self, "Lỗi", "Service unavailable")
+
+    def _on_cache_refresh_finished(self, success, message):
+        """Handle cache refresh completion"""
+        if self.progress_dialog:
+            self.progress_dialog.close()
+            
+        if success:
+            QMessageBox.information(self, "Thành công", message)
+            self.log(f"✓ {message}")
+        else:
+            QMessageBox.critical(self, "Lỗi", f"Lỗi cập nhật cache: {message}")
+            self.log(f"✗ Lỗi cập nhật cache: {message}")
+
     def _open_settings(self):
         """Open settings dialog"""
         if not PyQtSettingsDialog:

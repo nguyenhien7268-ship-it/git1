@@ -20,17 +20,19 @@ except ImportError:
         })
 
 # Import Bridge/DB Logic và Helpers
+# Import Bridge/DB Logic và Helpers
 try:
-    from ..backtester import BACKTEST_15_CAU_K2N_V30_AI_V8, BACKTEST_MANAGED_BRIDGES_K2N
-    from ..backtester_core import parse_k2n_results as _parse_k2n_results
-    from ..bridges.bridges_classic import ALL_15_BRIDGE_FUNCTIONS_V5, checkHitSet_V30_K2N, getAllLoto_V30
-    from ..bridges.bridges_memory import calculate_bridge_stl, get_27_loto_names, get_27_loto_positions
-    from ..bridges.bridges_v16 import getAllPositions_V17_Shadow, taoSTL_V30_Bong
-    from ..data_repository import get_all_managed_bridges
-    from ..db_manager import DB_NAME
-    from ..backtester_scoring import LoScorer
-except ImportError:
-    print("Lỗi: Không thể import bridge/backtester helpers trong dashboard_scorer.py")
+    from logic.backtester import BACKTEST_15_CAU_K2N_V30_AI_V8, BACKTEST_MANAGED_BRIDGES_K2N
+    from logic.backtester_core import parse_k2n_results as _parse_k2n_results
+    from logic.bridges.bridges_classic import ALL_15_BRIDGE_FUNCTIONS_V5, checkHitSet_V30_K2N, getAllLoto_V30
+    from logic.bridges.bridges_memory import calculate_bridge_stl, get_27_loto_names, get_27_loto_positions
+    from logic.bridges.bridges_v16 import getAllPositions_V17_Shadow, taoSTL_V30_Bong
+    from logic.data_repository import get_all_managed_bridges
+    from logic.db_manager import DB_NAME
+    from logic.backtester_scoring import LoScorer
+except ImportError as e:
+    print(f"Lỗi: Không thể import bridge/backtester helpers trong dashboard_scorer.py: {e}")
+    # Dummy methods fallbacks (keep existing dummies but print detailed error)
     def getAllLoto_V30(r): return []
     def checkHitSet_V30_K2N(p, loto_set): return "Lỗi"
     def getAllPositions_V17_Shadow(r): return []
@@ -42,7 +44,7 @@ except ImportError:
     def BACKTEST_MANAGED_BRIDGES_K2N(a, b, c, d, e): return []
     def BACKTEST_15_CAU_K2N_V30_AI_V8(a, b, c, d): return []
     DB_NAME = "xo_so_prizes_all_logic.db"
-    def get_all_managed_bridges(d, o): return []
+    def get_all_managed_bridges(d, o=None): return []
 
 # [PHẦN 1-4: Giữ nguyên toàn bộ code từ dashboard_analytics.py]
 # I. HÀM ANALYTICS CƠ BẢN
@@ -435,6 +437,7 @@ def get_pending_k2n_bridges(last_row, prev_row):
 def get_top_scored_pairs(stats, consensus, high_win, pending_k2n, gan_stats, top_memory_bridges, ai_predictions=None, recent_data=None):
     """(V7.5) Tính toán, chấm điểm và xếp hạng các cặp số (Using LoScorer)."""
     try:
+        print("DEBUG: get_top_scored_pairs WRAPPER called.")
         # Đảm bảo LoScorer khả dụng
         if 'LoScorer' not in globals() or not LoScorer:
             print("Cảnh báo: LoScorer chưa được load. Trả về rỗng.")
@@ -450,15 +453,15 @@ def get_top_scored_pairs(stats, consensus, high_win, pending_k2n, gan_stats, top
         
         # Khởi tạo và tính điểm
         scorer = LoScorer()
+        print("DEBUG: Calling scorer.score_all_pairs...")
         return scorer.score_all_pairs(
             stats, consensus, high_win, pending_k2n, gan_stats, 
             top_memory_bridges, ai_predictions, recent_data, managed_bridges
         )
 
     except Exception as e:
-        import traceback
-        print(f"LỖI get_top_scored_pairs (delegated): {e}")
-        print(traceback.format_exc())
+        # Use safe error logging since traceback might contain unicode causing crashes
+        print(f"ERROR get_top_scored_pairs (delegated): {str(e)}")
         return []
 
 # IV. HÀM MÔ PHỎNG LỊCH SỬ

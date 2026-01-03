@@ -76,6 +76,7 @@ class LoScorer(BaseScorer):
         """
         # 1. Initialize data structures
         scores = {}
+        print(f"DEBUG: LoScorer.score_all_pairs called. Consensus: {len(consensus) if consensus else 0}, K2N: {len(pending_k2n) if pending_k2n else 0}")
         
         # Helper to get/create score entry
         def get_entry(k):
@@ -162,7 +163,18 @@ class LoScorer(BaseScorer):
         if pending_k2n:
             k2n_risks = {}
             for bridge_name, data in pending_k2n.items():
-                pair_key = self._standardize_pair(data["stl"].split(","))
+                stl_raw = data.get("stl")
+                if isinstance(stl_raw, str):
+                    if "," in stl_raw:
+                        stl_list = stl_raw.split(",")
+                    else:
+                        continue # Invalid string format
+                elif isinstance(stl_raw, (list, tuple)):
+                    stl_list = stl_raw
+                else:
+                    continue
+
+                pair_key = self._standardize_pair(stl_list)
                 max_lose = data.get("max_lose", 0)
                 if K2N_RISK_PROGRESSIVE:
                     penalty = 2.0 if max_lose >= 10 else (1.0 if max_lose >= 6 else (0.5 if max_lose >= 3 else 0.0))
@@ -250,10 +262,18 @@ class LoScorer(BaseScorer):
             gan_days_1 = gan_map.get(loto1, 0)
             gan_days_2 = gan_map.get(loto2, 0)
             max_gan = max(gan_days_1, gan_days_2)
+            
             if max_gan > 0:
                 entry["is_gan"] = True
                 entry["gan_days"] = max_gan
-                entry["gan_loto"] = loto1 if gan_days_1 >= gan_days_2 else loto2
+                
+                # Construct detailed Gan info
+                details = []
+                if gan_days_1 > 0: details.append(f"{loto1}({gan_days_1}N)")
+                if gan_days_2 > 0: details.append(f"{loto2}({gan_days_2}N)")
+                entry["gan_details"] = ", ".join(details)
+            else:
+                entry["gan_details"] = ""
 
             # AI Probability
             if loto_prob_map:
@@ -317,7 +337,8 @@ class LoScorer(BaseScorer):
                 "score": round(data["score"], 2), 
                 "reasons": ", ".join(data["reasons"]),
                 "is_gan": data["is_gan"], 
-                "gan_days": data["gan_days"], 
+                "gan_days": data["gan_days"],
+                "gan_details": data.get("gan_details", ""),
                 "gan_loto": data.get("gan_loto", ""),
                 "confidence": confidence, 
                 "sources": num_sources, 
