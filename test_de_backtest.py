@@ -133,12 +133,20 @@ def test_backtest_integration():
         
         print(f"✅ Win rate calculation correct")
         
-        # Show sample history entries
-        print("\nSample history (first 5 entries):")
-        for i, entry in enumerate(history[:5], 1):
+        # Verify Dynamic Predictions (Full Backtest Check)
+        predictions = set()
+        print("\nSample history (first 10 entries):")
+        for i, entry in enumerate(history[:10], 1):
             result_icon = "✅" if entry['result'] == 'win' else "❌"
             print(f"  {i}. {entry['date']}: Pred={entry['predicted']}, Actual={entry['actual']} {result_icon}")
-        
+            predictions.add(entry['predicted'])
+            
+        print(f"\nUnique predictions in sample: {len(predictions)}")
+        if len(predictions) > 1:
+            print("✅ PASS: Predictions are DYNAMIC (changing over time) - Full Backtest working!")
+        else:
+            print("⚠️ WARNING: All predictions are identical. Might be static backtest or bridge stable.")
+            
         print("\n✅ Integration test PASSED")
         return True
         

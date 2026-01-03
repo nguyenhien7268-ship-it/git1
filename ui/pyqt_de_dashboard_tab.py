@@ -496,19 +496,9 @@ class DeDashboardTab(QWidget):
             
             layout = QVBoxLayout(dialog)
             
-            # Warning label
-            warning_label = QLabel()
-            warning_label.setText(
-                "⚠️ <b>Lưu ý:</b> Backtest này sử dụng prediction hiện tại cho tất cả các kỳ trong quá khứ. "
-                "Kết quả chỉ mang tính tham khảo, không phản ánh prediction thực tế của từng kỳ."
-            )
-            warning_label.setWordWrap(True)
-            warning_label.setStyleSheet("background-color: #FFF3CD; padding: 10px; border-radius: 5px; color: #856404;")
-            warning_label.setTextFormat(Qt.TextFormat.RichText)
-            layout.addWidget(warning_label)
-            
             # Summary info
             summary_label = QLabel()
+
 
             
             # Check if there's an error AND no history
@@ -520,16 +510,26 @@ class DeDashboardTab(QWidget):
                 total_tests = backtest_result.get('total_tests', 0)
                 avg_streak = backtest_result.get('avg_streak', 0)
                 
+                # Use REAL current streak calculated from backtest
+                real_streak = backtest_result.get('real_current_streak', 0)
+                
+                # Use current prediction from runner if available (key 'current_prediction')
+                # If not, fallback to what we extracted from table (pred_val)
+                # Note: need to ensure pred_val is available in scope or use bridge_item
+                server_pred = backtest_result.get('current_prediction')
+                display_pred = server_pred if server_pred else pred_val
+                
                 summary_html = f"""
                 <h3>Thông Tin Cầu</h3>
                 <p><b>Tên:</b> {bridge_name}</p>
-                <p><b>Streak hiện tại:</b> {streak} ngày</p>
-                <p><b>Dự đoán:</b> {pred_val}</p>
+                <p><b>Streak hiện tại:</b> {real_streak} ngày (Thực tế)</p>
+                <p><b>Dự đoán (Ngày mai):</b> {display_pred}</p>
                 <hr>
-                <h3>Kết Quả Backtest (30 ngày gần nhất)</h3>
+                <h3>Kết Quả Backtest ({total_tests} ngày gần nhất)</h3>
                 <p><b>Tỉ lệ trúng:</b> <span style='color: {"green" if win_rate >= 50 else "red"}; font-weight: bold;'>{win_rate:.1f}%</span> ({total_wins}/{total_tests})</p>
                 <p><b>Streak trung bình:</b> {avg_streak:.1f} ngày</p>
                 """
+
 
             
             summary_label.setText(summary_html)
@@ -543,14 +543,17 @@ class DeDashboardTab(QWidget):
                 history_table.setHorizontalHeaderLabels(["Ngày", "Dự đoán", "Kết quả", "Trúng/Trượt"])
                 history_table.setRowCount(len(backtest_result['history']))
                 
-                for i, entry in enumerate(reversed(backtest_result['history'])):  # Show newest first
-                    history_table.setItem(i, 0, QTableWidgetItem(entry['date']))
+                # loop directly (Backend returns newest first or we handle it there)
+                # Actually logic/backtest_runner.py returns reversed(history) which means newest first
+                for i, entry in enumerate(backtest_result['history']):
+                    history_table.setItem(i, 0, QTableWidgetItem(str(entry['date'])))
                     history_table.setItem(i, 1, QTableWidgetItem(str(entry['predicted'])))
                     history_table.setItem(i, 2, QTableWidgetItem(str(entry['actual'])))
                     
                     result_item = QTableWidgetItem("✅ Trúng" if entry['result'] == 'win' else "❌ Trượt")
                     result_item.setForeground(QColor("#4CAF50") if entry['result'] == 'win' else QColor("#F44336"))
                     history_table.setItem(i, 3, result_item)
+
                 
                 history_table.resizeColumnsToContents()
                 layout.addWidget(history_table)
@@ -560,7 +563,11 @@ class DeDashboardTab(QWidget):
             close_btn.clicked.connect(dialog.close)
             layout.addWidget(close_btn)
             
+            dialog.setWindowTitle(f"Full Backtest: {bridge_name}")
+            dialog.setMinimumWidth(500)
+            dialog.setMinimumHeight(600)
             dialog.exec()
+
             
         except Exception as e:
             from PyQt6.QtWidgets import QMessageBox
