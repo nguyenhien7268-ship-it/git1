@@ -546,9 +546,26 @@ def calculate_top_touch_combinations(all_data, num_touches=4, days=15, market_st
 def _ai_rows_to_dataframe(all_data_ai):
     try:
         import pandas as pd
+        if not all_data_ai:
+             return pd.DataFrame(), "Empty Data"
+             
         cols = ["Ky", "Ngay", "Giai_Dac_Biet", "Giai_1", "Giai_2", "Giai_3", "Giai_4", "Giai_5", "Giai_6", "Giai_7"]
-        df = pd.DataFrame(all_data_ai, columns=cols[:len(all_data_ai[0])] if all_data_ai else None)
-        if "Giai_Dac_Biet" in df.columns: df["De"] = df["Giai_Dac_Biet"]
+        
+        # Handle column names based on data width
+        width = len(all_data_ai[0])
+        current_cols = cols[:width]
+        if width > len(cols):
+            current_cols.extend([f"Extra_{i}" for i in range(len(cols), width)])
+            
+        df = pd.DataFrame(all_data_ai, columns=current_cols)
+        
+        # Robustly create 'De' column from index 2 (GDB) if possible
+        if "De" not in df.columns:
+            if "Giai_Dac_Biet" in df.columns:
+                df["De"] = df["Giai_Dac_Biet"]
+            elif width > 2:
+                df["De"] = df.iloc[:, 2] # Fallback to index
+                
         return df, "OK"
     except Exception as e: return None, str(e)
 
@@ -558,6 +575,14 @@ def analyze_independent_factors(df):
     [V3.9.19] Sử dụng BO_SO_DICT chuẩn từ de_utils.
     """
     if df is None or df.empty: return [], [], []
+    
+    # Ensure 'De' column exists
+    if 'De' not in df.columns:
+        if len(df.columns) > 2:
+            df['De'] = df.iloc[:, 2]
+        else:
+            # Cannot proceed without De data
+            return [], [], []
     
     # 1. Trend Chạm
     try:

@@ -646,3 +646,91 @@ class DeAnalysisWorker(QThread):
         except Exception as e:
             import traceback
             self.error.emit(f"Error: {str(e)}\n{traceback.format_exc()}")
+
+
+class UpdateStreaksWorker(QThread):
+    """
+    Worker thread to recalculate streaks for all bridges using BacktestRunner.
+    This ensures streaks are accurate after data load.
+    """
+    finished = pyqtSignal(bool, str) # success, message
+    progress = pyqtSignal(str) # progress message
+    
+    def __init__(self):
+        super().__init__()
+        
+    def run(self):
+        try:
+            self.progress.emit("Starting streak calculation update...")
+            
+            # Import dependencies here to avoid circular imports or early init
+            from logic.data_repository import get_all_data_ai, get_all_managed_bridges
+            from logic.backtest_runner import BacktestRunner
+            from logic.db_manager import DB_NAME
+            import sqlite3
+            
+            # 1. Load data
+            all_data = get_all_data_ai()
+            if not all_data:
+                self.finished.emit(False, "No data available for backtest.")
+                return
+
+            # 2. Load bridges
+            bridges = get_all_managed_bridges(DB_NAME)
+            total = len(bridges)
+            if total == 0:
+                self.finished.emit(True, "No bridges to update.")
+                return
+            
+            # 3. Init Runner
+            runner = BacktestRunner()
+            updates = []
+            
+            self.progress.emit(f"Updating streaks for {total} bridges...")
+            
+            # 4. Process
+            for i, bridge in enumerate(bridges):
+                name = bridge.get('name')
+                if not name: continue
+                
+                # Report progress every 5 bridges
+                if i % 5 == 0:
+                    self.progress.emit(f"Updating streaks: {i}/{total} ({int(i/total*100)}%)")
+                
+                # Run lightweight backtest (60 days) to find streak
+                res = runner.run_backtest(name, all_data, days=60)
+                
+                if 'error' in res:
+                    continue
+                    
+                # Calculate REAL streak from history
+                current_streak = 0
+                history = res.get('history', []) # Newest first
+                for entry in history:
+                    if entry['result'] == 'win':
+                        current_streak += 1
+                    else:
+                        break
+                        
+                # Current prediction
+                current_prediction = res.get('current_prediction', '')
+                
+                updates.append((current_streak, current_prediction, name))
+                
+            # 5. Batch Update DB
+            self.progress.emit("Saving updates to database...")
+            conn = sqlite3.connect(DB_NAME)
+            cursor = conn.cursor()
+            cursor.executemany(
+                "UPDATE ManagedBridges SET current_streak = ?, next_prediction_stl = ? WHERE name = ?",
+                updates
+            )
+            conn.commit()
+            conn.close()
+            
+            self.finished.emit(True, f"Updated streaks for {len(updates)} bridges.")
+            
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            self.finished.emit(False, f"Error updating streaks: {str(e)}")

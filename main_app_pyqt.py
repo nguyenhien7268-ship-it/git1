@@ -30,7 +30,7 @@ except ImportError as e:
 
 # Import workers and dialogs
 try:
-    from ui.pyqt_workers import LoadDataWorker, UpdateFromTextWorker, AnalysisWorker, TrainAIWorker
+    from ui.pyqt_workers import LoadDataWorker, UpdateFromTextWorker, AnalysisWorker, TrainAIWorker, UpdateStreaksWorker
     from ui.pyqt_progress_dialog import ProgressDialog
     from ui.pyqt_dashboard_tab import DashboardTab
     from ui.pyqt_de_dashboard_tab import DeDashboardTab
@@ -452,9 +452,41 @@ class PyQtMainWindow(QMainWindow):
         if success:
             self.log(f"✓ {message}")
             QMessageBox.information(self, "Thành công", message)
+            
+            # Trigger automatic streak update
+            self._start_streak_update()
         else:
             self.log(f"✗ {message}")
             QMessageBox.critical(self, "Lỗi", message)
+
+    def _start_streak_update(self):
+        """Start background streak update"""
+        if not WORKERS_AVAILABLE: return
+        
+        # Create progress dialog
+        self.progress_dialog = ProgressDialog(self, "Cập Nhật Streak...")
+        
+        # Create worker
+        self.current_worker = UpdateStreaksWorker()
+        self.current_worker.progress.connect(self.progress_dialog.set_status)
+        self.current_worker.finished.connect(self._on_streak_update_finished)
+        self.progress_dialog.cancelled.connect(self.current_worker.terminate)
+        
+        # Start
+        self.current_worker.start()
+        self.progress_dialog.exec()
+
+    def _on_streak_update_finished(self, success, message):
+        """Handle streak update completion"""
+        if self.progress_dialog:
+            self.progress_dialog.mark_complete(success)
+            self.progress_dialog.close()
+            
+        if success:
+            self.log(f"✓ {message}")
+        else:
+            self.log(f"✗ Streak update failed: {message}")
+
     
     def _update_from_text(self):
         """Update from pasted text"""
