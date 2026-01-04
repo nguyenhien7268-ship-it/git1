@@ -1,54 +1,46 @@
-# Tên file: code6/ui/ui_dashboard.py
-# (PHIÊN BẢN ĐÃ FIX: Lọc Cầu Đề khỏi bảng Thông 10 Kỳ)
-
 import datetime
 import tkinter as tk
 import traceback
 from tkinter import messagebox, ttk
 
+# Import Configuration
 try:
     from logic.config_manager import SETTINGS
 except ImportError:
-    print("LỖI: ui_dashboard.py không thể import logic.config_manager...")
-    
-    class FallbackSettings:
-        """Fallback settings when config_manager import fails"""
-        GAN_DAYS = 15
-        HIGH_WIN_THRESHOLD = 47.0
-        K2N_RISK_START_THRESHOLD = 4
-        FILTER_ENABLED = False
-        FILTER_MIN_CONFIDENCE = 0
-        FILTER_MIN_AI_PROB = 0
-        
-        def save_settings(self):
-            """Dummy save method for fallback"""
-            print("WARNING: Cannot save settings - config_manager not available")
-            return True, "Fallback mode"
-    
-    SETTINGS = FallbackSettings()
+    # Fail fast if config is missing, app_controller should have caught this.
+    SETTINGS = None 
+
+# Import Theme Engine
+try:
+    from ui.styles import ThemeColor, AppFont, LayoutConfig
+except ImportError:
+    # Minimal Fallback
+    class ThemeColor:
+        BG_MAIN = "#f0f0f0"
+        PRIMARY = "#0078d7"
+    class AppFont:
+        TITLE_LARGE = ("Arial", 16, "bold")
+    class LayoutConfig:
+        PAD_M = 10
+        PAD_S = 5
 
 # Enhancement 4: Filter threshold constants
-# V7.6 IMPROVED: Tăng ngưỡng để cải thiện hiệu quả (giảm tỉ lệ gãy)
-FILTER_CONFIDENCE_THRESHOLD = 5  # Minimum confidence stars (tăng từ 4 → 5)
-FILTER_AI_PROB_THRESHOLD = 60  # Minimum AI probability % (tăng từ 50 → 60)
+FILTER_CONFIDENCE_THRESHOLD = 5
+FILTER_AI_PROB_THRESHOLD = 60
 
-# Import DB Logic để lấy dữ liệu cầu
+# Import DB Logic
 try:
     from logic.db_manager import DB_NAME
     from logic.data_repository import get_managed_bridges_with_prediction
-    # [QUAN TRỌNG: THÊM DÒNG NÀY ĐỂ GỌI LOGIC TÍNH TOÁN]
     from logic.analytics import dashboard_scorer
 except ImportError:
     print("LỖI: ui_dashboard.py không thể import logic...")
     DB_NAME = "data/xo_so_prizes_all_logic.db"
-
-    def get_managed_bridges_with_prediction(db_name, current_data=None, only_enabled=True):
-        return []
-
+    def get_managed_bridges_with_prediction(*args, **kwargs): return []
 
 class DashboardWindow(ttk.Frame):
     def __init__(self, app_instance):
-        super().__init__(app_instance.notebook, padding=10)
+        super().__init__(app_instance.notebook, padding=str(LayoutConfig.PAD_M))
 
         self.app = app_instance
         self.root = app_instance.root
@@ -56,24 +48,26 @@ class DashboardWindow(ttk.Frame):
         self.columnconfigure(0, weight=1)
         self.rowconfigure(1, weight=1)
 
+        # Header Frame
         self.header_frame = ttk.Frame(self)
-        self.header_frame.grid(row=0, column=0, sticky="ew", padx=10, pady=5)
+        self.header_frame.grid(row=0, column=0, sticky="ew", padx=LayoutConfig.PAD_M, pady=LayoutConfig.PAD_S)
 
         self.title_label = ttk.Label(
-            self.header_frame, text="Đang tải...", font=("Arial", 16, "bold")
+            self.header_frame, text="Đang tải...", font=AppFont.TITLE_LARGE, foreground=ThemeColor.PRIMARY
         )
-        self.title_label.pack(side=tk.LEFT, padx=(0, 20))
+        self.title_label.pack(side=tk.LEFT, padx=(0, LayoutConfig.PAD_L))
 
         # Enhancement 4: Smart Filtering controls
         self._create_filter_controls()
 
         self.refresh_button = ttk.Button(
-            self.header_frame, text="Làm Mới Dữ Liệu", command=self.refresh_data
+            self.header_frame, text="Làm Mới Dữ liệu", command=self.refresh_data
         )
         self.refresh_button.pack(side=tk.RIGHT)
 
-        self.main_analysis_frame = ttk.Frame(self, padding=10)
-        self.main_analysis_frame.grid(row=1, column=0, sticky="nsew", padx=10, pady=10)
+        # Main Analysis Content
+        self.main_analysis_frame = ttk.Frame(self, padding=str(LayoutConfig.PAD_S))
+        self.main_analysis_frame.grid(row=1, column=0, sticky="nsew", padx=LayoutConfig.PAD_M, pady=LayoutConfig.PAD_M)
 
         # ===================================================================
         # CẤU HÌNH LAYOUT (LƯỚI 24 CỘT)
@@ -205,7 +199,7 @@ class DashboardWindow(ttk.Frame):
             parent_frame, text="🏆 Bảng Chấm Điểm Tổng Lực (Double-click để xem chi tiết)"
         )
         tree_frame = ttk.Frame(self.top_scores_frame)
-        tree_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        tree_frame.pack(fill=tk.BOTH, expand=True, padx=LayoutConfig.PAD_S, pady=LayoutConfig.PAD_S)
         
         cols = ("score", "ai", "confidence", "recommendation", "pair", "gan", "reasons")
         self.scores_tree = ttk.Treeview(
@@ -245,9 +239,9 @@ class DashboardWindow(ttk.Frame):
         )
         self.scores_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
-        self.scores_tree.tag_configure("gan", foreground="red")
+        self.scores_tree.tag_configure("gan", foreground=ThemeColor.ERROR)
         self.scores_tree.tag_configure(
-            "top1", background="#D5E8D4", font=("Arial", 10, "bold")
+            "top1", background="#D5E8D4", font=AppFont.BODY_BOLD
         )
         self.scores_tree.tag_configure("top3", background="#FFF2CC")
         
@@ -258,9 +252,9 @@ class DashboardWindow(ttk.Frame):
         self.scores_tree.tag_configure("ai_low", foreground="#A9A9A9")  # Gray <30%
         
         # NEW: Enhancement 3 - Recommendation color tags
-        self.scores_tree.tag_configure("rec_choi", foreground="green", font=("Arial", 9, "bold"))
-        self.scores_tree.tag_configure("rec_xem_xet", foreground="#DAA520", font=("Arial", 9))
-        self.scores_tree.tag_configure("rec_bo_qua", foreground="gray", font=("Arial", 9))
+        self.scores_tree.tag_configure("rec_choi", foreground="green", font=AppFont.TABLE_HEADER)
+        self.scores_tree.tag_configure("rec_xem_xet", foreground="#DAA520", font=AppFont.TABLE_ROW)
+        self.scores_tree.tag_configure("rec_bo_qua", foreground="gray", font=AppFont.TABLE_ROW)
         
         # (MỚI) Bind sự kiện click
         self.scores_tree.bind("<Double-1>", self.on_tree_double_click)
@@ -270,7 +264,7 @@ class DashboardWindow(ttk.Frame):
             parent_frame, text="🧠 AI (Đơn)"
         )
         tree_frame = ttk.Frame(self.ai_predictions_frame)
-        tree_frame.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
+        tree_frame.pack(fill=tk.BOTH, expand=True, padx=LayoutConfig.PAD_XS, pady=LayoutConfig.PAD_XS)
         cols = ("loto", "probability")
         self.ai_tree = ttk.Treeview(
             tree_frame, columns=cols, show="headings", height=8
@@ -286,7 +280,7 @@ class DashboardWindow(ttk.Frame):
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         self.ai_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         self.ai_tree.tag_configure(
-            "top1", background="#D5E8D4", font=("Arial", 9, "bold")
+            "top1", background="#D5E8D4", font=AppFont.TABLE_HEADER
         )
 
     def _create_recent_form_ui(self, parent_frame):
@@ -294,7 +288,7 @@ class DashboardWindow(ttk.Frame):
             parent_frame, text="🔥 Phong Độ 10 Kỳ (Cầu ≥ 9/10 Thắng, Đang Bật)"
         )
         tree_frame = ttk.Frame(self.recent_form_frame)
-        tree_frame.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
+        tree_frame.pack(fill=tk.BOTH, expand=True, padx=LayoutConfig.PAD_XS, pady=LayoutConfig.PAD_XS)
 
         cols = ("name", "wins", "prediction")
         self.recent_form_tree = ttk.Treeview(
@@ -317,7 +311,7 @@ class DashboardWindow(ttk.Frame):
         self.recent_form_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
         self.recent_form_tree.tag_configure(
-            "excellent", background="#D5E8D4", font=("Arial", 9, "bold")
+            "excellent", background="#D5E8D4", font=AppFont.TABLE_HEADER
         )
         self.recent_form_tree.tag_configure("good", background="#FFF2CC")
         
@@ -328,7 +322,7 @@ class DashboardWindow(ttk.Frame):
             parent_frame, text="🔥 Hot (7 ngày)"
         )
         tree_frame = ttk.Frame(self.hot_loto_frame)
-        tree_frame.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
+        tree_frame.pack(fill=tk.BOTH, expand=True, padx=LayoutConfig.PAD_XS, pady=LayoutConfig.PAD_XS)
         cols = ("loto", "hits")
         self.hot_loto_tree = ttk.Treeview(
             tree_frame, columns=cols, show="headings", height=8
@@ -350,7 +344,7 @@ class DashboardWindow(ttk.Frame):
             parent_frame, text="📊 Vote (Top)"
         )
         tree_frame = ttk.Frame(self.vote_statistics_frame)
-        tree_frame.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
+        tree_frame.pack(fill=tk.BOTH, expand=True, padx=LayoutConfig.PAD_XS, pady=LayoutConfig.PAD_XS)
         cols = ("pair", "votes")
         self.vote_tree = ttk.Treeview(
             tree_frame, columns=cols, show="headings", height=8
@@ -367,7 +361,7 @@ class DashboardWindow(ttk.Frame):
         self.vote_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         
         # Color coding
-        self.vote_tree.tag_configure("high", background="#D5E8D4", font=("Arial", 9, "bold"))
+        self.vote_tree.tag_configure("high", background="#D5E8D4", font=AppFont.TABLE_HEADER)
         self.vote_tree.tag_configure("medium", background="#FFF2CC")
 
     def _create_pending_k2n_ui(self, parent_frame):
@@ -375,7 +369,7 @@ class DashboardWindow(ttk.Frame):
             parent_frame, text="⏳ Cầu K2N Đang Chờ (Chờ N2)"
         )
         tree_frame = ttk.Frame(self.pending_k2n_frame)
-        tree_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        tree_frame.pack(fill=tk.BOTH, expand=True, padx=LayoutConfig.PAD_S, pady=LayoutConfig.PAD_S)
         cols = ("stl", "streak", "max_lose", "name")
         self.k2n_tree = ttk.Treeview(
             tree_frame, columns=cols, show="headings", height=10

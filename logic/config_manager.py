@@ -5,37 +5,13 @@ import threading
 import traceback
 
 # Import nguồn chân lý (Source of Truth)
+# Import nguồn chân lý (Source of Truth)
 try:
     from logic.constants import DEFAULT_SETTINGS
 except ImportError:
-    print("Cảnh báo: Không thể import logic.constants. Sử dụng Fallback nội bộ.")
-    # Fallback tối thiểu nếu mất file constants
-    DEFAULT_SETTINGS = {
-        "STATS_DAYS": 7,
-        "GAN_DAYS": 15,
-        "HIGH_WIN_THRESHOLD": 47.0,
-        "AUTO_ADD_MIN_RATE": 50.0,
-        "AUTO_PRUNE_MIN_RATE": 40.0,
-        "K2N_RISK_START_THRESHOLD": 4,
-        "K2N_RISK_PENALTY_PER_FRAME": 0.5,
-        "AI_PROB_THRESHOLD": 45.0,
-        "AI_MAX_DEPTH": 6,
-        "AI_N_ESTIMATORS": 200,
-        "AI_LEARNING_RATE": 0.05,
-        "AI_OBJECTIVE": "binary:logistic",
-        "AI_SCORE_WEIGHT": 0.2,
-        "RECENT_FORM_PERIODS": 10,
-        "RECENT_FORM_BONUS_HIGH": 3.0,
-        "RECENT_FORM_BONUS_MED": 2.0,
-        "RECENT_FORM_BONUS_LOW": 1.0,
-        "RECENT_FORM_MIN_HIGH": 8,
-        "RECENT_FORM_MIN_MED": 6,
-        "RECENT_FORM_MIN_LOW": 5,
-        "DATA_LIMIT_DASHBOARD": 2000,
-        "DATA_LIMIT_RESEARCH": 0,
-        "DE_MAX_LOSE_THRESHOLD": 20,  # Ngưỡng chuỗi Gãy tối đa cho cầu Đề (Phase 4 - Pruning)
-        "MANAGER_RATE_MODE": "K1N"  # Chế độ backtest cho Tỷ lệ cầu trong Manager (K1N/K2N)
-    }
+    # Fail Fast: Nếu không thể import constants, chương trình không nên tiếp tục
+    # vì đây là file cấu hình cốt lõi.
+    raise ImportError("CRITICAL: Cannot import 'DEFAULT_SETTINGS' from 'logic.constants'. Check project structure.")
 
 CONFIG_FILE = "config.json"
 
@@ -76,9 +52,9 @@ class ConfigManager:
                 for key, value in user_settings.items():
                     self.settings[key] = value
                 
-                print(f"Đã tải cài đặt từ {self.config_file}")
+                print(f"Loaded config from {self.config_file}")
             except Exception as e:
-                print(f"Lỗi tải config: {e}. Sử dụng mặc định.")
+                print(f"Config load error: {e}. Using defaults.")
         else:
             print(f"Chưa có file {self.config_file}, sẽ tạo mới khi lưu.")
             needs_healing = True
@@ -160,9 +136,9 @@ class ConfigManager:
 # --- Khởi tạo Singleton (CÓ FALLBACK AN TOÀN) ---
 try:
     SETTINGS = ConfigManager()
-    print("ConfigManager (V7.8) đã khởi tạo thành công.")
+    print("ConfigManager (V7.8) initialized successfully.")
 except Exception as e:
-    print(f"LỖI NGHIÊM TRỌNG khi khởi tạo ConfigManager: {e}")
+    print(f"CRITICAL ERROR initializing ConfigManager: {e}")
     
     # Fallback thông minh: Tự động tạo object từ DEFAULT_SETTINGS
     # Giúp app không bị crash và vẫn có đủ tham số mới nhất
@@ -185,7 +161,7 @@ except Exception as e:
             return self.settings.get(key, default)
 
     SETTINGS = FallbackSettings()
-    print("-> Đã kích hoạt chế độ Fallback Settings (Sử dụng Default).")
+    print("-> Activated Fallback Settings (Using Defaults).")
 
 # Backward compatibility alias
 AppSettings = ConfigManager

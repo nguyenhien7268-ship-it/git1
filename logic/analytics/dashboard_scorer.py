@@ -20,16 +20,19 @@ except ImportError:
         })
 
 # Import Bridge/DB Logic và Helpers
+# Import Bridge/DB Logic và Helpers
 try:
-    from ..backtester import BACKTEST_15_CAU_K2N_V30_AI_V8, BACKTEST_MANAGED_BRIDGES_K2N
-    from ..backtester_core import parse_k2n_results as _parse_k2n_results
-    from ..bridges.bridges_classic import ALL_15_BRIDGE_FUNCTIONS_V5, checkHitSet_V30_K2N, getAllLoto_V30
-    from ..bridges.bridges_memory import calculate_bridge_stl, get_27_loto_names, get_27_loto_positions
-    from ..bridges.bridges_v16 import getAllPositions_V17_Shadow, taoSTL_V30_Bong
-    from ..data_repository import get_all_managed_bridges
-    from ..db_manager import DB_NAME
-except ImportError:
-    print("Lỗi: Không thể import bridge/backtester helpers trong dashboard_scorer.py")
+    from logic.backtester import BACKTEST_15_CAU_K2N_V30_AI_V8, BACKTEST_MANAGED_BRIDGES_K2N
+    from logic.backtester_core import parse_k2n_results as _parse_k2n_results
+    from logic.bridges.bridges_classic import ALL_15_BRIDGE_FUNCTIONS_V5, checkHitSet_V30_K2N, getAllLoto_V30
+    from logic.bridges.bridges_memory import calculate_bridge_stl, get_27_loto_names, get_27_loto_positions
+    from logic.bridges.bridges_v16 import getAllPositions_V17_Shadow, taoSTL_V30_Bong
+    from logic.data_repository import get_all_managed_bridges
+    from logic.db_manager import DB_NAME
+    from logic.backtester_scoring import LoScorer
+except ImportError as e:
+    print(f"Lỗi: Không thể import bridge/backtester helpers trong dashboard_scorer.py: {e}")
+    # Dummy methods fallbacks (keep existing dummies but print detailed error)
     def getAllLoto_V30(r): return []
     def checkHitSet_V30_K2N(p, loto_set): return "Lỗi"
     def getAllPositions_V17_Shadow(r): return []
@@ -41,7 +44,7 @@ except ImportError:
     def BACKTEST_MANAGED_BRIDGES_K2N(a, b, c, d, e): return []
     def BACKTEST_15_CAU_K2N_V30_AI_V8(a, b, c, d): return []
     DB_NAME = "xo_so_prizes_all_logic.db"
-    def get_all_managed_bridges(d, o): return []
+    def get_all_managed_bridges(d, o=None): return []
 
 # [PHẦN 1-4: Giữ nguyên toàn bộ code từ dashboard_analytics.py]
 # I. HÀM ANALYTICS CƠ BẢN
@@ -432,271 +435,33 @@ def get_pending_k2n_bridges(last_row, prev_row):
 
 # III. HÀM CHẤM ĐIỂM CỐT LÕI (V7.5 - GOM NHÓM PHONG ĐỘ & RỦI RO)
 def get_top_scored_pairs(stats, consensus, high_win, pending_k2n, gan_stats, top_memory_bridges, ai_predictions=None, recent_data=None):
-    """(V7.5) Tính toán, chấm điểm và xếp hạng các cặp số."""
+    """(V7.5) Tính toán, chấm điểm và xếp hạng các cặp số (Using LoScorer)."""
     try:
-        # Đảm bảo tất cả tham số là list/dict hợp lệ
-        if stats is None:
-            stats = []
-        if consensus is None:
-            consensus = []
-        if high_win is None:
-            high_win = []
-        if pending_k2n is None:
-            pending_k2n = {}
-        if gan_stats is None:
-            gan_stats = []
-        if top_memory_bridges is None:
-            top_memory_bridges = []
-        if ai_predictions is None:
-            ai_predictions = []
-        
-        scores = {}
-        K2N_RISK_START_THRESHOLD = getattr(SETTINGS, "K2N_RISK_START_THRESHOLD", 6)
-        K2N_RISK_PENALTY_FIXED = getattr(SETTINGS, "K2N_RISK_PENALTY_PER_FRAME", 1.0)
-        ai_score_weight = getattr(SETTINGS, "AI_SCORE_WEIGHT", 0.2)
-        loto_prob_map = {}
-        if ai_predictions:
-            for pred in ai_predictions:
-                loto_prob_map[pred["loto"]] = pred["probability"] / 100.0
-        top_hot_lotos = {loto for loto, count, days in stats if count > 0} if stats else set()
-        gan_map = {loto: days for loto, days in gan_stats} if gan_stats else {}
-        vote_weight = getattr(SETTINGS, "VOTE_SCORE_WEIGHT", 0.3)
-        for pair_key, count, _ in consensus:
-            if pair_key not in scores:
-                scores[pair_key] = {"score": 0.0, "reasons": [], "is_gan": False, "gan_days": 0, "gan_loto": "", "sources": 0}
-            import math
-            vote_score = math.sqrt(count) * vote_weight
-            scores[pair_key]["score"] += vote_score
-            scores[pair_key]["reasons"].append(f"Vote x{count} (+{vote_score:.1f})")
-            scores[pair_key]["sources"] += 1
-        high_win_bonus = getattr(SETTINGS, "HIGH_WIN_SCORE_BONUS", 2.5)
-        
-        # ⚡ FIX: Xử lý cả format cũ (có 'stl') và format mới (có 'value')
-        # Group values by bridge name để tạo pairs từ format mới
-        bridge_values_map = {}
-        for bridge in high_win:
-            # Format cũ: có 'stl' (list of values)
-            if "stl" in bridge:
-                pair_key = _standardize_pair(bridge["stl"])
-                if pair_key:
-                    if pair_key not in scores:
-                        scores[pair_key] = {"score": 0.0, "reasons": [], "is_gan": False, "gan_days": 0, "gan_loto": "", "sources": 0}
-                    scores[pair_key]["score"] += high_win_bonus
-                    scores[pair_key]["reasons"].append(f"Cao ({bridge.get('rate', 'N/A')})")
-                    scores[pair_key]["sources"] += 1
-            # Format mới: có 'value' (individual value) - cần group theo bridge name
-            elif "value" in bridge:
-                bridge_name = bridge.get("name", "unknown")
-                if bridge_name not in bridge_values_map:
-                    bridge_values_map[bridge_name] = {"values": [], "rate": bridge.get("rate", "N/A")}
-                bridge_values_map[bridge_name]["values"].append(bridge["value"])
-        
-        # Xử lý format mới: tạo pairs từ các values cùng bridge
-        for bridge_name, data in bridge_values_map.items():
-            values = data["values"]
-            rate = data["rate"]
-            # Nếu có đúng 2 values, tạo pair
-            if len(values) == 2:
-                pair_key = _standardize_pair(values)
-                if pair_key:
-                    if pair_key not in scores:
-                        scores[pair_key] = {"score": 0.0, "reasons": [], "is_gan": False, "gan_days": 0, "gan_loto": "", "sources": 0}
-                    scores[pair_key]["score"] += high_win_bonus
-                    scores[pair_key]["reasons"].append(f"Cao ({rate})")
-                    scores[pair_key]["sources"] += 1
-            # Nếu có nhiều hơn 2 values, tạo pairs từ tất cả combinations
-            elif len(values) > 2:
-                for val1, val2 in itertools.combinations(values, 2):
-                    pair_key = _standardize_pair([val1, val2])
-                    if pair_key:
-                        if pair_key not in scores:
-                            scores[pair_key] = {"score": 0.0, "reasons": [], "is_gan": False, "gan_days": 0, "gan_loto": "", "sources": 0}
-                        scores[pair_key]["score"] += high_win_bonus
-                        scores[pair_key]["reasons"].append(f"Cao ({rate})")
-                        scores[pair_key]["sources"] += 1
-        K2N_RISK_PROGRESSIVE = getattr(SETTINGS, "K2N_RISK_PROGRESSIVE", True)
-        k2n_risks = {}
-        for bridge_name, data in pending_k2n.items():
-            pair_key = _standardize_pair(data["stl"].split(","))
-            max_lose = data.get("max_lose", 0)
-            if K2N_RISK_PROGRESSIVE:
-                penalty = 2.0 if max_lose >= 10 else (1.0 if max_lose >= 6 else (0.5 if max_lose >= 3 else 0.0))
-            else:
-                penalty = K2N_RISK_PENALTY_FIXED if max_lose >= K2N_RISK_START_THRESHOLD else 0.0
-            if pair_key and penalty > 0:
-                if pair_key not in k2n_risks:
-                    k2n_risks[pair_key] = {"count": 0, "total_penalty": 0.0, "max_frames": 0}
-                k2n_risks[pair_key]["count"] += 1
-                k2n_risks[pair_key]["total_penalty"] += penalty
-                k2n_risks[pair_key]["max_frames"] = max(k2n_risks[pair_key]["max_frames"], max_lose)
-        for pair_key, info in k2n_risks.items():
-            if pair_key not in scores:
-                scores[pair_key] = {"score": 0.0, "reasons": [], "is_gan": False, "gan_days": 0, "gan_loto": "", "sources": 0}
-            scores[pair_key]["score"] -= info["total_penalty"]
-            scores[pair_key]["sources"] += 1
-            if info["count"] > 1:
-                scores[pair_key]["reasons"].append(f"Rủi ro K2N (x{info['count']}, max {info['max_frames']}kh) -{info['total_penalty']:.1f}")
-            else:
-                scores[pair_key]["reasons"].append(f"Rủi ro K2N ({info['max_frames']}kh) -{info['total_penalty']:.1f})")
-        for bridge in top_memory_bridges:
-            pair_key = _standardize_pair(bridge["stl"])
-            if pair_key:
-                if pair_key not in scores:
-                    scores[pair_key] = {"score": 0.0, "reasons": [], "is_gan": False, "gan_days": 0, "gan_loto": "", "sources": 0}
-                scores[pair_key]["score"] += 1.5
-                scores[pair_key]["reasons"].append(f"BN ({bridge['rate']})")
-                scores[pair_key]["sources"] += 1
+        print("DEBUG: get_top_scored_pairs WRAPPER called.")
+        # Đảm bảo LoScorer khả dụng
+        if 'LoScorer' not in globals() or not LoScorer:
+            print("Cảnh báo: LoScorer chưa được load. Trả về rỗng.")
+            return []
+
+        # Tải managed_bridges cho logic Phong độ
         try:
-            try:
-                from ..db_manager import DB_NAME as db_name_param
-            except ImportError:
-                db_name_param = "xo_so_prizes_all_logic.db"
-            managed_bridges = get_all_managed_bridges(db_name=db_name_param)
-            RF_MIN_LOW = getattr(SETTINGS, "RECENT_FORM_MIN_LOW", 3)
-            RF_MIN_MED = getattr(SETTINGS, "RECENT_FORM_MIN_MED", 5)
-            RF_MIN_HIGH = getattr(SETTINGS, "RECENT_FORM_MIN_HIGH", 7)
-            RF_MIN_VERY_HIGH = getattr(SETTINGS, "RECENT_FORM_MIN_VERY_HIGH", 9)
-            RF_BONUS_LOW = getattr(SETTINGS, "RECENT_FORM_BONUS_LOW", 1.0)
-            RF_BONUS_MED = getattr(SETTINGS, "RECENT_FORM_BONUS_MED", 2.0)
-            RF_BONUS_HIGH = getattr(SETTINGS, "RECENT_FORM_BONUS_HIGH", 3.0)
-            RF_BONUS_VERY_HIGH = getattr(SETTINGS, "RECENT_FORM_BONUS_VERY_HIGH", 4.0)
-            recent_form_groups = {}
-            for bridge in managed_bridges:
-                if not bridge.get("is_enabled"): continue
-                recent_wins = bridge.get("recent_win_count_10", 0)
-                if isinstance(recent_wins, str):
-                    try: recent_wins = int(recent_wins)
-                    except (ValueError, TypeError): recent_wins = 0
-                elif recent_wins is None: recent_wins = 0
-                prediction_stl_str = bridge.get("next_prediction_stl", "")
-                if not prediction_stl_str or "," not in prediction_stl_str or "N2" in prediction_stl_str or "LỖI" in prediction_stl_str: continue
-                stl = prediction_stl_str.split(",")
-                pair_key = _standardize_pair(stl)
-                if pair_key and recent_wins >= RF_MIN_LOW:
-                    if pair_key not in scores:
-                        scores[pair_key] = {"score": 0.0, "reasons": [], "is_gan": False, "gan_days": 0, "gan_loto": "", "sources": 0}
-                    bonus = 0.0
-                    if recent_wins >= RF_MIN_VERY_HIGH: bonus = RF_BONUS_VERY_HIGH
-                    elif recent_wins >= RF_MIN_HIGH: bonus = RF_BONUS_HIGH
-                    elif recent_wins >= RF_MIN_MED: bonus = RF_BONUS_MED
-                    elif recent_wins >= RF_MIN_LOW: bonus = RF_BONUS_LOW
-                    if bonus > 0:
-                        if pair_key not in recent_form_groups:
-                            recent_form_groups[pair_key] = {"count": 0, "total_bonus": 0.0, "best_wins": 0}
-                        group = recent_form_groups[pair_key]
-                        group["count"] += 1
-                        group["total_bonus"] += bonus
-                        if recent_wins > group["best_wins"]: group["best_wins"] = recent_wins
-            for pair_key, info in recent_form_groups.items():
-                scores[pair_key]["score"] += info["total_bonus"]
-                scores[pair_key]["sources"] += 1
-                if info["count"] > 1:
-                    scores[pair_key]["reasons"].append(f"Phong độ (x{info['count']}) +{info['total_bonus']:.1f}")
-                else:
-                    scores[pair_key]["reasons"].append(f"Phong độ ({info['best_wins']}/10) +{info['total_bonus']:.1f}")
-        except Exception as e:
-            print(f"Lỗi tính điểm phong độ: {e}")
-        for pair_key in list(scores.keys()):
-            loto1, loto2 = pair_key.split("-")
-            if loto1 in top_hot_lotos or loto2 in top_hot_lotos:
-                scores[pair_key]["score"] += 1.0
-                scores[pair_key]["reasons"].append("Loto Hot")
-                scores[pair_key]["sources"] += 1
-            gan_days_1 = gan_map.get(loto1, 0)
-            gan_days_2 = gan_map.get(loto2, 0)
-            max_gan = max(gan_days_1, gan_days_2)
-            if max_gan > 0:
-                scores[pair_key]["is_gan"] = True
-                scores[pair_key]["gan_days"] = max_gan
-                scores[pair_key]["gan_loto"] = loto1 if gan_days_1 >= gan_days_2 else loto2
-            if loto_prob_map:
-                prob_1 = loto_prob_map.get(loto1, 0.0)
-                prob_2 = loto_prob_map.get(loto2, 0.0)
-                max_prob = max(prob_1, prob_2)
-                if max_prob > 0:
-                    ai_score_contribution = max_prob * ai_score_weight
-                    scores[pair_key]["score"] += ai_score_contribution
-                    scores[pair_key]["sources"] += 1
-                    scores[pair_key]["reasons"].append(f"AI: +{ai_score_contribution:.2f} ({max_prob * 100.0:.1f}%)")
-        if loto_prob_map:
-            for loto1_str in [str(i).zfill(2) for i in range(100)]:
-                if loto1_str[0] == loto1_str[1]: continue
-                loto2_str = str(int(loto1_str[::-1])).zfill(2)
-                stl_pair = _standardize_pair([loto1_str, loto2_str])
-                if stl_pair in scores: continue
-                prob1 = loto_prob_map.get(loto1_str, 0.0)
-                prob2 = loto_prob_map.get(loto2_str, 0.0)
-                max_prob = max(prob1, prob2)
-                if max_prob > 0.0:
-                    ai_score_contribution = max_prob * ai_score_weight
-                    if stl_pair not in scores:
-                        scores[stl_pair] = {"score": 0.0, "reasons": [], "is_gan": False, "gan_days": 0, "gan_loto": ""}
-                    scores[stl_pair]["score"] += ai_score_contribution
-                    scores[stl_pair]["reasons"].append(f"AI SẠCH: +{ai_score_contribution:.2f} ({max_prob * 100.0:.1f}%)")
-                    l1, l2 = stl_pair.split("-")
-                    max_gan = max(gan_map.get(l1, 0), gan_map.get(l2, 0))
-                    if max_gan > 0:
-                        scores[stl_pair]["is_gan"] = True
-                        scores[stl_pair]["gan_days"] = max_gan
-        if recent_data and len(recent_data) > 0:
-            last_7 = recent_data[-7:] if len(recent_data) >= 7 else recent_data
-            last_3 = recent_data[-3:] if len(recent_data) >= 3 else recent_data
-            recent_pairs_3 = set()
-            recent_pairs_7 = set()
-            for row in last_3:
-                try:
-                    lotos = getAllLoto_V30(row)
-                    for i, loto1 in enumerate(lotos):
-                        for loto2 in lotos[i+1:]:
-                            pair_key = _standardize_pair([loto1, loto2])
-                            if pair_key: recent_pairs_3.add(pair_key)
-                except Exception: pass
-            for row in last_7:
-                try:
-                    lotos = getAllLoto_V30(row)
-                    for i, loto1 in enumerate(lotos):
-                        for loto2 in lotos[i+1:]:
-                            pair_key = _standardize_pair([loto1, loto2])
-                            if pair_key: recent_pairs_7.add(pair_key)
-                except Exception: pass
-            for pair_key in scores.keys():
-                if pair_key in recent_pairs_3:
-                    scores[pair_key]["score"] += 2.0
-                    scores[pair_key]["reasons"].append("Về 3kỳ (+2.0)")
-                    if "sources" not in scores[pair_key]: scores[pair_key]["sources"] = 0
-                    scores[pair_key]["sources"] += 1
-                elif pair_key in recent_pairs_7:
-                    scores[pair_key]["score"] += 1.0
-                    scores[pair_key]["reasons"].append("Về 7kỳ (+1.0)")
-                    if "sources" not in scores[pair_key]: scores[pair_key]["sources"] = 0
-                    scores[pair_key]["sources"] += 1
-        final_list = []
-        for pair_key, data in scores.items():
-            num_sources = data.get("sources", 0)
-            confidence = round(num_sources / 7.0, 2)
-            loto1, loto2 = pair_key.split("-")
-            ai_prob = 0.0
-            if loto_prob_map:
-                prob_1 = loto_prob_map.get(loto1, 0.0)
-                prob_2 = loto_prob_map.get(loto2, 0.0)
-                ai_prob = max(prob_1, prob_2)
-            score_val = data["score"]
-            confidence_stars = num_sources
-            if score_val >= 7 and confidence_stars >= 4: recommendation = "CHƠI"
-            elif score_val >= 5 or confidence_stars >= 3: recommendation = "XEM XÉT"
-            else: recommendation = "BỎ QUA"
-            final_list.append({
-                "pair": pair_key, "score": round(data["score"], 2), "reasons": ", ".join(data["reasons"]),
-                "is_gan": data["is_gan"], "gan_days": data["gan_days"], "gan_loto": data.get("gan_loto", ""),
-                "confidence": confidence, "sources": num_sources, "ai_probability": round(ai_prob, 3),
-                "recommendation": recommendation,
-            })
-        final_list.sort(key=lambda x: x["score"], reverse=True)
-        return final_list
+            from ..db_manager import DB_NAME as db_name_param
+        except ImportError:
+            db_name_param = "xo_so_prizes_all_logic.db"
+            
+        managed_bridges = get_all_managed_bridges(db_name=db_name_param)
+        
+        # Khởi tạo và tính điểm
+        scorer = LoScorer()
+        print("DEBUG: Calling scorer.score_all_pairs...")
+        return scorer.score_all_pairs(
+            stats, consensus, high_win, pending_k2n, gan_stats, 
+            top_memory_bridges, ai_predictions, recent_data, managed_bridges
+        )
+
     except Exception as e:
-        import traceback
-        print(f"LỖI get_top_scored_pairs: {e}")
-        print(traceback.format_exc())
+        # Use safe error logging since traceback might contain unicode causing crashes
+        print(f"ERROR get_top_scored_pairs (delegated): {str(e)}")
         return []
 
 # IV. HÀM MÔ PHỎNG LỊCH SỬ

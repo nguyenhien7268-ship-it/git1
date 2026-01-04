@@ -6,6 +6,15 @@ import json
 import pandas as pd
 import traceback
 
+# Phase 3: Meta-Learner Data Collection
+try:
+    from logic.phase3_data_collector import log_prediction
+    PHASE3_ENABLED =True
+except ImportError:
+    PHASE3_ENABLED = False
+    def log_prediction(*args, **kwargs):
+        pass  # Fallback if Phase 3 not available
+
 class AnalysisService:
     """Service phân tích và backtest"""
     
@@ -71,7 +80,28 @@ class AnalysisService:
             self.get_high_win_rate_predictions = get_high_win_rate_predictions
             self.get_top_memory_bridge_predictions = get_top_memory_bridge_predictions
             self.get_top_scored_pairs = get_top_scored_pairs
-        except ImportError as e:
+            self._log("DEBUG: Loaded NEW analytics (logic.analytics.dashboard_scorer)")
+        except ImportError as e1:
+            self._log(f"DEBUG: Failed to load NEW analytics: {e1}")
+            # Fallback: thử import tương đối
+            try:
+                from logic.dashboard_analytics import (
+                    get_loto_gan_stats,
+                    get_loto_stats_last_n_days,
+                    get_prediction_consensus,
+                    get_high_win_rate_predictions,
+                    get_top_memory_bridge_predictions,
+                    get_top_scored_pairs,
+                )
+                self.get_loto_gan_stats = get_loto_gan_stats
+                self.get_loto_stats_last_n_days = get_loto_stats_last_n_days
+                self.get_prediction_consensus = get_prediction_consensus
+                self.get_high_win_rate_predictions = get_high_win_rate_predictions
+                self.get_top_memory_bridge_predictions = get_top_memory_bridge_predictions
+                self.get_top_scored_pairs = get_top_scored_pairs
+                self._log("DEBUG: Loaded LEGACY analytics (logic.dashboard_analytics)")
+            except ImportError:
+                raise ImportError(f"Cannot load NEW or LEGACY analytics. New error: {e1}")
             self._log(f"LỖI NGHIÊM TRỌNG: Không thể import dashboard analytics functions: {e}")
             # Tạo dummy functions để tránh crash
             def dummy_func(*args, **kwargs):
@@ -386,6 +416,30 @@ class AnalysisService:
                 )
                 result["top_scores"] = top_scores or []
                 self._log(f"... (Top Scores) Đã tính được {len(result['top_scores'])} cặp có điểm")
+                
+                # [PHASE 3] Log predictions for Meta-Learner training
+                if PHASE3_ENABLED and top_scores:
+                    try:
+                        ky_for_logging = str(last_row[0]) if last_row else "unknown"
+                        logged_count = 0
+                        for score_item in top_scores[:20]:  # Log top 20 predictions
+                            pair = score_item.get('pair', '')
+                            if '-' in pair:
+                                loto1, loto2 = pair.split('-')
+                                for loto in [loto1, loto2]:
+                                    log_prediction(
+                                        ky=ky_for_logging,
+                                        loto=loto,
+                                        ai_probability=score_item.get('ai_prob', 0.0),
+                                        manual_score=score_item.get('score', 0.0),
+                                        confidence=score_item.get('confidence', 0),
+                                        vote_count=score_item.get('vote_count', 0),
+                                        recent_form_score=score_item.get('form_bonus', 0.0)
+                                    )
+                                    logged_count += 1
+                        self._log(f"[Phase 3] Logged {logged_count} predictions for period {ky_for_logging}")
+                    except Exception as e_phase3:
+                        self._log(f"Warning: Phase 3 logging failed: {e_phase3}")
             except Exception as e:
                 self._log(f"Lỗi tính Điểm Tổng Lực: {e}")
                 result["top_scores"] = []
@@ -399,11 +453,82 @@ class AnalysisService:
         if de_mode:
             self._log("⚡ [ĐỀ] Bắt đầu tính toán phân hệ Đề...")
             try:
+                # 0. Create DataFrame (Existing)
                 cols = ["NB", "NGAY", "GDB", "G1", "G2", "G3", "G4", "G5", "G6", "G7"]
                 data_for_df = [r[:10] for r in all_data_ai if r and len(r) >= 10]
                 result["df_de"] = pd.DataFrame(data_for_df, columns=cols)
+                
+                # --- NEW DE ANALYSIS LOGIC ---
+                from logic.de_analytics import (
+                    analyze_market_trends,
+                    calculate_number_scores, 
+                    run_intersection_matrix_analysis,
+                    build_dan65_with_bo_priority
+                )
+                from logic.data_repository import get_managed_bridges_with_prediction
+                
+                # 1. Market Trends (History)
+                self._log("... (1/4) Phân tích xu hướng thị trường (Market Trends)...")
+                market_stats = analyze_market_trends(all_data_ai, n_days=30)
+                # Map keys to UI expected format if needed, mostly used for scoring
+                
+                # 2. Scanner / Bridges
+                self._log("... (2/4) Quét cầu Đề và tính điểm...")
+                # Fetch De bridges (enabled only)
+                de_bridges = get_managed_bridges_with_prediction(self.db_name, current_data=all_data_ai, only_enabled=True)
+                de_bridges = [b for b in de_bridges if str(b.get("type", "")).upper().startswith("DE")]
+                
+                # Calculate Scores using V4 Anti-Inflation logic
+                ranked_numbers = calculate_number_scores(de_bridges, market_stats=market_stats)
+                # ranked_numbers is list of (num_str, score, info)
+                
+                # Convert to UI format (list of dicts) if needed, OR store as is for specialized widgets
+                # The UI expects `de_evaluate` usually.
+                result["de_evaluate"] = ranked_numbers
+                
+                # 3. Matrix Analysis
+                self._log("... (3/4) Phân tích Ma Trận...")
+                matrix_res = run_intersection_matrix_analysis(result["df_de"])
+                result["de_matrix"] = matrix_res # ranked, cham_thong, etc.
+                
+                # 4. Chot So & Dan 65
+                self._log("... (4/4) Chốt số VIP & Dàn 65...")
+                # Extract Top Matrix for VIP
+                top_matrix = [x["so"] for x in matrix_res.get("ranked", [])[:10]]
+                
+                sorted_dan, inclusions, excluded = build_dan65_with_bo_priority(
+                    all_scores=ranked_numbers,
+                    freq_bo=market_stats.get("freq_bo", {}),
+                    gan_bo=market_stats.get("gan_bo", {}),
+                    vip_numbers=top_matrix[:10], # Force include top 10 Matrix
+                    focus_numbers=[],
+                    top_sets_count=5
+                )
+                
+                result["de_chot_so_vip"] = {
+                    "top_matrix": top_matrix,
+                    "generated_dan": sorted_dan,
+                    "inclusions": inclusions
+                }
+                
+                # 5. Touch Combinations
+                from logic.de_analytics import calculate_top_touch_combinations
+                touch_combos = calculate_top_touch_combinations(all_data_ai, num_touches=4, days=15, market_stats=market_stats)
+                
+                # --- UI COMPATIBILITY MAPPING ---
+                # Map new keys to legacy keys expected by PyQtDeDashboardTab
+                result["scores"] = ranked_numbers  # Alias for de_evaluate
+                result["matrix_res"] = matrix_res  # Alias for de_matrix
+                result["stats"] = market_stats  # Market trends
+                result["bridges"] = de_bridges  # De bridges list
+                result["list_data"] = data_for_df  # Raw data rows
+                result["touch_combinations"] = touch_combos  # Touch analysis
+                
+                self._log(f"[ĐỀ] Hoàn tất. Top 1: {ranked_numbers[0] if ranked_numbers else 'None'}")
+                
             except Exception as e:
-                self._log(f"Cảnh báo: Lỗi tạo DataFrame cho DE: {e}")
+                self._log(f"Lỗi Phân Tích Đề: {e}")
+                traceback.print_exc()
                 result["df_de"] = None
         else:
             self._log("⏩ [ĐỀ] Bỏ qua phân tích Đề.")

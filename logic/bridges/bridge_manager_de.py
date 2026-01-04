@@ -234,10 +234,35 @@ class DeBridgeManager:
     def _map_safe_name_to_index(self, safe_name):
         """
         [FIXED] Phân tích tên vị trí linh hoạt.
-        Hỗ trợ: G2.1[0], G2.1.0, G2.1[0
+        Hỗ trợ: G2.1[0], G2.1.0, G2.1[0], Bong(G1.1)
         """
         try:
-            # Regex mới chấp nhận dấu . và [
+            # 1. Check for Bong(...) wrapper first
+            if "Bong(" in safe_name:
+                match = re.match(r"Bong\((.+)\)", safe_name)
+                if match:
+                    inner = match.group(1)
+                    # Recursively parse the inner part
+                    inner_idx = self._map_safe_name_to_index(inner)
+                    if inner_idx is not None:
+                         # 107 is the offset for Shadow positions (0-106 are normal, 107-213 are shadow)
+                         # Assuming get_index_from_name_V16 returns 0-106.
+                         # We need to return the Shadow index depending on implementation.
+                         # But wait, logic V16 handles Bong internally?
+                         # get_index_from_name_V16 handles "Bong(GDB[0])".
+                         # So we should reconstruct "Bong(GDB[0])".
+                         
+                         # Let's just reconstruct the inner part to Gx.y[z] format
+                         # then wrap in Bong()
+                         
+                         # Parse inner using the regex below (logic copy)
+                         match_inner = re.match(r"(G\d+\.?\d*|GDB)[\[\.]?(\d+)", inner)
+                         if match_inner:
+                             g_name, g_idx = match_inner.groups()
+                             reconstructed = f"Bong({g_name}[{g_idx}])"
+                             return get_index_from_name_V16(reconstructed)
+            
+            # 2. Standard format
             match = re.match(r"(G\d+\.?\d*|GDB)[\[\.]?(\d+)", safe_name)
             
             if match:

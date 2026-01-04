@@ -121,6 +121,31 @@ MAX_LINES = 100_000
 # Allowed File Extensions
 ALLOWED_FILE_EXTENSIONS = ['.txt', '.json']
 
+# Bridge Type Constants (V11.4 - Service Layer Normalization)
+BRIDGE_TYPES = {
+    # Lô (Lo) Bridge Types
+    "LO_POS": "LO_POS",           # Position-based Lo bridges
+    "LO_MEM": "LO_MEM",           # Memory-based Lo bridges (Bạc Nhớ)
+    "LO_STL_FIXED": "LO_STL_FIXED",  # Fixed/Standard Lo bridges
+    "LO_V17": "LO_POS",           # V17 Shadow (maps to LO_POS)
+    "LO_BN": "LO_MEM",            # Bạc Nhớ (maps to LO_MEM)
+    
+    # Đề (De) Bridge Types
+    "DE_SET": "DE_SET",           # Set-based De bridges (Cầu Bộ)
+    "DE_MEMORY": "DE_MEMORY",     # Memory-based De bridges
+    "DE_PASCAL": "DE_PASCAL",     # Pascal topology De bridges
+    "DE_KILLER": "DE_KILLER",     # Elimination De bridges
+    "DE_DYNAMIC_K": "DE_DYNAMIC_K",  # Dynamic K De bridges
+    "DE_POS_SUM": "DE_POS_SUM",   # Position sum De bridges
+    "DE_ALGO": "DE_ALGO",         # Generic De algorithm bridges
+    "CAU_DE": "CAU_DE",           # Generic De bridge type
+}
+
+# Bridge Type Field Names (for normalization)
+BRIDGE_NAME_FIELDS = ["name", "ten", "bridge_name", "normalized_name"]
+BRIDGE_DESC_FIELDS = ["description", "mo_ta", "desc"]
+BRIDGE_TYPE_FIELDS = ["type", "loai", "bridge_type"]
+
 # [NEW V3.8] SCORING ENGINE WEIGHTS (TỐI ƯU HÓA ĐIỂM SỐ)
 SCORING_WEIGHTS = {
     # --- LÔ SCORING ---

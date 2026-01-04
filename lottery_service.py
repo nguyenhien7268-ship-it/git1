@@ -14,7 +14,6 @@ try:
     from logic.data_repository import get_all_managed_bridges, load_data_ai_from_db, delete_managed_bridges_batch
     from logic.db_manager import (
         DB_NAME,
-        add_managed_bridge,
         delete_managed_bridge,
         delete_ky_from_db,
         get_all_kys_from_db,
@@ -26,12 +25,15 @@ try:
         upsert_managed_bridge,
     )
 
-    print(">>> (V7.3) Tải logic.db_manager & data_repository thành công.")
+    print(">>> (V7.3) Loaded logic.db_manager & data_repository successfully.")
 except ImportError as e_db:
-    print(f"LỖI NGHIÊM TRỌNG: Không thể import logic DB/Repo: {e_db}")
-    # Fallback for delete_managed_bridges_batch if import fails
+    print(f"CRITICAL ERROR: Could not import logic DB/Repo: {e_db}")
+    # Fallback for DB_NAME and functions if import fails
+    DB_NAME = "data/xo_so_prizes_all_logic.db"
     def delete_managed_bridges_batch(names, db_name=None, transactional=False, chunk_size=500):
         return {"requested": len(names or []), "deleted": [], "missing": list(names or []), "failed": [{"error": "delete_managed_bridges_batch not available"}]}
+    def upsert_managed_bridge(*args, **kwargs):
+        return False, "Logic DB manager not available"
 
 # 2. LOGIC PARSING (XỬ LÝ DỮ LIỆU)
 try:
@@ -42,9 +44,9 @@ try:
         run_and_update_from_text,
     )
 
-    print(">>> (V7.3) Tải logic.data_parser thành công.")
+    print(">>> (V7.3) Loaded logic.data_parser successfully.")
 except ImportError as e_parser:
-    print(f"LỖI NGHIÊM TRỌNG: Không thể import logic.data_parser: {e_parser}")
+    print(f"CRITICAL ERROR: Could not import logic.data_parser: {e_parser}")
 
 # 3. LOGIC CẦU CỔ ĐIỂN & TIỆN ÍCH
 try:
@@ -54,10 +56,10 @@ try:
         getAllLoto_V30,
     )
 
-    print(">>> (V7.3) Tải logic.bridges.bridges_classic thành công.")
+    print(">>> (V7.3) Loaded logic.bridges.bridges_classic successfully.")
 except ImportError as e_classic:
     print(
-        f"LỖI NGHIÊM TRỌNG: Không thể import logic.bridges.bridges_classic: {e_classic}"
+        f"CRITICAL ERROR: Could not import logic.bridges.bridges_classic: {e_classic}"
     )
 
 # 4. LOGIC BACKTEST
@@ -75,9 +77,9 @@ try:
         run_and_update_all_bridge_rates,
     )
 
-    print(">>> (V7.3) Tải logic.backtester thành công.")
+    print(">>> (V7.3) Loaded logic.backtester successfully.")
 except ImportError as e_backtester:
-    print(f"LỖĨ NGHIÊM TRỌNG: Không thể import logic.backtester: {e_backtester}")
+    print(f"CRITICAL ERROR: Could not import logic.backtester: {e_backtester}")
 
 # 5. LOGIC QUẢN LÝ CẦU (DÒ, LỌC)
 try:
@@ -95,10 +97,10 @@ try:
     )
     from logic.bridges.bridge_manager_de import find_and_auto_manage_bridges_de
 
-    print(">>> (V7.3) Tải logic.bridges.bridge_manager_core & lo_bridge_scanner thành công.")
+    print(">>> (V7.3) Loaded logic.bridges.bridge_manager_core & lo_bridge_scanner successfully.")
 except ImportError as e_bridge_core:
     print(
-        f"LỖI NGHIÊM TRỌNG: Không thể import logic.bridges modules: {e_bridge_core}"
+        f"CRITICAL ERROR: Could not import logic.bridges modules: {e_bridge_core}"
     )
 
 # 6. LOGIC DASHBOARD (CHẤM ĐIỂM)
@@ -116,10 +118,10 @@ try:
         calculate_score_from_features
     )
 
-    print(">>> (V7.3) Tải logic.dashboard_analytics thành công.")
+    print(">>> (V7.3) Loaded logic.dashboard_analytics successfully.")
 except ImportError as e_dashboard:
     print(
-        f"LỖI NGHIÊM TRỌNG: Không thể import logic.dashboard_analytics: {e_dashboard}"
+        f"CRITICAL ERROR: Could not import logic.dashboard_analytics: {e_dashboard}"
     )
 
 
@@ -131,10 +133,10 @@ try:
         run_ai_training_threaded,
     )
 
-    print(">>> (V7.3) Tải logic.ai_feature_extractor (AI Wrappers) thành công.")
+    print(">>> (V7.3) Loaded logic.ai_feature_extractor (AI Wrappers) successfully.")
 except ImportError as e_ai:
     error_msg = str(e_ai)
-    print(f"LỖI NGHIÊM TRỌNG: Không thể import logic.ai_feature_extractor (AI): {error_msg}")
+    print(f"CRITICAL ERROR: Could not import logic.ai_feature_extractor (AI): {error_msg}")
 
     # Giả lập hàm nếu lỗi
     def run_ai_training_threaded(callback=None):
@@ -146,11 +148,11 @@ except ImportError as e_ai:
 
 # Thêm __all__ để đánh dấu các hàm này là 'được sử dụng' (để export)
 __all__ = [
-    # DB & Repo (12)
+    # DB & Repo (13)
     "get_all_managed_bridges",
     "load_data_ai_from_db",
     "DB_NAME",
-    "add_managed_bridge",
+    "add_managed_bridge",  # Service adapter (V11.4)
     "delete_managed_bridge",
     "delete_managed_bridges_batch",
     "get_all_kys_from_db",
@@ -203,6 +205,8 @@ __all__ = [
     # Optimizer functions
     "prepare_daily_features",
     "calculate_score_from_features",
+    # Service Layer Adapter (V11.4)
+    "db_upsert_managed_bridge",  # Alias for backward compatibility
 ]
 
 
@@ -220,4 +224,153 @@ def get_all_managed_bridges_wrapper(db_name=DB_NAME, only_enabled=False):
     return get_all_managed_bridges(db_name, only_enabled)
 
 
-print("Lottery Service API (lottery_service.py) đã tải thành công (V7.4).")
+# ==========================================================================
+# SERVICE LAYER ADAPTER (V11.4 - Fix "Bridge name is required" error)
+# ==========================================================================
+
+def add_managed_bridge(
+    bridge_name: str = None,
+    description: str = None,
+    bridge_type: str = None,
+    win_rate_text: str = None,
+    db_name: str = DB_NAME,
+    **kwargs
+) -> tuple:
+    """
+    Service-layer adapter for adding managed bridges with data normalization.
+    
+    This function sits between the UI and DB layers, ensuring proper data
+    normalization before calling the database layer. It preserves backward
+    compatibility by attempting kwargs first, then falling back to positional
+    arguments.
+    
+    Args:
+        bridge_name: Name of the bridge (required)
+        description: Human-readable description
+        bridge_type: Bridge type constant from logic.constants.BRIDGE_TYPES
+        win_rate_text: Win rate as formatted string (e.g., "45.2%")
+        db_name: Database path
+        **kwargs: Additional bridge attributes (pos1_idx, pos2_idx, etc.)
+    
+    Returns:
+        Tuple[bool, str]: (success, message)
+        
+    Example:
+        >>> success, msg = add_managed_bridge(
+        ...     bridge_name="DE_SET_01",
+        ...     description="Test Bridge",
+        ...     bridge_type="DE_SET",
+        ...     win_rate_text="85.0%"
+        ... )
+    
+    Notes:
+        - Normalizes bridge name (strips whitespace, handles None)
+        - Maps display types to DB types (e.g., "LÔ_V17" -> "LO_POS")
+        - Falls back to positional upsert_managed_bridge signature if needed
+        - Logs all operations for debugging
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    # Import constants for type mapping
+    try:
+        from logic.constants import BRIDGE_TYPES
+    except ImportError:
+        logger.warning("Could not import BRIDGE_TYPES from constants, using defaults")
+        # Define minimal type mapping as fallback
+        BRIDGE_TYPES = {
+            "LO_V17": "LO_POS",
+            "LO_BN": "LO_MEM",
+            "LO_POS": "LO_POS",
+            "LO_MEM": "LO_MEM",
+            "LO_STL_FIXED": "LO_STL_FIXED",
+            "DE_SET": "DE_SET",
+            "DE_MEMORY": "DE_MEMORY",
+            "DE_PASCAL": "DE_PASCAL",
+            "DE_KILLER": "DE_KILLER",
+            "DE_DYNAMIC_K": "DE_DYNAMIC_K",
+            "DE_POS_SUM": "DE_POS_SUM",
+            "DE_ALGO": "DE_ALGO",
+        }
+    
+    # Normalize bridge name
+    if not bridge_name or not str(bridge_name).strip():
+        error_msg = "Bridge name is required and cannot be empty"
+        logger.error(f"add_managed_bridge failed: {error_msg}")
+        return False, error_msg
+    
+    normalized_name = str(bridge_name).strip()
+    
+    # Normalize description
+    normalized_desc = str(description).strip() if description else ""
+    
+    # Normalize bridge type (map display types to DB types)
+    if bridge_type:
+        # Try to map display type to DB type
+        normalized_type = BRIDGE_TYPES.get(bridge_type, bridge_type)
+    else:
+        normalized_type = "UNKNOWN"
+    
+    # Normalize win_rate_text
+    normalized_win_rate = str(win_rate_text) if win_rate_text else "N/A"
+    
+    # Build bridge_data dict with all normalized values
+    bridge_data = kwargs.copy() if kwargs else {}
+    bridge_data.update({
+        "name": normalized_name,
+        "description": normalized_desc,
+        "type": normalized_type,
+        "win_rate_text": normalized_win_rate,
+        "is_enabled": bridge_data.get("is_enabled", 1),
+        "search_rate_text": bridge_data.get("search_rate_text", normalized_win_rate),
+    })
+    
+    # Extract pos indices if provided
+    pos1_idx = bridge_data.pop("pos1_idx", kwargs.get("pos1_idx"))
+    pos2_idx = bridge_data.pop("pos2_idx", kwargs.get("pos2_idx"))
+    
+    logger.info(
+        f"add_managed_bridge: name={normalized_name}, "
+        f"type={normalized_type}, win_rate={normalized_win_rate}"
+    )
+    
+    # Call upsert_managed_bridge with compatibility layer
+    try:
+        # Try with kwargs first (new signature)
+        success, msg = upsert_managed_bridge(
+            bridge_name=normalized_name,
+            description=normalized_desc,
+            win_rate=normalized_win_rate,
+            db_name=db_name,
+            pos1_idx=pos1_idx,
+            pos2_idx=pos2_idx,
+            bridge_data=bridge_data
+        )
+        logger.info(f"add_managed_bridge result: success={success}, msg={msg}")
+        return success, msg
+    except Exception as e:
+        # Fallback to positional args if kwargs fail
+        logger.warning(f"Kwargs approach failed, trying positional: {e}")
+        try:
+            success, msg = upsert_managed_bridge(
+                normalized_name,
+                normalized_desc,
+                normalized_win_rate,
+                db_name,
+                pos1_idx,
+                pos2_idx,
+                bridge_data
+            )
+            logger.info(f"add_managed_bridge (fallback) result: success={success}, msg={msg}")
+            return success, msg
+        except Exception as e2:
+            error_msg = f"Failed to add bridge: {str(e2)}"
+            logger.error(f"add_managed_bridge failed completely: {error_msg}")
+            return False, error_msg
+
+
+# Keep db_upsert_managed_bridge as alias for compatibility
+db_upsert_managed_bridge = upsert_managed_bridge
+
+
+print("Lottery Service API (lottery_service.py) - Loaded successfully (V7.4).")

@@ -11,21 +11,45 @@ from tkinter import filedialog, messagebox, simpledialog, ttk
 # --- IMPORTS AN TOÀN ---
 try:
     from lottery_service import DB_NAME, upsert_managed_bridge
-except ImportError:
-    print("LỖI: Không tìm thấy 'lottery_service.py'.")
+except Exception as e:
+    print(f"ERROR: Could not import lottery_service. Details: {e}")
+    # Print sys.path to debug
+    import sys
+    print(f"DEBUG PATH: {sys.path}")
     exit()
 
 try:
     from app_controller import AppController
     from core_services import Logger, TaskManager
-except ImportError:
-    print("LỖI: Không tìm thấy 'core_services.py' hoặc 'app_controller.py'.")
+except ImportError as e:
+    print(f"ERROR: Could not import core_services/app_controller. Details: {e}")
     exit()
 
 try:
     from logic.config_manager import SETTINGS
 except ImportError:
     SETTINGS = None
+
+# Import Theme Engine
+try:
+    from ui.styles import ThemeColor, AppFont, LayoutConfig
+except ImportError:
+    # Fallback minimal theme
+    class ThemeColor:
+        BG_MAIN = "#f0f0f0"
+        BG_WHITE = "#ffffff"
+        PRIMARY = "#0078d7"
+        TEXT_MAIN = "#000000"
+        TEXT_WHITE = "#ffffff"
+        PRIMARY_DARK = "#005a9e"
+    class AppFont:
+        BODY_NORMAL = ("Arial", 10)
+        TITLE_NORMAL = ("Arial", 12, "bold")
+        TITLE_LARGE = ("Arial", 16, "bold")
+        BODY_BOLD = ("Arial", 10, "bold")
+    class LayoutConfig:
+        PAD_M = 10
+        PAD_S = 5
 
 # Import UI Components
 try:
@@ -47,196 +71,242 @@ except ImportError as e:
 class DataAnalysisApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Xổ Số Data Analysis (v7.9 - Giao diện Tinh Gọn)")
+        self.root.title("Xổ Số Data Analysis (v8.0 - Clean UX)")
+        self.root.geometry("1300x850") # Larger default size
+        
+        # Apply Theme
+        self.root.configure(bg=ThemeColor.BG_MAIN)
+        self._apply_global_styles()
+
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(0, weight=1)
-        # Kích thước chuẩn HD
-        self.root.geometry("1100x800")
 
         self.db_name = DB_NAME
         
-        # --- CÁC BIẾN CONTROLLER CẦN TRUY CẬP (GIỮ NGUYÊN TÊN) ---
-        self.bridge_manager_window = None          # Controller cần check biến này
-        self.bridge_manager_window_instance = None # Controller cần gọi refresh_bridge_list() từ đây
+        # --- CÁC BIẾN CONTROLLER ---
+        self.bridge_manager_window = None
+        self.bridge_manager_window_instance = None
         self.settings_window = None
         self.tuner_window = None
-
-        # --- STYLE ---
-        style = ttk.Style()
-        # Nút Hero (Nổi bật)
-        style.configure("Hero.TButton", font=("Helvetica", 12, "bold"), padding=10)
-        # Nút Action (Màu xanh nhấn)
-        style.configure("Accent.TButton", font=("Helvetica", 10, "bold"), foreground="blue")
-        # Label nhỏ
-        style.configure("Compact.TLabel", font=("Arial", 9), foreground="#555")
+        self.de_dashboard_tab = None
 
         # --- NOTEBOOK CHÍNH ---
         self.notebook = ttk.Notebook(root)
-        self.notebook.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
+        self.notebook.grid(row=0, column=0, sticky="nsew", padx=LayoutConfig.PAD_S, pady=LayoutConfig.PAD_S)
 
         # ======================================================================
         # [QUAN TRỌNG] KHỞI TẠO LOGGER TRƯỚC TIÊN
-        # Lý do: Các tab con (Lookup, Dashboard...) cần logger ngay khi init.
         # ======================================================================
-        self.tab_log_frame = ttk.Frame(self.notebook, padding="10")
-        self._setup_log_tab() # -> Tạo self.logger tại đây
-
-        # 1. Khởi tạo các Tab Chức Năng (Sau khi đã có Logger)
-        self.tab1_frame = ttk.Frame(self.notebook, padding="10") # Tab Trang chủ
+        self.tab_log_frame = ttk.Frame(self.notebook, padding=str(LayoutConfig.PAD_M))
+        self._setup_log_tab()
         
-        # Bọc try-except để nếu tab nào lỗi thì không sập cả app
-        try:
-            self.dashboard_tab = DashboardWindow(self)
-        except Exception as e:
-            self.logger.log(f"Lỗi khởi tạo Dashboard: {e}")
-            self.dashboard_tab = ttk.Frame(self.notebook) # Placeholder
+        # Init Controller (Pass logger immediately)
+        if AppController:
+            self.controller = AppController(self)
+            self.controller.set_logger(self.logger)
+        else:
+            self.controller = None
+            self.logger.log("CRITICAL ERROR: AppController not found!")
 
-        try:
-            self.de_dashboard_tab = UiDeDashboard(self.notebook, None)
+        # Đồng bộ DB Name
+        if self.controller:
+            self.db_name = self.controller.db_name
+
+        # --- SETUP TABS ---
+        self._setup_tabs()
+
+        # --- SETUP MENU ---
+        self._setup_menu()
+
+        # --- SERVICES ---
+        # Buttons list for blocking when busy
+        self.all_buttons = [] # Populated in _setup_home_tab and other tabs
+        
+        # Init Task Manager
+        self.task_manager = TaskManager(self.logger, self.all_buttons, self.root)
+        
+        # Add extra buttons from tabs
+        if hasattr(self, 'optimizer_tab') and hasattr(self.optimizer_tab, 'run_button'):
+             self.task_manager.all_buttons.append(self.optimizer_tab.run_button)
+
+        self.logger.log("✅ Giao diện (V8.0) khởi tạo thành công.")
+        self.logger.log(f"Database: {self.db_name}")
+
+    def _apply_global_styles(self):
+        style = ttk.Style()
+        style.theme_use('clam')  # Base theme
+        
+        # Configure TFrame
+        style.configure("TFrame", background=ThemeColor.BG_MAIN)
+        style.configure("TLabelframe", background=ThemeColor.BG_MAIN, foreground=ThemeColor.TEXT_MAIN)
+        style.configure("TLabelframe.Label", background=ThemeColor.BG_MAIN, foreground=ThemeColor.PRIMARY, font=AppFont.BODY_BOLD)
+        
+        # Configure TButton (Default style with better borders)
+        style.configure("TButton", 
+            font=AppFont.BODY_NORMAL,
+            background="#F8F8F9",  # Softer white
+            foreground=ThemeColor.TEXT_MAIN,
+            borderwidth=1,
+            relief="solid",
+            focusthickness=0
+        )
+        style.map("TButton",
+            background=[('active', "#E8E8ED"), ('pressed', "#D1D1D6"), ('disabled', "#F0F0F2")],
+            foreground=[('disabled', ThemeColor.TEXT_SECONDARY)],
+            relief=[('pressed', 'sunken')]
+        )
+        
+        # Configure Hero.TButton (Large, Soft Gray - Elegant)
+        style.configure("Hero.TButton", 
+            font=AppFont.TITLE_NORMAL,
+            background="#E8E8ED",  # Soft gray like old design
+            foreground=ThemeColor.TEXT_MAIN,
+            borderwidth=2,
+            relief="solid",
+            padding=15
+        )
+        style.map("Hero.TButton",
+            background=[('active', "#D1D1D6"), ('pressed', "#C0C0C8")],
+            relief=[('pressed', 'sunken')]
+        )
+
+        # Configure Accent.TButton (Vibrant accent for important actions)
+        style.configure("Accent.TButton",
+            font=AppFont.BODY_BOLD,
+            background=ThemeColor.PRIMARY,
+            foreground=ThemeColor.TEXT_WHITE,
+            borderwidth=0,
+            relief="flat"
+        )
+        style.map("Accent.TButton",
+            background=[('active', ThemeColor.PRIMARY_DARK), ('pressed', "#0056b3")],
+            relief=[('pressed', 'sunken')]
+        )
+        
+        # Configure Compact.TLabel
+        style.configure("Compact.TLabel",
+            background=ThemeColor.BG_MAIN,
+            foreground=ThemeColor.TEXT_SECONDARY,
+            font=AppFont.SMALL
+        )
+
+    def _setup_tabs(self):
+        # 1. Dashboard (Table Home)
+        self.tab1_frame = ttk.Frame(self.notebook, padding=str(LayoutConfig.PAD_M))
+        
+        try: self.dashboard_tab = DashboardWindow(self)
+        except Exception as e: 
+            self.logger.log(f"Err Dashboard: {e}")
+            self.dashboard_tab = ttk.Frame(self.notebook)
+
+        try: self.de_dashboard_tab = UiDeDashboard(self.notebook, self.controller)
         except Exception as e:
-            self.logger.log(f"Lỗi khởi tạo Tab Đề: {e}")
+            self.logger.log(f"Err DeDashboard: {e}")
             self.de_dashboard_tab = ttk.Frame(self.notebook)
 
-        try:
-            self.lookup_tab = LookupWindow(self)
+        try: self.bridge_scanner_tab = BridgeScannerTab(self.notebook, self)
         except Exception as e:
-            self.logger.log(f"Lỗi khởi tạo Tab Tra Cứu: {e}")
-            self.lookup_tab = ttk.Frame(self.notebook)
-
-        try:
-            self.optimizer_tab = OptimizerTab(self.notebook, self)
-        except Exception as e:
-            self.logger.log(f"Lỗi khởi tạo Tab Optimizer: {e}")
-            self.optimizer_tab = ttk.Frame(self.notebook)
-
-        # NEW: Bridge Scanner and Management tabs
-        try:
-            self.bridge_scanner_tab = BridgeScannerTab(self.notebook, self)
-        except Exception as e:
-            self.logger.log(f"Lỗi khởi tạo Tab Dò Tìm Cầu: {e}")
+            self.logger.log(f"Err Scanner: {e}")
             self.bridge_scanner_tab = ttk.Frame(self.notebook)
 
-        try:
-            self.bridge_management_tab = BridgeManagementTab(self.notebook, self)
+        try: self.bridge_management_tab = BridgeManagementTab(self.notebook, self)
         except Exception as e:
-            self.logger.log(f"Lỗi khởi tạo Tab Quản Lý Cầu: {e}")
+            self.logger.log(f"Err Manager: {e}")
             self.bridge_management_tab = ttk.Frame(self.notebook)
+            
+        try: self.lookup_tab = LookupWindow(self)
+        except: self.lookup_tab = ttk.Frame(self.notebook)
+        
+        try: self.optimizer_tab = OptimizerTab(self.notebook, self)
+        except: self.optimizer_tab = ttk.Frame(self.notebook)
 
-        # 2. Add Tabs vào Notebook
+        # Add to Notebook
         self.notebook.add(self.tab1_frame, text="🏠 Trang Chủ")
         self.notebook.add(self.dashboard_tab, text="📊 Bảng Quyết Định")
         self.notebook.add(self.de_dashboard_tab, text="🔮 Soi Cầu Đề")
-        self.notebook.add(self.bridge_scanner_tab, text="🔍 Dò Tìm Cầu Mới")  # NEW
-        self.notebook.add(self.bridge_management_tab, text="🛠️ Quản Lý Cầu")  # NEW
+        self.notebook.add(self.bridge_scanner_tab, text="🔍 Dò Tìm Cầu")
+        self.notebook.add(self.bridge_management_tab, text="🛠️ Quản Lý Cầu")
         self.notebook.add(self.lookup_tab, text="📖 Tra Cứu")
-        self.notebook.add(self.optimizer_tab, text="🚀 Tối Ưu Hóa")
-        self.notebook.add(self.tab_log_frame, text="📝 Log Hệ Thống")
-
-        # --- SETUP GIAO DIỆN TRANG CHỦ ---
+        self.notebook.add(self.optimizer_tab, text="🚀 Tối Ưu")
+        self.notebook.add(self.tab_log_frame, text="📝 Logs")
+        
+        # Setup Home Tab Content (This was missing!)
         self._setup_home_tab()
+    
+    def _setup_menu(self):
+        menubar = tk.Menu(self.root)
+        self.root.config(menu=menubar)
 
-        # --- LIST BUTTONS CHO TASK MANAGER ---
-        # (Để khóa nút khi đang chạy tác vụ nặng)
-        # NOTE: Removed btn_bridge_manager and btn_auto_find (now in dedicated tabs)
-        self.all_buttons = [
-            self.btn_load_file, self.btn_load_append, self.btn_quick_update,
-            self.btn_open_dashboard,
-            self.btn_train_ai, self.btn_vote_stats,
-            self.btn_settings, self.btn_tuner, self.btn_refresh_cache,
-        ]
-        
-        # Thêm nút từ optimizer nếu khởi tạo thành công
-        if hasattr(self.optimizer_tab, 'run_button'):
-            self.all_buttons.append(self.optimizer_tab.run_button)
-        if hasattr(self.optimizer_tab, 'apply_button'):
-            self.all_buttons.append(self.optimizer_tab.apply_button)
-
-        # --- KHỞI TẠO SERVICES ---
-        self.task_manager = TaskManager(self.logger, self.all_buttons, self.root)
-        
-        if hasattr(self.optimizer_tab, 'apply_button'):
-            self.task_manager.optimizer_apply_button = self.optimizer_tab.apply_button
-        
-        self.controller = AppController(self)
-        self.controller.logger = self.logger
-        
-        # Link controller vào tab Đề (để tab Đề gọi ngược lại controller)
-        if hasattr(self.de_dashboard_tab, 'controller'):
-            self.de_dashboard_tab.controller = self.controller
-        
-        self.logger.log("✅ Giao diện (V7.9) đã khởi tạo xong & Logger đã sẵn sàng.")
+        # File
+        file_menu = tk.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="Hệ Thống", menu=file_menu)
+        file_menu.add_command(label="Mở File Dữ Liệu", command=self.browse_file)
+        file_menu.add_separator()
+        file_menu.add_command(label="Cài Đặt", command=self.show_settings_window)
+        file_menu.add_command(label="Thoát", command=self.root.quit)
 
     def _setup_home_tab(self):
         """Dựng giao diện Trang Chủ: Gọn gàng, tập trung."""
         self.tab1_frame.columnconfigure(0, weight=1)
         
         # === KHU VỰC 1: NHẬP LIỆU (COMPACT) ===
-        input_frame = ttk.LabelFrame(self.tab1_frame, text="1. Dữ Liệu Đầu Vào", padding="5")
-        input_frame.grid(row=0, column=0, sticky="ew", pady=(0, 15))
+        input_frame = ttk.LabelFrame(self.tab1_frame, text="1. Dữ Liệu Đầu Vào", padding=str(LayoutConfig.PAD_S))
+        input_frame.grid(row=0, column=0, sticky="ew", pady=(0, LayoutConfig.PAD_M))
         input_frame.columnconfigure(1, weight=1)
 
-        # Hàng 1: Chọn File (Ít dùng -> Nhỏ lại)
-        ttk.Label(input_frame, text="File:", style="Compact.TLabel").grid(row=0, column=0, sticky="w", padx=5)
+        # Hàng 1: Chọn File
+        ttk.Label(input_frame, text="File:", style="Compact.TLabel").grid(row=0, column=0, sticky="w", padx=LayoutConfig.PAD_S)
         self.file_path_entry = ttk.Entry(input_frame)
-        self.file_path_entry.grid(row=0, column=1, sticky="ew", padx=5)
-        ttk.Button(input_frame, text="...", width=4, command=self.browse_file).grid(row=0, column=2, padx=2)
-        self.btn_load_file = ttk.Button(input_frame, text="Nạp Mới (Xóa)", command=self.run_parsing)
-        self.btn_load_file.grid(row=0, column=3, padx=2)
+        self.file_path_entry.grid(row=0, column=1, sticky="ew", padx=LayoutConfig.PAD_S)
+        ttk.Button(input_frame, text="...", width=4, command=self.browse_file).grid(row=0, column=2, padx=LayoutConfig.PAD_XS)
+        self.btn_load_file = ttk.Button(input_frame, text="Nạp Mới", command=self.run_parsing)
+        self.btn_load_file.grid(row=0, column=3, padx=LayoutConfig.PAD_XS)
         self.btn_load_append = ttk.Button(input_frame, text="Nạp Thêm", command=self.run_parsing_append)
-        self.btn_load_append.grid(row=0, column=4, padx=2)
+        self.btn_load_append.grid(row=0, column=4, padx=LayoutConfig.PAD_XS)
 
-        # Hàng 2: Nhập Text (Dùng nhiều -> Text box vừa phải)
-        ttk.Label(input_frame, text="Paste KQ:", style="Compact.TLabel").grid(row=1, column=0, sticky="nw", padx=5, pady=5)
+        # Hàng 2: Nhập Text
+        ttk.Label(input_frame, text="Paste KQ:", style="Compact.TLabel").grid(row=1, column=0, sticky="nw", padx=LayoutConfig.PAD_S, pady=LayoutConfig.PAD_S)
         
-        # [QUAN TRỌNG] Giảm height xuống 4 để tiết kiệm diện tích
-        self.update_text_area = tk.Text(input_frame, height=4, width=60, font=("Consolas", 10))
-        self.update_text_area.grid(row=1, column=1, columnspan=2, sticky="ew", pady=5, padx=5)
+        self.update_text_area = tk.Text(input_frame, height=4, width=60, font=AppFont.MONO)
+        self.update_text_area.grid(row=1, column=1, columnspan=2, sticky="ew", pady=LayoutConfig.PAD_S, padx=LayoutConfig.PAD_S)
         
         # Nút Cập Nhật Nổi Bật
         self.btn_quick_update = ttk.Button(input_frame, text="⚡ CẬP NHẬT NGAY", style="Accent.TButton", command=self.run_update_from_text)
-        self.btn_quick_update.grid(row=1, column=3, sticky="ew", pady=5, padx=5)
+        self.btn_quick_update.grid(row=1, column=3, sticky="ew", pady=LayoutConfig.PAD_S, padx=LayoutConfig.PAD_S)
 
-        # [V10.0 NEW] Checkbox chọn chế độ phân tích
+        # Checkbox chọn chế độ phân tích
         mode_frame = ttk.Frame(input_frame)
-        mode_frame.grid(row=2, column=0, columnspan=5, sticky="w", padx=5, pady=5)
+        mode_frame.grid(row=2, column=0, columnspan=5, sticky="w", padx=LayoutConfig.PAD_S, pady=LayoutConfig.PAD_S)
         
         self.var_lo_mode = tk.BooleanVar(value=True)
         self.var_de_mode = tk.BooleanVar(value=True)
         
-        ttk.Label(mode_frame, text="Chế độ chạy:", font=("Arial", 9, "bold")).pack(side=tk.LEFT, padx=(0, 10))
+        ttk.Label(mode_frame, text="Chế độ chạy:", font=AppFont.BODY_BOLD).pack(side=tk.LEFT, padx=(0, 10))
         ttk.Checkbutton(mode_frame, text="Phân tích LÔ", variable=self.var_lo_mode).pack(side=tk.LEFT, padx=10)
         ttk.Checkbutton(mode_frame, text="Phân tích ĐỀ", variable=self.var_de_mode).pack(side=tk.LEFT, padx=10)
 
         # === KHU VỰC 2: HERO ACTION (TRUNG TÂM) ===
-        # Đây là nơi người dùng thao tác 90% thời gian
         hero_frame = ttk.Frame(self.tab1_frame)
-        hero_frame.grid(row=1, column=0, sticky="nsew", pady=10)
-        hero_frame.columnconfigure(0, weight=2) # Dashboard to hơn
+        hero_frame.grid(row=1, column=0, sticky="nsew", pady=LayoutConfig.PAD_M)
+        hero_frame.columnconfigure(0, weight=2)
         hero_frame.columnconfigure(1, weight=1)
 
-        # Nút TO NHẤT: Bảng Quyết Định (Đã đổi tên cho phù hợp ngữ cảnh)
         self.btn_open_dashboard = ttk.Button(
             hero_frame, 
             text="🚀 CHẠY PHÂN TÍCH\n(Theo chế độ đã chọn)", 
             style="Hero.TButton",
             command=self.run_decision_dashboard
         )
-        self.btn_open_dashboard.grid(row=0, column=0, columnspan=2, sticky="nsew", ipady=25)
-        
-        # NOTE: Removed "Quản Lý Cầu" button - Now it's a dedicated tab "🛠️ Quản Lý Cầu"
+        self.btn_open_dashboard.grid(row=0, column=0, columnspan=2, sticky="nsew", ipady=20)
 
-
-        # === KHU VỰC 3: HỆ THỐNG & AI (ADVANCED) ===
-        # Gom nhóm các chức năng ít dùng xuống dưới
-        sys_frame = ttk.LabelFrame(self.tab1_frame, text="3. Hệ Thống & Trí Tuệ Nhân Tạo", padding="10")
-        sys_frame.grid(row=2, column=0, sticky="ew", pady=15)
+        # === KHU VỰC 3: HỆ THỐNG & AI ===
+        sys_frame = ttk.LabelFrame(self.tab1_frame, text="3. Toolset", padding=str(LayoutConfig.PAD_M))
+        sys_frame.grid(row=2, column=0, sticky="ew", pady=LayoutConfig.PAD_L)
         for i in range(4): sys_frame.columnconfigure(i, weight=1)
 
         # Dòng 1
         self.btn_train_ai = ttk.Button(sys_frame, text="🧠 Huấn Luyện AI", command=self.run_train_ai)
         self.btn_train_ai.grid(row=0, column=0, sticky="ew", padx=5, pady=2)
-
-        # NOTE: Removed "Dò Tìm Cầu Mới" button - Now it's a dedicated tab "🔍 Dò Tìm Cầu Mới"
 
         self.btn_vote_stats = ttk.Button(sys_frame, text="📈 Thống Kê Vote", command=self.show_vote_statistics_window)
         self.btn_vote_stats.grid(row=0, column=2, sticky="ew", padx=5, pady=2)

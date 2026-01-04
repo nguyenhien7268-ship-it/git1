@@ -10,7 +10,23 @@
 
 ---
 
-## 🚀 CẬP NHẬT MỚI (V11.2 - K1N-PRIMARY SCANNER REFACTOR)
+---
+
+## 🚀 CẬP NHẬT MỚI (V11.3 - SCORING REFACTOR & CLEANUP)
+
+Refactor toàn diện hệ thống tính điểm và dọn dẹp codebase:
+
+* **🎯 Scoring Engine 2.0:**
+    * Chuyển đổi từ functional sang OOP: `LoScorer` (Lô) và `DeScorer` (Đề).
+    * Tích hợp logic Vote, Phong độ, Lô Gan, AI vào một class duy nhất `LoScorer`.
+    * Loại bỏ code legacy trong `dashboard_scorer.py`, giúp dễ bảo trì và mở rộng.
+* **🧹 Project Cleanup:**
+    * Di chuyển các file `.bak` và script cũ vào `archive/`.
+    * Chuẩn hóa cấu trúc thư mục.
+
+---
+
+## 🔙 CẬP NHẬT TRƯỚC (V11.2 - K1N-PRIMARY SCANNER REFACTOR)
 
 Phiên bản V11.2 tập trung vào tái cấu trúc **Scanner Module** để hỗ trợ quy trình K1N-Primary Detection Flow:
 
