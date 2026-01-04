@@ -14,7 +14,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QColor, QFont
 
-from ui.pyqt_workers import DeAnalysisWorker
+from ui.pyqt_workers import DeAnalysisWorker, UpdateStreaksWorker
 from logic.config_manager import SETTINGS as CONFIG_SETTINGS # Rename to avoid conflict if needed, or just use it
 
 class DeDashboardTab(QWidget):
@@ -50,6 +50,22 @@ class DeDashboardTab(QWidget):
             QPushButton:hover { background-color: #005a9e; }
         """)
         toolbar.addWidget(self.scan_btn)
+
+        # Update Stats Button
+        self.update_stats_btn = QPushButton("🔄 Cập Nhật Chỉ Số")
+        self.update_stats_btn.clicked.connect(self.run_update_streaks)
+        self.update_stats_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #f57c00;
+                color: white;
+                font-weight: bold;
+                padding: 5px 15px;
+                border-radius: 4px;
+            }
+            QPushButton:hover { background-color: #ef6c00; }
+        """)
+        toolbar.addWidget(self.update_stats_btn)
+
         
         self.status_label = QLabel("Sẵn sàng")
         self.status_label.setStyleSheet("color: blue; font-weight: bold;")
@@ -598,6 +614,47 @@ class DeDashboardTab(QWidget):
         self.worker.finished.connect(self._on_finished)
         self.worker.start()
         
+    def run_update_streaks(self):
+        """Run worker to update streaks for all bridges"""
+        reply = QMessageBox.question(
+            self, 
+            "Xác nhận", 
+            "Bạn có muốn cập nhật lại chỉ số (Streak & Dự đoán) cho tất cả cầu?\n"
+            "Quá trình này có thể mất vài phút.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        if self.worker and self.worker.isRunning():
+            QMessageBox.warning(self, "Đang Bận", "Có tiến trình khác đang chạy.")
+            return
+
+        self.status_label.setText("Đang cập nhật chỉ số...")
+        self.status_label.setStyleSheet("color: orange; font-weight: bold;")
+        self.scan_btn.setEnabled(False)
+        self.update_stats_btn.setEnabled(False)
+
+        self.worker = UpdateStreaksWorker()
+        self.worker.progress.connect(lambda s: self.status_label.setText(s))
+        self.worker.finished.connect(self._on_update_streaks_finished)
+        self.worker.start()
+
+    def _on_update_streaks_finished(self, success, message):
+        self.scan_btn.setEnabled(True)
+        self.update_stats_btn.setEnabled(True)
+        
+        if success:
+            self.status_label.setText("Cập nhật hoàn tất.")
+            self.status_label.setStyleSheet("color: green; font-weight: bold;")
+            QMessageBox.information(self, "Thành công", message)
+            # Auto refresh analysis if data exists
+            self.run_analysis()
+        else:
+            self.status_label.setText("Lỗi cập nhật!")
+            self.status_label.setStyleSheet("color: red; font-weight: bold;")
+            QMessageBox.critical(self, "Lỗi", message)
+
     def _on_error(self, msg):
         self.status_label.setText("Lỗi!")
         self.status_label.setStyleSheet("color: red; font-weight: bold;")

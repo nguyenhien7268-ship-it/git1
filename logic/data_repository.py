@@ -11,6 +11,9 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(current_dir)
 data_dir = os.path.join(project_root, "data")
 DB_NAME = os.path.join(data_dir, "xo_so_prizes_all_logic.db")
+
+from logic.bridge_executor import BridgeExecutor
+
 # ----------------------------------------
 
 # Import các hàm xử lý cầu V17
@@ -107,83 +110,25 @@ def get_managed_bridges_with_prediction(db_name=DB_NAME, current_data=None, only
     positions = getAllPositions_V17_Shadow(last_row) # 214 vị trí (V17)
     lotos_27 = get_27_loto_positions(last_row)       # 27 giải loto (Memory)
     
+    # Init Executor
+    executor = BridgeExecutor()
+
     for bridge in bridges:
         try:
-            # Nếu DB đã lưu sẵn next_prediction_stl thì có thể dùng luôn, 
-            # nhưng để đảm bảo tính real-time (khi nạp dữ liệu mới), ta nên tính lại.
-            
             b_name = bridge.get("name", "")
             
-            # === [CASE 1] CẦU BẠC NHỚ LÔ (LO_MEM) ===
-            # Format: LO_MEM_DIFF_Lô G3.5_Lô G6.3
-            if b_name.startswith("LO_MEM_"):
-                parts = b_name.split("_")
-                # parts VD: ['LO', 'MEM', 'DIFF', 'Lô G3.5', 'Lô G6.3']
-                if len(parts) >= 5:
-                    algo_type = parts[2].lower() # 'diff' hoặc 'sum'
-                    pos1_name = parts[3]
-                    pos2_name = parts[4]
-                    
-                    # Map tên vị trí (Lô G3.5) sang index (0-26)
-                    idx1 = _map_loto_name_to_index(pos1_name)
-                    idx2 = _map_loto_name_to_index(pos2_name)
-                    
-                    if idx1 is not None and idx2 is not None:
-                        # Đảm bảo index nằm trong 27 giải
-                        if idx1 < len(lotos_27) and idx2 < len(lotos_27):
-                            val1 = lotos_27[idx1]
-                            val2 = lotos_27[idx2]
-                            
-                            # Tính STL dựa trên thuật toán bạc nhớ
-                            stl = calculate_bridge_stl(val1, val2, algo_type)
-                            if stl and isinstance(stl, list) and len(stl) > 0:
-                                bridge["next_prediction_stl"] = ",".join(stl)
-                                continue
-
-            # === [CASE 2] CẦU ĐỀ DYNAMIC (DE_DYN) ===
-            # Format: DE_DYN_G1_G2_K3
-            elif b_name.startswith("DE_DYN_"):
-                parts = b_name.split("_")
-                if len(parts) >= 5:
-                    n1, n2, k_str = parts[2], parts[3], parts[4]
-                    k_val = int(k_str.replace("K", ""))
-                    
-                    # Lấy số cuối từ tên giải (G1, G2...)
-                    d1 = _extract_digit_from_col(last_row, n1)
-                    d2 = _extract_digit_from_col(last_row, n2)
-                    
-                    if d1 is not None and d2 is not None:
-                        base_sum = (d1 + d2) % 10
-                        # Hàm này từ logic.de_utils
-                        touches = get_touches_by_offset(base_sum, k_val)
-                        bridge["next_prediction_stl"] = ",".join(map(str, touches))
-                        continue
-
-            # === [CASE 3] CẦU VỊ TRÍ CỔ ĐIỂN (G1[0]_G2[1]) ===
-            # Format có chứa "[...]"
-            elif "[" in b_name and "]" in b_name:
-                matches = re.findall(r"(?:Bong\()?(?:G\d+|GDB)\.?\d*\[\d+\]\)?", b_name)
-                if len(matches) >= 2:
-                    idx1 = get_index_from_name_V16(matches[0])
-                    idx2 = get_index_from_name_V16(matches[1])
-                    
-                    if idx1 is not None and idx2 is not None:
-                        if idx1 < len(positions) and idx2 < len(positions):
-                            v1, v2 = positions[idx1], positions[idx2]
-                            if v1 is not None and v2 is not None:
-                                if "DE_POS" in b_name:
-                                    # Cầu tổng đề
-                                    res = (int(v1) + int(v2)) % 10
-                                    bridge["next_prediction_stl"] = str(res)
-                                else:
-                                    # Cầu ghép lô
-                                    stl = taoSTL_V30_Bong(int(v1), int(v2))
-                                    bridge["next_prediction_stl"] = ",".join(stl)
+            # Use centralized executor for all bridge types
+            # execute() returns prediction string or None
+            prediction = executor.execute(b_name, current_data)
+            
+            if prediction:
+                bridge["next_prediction_stl"] = prediction
 
         except Exception as e:
-            # Nếu lỗi tính toán, giữ nguyên giá trị cũ
-            # print(f"Calc error: {e}")
+            # Nếu lỗi tính toán, giữ nguyên giá trị cũ (hoặc để trống)
             pass
+            
+    return bridges
             
     return bridges
 
@@ -224,30 +169,7 @@ def _map_loto_name_to_index(name):
         return None
     return None
 
-def _extract_digit_from_col(row, col_name):
-    """
-    Helper: Lấy số cuối từ tên cột trong DB (VD: G1 -> row[3]).
-    Dùng cho Cầu Đề Dynamic.
-    """
-    # Mapping tên cột sang index trong all_data_ai (10 cột)
-    # 0:Ky, 1:Date, 2:GDB, 3:G1, 4:G2...
-    col_map = {
-        "GDB": 2, "G1": 3, 
-        "G2": 4, "G2.1": 4, "G2.2": 4,
-        "G3": 5, "G4": 6, "G5": 7, "G6": 8, "G7": 9
-    }
-    
-    base_name = col_name.split(".")[0]
-    idx = col_map.get(base_name)
-    
-    if idx is None or idx >= len(row): return None
-    
-    val_str = str(row[idx])
-    # Lấy số cuối cùng trong chuỗi giải
-    digits = ''.join(filter(str.isdigit, val_str))
-    if not digits: return None
-    
-    return int(digits[-1])
+
 
 def get_latest_ky_date(conn):
     """

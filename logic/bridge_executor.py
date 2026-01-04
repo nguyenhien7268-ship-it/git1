@@ -45,21 +45,71 @@ def _map_loto_name_to_index(name):
         return None
     return None
 
-def _extract_digit_from_col(row, col_name):
-    """Extracts last digit from DB column name (e.g. G1 -> row[3])"""
-    col_map = {
-        "GDB": 2, "G1": 3, 
-        "G2": 4, "G2.1": 4, "G2.2": 4,
-        "G3": 5, "G4": 6, "G5": 7, "G6": 8, "G7": 9
-    }
-    base_name = col_name.split(".")[0]
-    idx = col_map.get(base_name)
-    if idx is None or idx >= len(row): return None
-    
-    val_str = str(row[idx])
-    digits = ''.join(filter(str.isdigit, val_str))
-    if not digits: return None
-    return int(digits[-1])
+def _extract_digit_from_col(row, col_name_full):
+    """
+    Extracts specific digit from DB column.
+    Supports simple format: "G1", "GDB" (Takes last digit)
+    Supports detailed format: "G5.1.0" (G5, 1st prize (0-based idx), 0th char)
+    """
+    try:
+        parts = col_name_full.split(".")
+        base_name = parts[0]
+        
+        # 1. Map base name to column index
+        col_map = {
+            "GDB": 2, "G1": 3, 
+            "G2": 4, "G2.1": 4, "G2.2": 4,
+            "G3": 5, "G4": 6, "G5": 7, "G6": 8, "G7": 9
+        }
+        idx = col_map.get(base_name)
+        if idx is None or idx >= len(row): return None
+        
+        val_str = str(row[idx])
+        
+        # 2. Get prizes list (Split by comma if multi-prize)
+        prizes = [p.strip() for p in val_str.split(',') if p.strip()]
+        if not prizes: return None
+        
+        target_prize = ""
+        
+        # 3. Determine which prize and which character
+        if len(parts) >= 3:
+            # Format: Name.PrizeIdx.CharIdx (e.g. G5.1.0)
+            # CAUTION: Bridge names often use 1-based indexing for naming (G5.1)
+            # But let's assume standard programming index (0-based) OR 1-based?
+            # Convention check: In `bridges_v16.py`, G3.1 usually means 1st prize.
+            # Let's try to interpret "1" as 0-index if the user interface implies 1st prize.
+            # HOWEVER, looking at `G2.1` mapping above, it's just an alias for G2.
+            # Let's standardize: sub_idx is 1-based in string, so we subtract 1.
+            
+            p_idx = int(parts[1]) - 1 # Prize Index (1-based -> 0-based)
+            c_idx = int(parts[2])     # Character Index (0-based normally)
+            
+            if 0 <= p_idx < len(prizes):
+                target_prize = prizes[p_idx]
+                # Filter digits only just in case
+                target_prize = ''.join(filter(str.isdigit, target_prize))
+                
+                if 0 <= c_idx < len(target_prize):
+                    return int(target_prize[c_idx])
+            return None
+            
+        else:
+            # LEGACY / SIMPLE Format (e.g. "G1", "GDB", or "G5")
+            # Fallback: Join ALL prizes and take the LAST digit (Classic behavior)
+            # But for G5 (multi-prize), simply taking the last digit of the LAST prize is the standard "Simple" behavior?
+            # Or last digit of the joined string?
+            # Previous code: digits = ''.join(filter(str.isdigit, val_str)) -> return digits[-1]
+            # This joins "6253,9091" -> "62539091" -> last is 1. 
+            # If user wanted specific, they should use G5.x.y.
+            
+            full_digits = ''.join(filter(str.isdigit, val_str))
+            if full_digits:
+                return int(full_digits[-1])
+            return None
+            
+    except Exception:
+        return None
 
 # --- Strategy Interface ---
 class BridgeStrategy(ABC):
